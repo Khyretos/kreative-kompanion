@@ -61,6 +61,47 @@ impl Effort {
             Effort::Medium | Effort::High | Effort::Auto => 3,
         }
     }
+
+    /// Pick an effort level from a list of skill efforts or heuristics.
+    /// Returns High if any skill is High, Medium if any is Medium, Low if any is Low (ignoring Auto).
+    /// If no skills are present, uses steps >= 5 or description_len > 2000 for High,
+    /// steps <= 1 and description_len < 400 for Low, otherwise Medium.
+    pub fn auto_pick(skill_efforts: &[Effort], steps: usize, description_len: usize) -> Effort {
+        // Rule (a): check skill levels, ignoring Auto
+        if skill_efforts.iter().any(|e| *e == Effort::High) {
+            return Effort::High;
+        }
+        if skill_efforts.iter().any(|e| *e == Effort::Medium) {
+            return Effort::Medium;
+        }
+        if skill_efforts.iter().any(|e| *e == Effort::Low) {
+            return Effort::Low;
+        }
+
+        // Rule (b): heuristic fallback
+        if steps >= 5 || description_len > 2000 {
+            Effort::High
+        } else if steps <= 1 && description_len < 400 {
+            Effort::Low
+        } else {
+            Effort::Medium
+        }
+    }
+
+    /// Resolve the effort a role should use for a task.
+    /// Uses the task level if not Auto; otherwise uses the role's default (parsed) if Low/Medium/High,
+    /// or falls back to `picked` if the role default is Auto or invalid.
+    pub fn for_role(task: Effort, role_default: &str, picked: Effort) -> Effort {
+        if task != Effort::Auto {
+            return task;
+        }
+        if let Some(default) = Effort::parse(role_default) {
+            if matches!(default, Effort::Low | Effort::Medium | Effort::High) {
+                return default;
+            }
+        }
+        picked
+    }
 }
 
 /// The provider and model for one call at this effort: the level's extra_body merged over the
@@ -109,6 +150,41 @@ mod tests {
         assert_eq!(Effort::tool_rounds(Effort::Medium), 6);
         assert_eq!(Effort::tool_rounds(Effort::High), 10);
         assert_eq!(Effort::tool_rounds(Effort::Auto), 6);
+    }
+
+    #[test]
+    fn auto_pick_rules() {
+        // Rule (a): skill levels take precedence
+        assert_eq!(Effort::auto_pick(&[Effort::High], 0, 0), Effort::High);
+        assert_eq!(Effort::auto_pick(&[Effort::Medium], 0, 0), Effort::Medium);
+        assert_eq!(Effort::auto_pick(&[Effort::Low], 0, 0), Effort::Low);
+        assert_eq!(Effort::auto_pick(&[Effort::Auto], 3, 100), Effort::Medium); // Auto ignored in skills
+        assert_eq!(Effort::auto_pick(&[Effort::Auto, Effort::High], 0, 0), Effort::High);
+
+        // Rule (b): heuristic fallback when no skills
+        assert_eq!(Effort::auto_pick(&[], 5, 0), Effort::High); // steps >= 5
+        assert_eq!(Effort::auto_pick(&[], 0, 2001), Effort::High); // description_len > 2000
+        assert_eq!(Effort::auto_pick(&[], 0, 399), Effort::Low); // steps <= 1 && description_len < 400
+        assert_eq!(Effort::auto_pick(&[], 1, 400), Effort::Medium); // otherwise
+        assert_eq!(Effort::auto_pick(&[], 2, 300), Effort::Medium); // otherwise
+        assert_eq!(Effort::auto_pick(&[Effort::Auto], 0, 0), Effort::Low); // no skill level, one small step
+        assert_eq!(Effort::auto_pick(&[Effort::Low], 0, 0), Effort::Low);
+    }
+
+    #[test]
+    fn for_role_order() {
+        // Task level overrides everything if not Auto
+        assert_eq!(Effort::for_role(Effort::High, "low", Effort::Low), Effort::High);
+        assert_eq!(Effort::for_role(Effort::Medium, "high", Effort::High), Effort::Medium);
+
+        // If task is Auto, use role default if valid (Low/Medium/High)
+        assert_eq!(Effort::for_role(Effort::Auto, "low", Effort::High), Effort::Low);
+        assert_eq!(Effort::for_role(Effort::Auto, "medium", Effort::High), Effort::Medium);
+        assert_eq!(Effort::for_role(Effort::Auto, "high", Effort::High), Effort::High);
+
+        // If role default is Auto or invalid, fall back to picked
+        assert_eq!(Effort::for_role(Effort::Auto, "auto", Effort::High), Effort::High);
+        assert_eq!(Effort::for_role(Effort::Auto, "invalid", Effort::Low), Effort::Low);
     }
 
     #[test]

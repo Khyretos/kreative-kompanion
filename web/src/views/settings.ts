@@ -2,7 +2,8 @@
 // swapping a model here keeps everything Kompanion has learned.
 import { html, type SafeHtml } from "../core/html";
 import type { AppState } from "../state";
-import type { AdminSettings, Role } from "../api/types";
+import type { AdminSettings, Effort, Role } from "../api/types";
+import { EFFORT_LABELS } from "./tasks";
 import { icon } from "./icons";
 import { renderAdmin } from "./admin";
 import { DEFAULT_STYLE, KINDS, styleOf } from "../core/cardtypes";
@@ -100,16 +101,20 @@ export function renderSettings(s: AppState): SafeHtml {
       </section>` : ""}
       <section>
         <h3 class="label">Roles</h3>
-        <p class="muted">Any model can fill any role. Skills and lessons belong to the role, so switching a model keeps them.</p>
+        <p class="muted">Any model can fill any role. Skills and lessons belong to the role, so switching a model keeps them. The effort is the role's default when a task is at Auto; Auto lets Kompanion pick per task.</p>
         <div class="roles">${(Object.keys(roleInfo) as Role[]).map((role) => {
           const current = s.roles.find((r) => r.role === role);
           const value = current ? `${current.providerId}::${current.modelId}` : "";
+          const effortValue = current?.effort ?? "auto";
           return html`
             <div class="role">
               <label for="role-${role}"><strong>${roleInfo[role].name}</strong><small>${roleInfo[role].text}</small></label>
               <select id="role-${role}" data-role="${role}">
                 ${value ? "" : html`<option value="" selected disabled>Not set</option>`}
                 ${options.map((o) => html`<option value="${o.value}" ${o.value === value ? "selected" : ""}>${o.m.id} · ${o.p.name}</option>`)}
+              </select>
+              <select id="role-effort-${role}" data-role-effort="${role}" aria-label="${roleInfo[role].name}: default effort">
+                ${(Object.keys(EFFORT_LABELS) as Effort[]).map((e) => html`<option value="${e}" ${e === effortValue ? "selected" : ""}>${EFFORT_LABELS[e]}</option>`)}
               </select>
             </div>`;
         })}</div>

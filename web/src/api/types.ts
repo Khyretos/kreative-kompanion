@@ -26,6 +26,8 @@ export interface RoleAssignment {
   role: Role;
   providerId: string;
   modelId: string;
+  /** EF-01: the role's default effort when a task is at Auto ("auto" lets Auto pick). */
+  effort?: Effort;
 }
 
 export interface Project {

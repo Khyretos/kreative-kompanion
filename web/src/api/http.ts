@@ -127,7 +127,7 @@ export class HttpApi implements KompanionApi {
   listActions(chatId: string) { return this.request<import("./client").PcAction[]>("GET", `/chats/${encodeURIComponent(chatId)}/actions`); }
   listLessons(chatId: string) { return this.request<import("./client").Lesson[]>("GET", `/chats/${encodeURIComponent(chatId)}/lessons`); }
   stopAction(id: string) { return this.request<void>("POST", `/actions/${encodeURIComponent(id)}/stop`); }
-  taskRuns(taskId: string) { return this.request<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null }[]>("GET", `/tasks/${encodeURIComponent(taskId)}/runs`); }
+  taskRuns(taskId: string) { return this.request<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null; effortPicked?: boolean }[]>("GET", `/tasks/${encodeURIComponent(taskId)}/runs`); }
   taskCosts(taskId: string) { return this.request<import("./types").CostLine | null>("GET", `/tasks/${encodeURIComponent(taskId)}/costs`); }
   weeklyCosts() { return this.request<import("./types").WeeklyCosts>("GET", "/costs/weekly"); }
   stopTask(id: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(id)}/stop`); }

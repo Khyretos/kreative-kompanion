@@ -446,7 +446,7 @@ li.task.dragging { opacity: 0.5; }
 .sheet-head h2 { font-size: 1.2rem; }
 .sheet section { display: grid; gap: 0.75rem; }
 .roles { display: grid; gap: 0.75rem; }
-.role { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 15rem); gap: 0.75rem; align-items: center; }
+.role { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 15rem) minmax(0, 8rem); gap: 0.75rem; align-items: center; }
 .role label { display: grid; }
 .role small { color: var(--muted); }
 .providers { display: grid; gap: 0.75rem; }

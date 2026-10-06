@@ -14,3 +14,6 @@ extends: worker/web/playwright
     changes by itself, read the state and click in one page.evaluate, then assert the opposite.
 41. (2026-10-05) The demo needs `/?demo` plus a click on `button.found-server`; the dev server
     takes `PORT=<n>` (default 5173, often taken by another session).
+61. (2026-10-06) Run the Playwright container without `--network host`: its own network keeps the
+    webServer's port 5173 free even when a leftover dev server on the host holds it ("address
+    already in use"), and the fix rounds don't start editing a test that never ran.

@@ -35,6 +35,7 @@ These files grow with every review, so models get only what a job needs, and eve
   roles: [worker, reviewer]
   tags: [theme, css, contrast]
   paths: ["**/*.css"]        # files that make this card relevant (optional)
+  effort: high              # optional: the level Auto picks for a task that uses this card (low, medium, high)
   models: [qwen3]            # only for _model-notes; leave out for general cards
   ---
   ```

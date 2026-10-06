@@ -18,6 +18,8 @@
 6. The call log records the effort of every model call.
 7. Open WebUI pipe: rename the levels fast, balanced, deep to Low, Medium, High (same meaning as now), so both apps use the same words.
 
+**Status (2026-10-06):** all steps done (parts 1-4). Auto: a role's default effort applies when the task is at Auto; otherwise the highest `effort:` of the step cards wins, else the plan size (5+ steps or a 2000+ character task: High; one step and under 400 characters: Low; else Medium). The run thread says "Effort: Auto picked High."; the runs list shows "High (Auto picked)".
+
 **Done when:** choosing High in a chat makes the next Coder call send `enable_thinking: true` (visible in the call log) and the task card shows "High"; Auto shows the level it picked; the chip updates without a reload.
 
 **How to test:** Playwright test in demo mode for the chip, the menu and the per-chat memory; one real chat at Low and High, compare the call log.

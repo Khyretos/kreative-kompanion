@@ -109,7 +109,7 @@ export interface KompanionApi {
   /** Stops a running W2 task (and its running step). */
   stopTask(id: string): Promise<void>;
   /** A task's W2 runs, newest first (their ids open the report: /api/runs/<id>/report). */
-  taskRuns(taskId: string): Promise<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null }[]>;
+  taskRuns(taskId: string): Promise<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null; effortPicked?: boolean }[]>;
   /** Get cost lines for a task. */
   taskCosts(taskId: string): Promise<import("./types").CostLine | null>;
   /** Get weekly costs summary. */
