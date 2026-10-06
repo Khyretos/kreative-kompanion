@@ -55,6 +55,11 @@ pub fn comfy_target(gpus: &[GpuConfig], gpu: &str) -> Option<(String, String)> {
 }
 
 async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
+    Ok(Json(workflows_json(&s).await?))
+}
+
+/// Every workflow with its licences, targets and run numbers (the API and the Capabilities page).
+pub async fn workflows_json(s: &AppState) -> ApiResult<Vec<Value>> {
     let mut rows: Vec<Value> = Vec::new();
     for (name, result) in workflow::load_all(&s.config.studio.workflows_dir) {
         let wf = match result {
@@ -101,7 +106,7 @@ async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
             "avgSeconds": avg
         }));
     }
-    Ok(Json(rows))
+    Ok(rows)
 }
 
 /// GPU-02: without a GPU, a run is placed by `place`.
