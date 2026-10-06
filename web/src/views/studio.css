@@ -38,3 +38,6 @@
 .studio-audio audio { width: 100%; max-width: 100%; }
 .studio-length { display: inline-flex; gap: 0.35rem; align-items: center; }
 .studio-length input { width: 5rem; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.25rem 0.4rem; }
+/* STU-01c: the rating select on the VN types, styled like the length field. */
+.studio-rating { display: inline-flex; gap: 0.35rem; align-items: center; }
+.studio-rating select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.25rem 0.4rem; }

@@ -224,6 +224,12 @@ async fn queue(
         Some((_, Err(e))) => return Err(ApiError::BadRequest(e)),
         Some((_, Ok(w))) => w,
     };
+    // STU-01c: adult rating guard
+    if let Some(r) = wf.adult_choice(params) {
+        if user_id != "cli" && !crate::admin::is_adult(&s.db, user_id).await? {
+            return Err(ApiError::Forbidden(format!("Your account may not use the {r} rating. An admin can allow adult content for it.")));
+        }
+    }
     let placed = place(s, gpu, &wf.machines, |id| comfy_target(&s.config.gpus, id).is_some()).await.map_err(ApiError::BadRequest)?;
     let gpu = placed.as_str();
     let (machine, url) = comfy_target(&s.config.gpus, gpu)

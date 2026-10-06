@@ -32,6 +32,9 @@ pub struct Make {
     size: String,
     #[serde(default = "one")]
     count: u32,
+    /// STU-01c: general, sensitive, questionable or explicit (types with a rating).
+    #[serde(default)]
+    rating: Option<String>,
 }
 
 /// POST /api/studio/make: generate images based on a workflow.
@@ -77,6 +80,9 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, Json
         params.insert("width".into(), json!(w_px));
         params.insert("height".into(), json!(h_px));
         params.insert("seed".into(), json!(-1));
+        if let Some(r) = &b.rating {
+            params.insert("rating".into(), json!(r));
+        }
         let (id, job) = super::queue(&s, &b.kind, "auto", &params, &u.id).await?;
         tokio::spawn(job);
         ids.push(id);

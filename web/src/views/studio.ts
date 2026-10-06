@@ -1,18 +1,19 @@
 // STU-01/02: the Studio section: pick a type, describe it, make it; your images, videos and sounds.
 import { html, type SafeHtml } from "../core/html";
 
-export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number } }
+export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number }; ratings?: string[]; adultRatings?: string[] }
 export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; files: string[]; startedAt: string; endedAt: string | null }
 export interface StudioForm { type: string; size: string; count: 1 | 4; busy: boolean; error?: string }
 
 const SIZE_LABELS: Record<string, string> = { square: "Square", wide: "Wide", tall: "Tall" };
 
-export function renderStudioMake(types: StudioType[] | undefined, form: StudioForm, prompt: string, lyrics: string, seconds: string): SafeHtml {
+export function renderStudioMake(types: StudioType[] | undefined, form: StudioForm, prompt: string, lyrics: string, seconds: string, rating: string, adult: boolean): SafeHtml {
   if (!types) return html`<p class="muted">Loading the image types…</p>`;
   const chosen = types.find((t) => t.name === form.type) ?? types[0];
   const audio = chosen?.audio;
   const single = !!audio || chosen?.name === "video";
   const sizes = chosen?.sizes ?? [];
+  const ratings = (chosen?.ratings ?? []).filter((r) => adult || !(chosen?.adultRatings ?? []).includes(r));
 
   return html`<section class="studio-make" aria-labelledby="studio-make-h">
     <h2 id="studio-make-h" class="label">Make</h2>
@@ -22,6 +23,7 @@ export function renderStudioMake(types: StudioType[] | undefined, form: StudioFo
       <textarea id="studio-prompt" name="prompt" rows="3" maxlength="${audio ? 1000 : 500}" placeholder="${audio === "music" ? "calm lofi piano loop for a cozy game menu" : audio === "sfx" ? "a wooden door creaking open slowly" : "a cheerful fox adventurer with a green scarf"}">${prompt}</textarea>
       ${audio === "music" ? html`<label for="studio-lyrics">Lyrics (optional)</label><textarea id="studio-lyrics" name="lyrics" rows="3" maxlength="3000" placeholder="Leave empty for an instrumental">${lyrics}</textarea>` : ""}
       <div class="studio-options">
+        ${ratings.length ? html`<label class="studio-rating" for="studio-rating">Rating <select id="studio-rating" name="rating">${ratings.map((r) => html`<option value="${r}" ${r === rating ? "selected" : ""}>${r[0].toUpperCase() + r.slice(1)}</option>`)}</select></label>` : ""}
         ${audio && chosen?.seconds ? html`<label class="studio-length" for="studio-seconds">Length <input id="studio-seconds" name="seconds" type="number" min="${chosen.seconds.min}" max="${chosen.seconds.max}" value="${seconds || String(chosen.seconds.default)}"> s</label>` : ""}
         ${sizes.length ? html`<span class="seg" role="group" aria-label="Size">${sizes.map((z) => html`<button type="button" data-action="studio-size" data-size="${z}" aria-pressed="${String(z === form.size)}">${SIZE_LABELS[z] ?? z}</button>`)}</span>` : ""}
         ${single ? "" : html`<label class="studio-count"><input type="checkbox" name="four" ${form.count === 4 ? "checked" : ""}> Make 4</label>`}
