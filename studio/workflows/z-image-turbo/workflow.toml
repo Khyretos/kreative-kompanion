@@ -14,7 +14,7 @@ ram_mb = 8000
 soucouyant = "graph-q8.json"
 
 [vram]
-soucouyant = 8000
+soucouyant = 7000 # measured 6355 MiB peak, 40 s (2026-10-06)
 
 [[param]]
 name = "prompt"

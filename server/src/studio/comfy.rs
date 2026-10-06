@@ -6,6 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// How long a ComfyUI may take to come up.
+const READY_WAIT: Duration = Duration::from_secs(180);
+
 pub async fn run(
     http: &reqwest::Client,
     base: &str,
@@ -15,6 +18,22 @@ pub async fn run(
     stem: &str,
     timeout: Duration,
 ) -> Result<Vec<PathBuf>> {
+    // A ComfyUI the role switch just started needs a few seconds before it takes requests.
+    let started = Instant::now();
+    while !http
+        .get(format!("{base}/system_stats"))
+        .send()
+        .await
+        .is_ok_and(|r| r.status().is_success())
+    {
+        if started.elapsed() > READY_WAIT {
+            bail!(
+                "ComfyUI at {base} did not answer in {} s",
+                READY_WAIT.as_secs()
+            );
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
     let resp = http
         .post(format!("{base}/prompt"))
         .json(&json!({"prompt": graph, "client_id": stem}))
@@ -126,6 +145,7 @@ mod tests {
     struct Fake {
         mode: &'static str,
         polls: AtomicUsize,
+        stats: AtomicUsize,
         got: Mutex<Option<Value>>,
     }
 
@@ -135,6 +155,15 @@ mod tests {
             return (StatusCode::BAD_REQUEST, "bad node").into_response();
         }
         Json(json!({"prompt_id": "p1"})).into_response()
+    }
+
+    /// Not ready on the first call, like a ComfyUI that is still starting.
+    async fn stats(State(f): State<Arc<Fake>>) -> StatusCode {
+        if f.stats.fetch_add(1, Ordering::SeqCst) == 0 {
+            StatusCode::SERVICE_UNAVAILABLE
+        } else {
+            StatusCode::OK
+        }
     }
 
     async fn history(State(f): State<Arc<Fake>>) -> Json<Value> {
@@ -167,12 +196,14 @@ mod tests {
         let state = Arc::new(Fake {
             mode,
             polls: AtomicUsize::new(0),
+            stats: AtomicUsize::new(0),
             got: Mutex::new(None),
         });
         let app = Router::new()
             .route("/prompt", post(prompt))
             .route("/history/{id}", get(history))
             .route("/view", get(view))
+            .route("/system_stats", get(stats))
             .with_state(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
