@@ -240,7 +240,7 @@ async fn execute(
     used: Map<String, Value>,
     id: String,
 ) {
-    let spec = jobs::Spec {
+    let mut spec = jobs::Spec {
         kind: Kind::Asset,
         what: format!("studio:comfyui:{}", w.name),
         gpus: vec![gpu.clone()],
@@ -248,10 +248,23 @@ async fn execute(
         ram_mib: w.ram_for(&machine),
         tonight: false,
     };
-    // GPU-01: keep the models loaded while jobs keep coming (~9 s per image instead of ~19 s);
-    // free the target ComfyUI's cache only when the ledger says the job doesn't fit next to it.
-    let free = crate::gpus::current(&s).await.into_iter().find(|l| l.id == gpu).map(|l| l.free_mib);
-    if free.is_none_or(|f| f < spec.vram_mib) {
+    // GPU-02: the same workflow again reuses ComfyUI's loaded models (16 s instead of 68 s on
+    // the A770): ask only for what is missing. Another workflow frees the cache when it doesn't fit.
+    let ledger = crate::gpus::current(&s).await.into_iter().find(|l| l.id == gpu);
+    let cached: u64 = ledger.as_ref()
+        .map(|l| l.holdings.iter().filter(|h| h.kind == "app" && !h.busy && h.name.starts_with("ComfyUI")).map(|h| h.now_mib).sum())
+        .unwrap_or(0);
+    let last: Option<String> = sqlx::query_scalar(
+        "SELECT workflow FROM studio_run WHERE gpu = ? AND state = 'done' ORDER BY started_at DESC LIMIT 1",
+    )
+    .bind(&gpu)
+    .fetch_optional(&s.db)
+    .await
+    .ok()
+    .flatten();
+    if cached > 0 && last.as_deref() == Some(w.name.as_str()) {
+        spec.vram_mib = spec.vram_mib.saturating_sub(cached);
+    } else if ledger.as_ref().is_none_or(|l| l.free_mib < spec.vram_mib) {
         comfy::free_if_idle(&s.http, &url).await;
     }
     let result = match jobs::acquire(&s, spec, Duration::from_secs(3600)).await {

@@ -180,8 +180,13 @@ pub async fn round(s: &AppState, ledgers: &[super::ledger::GpuLedger]) {
         .map(|l| sched::Gpu { id: l.id.clone(), machine: l.machine.clone(), schedulable: l.schedulable, free_mib: l.free_mib })
         .collect();
     let ram_free = ram_free_mib(s).await;
-    // A game running on a PC (M6-03 adds the signal): nothing starts there.
-    let busy: HashSet<String> = HashSet::new();
+    // A game running on a PC, or its studio switched off (GPU-01): nothing starts there.
+    let mut busy: HashSet<String> = HashSet::new();
+    for l in ledgers {
+        if !busy.contains(&l.machine) && !super::gaming::studio_allowed(s, &l.machine).await {
+            busy.insert(l.machine.clone());
+        }
+    }
     let hour = time::OffsetDateTime::now_utc().hour();
     let start = sched::decide(&sched::Inputs {
         gpus: &gpus,
