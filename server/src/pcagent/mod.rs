@@ -115,7 +115,9 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
         let role = if author == "user" { "user" } else { "assistant" };
         messages.push(json!({ "role": role, "content": text }));
     }
-    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto: false, max_steps: MAX_STEPS, folder: None, task_id: None, run_id: None, protect: None };
+    let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?").bind(&chat_id).fetch_optional(&s.db).await.ok().flatten();
+    let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default();
+    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto: false, max_steps: MAX_STEPS, effort, folder: None, task_id: None, run_id: None, protect: None };
     let text = match agent.run(messages).await {
         Ok(t) => t,
         Err(e) => e,
@@ -135,6 +137,8 @@ pub struct Agent {
     /// grants); anything else still waits for the user's decision.
     pub auto: bool,
     pub max_steps: usize,
+    /// EF-01: the level every model call of this agent runs at.
+    pub effort: crate::effort::Effort,
     /// W2 tasks: every path and working folder must be inside this folder, so the check
     /// and the diff always see the folder that was worked in (never two mixed folders).
     pub folder: Option<String>,
@@ -188,6 +192,7 @@ impl Agent {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
         let tools = tools::schema();
+        let (p, model_id) = crate::effort::apply(p, &self.role.model_id, self.effort);
         // Paths a read found missing during this answer (see the write_file guardrail).
         let mut missing = std::collections::HashSet::<String>::new();
         if self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
@@ -195,14 +200,14 @@ impl Agent {
         }
         for _ in 0..self.max_steps {
             let started = std::time::Instant::now();
-            let answer = llm::chat_with_tools_full(&s.http, p, &self.role.model_id, &messages, &tools).await;
+            let answer = llm::chat_with_tools_full(&s.http, &p, &model_id, &messages, &tools).await;
             let (msg, usage, err) = match answer {
                 Ok((m, u)) => (m, u, None),
                 Err(e) => (Value::Null, Value::Null, Some(format!("The model failed: {e:#}"))),
             };
             let request = json!({ "messages": messages.len(), "last": messages.last() });
             crate::api::log_call(s, &self.user_id, &self.chat_id, self.run_id.as_deref(), &self.role.role, &self.role,
-                "A step on a computer.", &request, &msg, &usage, started.elapsed().as_millis(), err.as_deref()).await;
+                "A step on a computer.", &request, &msg, &usage, started.elapsed().as_millis(), err.as_deref(), self.effort).await;
             if let Some(e) = err {
                 return Err(e);
             }

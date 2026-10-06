@@ -45,17 +45,18 @@ struct Row {
     model: String,
     source: Option<String>,
     updated_at: String,
+    effort: String,
 }
 
 fn to_json(r: Row) -> Value {
     json!({
         "id": r.id, "projectId": r.project_id, "title": r.title, "description": r.description,
         "state": r.state, "position": r.position, "progress": r.progress, "step": r.step,
-        "role": r.role, "model": r.model, "source": r.source, "updatedAt": r.updated_at, "events": [],
+        "role": r.role, "model": r.model, "source": r.source, "updatedAt": r.updated_at, "effort": r.effort, "events": [],
     })
 }
 
-const COLUMNS: &str = "id, project_id, title, description, state, position, progress, step, role, model, source, updated_at";
+const COLUMNS: &str = "id, project_id, title, description, state, position, progress, step, role, model, source, updated_at, effort";
 
 #[derive(Deserialize)]
 pub struct ListQuery {
@@ -144,6 +145,25 @@ fn check_state(state: &str) -> ApiResult<()> {
     }
 }
 
+/// EF-01: a new task's effort: a valid level given wins, else the effort of the user's own chat
+/// it was made from, else auto.
+pub(crate) async fn new_task_effort(db: &SqlitePool, user_id: &str, effort: Option<&str>, chat_id: Option<&str>) -> String {
+    if let Some(e) = effort.and_then(crate::effort::Effort::parse) {
+        return e.as_str().into();
+    }
+    let chat: Option<String> = match chat_id {
+        Some(c) => sqlx::query_scalar("SELECT effort FROM chats WHERE id = ? AND user_id = ?")
+            .bind(c)
+            .bind(user_id)
+            .fetch_optional(db)
+            .await
+            .ok()
+            .flatten(),
+        None => None,
+    };
+    chat.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default().as_str().into()
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewTask {
@@ -152,6 +172,11 @@ pub struct NewTask {
     description: String,
     #[serde(default)]
     state: Option<String>,
+    /// EF-01: the chat the task was made in (its effort is inherited) and/or an explicit level.
+    #[serde(default)]
+    chat_id: Option<String>,
+    #[serde(default)]
+    effort: Option<String>,
 }
 
 pub async fn create(
@@ -171,10 +196,11 @@ pub async fn create(
     if owns.is_none() {
         return Err(ApiError::NotFound);
     }
+    let effort = new_task_effort(&s.db, &u.id, b.effort.as_deref(), b.chat_id.as_deref()).await;
     let id = util::new_id();
     sqlx::query(
-        "INSERT INTO tasks (id, project_id, title, description, state, position, updated_at, user_id, sync_dirty)
-         VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE project_id = ?), ?, ?,
+        "INSERT INTO tasks (id, project_id, title, description, state, position, updated_at, user_id, effort, sync_dirty)
+         VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE project_id = ?), ?, ?, ?,
                  (SELECT kind = 'windshift' FROM projects WHERE id = ?))",
     )
     .bind(&id)
@@ -185,6 +211,7 @@ pub async fn create(
     .bind(&b.project_id)
     .bind(util::now())
     .bind(&u.id)
+    .bind(&effort)
     .bind(&b.project_id)
     .execute(&s.db)
     .await?;
@@ -197,6 +224,7 @@ pub struct Change {
     title: Option<String>,
     description: Option<String>,
     state: Option<String>,
+    effort: Option<String>,
 }
 
 pub async fn update(
@@ -211,13 +239,18 @@ pub async fn update(
     if let Some(st) = &b.state {
         check_state(st)?;
     }
+    let effort = match b.effort.as_deref() {
+        Some(e) => Some(crate::effort::Effort::parse(e).ok_or_else(|| ApiError::BadRequest(format!("Unknown effort {e}.")))?.as_str()),
+        None => None,
+    };
     sqlx::query(
         "UPDATE tasks SET title = COALESCE(?, title), description = COALESCE(?, description),
-         state = COALESCE(?, state), updated_at = ? WHERE id = ? AND user_id = ?",
+         state = COALESCE(?, state), effort = COALESCE(?, effort), updated_at = ? WHERE id = ? AND user_id = ?",
     )
     .bind(&title)
     .bind(&description)
     .bind(&b.state)
+    .bind(effort)
     .bind(util::now())
     .bind(&id)
     .bind(&u.id)
@@ -229,6 +262,9 @@ pub async fn update(
     }
     if description.as_ref().is_some_and(|d| *d != before.description) {
         changed.insert("description".into(), json!({ "from": before.description }));
+    }
+    if let Some(e) = effort.filter(|e| *e != before.effort) {
+        changed.insert("effort".into(), json!({ "from": before.effort, "to": e }));
     }
     if let Some(st) = b.state.filter(|st| *st != before.state) {
         changed.insert("state".into(), json!({ "from": before.state, "to": st }));
@@ -437,5 +473,26 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn new_task_effort_follows_the_chat() {
+        let db = db().await;
+        for (id, p, u, e) in [("c1", "p1", "u1", "low"), ("c2", "p2", "u2", "high")] {
+            sqlx::query("INSERT INTO chats (id, project_id, title, updated_at, user_id, effort) VALUES (?, ?, 'c', '2026', ?, ?)")
+                .bind(id)
+                .bind(p)
+                .bind(u)
+                .bind(e)
+                .execute(&db)
+                .await
+                .unwrap();
+        }
+        assert_eq!(new_task_effort(&db, "u1", Some("High"), Some("c1")).await, "high");
+        assert_eq!(new_task_effort(&db, "u1", Some("x"), Some("c1")).await, "low");
+        assert_eq!(new_task_effort(&db, "u1", None, Some("c1")).await, "low");
+        // Another user's chat is never read.
+        assert_eq!(new_task_effort(&db, "u1", None, Some("c2")).await, "auto");
+        assert_eq!(new_task_effort(&db, "u1", None, None).await, "auto");
     }
 }

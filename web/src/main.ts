@@ -1091,7 +1091,7 @@ function wire(shell: HTMLElement): void {
       const known = rc?.taskId === id && rc.machine === machine && rc.path === (folder.replace(/\/+$/, "") || "/") ? rc.result : undefined;
       void busyWhile(runForm, (ok(known) ? Promise.resolve(known) : folderCheck(id, machine, folder)).then((r) => {
         if (!ok(r)) throw new Error(r?.message ?? "That folder could not be checked.");
-        return api.startTask(id, machine, folder, String(f.get("check") ?? "").trim(), f.get("tests_may_change") === "on");
+        return api.startTask(id, machine, folder, String(f.get("check") ?? "").trim(), f.get("tests_may_change") === "on", (String(f.get("effort") ?? "") || undefined) as Effort | undefined);
       })
         .then(async () => {
           // Open the task's own chat, where the plan, the steps and the review show.
@@ -1293,7 +1293,7 @@ async function submitTask(form: HTMLFormElement): Promise<void> {
       const t = await api.updateTask(form.dataset.id, { title, description, state });
       store.set({ tasks: store.get().tasks.map((x) => (x.id === t.id ? { ...x, ...t } : x)), editingTaskId: undefined, openTaskId: t.id });
     } else {
-      const t = await api.createTask({ projectId: form.dataset.project ?? "", title, description, state });
+      const t = await api.createTask({ projectId: form.dataset.project ?? "", title, description, state, chatId: store.get().activeChatId });
       store.set({ tasks: [...store.get().tasks, t], editingTaskId: undefined, openTaskId: t.id });
     }
   } catch (e) {

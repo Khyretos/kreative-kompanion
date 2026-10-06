@@ -2,16 +2,19 @@
 import { html, type SafeHtml } from "../core/html";
 import { clock, relTime } from "../core/time";
 import { activeProject, type AppState } from "../state";
-import type { Task, TaskEvent, TaskState } from "../api/types";
+import type { Effort, Task, TaskEvent, TaskState } from "../api/types";
 import { icon } from "./icons";
-import { renderProjectPanel } from "./projectpanel";
 import { matchTask } from "../core/fuzzy";
+import { renderProjectPanel } from "./projectpanel";
 
 /** Thumbnail URLs for attached assets (set by main.ts from the Assets API). */
 let thumb: (a: { id: number; pv: number }) => string = () => "";
 export function setAssetThumbs(fn: (a: { id: number; pv: number }) => string): void {
   thumb = fn;
 }
+
+/** EF-01: the effort levels, as the composer chip names them. */
+export const EFFORT_LABELS: Record<Effort, string> = { auto: "Auto", low: "Low", medium: "Medium", high: "High" } as const;
 
 const labels: Record<TaskState, string> = {
   queued: "Queued",
@@ -66,7 +69,7 @@ function card(t: Task, showProject: string | undefined): SafeHtml {
             <span style="width:${pct}%"></span>
           </span>` : ""}
         <span class="task-step">${t.scheduledFor && t.state === "queued" ? `Starts ${relTime(t.scheduledFor)}` : t.step}</span>
-        <span class="task-meta">${icon("spark")} ${t.model}${t.runner ? html` · ${icon("pc")} ${t.runner}` : ""}</span>
+        <span class="task-meta">${icon("spark")} ${t.model} · ${EFFORT_LABELS[t.effort ?? "auto"]}${t.runner ? html` · ${icon("pc")} ${t.runner}` : ""}</span>
       </button>
       ${question(t)}
     </li>`;
@@ -191,9 +194,11 @@ function runForm(t: Task, s: AppState): SafeHtml {
             data-path="${`${rc.result!.path === "/" ? "" : rc.result!.path}/${f}`}">${f}/</button></li>`)}
         </ul>` : ""}
       <label>Check <input name="check" placeholder="cargo test (optional)"></label>
+      <label>Effort <select name="effort">${(Object.keys(EFFORT_LABELS) as Effort[]).map((e) => html`<option value="${e}"
+        ${e === (t.effort ?? "auto") ? "selected" : ""}>${EFFORT_LABELS[e]}</option>`)}</select></label>
       <label><input type="checkbox" name="tests_may_change"> This task may change tests</label>
       <p class="muted small">Off: test files and the check's own files are protected; the run can't pass by changing them.</p>
-      <p class="muted small">Kompanion plans, works step by step and reviews the result (up to 3 rounds). Steps your grants allow run by themselves; anything else asks you first. Progress shows in the task's own chat.</p>
+      <p class="muted small">Kompanion plans, works step by step and reviews the result (up to 3 rounds; 1 at Low). Steps your grants allow run by themselves; anything else asks you first. Progress shows in the task's own chat.</p>
       <button class="btn primary small" type="submit">Start</button>
     </form>`;
 }
@@ -208,7 +213,7 @@ function runsList(t: Task, s: AppState): SafeHtml {
       <ul>${runs.slice(0, 5).map((r) => html`
         <li>
           <span class="chip state s-${r.status}">${r.status.replace("_", " ")}</span>
-          <span class="muted small">${relTime(r.startedAt)}${r.step ? ` · ${r.step}` : ""}</span>
+          <span class="muted small">${relTime(r.startedAt)}${r.effort ? ` · ${EFFORT_LABELS[r.effort as Effort] ?? r.effort}` : ""}${r.step ? ` · ${r.step}` : ""}</span>
           <button class="btn small" type="button" data-action="copy-text" data-text="${r.id}">Copy run ID</button>
           <a class="btn small" href="/api/runs/${encodeURIComponent(r.id)}/report?download=1" download>Export report</a>
         </li>`)}

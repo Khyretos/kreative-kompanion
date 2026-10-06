@@ -1,7 +1,7 @@
 //! W2: a task runs by itself on a computer, in a folder: the orchestrator plans,
 //! the worker does each step with the computer's tools (steps under a standing
 //! grant run without asking, others wait for an approval card), the check
-//! command runs, and a reviewer reads the result. Up to 3 fix rounds, then the
+//! command runs, and a reviewer reads the result. Up to 3 fix rounds (1 at Low effort), then the
 //! task needs the user. Everything shows in the task's own chat.
 //! (Claude rewrote the loop after two failed model drafts; parse.rs is the model's.)
 pub mod parse;
@@ -12,8 +12,6 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{AppState, api::{self, RoleAssignment}, auth::User, error::{ApiError, ApiResult}, events::Event, llm, pcagent, util};
-
-const ROUNDS: usize = 3;
 
 /// Tasks the user stopped: the run ends at the next step, and the running step is stopped.
 static STOPPED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> = std::sync::LazyLock::new(Default::default);
@@ -111,6 +109,9 @@ pub struct StartBody {
     pub protected: Vec<String>,
     #[serde(default)]
     pub tests_may_change: bool,
+    /// EF-01: the level to run at; None keeps the task's own.
+    #[serde(default)]
+    pub effort: Option<String>,
 }
 
 struct Run {
@@ -127,6 +128,8 @@ struct Run {
     worker: RoleAssignment,
     reviewer: RoleAssignment,
     run_id: String,
+    /// EF-01: tool rounds per step, fix rounds and the provider mapping follow it.
+    effort: crate::effort::Effort,
     protected: Vec<String>,
     tests_may_change: bool,
 }
@@ -142,13 +145,13 @@ pub async fn start(
     Path(id): Path<String>,
     Json(b): Json<StartBody>,
 ) -> ApiResult<StatusCode> {
-    let task: Option<(String, String, String, String)> =
-        sqlx::query_as("SELECT title, description, project_id, state FROM tasks WHERE id = ? AND user_id = ?")
+    let task: Option<(String, String, String, String, String)> =
+        sqlx::query_as("SELECT title, description, project_id, state, effort FROM tasks WHERE id = ? AND user_id = ?")
             .bind(&id)
             .bind(&u.id)
             .fetch_optional(&s.db)
             .await?;
-    let Some((title, description, project_id, state)) = task else { return Err(ApiError::NotFound) };
+    let Some((title, description, project_id, state, task_effort)) = task else { return Err(ApiError::NotFound) };
     if state == "running" {
         return Err(ApiError::BadRequest("This task is already running.".into()));
     }
@@ -194,15 +197,17 @@ pub async fn start(
             c
         }
     };
+    let effort = b.effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_else(|| crate::effort::Effort::parse(&task_effort).unwrap_or_default());
     let check = Some(b.check.trim().to_string()).filter(|c| !c.is_empty());
     sqlx::query(
-        "UPDATE tasks SET machine_id = ?, folder = ?, check_cmd = ?, chat_id = ?, state = 'running', progress = 0,
+        "UPDATE tasks SET machine_id = ?, folder = ?, check_cmd = ?, chat_id = ?, state = 'running', progress = 0, effort = ?,
          step = 'planning', updated_at = ? WHERE id = ? AND user_id = ?",
     )
     .bind(&b.machine_id)
     .bind(&folder)
     .bind(&check)
     .bind(&chat_id)
+    .bind(effort.as_str())
     .bind(util::now())
     .bind(&id)
     .bind(&u.id)
@@ -213,7 +218,7 @@ pub async fn start(
 
     let run_id = util::new_id();
     sqlx::query(
-        "INSERT INTO runs (id, task_id, user_id, chat_id, machine_id, folder, check_cmd, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO runs (id, task_id, user_id, chat_id, machine_id, folder, check_cmd, started_at, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&run_id)
     .bind(&id)
@@ -223,6 +228,7 @@ pub async fn start(
     .bind(&folder)
     .bind(&check)
     .bind(util::now())
+    .bind(effort.as_str())
     .execute(&s.db)
     .await?;
     let mut protected = b.protected.clone();
@@ -231,16 +237,19 @@ pub async fn start(
     }
     let r = Run {
         user_id: u.id.clone(), task_id: id, title, description, chat_id, machine_id: b.machine_id,
-        machine_name, folder, check, orchestrator, worker, reviewer, run_id,
+        machine_name, folder, check, orchestrator, worker, reviewer, run_id, effort,
         protected,
         tests_may_change: b.tests_may_change,
     };
-    let _ = sqlx::query("UPDATE runs SET protected = ?, tests_may_change = ? WHERE id = ?")
-        .bind(serde_json::to_string(&r.protected).unwrap_or_default())
-        .bind(r.tests_may_change)
-        .bind(&r.run_id)
-        .execute(&s.db)
-        .await;
+    let _ = sqlx::query(
+        "UPDATE runs SET protected = ?, tests_may_change = ?, effort = ? WHERE id = ?",
+    )
+    .bind(serde_json::to_string(&r.protected).unwrap_or_default())
+    .bind(r.tests_may_change)
+    .bind(r.effort.as_str())
+    .bind(&r.run_id)
+    .execute(&s.db)
+    .await;
     tokio::spawn(run(s.clone(), r));
     Ok(StatusCode::ACCEPTED)
 }
@@ -298,15 +307,16 @@ async fn ask_model(s: &AppState, r: &Run, role: &RoleAssignment, reason: &str, s
     let Some(p) = s.config.provider(&role.provider_id) else {
         return Err(format!("The provider {} is not configured.", role.provider_id));
     };
+    let (p, model_id) = crate::effort::apply(p, &role.model_id, r.effort);
     let messages = [json!({ "role": "system", "content": system }), json!({ "role": "user", "content": user })];
     let started = std::time::Instant::now();
-    let answer = llm::chat_with_tools_full(&s.http, p, &role.model_id, &messages, &json!([])).await;
+    let answer = llm::chat_with_tools_full(&s.http, &p, &model_id, &messages, &json!([])).await;
     let (msg, usage, err) = match answer {
         Ok((m, u)) => (m, u, None),
         Err(e) => (Value::Null, Value::Null, Some(format!("{e:#}"))),
     };
     api::log_call(s, &r.user_id, &r.chat_id, Some(&r.run_id), &role.role, role, reason, &json!({ "messages": messages }), &msg, &usage,
-        started.elapsed().as_millis(), err.as_deref()).await;
+        started.elapsed().as_millis(), err.as_deref(), r.effort).await;
     if let Some(e) = err {
         return Err(e);
     }
@@ -365,6 +375,7 @@ fn agent(s: &AppState, r: &Run, max_steps: usize) -> pcagent::Agent {
         role: r.worker.clone(),
         auto: true,
         max_steps,
+        effort: r.effort,
         folder: Some(r.folder.clone()),
         task_id: Some(r.task_id.clone()),
         run_id: Some(r.run_id.clone()),
@@ -547,7 +558,7 @@ async fn run(s: AppState, r: Run) {
             return;
         }
         progress(&s, &r, i as f64 / n as f64 * 0.8, &format!("Step {}/{n}: {}", i + 1, step.what)).await;
-        match work_with(&s, &r, 12, step_instruction(&r.description, i, n, step, &plan_list), &crate::skills::text_with(&skills_root, &lessons_dir, &picked[i])).await {
+        match work_with(&s, &r, r.effort.tool_rounds() * 2, step_instruction(&r.description, i, n, step, &plan_list), &crate::skills::text_with(&skills_root, &lessons_dir, &picked[i])).await {
             Ok(line) => {
                 note(&s, &r, &format!("Step {}: {line}", i + 1)).await;
                 crate::thread::post_run(&s, &r.run_id, &format!("**{}**, step {}/{n} done: {line}", r.title, i + 1)).await;
@@ -574,7 +585,8 @@ async fn run(s: AppState, r: Run) {
     let fix_skills = crate::skills::text_with(&skills_root, &lessons_dir, &used);
     let review_skills = crate::skills::text_with(&skills_root, &lessons_dir, &[vec!["reviewer/SKILL".to_string()], used.clone()].concat());
     // 3. Check and review, with fix rounds.
-    for round in 1..=ROUNDS {
+    let rounds = r.effort.fix_rounds();
+    for round in 1..=rounds {
         if held_or_stopped(&s, &r).await {
             return;
         }
@@ -641,8 +653,8 @@ async fn run(s: AppState, r: Run) {
         note(&s, &r, &format!("Review, round {round}:\n{findings}")).await;
         crate::thread::post_run(&s, &r.run_id, &format!("**{}**, review round {round}: {} finding(s). [Open the task](#task={})", r.title, review.findings.len(), r.task_id)).await;
         propose_lessons(&s, &r, &review.findings, &used).await;
-        if round == ROUNDS {
-            note(&s, &r, "Still not right after 3 rounds; it needs you.").await;
+        if round == rounds {
+            note(&s, &r, &format!("Still not right after {rounds} round(s); it needs you.")).await;
             // Changed tests, or a refused try at it: the impossible test is the likely cause.
             let refused: Option<(i64,)> = sqlx::query_as(
                 "SELECT count(*) FROM pc_actions WHERE chat_id = ? AND created_at >= ? AND state = 'refused'
@@ -657,7 +669,7 @@ async fn run(s: AppState, r: Run) {
             let why = if changed.is_empty() && !tried { "review failed 3 times" } else { "the task may not change tests" };
             return finish(&s, &r, "needs_input", why).await;
         }
-        match work_with(&s, &r, 12, format!("The task:\n{}\n\nFix these review findings, then answer with one short line:\n{findings}", cut(&r.description, 3000)), &fix_skills).await {
+        match work_with(&s, &r, r.effort.tool_rounds() * 2, format!("The task:\n{}\n\nFix these review findings, then answer with one short line:\n{findings}", cut(&r.description, 3000)), &fix_skills).await {
             Ok(line) => note(&s, &r, &format!("Fix {round}: {line}")).await,
             Err(_) if stopped_here(&s, &r).await => return,
             Err(why) => {
@@ -685,7 +697,7 @@ mod tests {
         let r = Run {
             user_id: "u".into(), task_id: "t".into(), title: "T".into(), description: "D".into(), chat_id: "c".into(),
             machine_id: "m".into(), machine_name: "soucouyant".into(), folder: "/home/k/app".into(), check: None,
-            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), protected: vec![], tests_may_change: false,
+            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false,
         };
         let p = worker_prompt(&r);
         assert!(p.contains("/home/k/app") && p.contains("soucouyant"));

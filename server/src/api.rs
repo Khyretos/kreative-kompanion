@@ -585,10 +585,11 @@ pub async fn log_call(
     usage: &Value,
     ms: u128,
     error: Option<&str>,
+    effort: crate::effort::Effort,
 ) {
     let _ = sqlx::query(
         "INSERT INTO calls (user_id, id, chat_id, role, provider_id, model_id, reason, request, response,
-         tokens_in, tokens_out, ms, error, at, run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         tokens_in, tokens_out, ms, error, at, run_id, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(user_id)
     .bind(util::new_id())
@@ -605,6 +606,7 @@ pub async fn log_call(
     .bind(error)
     .bind(util::now())
     .bind(run_id)
+    .bind(effort.as_str())
     .execute(&s.db)
     .await;
 }
