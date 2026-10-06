@@ -81,6 +81,8 @@ async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
             "name": name,
             "title": wf.title,
             "description": wf.description,
+            "studio": wf.studio,
+            "base": wf.base,
             "params": wf.params,
             "models": wf.models,
             "vramMb": wf.vram_mb,

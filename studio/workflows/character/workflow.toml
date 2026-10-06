@@ -1,0 +1,19 @@
+# STU-01: an image type for the team. Everything else comes from the base workflow.
+title = "Character"
+description = "A full-body character on a clean background."
+base = "z-image-turbo"
+
+[studio]
+label = "Character"
+hint = "Full body, clean background"
+sizes = ["tall", "square"]
+order = 1
+
+[[set]]
+name = "prompt"
+template = "{value}, full body character design, standing pose, clean plain background, detailed, consistent proportions"
+default = "a cheerful fox adventurer with a green scarf"
+
+[[set]]
+name = "negative"
+default = "blurry, low quality, text, watermark, cropped, extra limbs"

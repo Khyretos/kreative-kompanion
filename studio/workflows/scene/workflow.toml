@@ -1,0 +1,15 @@
+# STU-01: an image type for the team. Everything else comes from the base workflow.
+title = "Scene"
+description = "Characters in a place, like a still from a game or a story."
+base = "z-image-turbo"
+
+[studio]
+label = "Scene"
+hint = "Characters in a place"
+sizes = ["wide", "square", "tall"]
+order = 2
+
+[[set]]
+name = "prompt"
+template = "{value}, detailed scene, cinematic lighting, game art"
+default = "two friends sharing a meal at a campfire in a forest at night"

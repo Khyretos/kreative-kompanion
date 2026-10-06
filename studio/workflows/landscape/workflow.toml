@@ -1,0 +1,19 @@
+# STU-01: an image type for the team. Everything else comes from the base workflow.
+title = "Landscape"
+description = "A wide place without people: backgrounds and environment art."
+base = "z-image-turbo"
+
+[studio]
+label = "Landscape"
+hint = "Wide place, no people"
+sizes = ["wide", "square", "tall"]
+order = 3
+
+[[set]]
+name = "prompt"
+template = "{value}, wide landscape, environment concept art, no people, atmospheric lighting, highly detailed"
+default = "misty mountain valley with a river and an old stone bridge at sunrise"
+
+[[set]]
+name = "negative"
+default = "people, characters, text, watermark, blurry, low quality"

@@ -18,6 +18,33 @@ pub struct Param {
     pub min: Option<f64>,
     #[serde(default)]
     pub max: Option<f64>,
+    /// STU-01: a string's text goes into the graph through this template ("{value}" = the text).
+    #[serde(default)]
+    pub template: Option<String>,
+}
+
+/// STU-01: how a workflow shows in the Studio (an image type such as "Character").
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct StudioMeta {
+    pub label: String,
+    /// One line for the type card.
+    #[serde(default)]
+    pub hint: String,
+    /// "square", "wide", "tall"; the first is the default.
+    #[serde(default)]
+    pub sizes: Vec<String>,
+    #[serde(default)]
+    pub order: i64,
+}
+
+/// STU-01: a preset changes a base workflow's parameter: its template and/or default.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub struct ParamSet {
+    pub name: String,
+    #[serde(default)]
+    pub template: Option<String>,
+    #[serde(default)]
+    pub default: Option<Value>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -35,9 +62,18 @@ pub struct Workflow {
     pub title: String,
     #[serde(default)]
     pub description: String,
+    /// STU-01: a preset names its base workflow and takes its graphs, models and parameters.
+    #[serde(default)]
+    pub base: Option<String>,
+    #[serde(default)]
+    pub studio: Option<StudioMeta>,
+    #[serde(default, rename = "set")]
+    pub sets: Vec<ParamSet>,
+    #[serde(default)]
     pub graph: String,
     #[serde(default)]
     pub graphs: BTreeMap<String, String>,
+    #[serde(default)]
     pub outputs: Vec<String>,
     #[serde(default)]
     pub vram_mb: u64,
@@ -127,10 +163,23 @@ impl Workflow {
                     in_range(n)?;
                     json!(n)
                 }
-                "string" => json!(
-                    v.as_str()
-                        .ok_or_else(|| format!("{} must be a string", p.name))?
-                ),
+                "string" => {
+                    let text = v.as_str().ok_or_else(|| format!("{} must be a string", p.name))?;
+                    // STU-01: the graph gets the templated text; `used` keeps what the user typed.
+                    if let Some(t) = &p.template {
+                        let node = g
+                            .get_mut(&p.node)
+                            .and_then(Value::as_object_mut)
+                            .ok_or_else(|| format!("{}: node {} not in the graph", p.name, p.node))?;
+                        let inputs = node.entry("inputs").or_insert_with(|| json!({}));
+                        if let Some(inputs) = inputs.as_object_mut() {
+                            inputs.insert(p.input.clone(), json!(t.replace("{value}", text)));
+                        }
+                        used.insert(p.name.clone(), json!(text));
+                        continue;
+                    }
+                    json!(text)
+                }
                 "seed" => {
                     let n = v
                         .as_i64()
@@ -157,6 +206,73 @@ impl Workflow {
     }
 }
 
+pub fn inherit(child: Workflow, base: &Workflow) -> Result<Workflow, String> {
+    // Rule 1: Check if base is a preset itself
+    if base.base.is_some() {
+        return Err(format!("the base {} is a preset itself", base.name));
+    }
+
+    // Rule 2: Check if child has its own graph (presets must inherit graph)
+    if !child.graph.is_empty() {
+        return Err("a preset takes its graph from its base".to_string());
+    }
+
+    // Rule 3: Start from base and apply child overrides
+    let mut w = base.clone();
+    w.name = child.name;
+    w.title = child.title;
+    w.base = child.base;
+    w.studio = child.studio;
+    w.sets = child.sets;
+    
+    // description from child when not empty
+    if !child.description.is_empty() {
+        w.description = child.description;
+    }
+    
+    // models from child when not empty
+    if !child.models.is_empty() {
+        w.models = child.models;
+    }
+    
+    // vram_mb and ram_mb from child when not 0
+    if child.vram_mb != 0 {
+        w.vram_mb = child.vram_mb;
+    }
+    if child.ram_mb != 0 {
+        w.ram_mb = child.ram_mb;
+    }
+
+    // Rule 4: Apply parameter sets from child
+    for s in &w.sets {
+        // Find the parameter in w.params with matching name
+        let param_idx = w.params.iter().position(|p| p.name == s.name);
+        
+        match param_idx {
+            Some(idx) => {
+                let mut p = w.params[idx].clone();
+                
+                // If template is set, update it
+                if let Some(template) = &s.template {
+                    p.template = Some(template.clone());
+                }
+                
+                // If default is set, update it
+                if let Some(default_val) = &s.default {
+                    p.default = default_val.clone();
+                }
+                
+                w.params[idx] = p;
+            }
+            None => {
+                return Err(format!("unknown parameter {}", s.name));
+            }
+        }
+    }
+
+    Ok(w)
+}
+
 /// Every subfolder of `dir` with its parsed workflow.toml, sorted by name.
 pub fn load_all(dir: &Path) -> Vec<(String, Result<Workflow, String>)> {
     let Ok(rd) = std::fs::read_dir(dir) else {
@@ -168,7 +284,7 @@ pub fn load_all(dir: &Path) -> Vec<(String, Result<Workflow, String>)> {
         .filter(|p| p.is_dir())
         .collect();
     subs.sort();
-    subs.into_iter()
+    let all: Vec<(String, Result<Workflow, String>)> = subs.into_iter()
         .map(|sub| {
             let name = sub
                 .file_name()
@@ -186,6 +302,23 @@ pub fn load_all(dir: &Path) -> Vec<(String, Result<Workflow, String>)> {
                     w
                 });
             (name, wf)
+        })
+        .collect();
+    // STU-01: presets take the rest from their base.
+    all.iter()
+        .map(|(name, wf)| {
+            let resolved = match wf {
+                Ok(w) if w.base.is_some() => {
+                    let b = w.base.clone().unwrap_or_default();
+                    match all.iter().find(|(n, _)| *n == b) {
+                        Some((_, Ok(base))) => inherit(w.clone(), base),
+                        Some((_, Err(e))) => Err(format!("base {b}: {e}")),
+                        None => Err(format!("base {b} not found")),
+                    }
+                }
+                other => other.clone(),
+            };
+            (name.clone(), resolved)
         })
         .collect()
 }
@@ -320,4 +453,71 @@ licence = "CreativeML OpenRAIL-M"
         assert_eq!((w.vram_for("souc"), w.ram_for("souc")), (7000, 6000));
         assert_eq!((w.vram_for("other"), w.ram_for("other")), (11000, 8000));
     }
+
+    fn base() -> Workflow {
+        let mut b: Workflow = toml::from_str(TOML).unwrap();
+        b.name = "z".into();
+        b.dir = PathBuf::from("/wf/z");
+        b
+    }
+
+    #[test]
+    fn preset_takes_the_base() {
+        let child: Workflow = toml::from_str(
+            "title = \"Character\"\nbase = \"z\"\n[studio]\nlabel = \"Character\"\nsizes = [\"tall\", \"square\"]\n[[set]]\nname = \"prompt\"\ntemplate = \"{value}, full body\"\n",
+        )
+        .unwrap();
+        let w = inherit(Workflow { name: "character".into(), ..child }, &base()).unwrap();
+        assert_eq!(w.name, "character");
+        assert_eq!(w.title, "Character");
+        assert_eq!(w.graph, base().graph);
+        assert_eq!(w.outputs, base().outputs);
+        assert_eq!(w.dir, PathBuf::from("/wf/z"));
+        assert_eq!(w.models.len(), base().models.len());
+        assert_eq!(w.studio.as_ref().unwrap().sizes, ["tall", "square"]);
+        let p = w.params.iter().find(|p| p.name == "prompt").unwrap();
+        assert_eq!(p.template.as_deref(), Some("{value}, full body"));
+        assert_eq!(p.node, base().params.iter().find(|p| p.name == "prompt").unwrap().node);
+    }
+
+    #[test]
+    fn preset_errors() {
+        let mut child: Workflow = toml::from_str("title = \"X\"\nbase = \"z\"\n[[set]]\nname = \"nope\"\ndefault = 1\n").unwrap();
+        assert_eq!(inherit(child.clone(), &base()).unwrap_err(), "unknown parameter nope");
+        child.sets.clear();
+        child.graph = "own.json".into();
+        assert_eq!(inherit(child, &base()).unwrap_err(), "a preset takes its graph from its base");
+        let mut b2 = base();
+        b2.base = Some("other".into());
+        let c2: Workflow = toml::from_str("title = \"Y\"\nbase = \"z\"\n").unwrap();
+        assert_eq!(inherit(c2, &b2).unwrap_err(), "the base z is a preset itself");
+    }
+
+    #[test]
+    fn template_fills_the_graph() {
+        let mut w = wf();
+        w.params.iter_mut().find(|p| p.kind == "string").unwrap().template = Some("{value}, wide landscape".into());
+        let name = w.params.iter().find(|p| p.kind == "string").unwrap().name.clone();
+        let mut given = Map::new();
+        given.insert(name.clone(), json!("mountains"));
+        let (g, used) = w.fill(&graph(), &given).unwrap();
+        assert_eq!(used[&name], json!("mountains"));
+        assert!(g.to_string().contains("mountains, wide landscape"));
+    }
+
+
+    #[test]
+    fn repo_workflows_all_load() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        for (name, w) in &all {
+            let w = w.as_ref().unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert!(w.licence_problems().is_empty(), "{name}: licences");
+        }
+        let types: Vec<&str> = all.iter().filter_map(|(_, w)| w.as_ref().ok()?.studio.as_ref().map(|s| s.label.as_str())).collect();
+        for t in ["Character", "Scene", "Landscape", "Sprite", "Icon"] {
+            assert!(types.contains(&t), "missing image type {t}");
+        }
+    }
+
 }
