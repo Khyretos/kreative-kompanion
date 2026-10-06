@@ -146,19 +146,20 @@ pub async fn status(
 ) -> ApiResult<Json<serde_json::Value>> {
     let user = current_user(&state, &headers).await?;
     let settings = crate::admin::load(&state.db).await?;
-    let (admin, theme, refresh, pins, cards) = match &user {
-        Some(u) => sqlx::query_as::<_, (bool, String, i64, String, String)>(
-            "SELECT is_admin, theme, machines_refresh, gpu_pins, card_style FROM users WHERE id = ?",
+    let (admin, adult, theme, refresh, pins, cards) = match &user {
+        Some(u) => sqlx::query_as::<_, (bool, bool, String, i64, String, String)>(
+            "SELECT is_admin, adult, theme, machines_refresh, gpu_pins, card_style FROM users WHERE id = ?",
         )
         .bind(&u.id)
         .fetch_optional(&state.db)
         .await?
-        .unwrap_or((false, "system".into(), 5, "[]".into(), "{}".into())),
-        None => (false, "system".into(), 5, "[]".into(), "{}".into()),
+        .unwrap_or((false, false, "system".into(), 5, "[]".into(), "{}".into())),
+        None => (false, false, "system".into(), 5, "[]".into(), "{}".into()),
     };
     Ok(Json(json!({
         "name": settings.app_name,
         "admin": admin,
+        "adult": adult,
         "theme": theme,
         "machinesRefresh": refresh,
         "gpuPins": serde_json::from_str::<serde_json::Value>(&pins).unwrap_or(serde_json::json!([])),

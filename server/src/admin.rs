@@ -109,6 +109,15 @@ pub async fn is_admin(db: &SqlitePool, user_id: &str) -> sqlx::Result<bool> {
     Ok(row.is_some_and(|r| r.0))
 }
 
+/// STU-01c: whether the user has the adult-content right (users.adult).
+pub async fn is_adult(db: &SqlitePool, user_id: &str) -> sqlx::Result<bool> {
+    let row: Option<(bool,)> = sqlx::query_as::<_, (bool,)>("SELECT adult FROM users WHERE id = ?")
+        .bind(user_id)
+        .fetch_optional(db)
+        .await?;
+    Ok(row.is_some_and(|r| r.0))
+}
+
 pub(crate) async fn require_admin(s: &AppState, u: &User) -> ApiResult<()> {
     if is_admin(&s.db, &u.id).await? {
         Ok(())

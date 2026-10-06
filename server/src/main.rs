@@ -164,6 +164,20 @@ async fn main() -> anyhow::Result<()> {
             .context("usage: kompanion-server import <file.json> [user name]")?;
         return import::run(&db, path, args.get(3).map(String::as_str)).await;
     }
+    // `kompanion-server user-adult <user name> <on|off>`: toggle adult content for a user.
+    if args.get(1).map(String::as_str) == Some("user-adult") {
+        let name = args.get(2).context("usage: kompanion-server user-adult <user name> <on|off>")?;
+        let switch = args.get(3).context("usage: kompanion-server user-adult <user name> <on|off>")?;
+        let on = match switch.as_str() {
+            "on" => true,
+            "off" => false,
+            _ => anyhow::bail!("usage: kompanion-server user-adult <user name> <on|off>"),
+        };
+        let done = sqlx::query("UPDATE users SET adult = ? WHERE name = ?").bind(on).bind(name).execute(&db).await?;
+        if done.rows_affected() == 0 { anyhow::bail!("no user {name}") }
+        println!("adult content {switch} for {name}");
+        return Ok(());
+    }
 
     let windshift = windshift::Windshift::from_env(llm::http_client()).map(Arc::new);
     let state = AppState {

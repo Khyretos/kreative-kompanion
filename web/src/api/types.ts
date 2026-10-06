@@ -202,6 +202,7 @@ export interface ServerStatus {
   setupNeeded: boolean;
   user: string | null;
   admin?: boolean;
+  adult?: boolean; // STU-01c: may use the questionable and explicit Studio ratings
   theme?: ThemeChoice;
   machinesRefresh?: number; // seconds; 1 = live
   gpuPins?: string[];

@@ -6,6 +6,7 @@ export interface AppState {
   server?: Server;
   userName?: string; // signed-in user
   isAdmin: boolean;
+  isAdult: boolean; // STU-01c: the adult-content right (Studio ratings)
   grants: Record<string, import("./views/access").GrantView[]>; // per paired machine
   accessHistory: import("./views/access").AccessEvent[];
   logoVersion?: string | null;
@@ -94,6 +95,7 @@ export const store = new Store<AppState>({
   projectAssets: {},
   assetPick: { project: "", q: "", items: [], busy: false },
   isAdmin: false,
+  isAdult: false,
   theme: "system",
   machinesRefresh: 5,
   features: { assets: true, gpus: true, voice: true, windshift: true },

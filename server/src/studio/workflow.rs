@@ -21,8 +21,19 @@ pub struct Param {
     #[serde(rename = "type")]
     pub kind: String,
     pub default: Value,
+    #[serde(default)]
     pub node: String,
+    #[serde(default)]
     pub input: String,
+    /// STU-01c: the allowed values of a "choice" param
+    #[serde(default)]
+    pub choices: Vec<String>,
+    /// STU-01c: choices only users with the adult-content right may use
+    #[serde(default)]
+    pub adult: Vec<String>,
+    /// STU-01c: placeholder name -> (choice -> text); "{placeholder}" in a string template becomes the text for the chosen value, "" when the choice has none
+    #[serde(default)]
+    pub words: BTreeMap<String, BTreeMap<String, String>>,
     #[serde(default)]
     pub min: Option<f64>,
     #[serde(default)]
@@ -142,6 +153,23 @@ impl Workflow {
         serde_json::from_str(&content).map_err(|e| format!("{file}: {e}"))
     }
 
+    /// STU-01c: the first chosen value (given, else the default) of a "choice" param in that param's
+    /// `adult` list; None when nothing needs the adult-content right.
+    pub fn adult_choice(&self, given: &Map<String, Value>) -> Option<String> {
+        self.params.iter().find_map(|p| {
+            if p.kind != "choice" {
+                return None;
+            }
+            let v = given.get(&p.name).unwrap_or(&p.default);
+            let c = v.as_str()?;
+            if p.adult.iter().any(|a| a == c) {
+                Some(c.to_string())
+            } else {
+                None
+            }
+        })
+    }
+
     /// The graph with every parameter set (given, else its default) and the values used.
     pub fn fill(
         &self,
@@ -156,6 +184,21 @@ impl Workflow {
         }
         let mut g = graph.clone();
         let mut used = Map::new();
+        // STU-01c: pre-pass over "choice" params to validate and build subs
+        let mut subs: Vec<(String, String)> = Vec::new();
+        for p in &self.params {
+            if p.kind == "choice" {
+                let v = given.get(&p.name).unwrap_or(&p.default);
+                let c = v.as_str().ok_or_else(|| format!("{} must be a string", p.name))?;
+                if !p.choices.contains(&c.to_string()) {
+                    return Err(format!("{} must be one of {}", p.name, p.choices.join(", ")));
+                }
+                subs.push((format!("{{{}}}", p.name), c.to_string()));
+                for (slot, by) in &p.words {
+                    subs.push((format!("{{{slot}}}"), by.get(c).cloned().unwrap_or_default()));
+                }
+            }
+        }
         for p in &self.params {
             let v = given.get(&p.name).unwrap_or(&p.default);
             let in_range = |x: f64| {
@@ -185,6 +228,8 @@ impl Workflow {
                     let text = v.as_str().ok_or_else(|| format!("{} must be a string", p.name))?;
                     // STU-01: the graph gets the templated text; `used` keeps what the user typed.
                     if let Some(t) = &p.template {
+                        // STU-01c: the choice placeholders first ({rating}, {rating_neg}, ...).
+                        let t = subs.iter().fold(t.clone(), |acc, (k, v)| acc.replace(k.as_str(), v));
                         let node = g
                             .get_mut(&p.node)
                             .and_then(Value::as_object_mut)
@@ -203,6 +248,14 @@ impl Workflow {
                         continue;
                     }
                     json!(text)
+                }
+                "choice" => {
+                    let c = v.as_str().unwrap_or_default();
+                    if p.node.is_empty() {
+                        used.insert(p.name.clone(), json!(c));
+                        continue;
+                    }
+                    json!(c)
                 }
                 "seed" => {
                     let n = v
@@ -585,4 +638,36 @@ licence = "CreativeML OpenRAIL-M"
         }
     }
 
+    fn rated() -> Workflow {
+        let mut w = wf();
+        let s = w.params.iter_mut().find(|p| p.kind == "string").unwrap();
+        s.template = Some("best, {rating}, {rating_neg}{value}".into());
+        let r = toml::from_str::<Param>(r#"name = "rating"
+    type = "choice"
+    default = "general"
+    choices = ["general", "sensitive", "questionable", "explicit"]
+    adult = ["questionable", "explicit"]
+    words = { rating_neg = { general = "nsfw, " } }"#).unwrap();
+        w.params.push(r);
+        w
+    }
+
+    #[test]
+    fn choice_fills_the_placeholders() {
+        let w = rated();
+        let (g, used) = w.fill(&graph(), &Map::new()).unwrap();
+        assert_eq!(g["6"]["inputs"]["text"], json!("best, general, nsfw, fox"));
+        assert_eq!(used["rating"], json!("general"));
+        let (g, _) = w.fill(&graph(), &m(json!({"rating": "explicit", "prompt": "cat"}))).unwrap();
+        assert_eq!(g["6"]["inputs"]["text"], json!("best, explicit, cat"));
+        assert_eq!(w.fill(&graph(), &m(json!({"rating": "bad"}))).unwrap_err(), "rating must be one of general, sensitive, questionable, explicit");
+    }
+
+    #[test]
+    fn adult_choice_names_the_adult_rating() {
+        let w = rated();
+        assert_eq!(w.adult_choice(&m(json!({"rating": "explicit"}))), Some("explicit".to_string()));
+        assert_eq!(w.adult_choice(&m(json!({"rating": "sensitive"}))), None);
+        assert_eq!(w.adult_choice(&Map::new()), None);
+    }
 }
