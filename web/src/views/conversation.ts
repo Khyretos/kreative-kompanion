@@ -3,7 +3,7 @@ import { html, type SafeHtml } from "../core/html";
 import { renderMarkdown } from "../core/markdown";
 import { clock } from "../core/time";
 import { activeChat, activeProject, type AppState } from "../state";
-import type { Message, Task } from "../api/types";
+import type { Effort, Message, Task } from "../api/types";
 import type { PcAction } from "../api/client";
 import { icon } from "./icons";
 import { stateLabel } from "./tasks";
@@ -180,6 +180,28 @@ export function renderEmpty(s: AppState): SafeHtml {
     </div>`;
 }
 
+const EFFORTS: { id: Effort; label: string; hint: string }[] = [
+  { id: "auto", label: "Auto", hint: "Medium for now; picks per task later" },
+  { id: "low", label: "Low", hint: "Quick answer, fewest tool rounds" },
+  { id: "medium", label: "Medium", hint: "Balanced: a few tool rounds" },
+  { id: "high", label: "High", hint: "Thinks first, most tool rounds" },
+];
+
+/** The composer's "<model> · <effort> ▾" chip and its menu (EF-01). */
+export function effortChip(s: AppState): SafeHtml {
+  const level: Effort = activeChat(s)?.effort ?? s.draftEffort ?? "auto";
+  const model = s.roles.find((r) => r.role === "orchestrator")?.modelId ?? "";
+  const label = EFFORTS.find((e) => e.id === level)?.label ?? "Auto";
+  return html`<span class="effort">
+    <button class="chip effort-chip" type="button" data-action="effort-menu" aria-haspopup="menu"
+      aria-expanded="${s.effortMenuOpen ? "true" : "false"}" aria-label="Model ${model}, effort ${label}. Change effort">${model ? `${model} · ` : ""}${label} ▾</button>
+    ${s.effortMenuOpen ? html`<div class="menu effort-menu" role="menu" aria-label="Effort">
+      ${EFFORTS.map((e) => html`<button role="menuitemradio" aria-checked="${e.id === level ? "true" : "false"}" data-action="effort-set" data-effort="${e.id}">
+        <span class="effort-name">${e.label}</span><span class="effort-hint">${e.hint}</span></button>`)}
+    </div>` : ""}
+  </span>`;
+}
+
 export function composer(): SafeHtml {
   return html`
     <form class="composer" id="composer">
@@ -188,7 +210,8 @@ export function composer(): SafeHtml {
       <button class="btn mic" type="button" id="voice-mic" data-action="voice-mic" aria-label="Speak" aria-pressed="false" hidden>${icon("mic")}</button>
       <button class="btn primary send" type="submit" aria-label="Send">${icon("send")}</button>
     </form>
-    <p class="composer-hint">Enter sends, Shift+Enter adds a line.
+    <p class="composer-hint"><span class="hint-text">Enter sends, Shift+Enter adds a line.</span>
       <span id="voice-status" role="status"></span>
-      <button class="btn small" type="button" id="voice-stop" data-action="voice-stop" hidden>Stop reading</button></p>`;
+      <button class="btn small" type="button" id="voice-stop" data-action="voice-stop" hidden>Stop reading</button>
+      <span class="effort-slot" id="effort-slot"></span></p>`;
 }

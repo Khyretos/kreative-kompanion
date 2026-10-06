@@ -47,7 +47,11 @@ export interface Chat {
   updatedAt: string;
   pinned?: boolean;
   thread?: boolean; // the project's thread: task runs post their updates here
+  effort?: Effort; // EF-01: stored per chat, used for its answers
 }
+
+/** How hard the model works on an answer (EF-01). Auto resolves to Medium on the server. */
+export type Effort = "auto" | "low" | "medium" | "high";
 
 export interface Message {
   id: string;

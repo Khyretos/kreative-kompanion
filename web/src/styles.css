@@ -365,7 +365,17 @@ li.task.dragging { opacity: 0.5; }
 .composer .mic[aria-busy="true"] { opacity: 0.6; }
 #voice-status:not(:empty) { margin-left: 0.5rem; color: var(--fg); }
 #voice-stop { margin-left: 0.5rem; }
-.composer-hint { width: min(46rem, 100%); margin: 0.35rem auto 0; font-size: 0.75rem; color: var(--muted); }
+.composer-hint { width: min(46rem, 100%); margin: 0.35rem auto 0; font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.effort-slot { margin-left: auto; position: relative; }
+.effort { position: relative; display: inline-flex; }
+.effort-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; font-family: var(--mono); min-height: 1.75rem; }
+.effort-chip:hover { border-color: var(--accent); }
+.effort-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.effort-menu { position: absolute; right: 0; bottom: calc(100% + 0.35rem); left: auto; top: auto; min-width: 17rem; z-index: 20; }
+.effort-menu button { flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; color: var(--fg); }
+.effort-menu button[aria-checked="true"] { box-shadow: inset 3px 0 0 var(--accent); }
+.effort-name { font-weight: 600; }
+.effort-hint { font-size: 0.78rem; color: var(--fg); }
 
 /* Tasks pane */
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 2px; }
@@ -459,6 +469,7 @@ li.task.dragging { opacity: 0.5; }
 }
 /* Phone: projects slide over too */
 @media (max-width: 760px) {
+  .effort-chip, .effort-menu button { min-height: 44px; }
   .shell { grid-template-columns: minmax(0, 1fr); }
   .only-phone { display: inline-grid; }
   .left {
@@ -470,7 +481,8 @@ li.task.dragging { opacity: 0.5; }
   .chip.model { display: none; }
   .messages { padding: 1rem; }
   .composer-wrap { padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
-  .composer-hint { display: none; }
+  /* Phones: only the effort chip stays on the hint line (EF-01). */
+  .composer-hint > :not(.effort-slot) { display: none; }
   .role { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
 }
 @media (prefers-reduced-motion: reduce) {

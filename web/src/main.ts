@@ -5,7 +5,7 @@ import { initResize } from "./core/resize";
 import { modal, type Modal } from "./core/modal";
 import { MockApi } from "./api/mock";
 import type { KompanionApi, ServerEvent } from "./api/client";
-import type { AdminSettings, Project, Role, Server, TaskState, ThemeChoice, SearchResult } from "./api/types";
+import type { AdminSettings, Effort, Project, Role, Server, TaskState, ThemeChoice, SearchResult } from "./api/types";
 import { openSearch } from "./views/search";
 import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
@@ -13,7 +13,7 @@ import { onCodeAction } from "./core/codeblocks";
 import { activeProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
-import { composer, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { composer, effortChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { renderMachines, REFRESH_STEPS, setGpuView } from "./views/machines";
@@ -317,6 +317,13 @@ function render(s: AppState, prev: AppState): void {
   }
   if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks"])) {
     mount($("#conv-head"), renderHeader(s));
+  }
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "effortMenuOpen", "draftEffort"])) {
+    // A re-mount (or closing the menu) drops focus inside the chip: give it back.
+    const hadFocus = !!document.activeElement?.closest(".effort") || (prev.effortMenuOpen && !s.effortMenuOpen && document.activeElement === document.body);
+    mount($("#effort-slot"), effortChip(s));
+    if (s.effortMenuOpen && !prev.effortMenuOpen) document.querySelector<HTMLElement>('.effort-menu [aria-checked="true"]')?.focus();
+    else if (hadFocus && !s.effortMenuOpen) document.querySelector<HTMLElement>(".effort-chip")?.focus();
   }
   // Machine stats tick every second on "Live": only re-mount the picker and the cards
   // when the list of computers or the cards really changed (a re-mount on every tick
@@ -777,6 +784,14 @@ function wire(shell: HTMLElement): void {
       store.set({ movingChatId: undefined });
       changeChat(el.dataset.id ?? "", { projectId: el.dataset.project ?? "" });
     },
+    "effort-menu": () => store.set({ effortMenuOpen: !store.get().effortMenuOpen }),
+    "effort-set": (el) => {
+      const effort = el.dataset.effort as Effort;
+      const chatId = store.get().activeChatId;
+      store.set({ effortMenuOpen: false });
+      if (chatId) void changeChat(chatId, { effort });
+      else store.set({ draftEffort: effort });
+    },
     "chat-menu": (el) => store.set({ chatMenuId: store.get().chatMenuId === el.dataset.id ? undefined : el.dataset.id }),
     "chat-pin": (el) => {
       const c = store.get().chats.find((x) => x.id === el.dataset.id);
@@ -1011,12 +1026,17 @@ function wire(shell: HTMLElement): void {
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
     const s = store.get();
+    if (s.effortMenuOpen) {
+      store.set({ effortMenuOpen: false });
+      return;
+    }
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
     else if (s.settingsOpen) settingsModal?.requestClose();
   });
   // A click anywhere outside an open chat menu closes it.
   document.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
+    if (store.get().effortMenuOpen && !t.closest(".effort")) store.set({ effortMenuOpen: false });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
   });
   // Rename in place: Enter saves, leaving the field saves too.
@@ -1193,13 +1213,15 @@ function wire(shell: HTMLElement): void {
     prompt.value = "";
     autosize();
     let chatId = store.get().activeChatId;
+    let effort: Effort | undefined;
     if (!chatId) {
       const title = text.length > 40 ? text.slice(0, 38) + "…" : text;
       const chat = await api.createChat(title, store.get().activeProjectId);
-      store.set({ chats: [chat, ...store.get().chats], activeChatId: chat.id });
+      effort = store.get().draftEffort;
+      store.set({ chats: [{ ...chat, effort }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined });
       chatId = chat.id;
     }
-    await api.send(chatId, text, store.get().pcMachineId).catch(showError);
+    await api.send(chatId, text, store.get().pcMachineId, effort).catch(showError);
   };
   const autosize = () => {
     prompt.style.height = "auto";
@@ -1309,7 +1331,7 @@ async function loadAccess(): Promise<void> {
   } catch (e) { showError(e); }
 }
 
-async function changeChat(id: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string }): Promise<void> {
+async function changeChat(id: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: Effort }): Promise<void> {
   const before = store.get().chats;
   store.set({
     chatMenuId: undefined,

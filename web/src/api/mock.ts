@@ -412,11 +412,11 @@ export class MockApi implements KompanionApi {
     return structuredClone(chat);
   }
 
-  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string }) {
+  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort }) {
     const i = chats.findIndex((c) => c.id === chatId);
     if (i < 0) return;
     if (change.archived) chats.splice(i, 1);
-    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned });
+    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort });
   }
 
   async createTask(t: { projectId: string; title: string; description: string; state?: TaskState }) {
