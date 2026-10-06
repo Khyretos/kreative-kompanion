@@ -1,7 +1,7 @@
 // STU-01/02: the Studio section: pick a type, describe it, make it; your images, videos and sounds.
 import { html, type SafeHtml } from "../core/html";
 
-export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number } }
+export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number } }
 export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; files: string[]; startedAt: string; endedAt: string | null }
 export interface StudioForm { type: string; size: string; count: 1 | 4; busy: boolean; error?: string }
 
@@ -16,7 +16,7 @@ export function renderStudioMake(types: StudioType[] | undefined, form: StudioFo
 
   return html`<section class="studio-make" aria-labelledby="studio-make-h">
     <h2 id="studio-make-h" class="label">Make</h2>
-    <div class="studio-types" role="radiogroup" aria-label="What to make">${types.map((t) => html`<button type="button" class="studio-type" role="radio" aria-checked="${String(t.name === chosen?.name)}" data-action="studio-type" data-type="${t.name}"><strong>${t.label}</strong><span class="muted small">${t.hint}</span></button>`)}</div>
+    <div class="studio-types" role="radiogroup" aria-label="What to make">${types.map((t) => html`<button type="button" class="studio-type" role="radio" aria-checked="${String(t.name === chosen?.name)}" data-action="studio-type" data-type="${t.name}"><strong>${t.label}</strong><span class="muted small">${t.hint}</span>${t.warning ? html`<span class="small studio-warning">Licence warning: ${t.warning}</span>` : ""}</button>`)}</div>
     <form class="studio-form">
       <label for="studio-prompt">${audio ? "What should it sound like?" : "What should it show?"}</label>
       <textarea id="studio-prompt" name="prompt" rows="3" maxlength="${audio ? 1000 : 500}" placeholder="${audio === "music" ? "calm lofi piano loop for a cozy game menu" : audio === "sfx" ? "a wooden door creaking open slowly" : "a cheerful fox adventurer with a green scarf"}">${prompt}</textarea>

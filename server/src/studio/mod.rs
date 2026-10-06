@@ -1,6 +1,6 @@
 //! M6-05: saved ComfyUI workflows. Each `<workflows_dir>/<name>/` holds `workflow.toml`
 //! (parameters mapped to node inputs, outputs, VRAM, models with licences) and the API-format
-//! graph(s). Only workflows whose models all have an allowed licence can run.
+//! graph(s). A model licence that is not OSI/permissive shows as a warning; it never stops a run (LIC-01).
 pub mod comfy;
 pub mod licence;
 pub mod workflow;
@@ -72,8 +72,8 @@ pub async fn workflows_json(s: &AppState) -> ApiResult<Vec<Value>> {
             }
         };
 
-        let problems = wf.licence_problems();
-        let runnable = problems.is_empty();
+        let problems = wf.licence_warnings();
+        let runnable = true; // LIC-01: a licence only warns
         let targets: Vec<String> = s
             .config
             .gpus
@@ -224,13 +224,6 @@ async fn queue(
         Some((_, Err(e))) => return Err(ApiError::BadRequest(e)),
         Some((_, Ok(w))) => w,
     };
-    let problems = wf.licence_problems();
-    if !problems.is_empty() {
-        return Err(ApiError::BadRequest(format!(
-            "Refused licences: {}",
-            problems.join("; ")
-        )));
-    }
     let placed = place(s, gpu, &wf.machines, |id| comfy_target(&s.config.gpus, id).is_some()).await.map_err(ApiError::BadRequest)?;
     let gpu = placed.as_str();
     let (machine, url) = comfy_target(&s.config.gpus, gpu)

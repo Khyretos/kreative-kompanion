@@ -37,7 +37,7 @@
   "tags": []
  },
  {
-  "chars": 5768,
+  "chars": 13873,
   "description": "How to write a job prompt any worker model can carry out, and how to run fix rounds.",
   "file": "orchestrator/prompting-workers",
   "models": [],
@@ -329,7 +329,7 @@
   ]
  },
  {
-  "chars": 5326,
+  "chars": 6177,
   "description": "Writing Rust for the Kompanion server, runner and helpers.",
   "file": "worker/rust/SKILL",
   "models": [],
@@ -350,7 +350,7 @@
   ]
  },
  {
-  "chars": 2210,
+  "chars": 2800,
   "description": "Kompanion server handlers: axum responses and headers, query flags, access checks, model calls, events, mail links, URL allow-lists.",
   "file": "worker/rust/axum-api",
   "models": [],
@@ -415,7 +415,7 @@
   ]
  },
  {
-  "chars": 3385,
+  "chars": 4225,
   "description": "Writing the vanilla TypeScript web app and its Playwright tests.",
   "file": "worker/web/SKILL",
   "models": [],
@@ -436,7 +436,7 @@
   ]
  },
  {
-  "chars": 1755,
+  "chars": 2234,
   "description": "CSS and layout in the web app: colour tokens, bright text, @import order, grids, display and hidden, long lists.",
   "file": "worker/web/css-layout",
   "models": [],
@@ -463,7 +463,7 @@
   ]
  },
  {
-  "chars": 2534,
+  "chars": 3188,
   "description": "Playwright tests and screenshots for the web app: locators, waits, mocks, running browsers in a container.",
   "file": "worker/web/playwright",
   "models": [],
@@ -490,7 +490,7 @@
   ]
  },
  {
-  "chars": 7525,
+  "chars": 7889,
   "description": "Planning tasks into steps, building job prompts, running the drafting pipeline and PRs.",
   "file": "orchestrator/SKILL",
   "models": [],
@@ -524,7 +524,7 @@
   ]
  },
  {
-  "chars": 2477,
+  "chars": 2664,
   "description": "SQLite with sqlx in the Kompanion server: runtime queries, tuple rows, binds, migrations, triggers, FTS5.",
   "file": "worker/rust/sql",
   "models": [],
