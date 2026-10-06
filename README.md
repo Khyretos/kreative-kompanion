@@ -42,6 +42,7 @@ The banner source is `docs/branding/banner.html`; `docs/branding/render-banner.m
 - Global search (Ctrl K), desktop notifications and mail when a task needs you, failed or is done.
 - Installable as an app (PWA) on phones and desktops.
 - GPU scheduling (milestone 6, phase A): a live ledger of what each GPU holds, jobs that reserve VRAM with priorities (chat, then code, then assets) and night batches, automatic coder/artist switching of the A770 (`gpu-role/`), and a timeline of VRAM, watts and jobs per GPU.
+- Studio workflows (M6-05): saved ComfyUI graphs in `studio/workflows/<name>/` (`workflow.toml`: parameters mapped to node inputs, VRAM per machine, every model with its licence). Only Apache-2.0, MIT, BSD, CC0 and CC-BY with attribution run; anything else is refused. A run is a GPU job (`POST /api/studio/workflows/<name>/run {gpu, params}`, admins, or `kompanion-server studio-run <name> <gpu> '{"seed": 42}'`), its outputs land in `[studio] output_dir` with a `<file>.json` provenance next to each.
 
 - A Linux desktop app (Tauri 2, `desktop/`): an AppImage and a .deb from CI.
 In progress: the game studio (milestone 6, phases B to D). The plan is in `docs/plans/m6-tasks.md`.
