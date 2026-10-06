@@ -13,7 +13,6 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Toast;
 import java.util.Arrays;
 import org.unifiedpush.android.connector.UnifiedPush;
 import kotlin.Unit;
@@ -58,6 +57,7 @@ public class MainActivity extends Activity {
                 if (url.startsWith(server)) {
                     CookieManager.getInstance().flush();
                     Push.sendIfNeeded(MainActivity.this);
+                    LiveService.startIfWanted(MainActivity.this); // reconnects at once after a sign-in
                 }
             }
         });
@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 1);
         }
+        SettingsActivity.showOnceForMaker(this);
 
         UnifiedPush.tryUseCurrentOrDefaultDistributor(this, ok -> {
             if (ok) {
@@ -85,10 +86,13 @@ public class MainActivity extends Activity {
     }
 
     private void registerPush() {
+        getSharedPreferences("push", MODE_PRIVATE).edit().putString("mode", "push").apply();
+        LiveService.stop(this);
         UnifiedPush.register(this, "default", getString(R.string.app_name), null);
     }
 
-    /** No default distributor answered: use the first installed one that is not this app (usually ntfy). */
+    /** No default distributor answered: use the first installed one that is not this app (usually ntfy),
+     *  else the app's own live connection (no setup needed). */
     private void pickInstalledDistributor() {
         for (String d : UnifiedPush.getDistributors(this)) {
             if (!d.equals(getPackageName())) {
@@ -97,7 +101,8 @@ public class MainActivity extends Activity {
                 return;
             }
         }
-        Toast.makeText(this, R.string.no_distributor, Toast.LENGTH_LONG).show();
+        getSharedPreferences("push", MODE_PRIVATE).edit().remove("mode").apply();
+        LiveService.startIfWanted(this);
     }
 
     private String startUrl(Intent i) {

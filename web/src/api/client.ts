@@ -152,4 +152,5 @@ export type ServerEvent =
   | { type: "machines"; machines: MachineStats[] }
   | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus"; machineId?: string }
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
+  | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app ignores it
   | { type: "resync" };

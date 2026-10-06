@@ -11,10 +11,22 @@
     </string-array>
 
     <string name="channel_tasks">Tasks</string>
-    <string name="no_distributor">Install ntfy from F-Droid to get notifications when a task needs you.</string>
     <string name="state_needs_you">Needs you</string>
     <string name="state_failed">Failed</string>
     <string name="state_done">Done</string>
+
+    <!-- Own connection (APP-02b): notifications without a push app. -->
+    <string name="channel_live">Connection</string>
+    <string name="live_connected">Kompanion is connected</string>
+    <string name="live_signin">Open Kompanion to sign in again</string>
+    <string name="settings_title">Notifications</string>
+    <string name="settings_live">Stay connected for notifications</string>
+    <string name="settings_live_hint">Keeps one quiet notification so your phone does not close the connection. With ntfy installed, push is used instead.</string>
+    <string name="battery_title">Let Kompanion run in the background</string>
+    <string name="battery_text">Phones from %1$s stop apps in the background. Open the settings, allow Autostart, then set Battery to No restrictions.</string>
+    <string name="battery_open">Open settings</string>
+    <string name="settings_done">Done</string>
+    <string name="shortcut_settings">Notification settings</string>
 
     <color name="night">#0c0917</color>
     <color name="plum">#1c1329</color>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_tasks">Tareas</string>
+    <string name="state_needs_you">Te necesita</string>
+    <string name="state_failed">Falló</string>
+    <string name="state_done">Hecha</string>
+    <string name="channel_live">Conexión</string>
+    <string name="live_connected">Kompanion está conectado</string>
+    <string name="live_signin">Abre Kompanion para iniciar sesión de nuevo</string>
+    <string name="settings_title">Avisos</string>
+    <string name="settings_live">Mantener la conexión para los avisos</string>
+    <string name="settings_live_hint">Deja un aviso silencioso para que el teléfono no cierre la conexión. Con ntfy instalado se usa push.</string>
+    <string name="battery_title">Deja que Kompanion funcione en segundo plano</string>
+    <string name="battery_text">Los teléfonos de %1$s detienen las apps en segundo plano. Abre los ajustes, permite el Inicio automático y pon Batería en Sin restricciones.</string>
+    <string name="battery_open">Abrir ajustes</string>
+    <string name="settings_done">Listo</string>
+    <string name="shortcut_settings">Ajustes de avisos</string>
+</resources>

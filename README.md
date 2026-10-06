@@ -73,6 +73,13 @@ For development: `cd web && npm run build`, then
 `web_dir = "../web/dist"` and, for plain http on localhost only,
 `secure_cookies = false`).
 
+## Phone app (Android)
+
+- `android/` holds the Android app (a WebView around the web app); build and checks in `android/README.md`.
+- Notifications work without any setup: after you sign in, the app keeps its own connection to the server and shows a notification when a task needs you, failed or is done (as set in Settings > Notifications). It shows one quiet "Kompanion is connected" notification so the phone does not close it. You can switch it off in the app's notification settings (long-press the app icon).
+- Some phones (Xiaomi, Huawei, Oppo, Vivo and others) stop apps in the background. On those, the app opens a settings screen once with a button to the right page: allow Autostart and set Battery to No restrictions.
+- Optional, for technical users: push through UnifiedPush with your own ntfy server, which saves a little battery. Set `KOMPANION_NTFY_URL=https://ntfy.example.com` in `.env`, run `docker compose --profile push up -d` (this also writes the address into `[push] servers` in `kompanion.toml`), put your HTTPS reverse proxy in front of port 8081, and install the ntfy app from F-Droid pointed at that server. The Kompanion app then uses push and closes its own connection.
+
 ## Server security
 
 - No open endpoints except status, setup and sign-in. The first account needs a

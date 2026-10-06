@@ -179,6 +179,7 @@ async fn main() -> anyhow::Result<()> {
     };
     hoststats::HostStats::spawn_live(state.clone());
     notify::spawn_daily(state.db.clone());
+    let _ = events::BUS.set(state.bus.clone());
     let _ = push::SERVERS.set(state.config.push.servers.clone());
     let _ = assets::ai::CONFIG.set(assets::ai::settings_from(&state.config));
     let _ = voice::SETTINGS.set(if state.config.features.voice { state.config.voice.clone() } else { Default::default() });
