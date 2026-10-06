@@ -1,0 +1,19 @@
+# STU-01: an image type for the team. Everything else comes from the base workflow.
+title = "Icon"
+description = "A simple, bold icon for menus and inventories."
+base = "z-image-turbo"
+
+[studio]
+label = "Icon"
+hint = "Simple and bold, for menus"
+sizes = ["square"]
+order = 5
+
+[[set]]
+name = "prompt"
+template = "{value}, simple game icon, centered, bold shapes, flat colors, plain background, no text"
+default = "a glowing blue mana potion"
+
+[[set]]
+name = "negative"
+default = "text, letters, watermark, busy background, photo, blurry"

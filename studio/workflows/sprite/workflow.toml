@@ -1,0 +1,19 @@
+# STU-01: an image type for the team. Everything else comes from the base workflow.
+title = "Sprite"
+description = "One game object on a plain background, easy to cut out."
+base = "z-image-turbo"
+
+[studio]
+label = "Sprite"
+hint = "One game object, plain background"
+sizes = ["square", "tall", "wide"]
+order = 4
+
+[[set]]
+name = "prompt"
+template = "{value}, single game asset, centered, plain white background, clean edges, no shadow, no text"
+default = "a wooden treasure chest with gold trim"
+
+[[set]]
+name = "negative"
+default = "background scenery, text, watermark, multiple objects, blurry"
