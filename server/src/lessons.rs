@@ -29,10 +29,14 @@ pub async fn propose(
     card: &str,
     text: &str,
     finding: &str,
+    layer: &str,
+    by: &str,
 ) {
     if text.trim().is_empty() {
         return;
     }
+
+    let layer = if layer == "general" { "general" } else { "private" };
 
     let chat_id = match crate::thread::ensure(s, user_id, project_id).await {
         Ok(c) => c,
@@ -43,7 +47,7 @@ pub async fn propose(
     };
 
     let stored = sqlx::query(
-        "INSERT INTO lessons (id, user_id, project_id, chat_id, run_id, task_id, card, text, finding, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?)"
+        "INSERT INTO lessons (id, user_id, project_id, chat_id, run_id, task_id, card, text, finding, layer, proposed_by, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'proposed', ?)"
     )
     .bind(util::new_id())
     .bind(user_id)
@@ -54,6 +58,8 @@ pub async fn propose(
     .bind(card)
     .bind(text.trim())
     .bind(finding)
+    .bind(layer)
+    .bind(by)
     .bind(util::now())
     .execute(&s.db)
     .await;
@@ -62,12 +68,12 @@ pub async fn propose(
         return;
     }
 
-    crate::thread::post(s, user_id, project_id, &format!("Lesson proposed for `{card}`: {}", text.trim())).await;
+    crate::thread::post(s, user_id, project_id, &format!("Lesson proposed for `{card}` ({layer}, by {by}): {}", text.trim())).await;
     s.bus.send(user_id, Event::Changed { what: "lessons", machine_id: None });
 }
 
 /// Adds a lesson entry to the card's markdown file and the global log.
-pub fn add_to_card(dir: &Path, card: &str, text: &str, finding: &str) -> ApiResult<PathBuf> {
+pub fn add_to_card(dir: &Path, card: &str, layer: &str, text: &str, finding: &str) -> ApiResult<PathBuf> {
     let io = |e: std::io::Error| ApiError::BadRequest(format!("Could not save the lesson: {e}"));
 
     let date: String = util::now().chars().take(10).collect();
@@ -89,10 +95,16 @@ pub fn add_to_card(dir: &Path, card: &str, text: &str, finding: &str) -> ApiResu
         if new {
             writeln!(file, "| Date | Card | Finding | Lesson |\n|---|---|---|---|").map_err(io)?;
         }
-        writeln!(file, "| {date} | {card} | {} | {} |", finding.replace('|', "/"), text.replace('|', "/")).map_err(io)?;
+        writeln!(file, "| {date} | {card} ({layer}) | {} | {} |", finding.replace('|', "/"), text.replace('|', "/")).map_err(io)?;
     }
 
     Ok(path)
+}
+
+/// A setup fact in a lesson (an IPv4 address, a home path, a localhost port), which keeps it out of the general layer.
+pub fn setup_fact(text: &str) -> Option<String> {
+    let re = regex::Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}\b|/home/\S*|~/\S*|\blocalhost:\d+").unwrap();
+    re.find(text).map(|m| m.as_str().to_string())
 }
 
 /// Reads the current content of a card's markdown file.
@@ -109,6 +121,8 @@ pub struct Lesson {
     pub card: String,
     pub text: String,
     pub finding: String,
+    pub layer: String,
+    pub proposed_by: String,
     pub state: String,
     pub created_at: String,
 }
@@ -120,7 +134,7 @@ pub async fn list(
     extract::Path(chat_id): extract::Path<String>,
 ) -> ApiResult<Json<Vec<Lesson>>> {
     let rows: Vec<Lesson> = sqlx::query_as(
-        "SELECT id, chat_id, card, text, finding, state, created_at FROM lessons WHERE chat_id = ? AND user_id = ? ORDER BY created_at, rowid"
+        "SELECT id, chat_id, card, text, finding, layer, proposed_by, state, created_at FROM lessons WHERE chat_id = ? AND user_id = ? ORDER BY created_at, rowid"
     )
     .bind(&chat_id)
     .bind(&u.id)
@@ -135,6 +149,8 @@ pub struct Decision {
     pub decision: String,
     #[serde(default)]
     pub text: Option<String>,
+    #[serde(default)]
+    pub layer: Option<String>,
 }
 
 /// Accept or dismiss a lesson proposal.
@@ -144,15 +160,15 @@ pub async fn decide(
     extract::Path(id): extract::Path<String>,
     Json(b): Json<Decision>,
 ) -> ApiResult<StatusCode> {
-    let row: Option<(String, String, String, String, String)> = sqlx::query_as(
-        "SELECT card, text, finding, state, project_id FROM lessons WHERE id = ? AND user_id = ?"
+    let row: Option<(String, String, String, String, String, String)> = sqlx::query_as(
+        "SELECT card, text, finding, state, project_id, layer FROM lessons WHERE id = ? AND user_id = ?"
     )
     .bind(&id)
     .bind(&u.id)
     .fetch_optional(&s.db)
     .await?;
 
-    let Some((card, text, finding, state, project_id)) = row else {
+    let Some((card, text, finding, state, project_id, stored_layer)) = row else {
         return Err(ApiError::NotFound);
     };
 
@@ -183,18 +199,32 @@ pub async fn decide(
                 return Err(ApiError::BadRequest("Unknown skill card.".into()));
             }
 
-            let path = add_to_card(&data_dir(&s), &card, &final_text, &finding)?;
+            let layer = match b.layer.as_deref() {
+                Some("general") => "general",
+                Some("private") => "private",
+                Some(_) => return Err(ApiError::BadRequest("Unknown layer.".into())),
+                None => stored_layer.as_str(),
+            };
+
+            if layer == "general" {
+                if let Some(fact) = setup_fact(&final_text) {
+                    return Err(ApiError::BadRequest(format!("`{fact}` is a setup fact: keep this lesson private or leave it out.")));
+                }
+            }
+
+            let path = add_to_card(&data_dir(&s), &card, layer, &final_text, &finding)?;
 
             sqlx::query(
-                "UPDATE lessons SET state = 'accepted', text = ?, decided_at = ? WHERE id = ?"
+                "UPDATE lessons SET state = 'accepted', text = ?, layer = ?, decided_at = ? WHERE id = ?"
             )
             .bind(&final_text)
+            .bind(layer)
             .bind(util::now())
             .bind(&id)
             .execute(&s.db)
             .await?;
 
-            crate::thread::post(&s, &u.id, &project_id, &format!("Lesson added to `{card}` ({}).", path.display()))
+            crate::thread::post(&s, &u.id, &project_id, &format!("Lesson added to `{card}` ({layer}, {}).", path.display()))
                 .await;
         }
         _ => return Err(ApiError::BadRequest("Unknown decision.".into())),
@@ -272,6 +302,8 @@ mod tests {
             "worker/rust/SKILL",
             "Bind every value.",
             "SQL was formatted",
+            "private",
+            "coder-test",
         )
         .await;
 
@@ -280,7 +312,7 @@ mod tests {
             State(s.clone()),
             Extension(user("u1")),
             extract::Path(id.clone()),
-            Json(Decision { decision: "accept".into(), text: None }),
+            Json(Decision { decision: "accept".into(), text: None, layer: None }),
         )
         .await;
 
@@ -321,6 +353,8 @@ mod tests {
             "worker/rust/SKILL",
             "Bind every value.",
             "SQL was formatted",
+            "private",
+            "coder-test",
         )
         .await;
 
@@ -332,6 +366,7 @@ mod tests {
             Json(Decision {
                 decision: "accept".into(),
                 text: Some("Bind values, never format them.".into()),
+                layer: None,
             }),
         )
         .await;
@@ -362,6 +397,8 @@ mod tests {
             "../../etc/passwd",
             "x",
             "y",
+            "private",
+            "coder-test",
         )
         .await;
 
@@ -370,7 +407,7 @@ mod tests {
             State(s.clone()),
             Extension(user("u1")),
             extract::Path(id.clone()),
-            Json(Decision { decision: "accept".into(), text: None }),
+            Json(Decision { decision: "accept".into(), text: None, layer: None }),
         )
         .await;
         assert!(result.is_err());
@@ -384,6 +421,8 @@ mod tests {
             "worker/rust/SKILL",
             "x",
             "y",
+            "private",
+            "coder-test",
         )
         .await;
 
@@ -392,7 +431,7 @@ mod tests {
             State(s.clone()),
             Extension(user("u1")),
             extract::Path(id2.clone()),
-            Json(Decision { decision: "dismiss".into(), text: None }),
+            Json(Decision { decision: "dismiss".into(), text: None, layer: None }),
         )
         .await;
         assert!(dismiss.is_ok());
@@ -401,7 +440,7 @@ mod tests {
             State(s.clone()),
             Extension(user("u1")),
             extract::Path(id2.clone()),
-            Json(Decision { decision: "accept".into(), text: None }),
+            Json(Decision { decision: "accept".into(), text: None, layer: None }),
         )
         .await;
         assert!(result2.is_err());
@@ -426,6 +465,8 @@ mod tests {
             "worker/rust/SKILL",
             "x",
             "y",
+            "private",
+            "coder-test",
         )
         .await;
 
@@ -434,11 +475,104 @@ mod tests {
             State(s.clone()),
             Extension(user("u2")),
             extract::Path(id.clone()),
-            Json(Decision { decision: "accept".into(), text: None }),
+            Json(Decision { decision: "accept".into(), text: None, layer: None }),
         )
         .await;
         assert!(result.is_err());
 
+        cleanup(&data_dir);
+    }
+
+    #[test]
+    fn setup_facts_are_found() {
+        let found = setup_fact("Use 10.0.0.5 for the API");
+        assert_eq!(found, Some("10.0.0.5".to_string()));
+
+        let found = setup_fact("Files live in /home/kees");
+        assert_eq!(found, Some("/home/kees".to_string()));
+
+        let found = setup_fact("Call localhost:8080 first");
+        assert_eq!(found, Some("localhost:8080".to_string()));
+
+        let found = setup_fact("Bind every value.");
+        assert_eq!(found, None);
+    }
+
+    #[tokio::test]
+    async fn a_general_lesson_with_a_setup_fact_is_refused() {
+        let _env = ENV.lock().await;
+        let db = db().await;
+        let s = state(db.clone());
+        let data_dir = data_dir_for_test("general-lesson-refused");
+        let _ = cleanup(&data_dir);
+
+        propose(
+            &s,
+            "u1",
+            "p1",
+            "r1",
+            "t1",
+            "worker/rust/SKILL",
+            "Reach the server at 10.0.0.5.",
+            "f",
+            "general",
+            "coder",
+        )
+        .await;
+
+        let id = lesson_id(&db, "worker/rust/SKILL").await;
+        let result = decide(
+            State(s.clone()),
+            Extension(user("u1")),
+            extract::Path(id.clone()),
+            Json(Decision {
+                decision: "accept".into(),
+                text: None,
+                layer: None,
+            }),
+        )
+        .await;
+        assert!(result.is_err());
+
+        let row: Option<Lesson> = sqlx::query_as::<_, Lesson>(
+            "SELECT * FROM lessons WHERE card = ? AND finding = ?",
+        )
+        .bind("worker/rust/SKILL")
+        .bind("f")
+        .fetch_optional(&db)
+        .await
+        .unwrap();
+        assert!(row.is_some());
+        let row = row.unwrap();
+        assert_eq!(row.state, "proposed");
+        assert_eq!(row.layer, "general");
+
+        let result = decide(
+            State(s.clone()),
+            Extension(user("u1")),
+            extract::Path(id.clone()),
+            Json(Decision {
+                decision: "accept".into(),
+                text: None,
+                layer: Some("private".into()),
+            }),
+        )
+        .await;
+        assert!(result.is_ok());
+
+        let row: Option<Lesson> = sqlx::query_as::<_, Lesson>(
+            "SELECT * FROM lessons WHERE card = ? AND finding = ?",
+        )
+        .bind("worker/rust/SKILL")
+        .bind("f")
+        .fetch_optional(&db)
+        .await
+        .unwrap();
+        assert!(row.is_some());
+        let row = row.unwrap();
+        assert_eq!(row.state, "accepted");
+        assert_eq!(row.layer, "private");
+        assert_eq!(row.proposed_by, "coder");
         cleanup(&data_dir);
     }
 }

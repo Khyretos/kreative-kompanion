@@ -517,13 +517,14 @@ export class MockApi implements KompanionApi {
 
   async listActions(chatId: string) { return structuredClone(actions.filter((a) => (a as PcAction & { chatId?: string }).chatId === chatId)); }
   async listLessons(chatId: string) { return structuredClone(lessons.filter((l) => l.chatId === chatId)); }
-  async decideLesson(lessonId: string, decision: "accept" | "dismiss", text?: string) {
+  async decideLesson(lessonId: string, decision: "accept" | "dismiss", text?: string, layer?: "general" | "private") {
     const l = lessons.find((x) => x.id === lessonId);
     if (!l || l.state !== "proposed") throw new Error("This lesson was already decided.");
     l.state = decision === "accept" ? "accepted" : "dismissed";
+    if (layer) l.layer = layer;
     if (decision === "accept" && text?.trim()) l.text = text.trim();
     const m: Message = { id: id("m"), chatId: l.chatId, author: "orchestrator", at: new Date().toISOString(),
-      text: decision === "accept" ? `Lesson added to \`${l.card}\` (/data/skills/${l.card}.md).` : `Lesson for \`${l.card}\` dismissed.` };
+      text: decision === "accept" ? `Lesson added to \`${l.card}\` (${l.layer}, /data/skills/${l.card}.md).` : `Lesson for \`${l.card}\` dismissed.` };
     messages.push(m);
     this.emit({ type: "message", message: structuredClone(m) });
     this.emit({ type: "changed", what: "lessons" });
@@ -557,7 +558,7 @@ export class MockApi implements KompanionApi {
     post(1500, `**${t.title}**, step 2/2 done: the times go to the console.`);
     post(1800, `**${t.title}**, review round 1: 1 finding(s). [Open the task](#task=${t.id})`, () => {
       lessons.push({ id: id("l"), chatId: thread, card: "worker/cpp-games/SKILL", text: "Time a compile step with std::chrono::steady_clock, never system_clock.",
-        finding: "The timer used system_clock, which jumps when the clock changes.", state: "proposed", createdAt: new Date().toISOString() });
+        finding: "The timer used system_clock, which jumps when the clock changes.", state: "proposed", createdAt: new Date().toISOString(), layer: "general" as const, proposedBy: "coder" });
       this.emit({ type: "changed", what: "lessons" });
     });
     post(2100, `Done: **${t.title}** (done after 1 round(s)). [Open the task](#task=${t.id})`, () => {
