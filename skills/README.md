@@ -77,6 +77,12 @@ paths, emails, or host names from the private layer's `deny-hosts.txt`).
 
 Since SK-03c (2026-10-06) the cards are split: general lessons in `skills/general/`, Kompanion's own in
 the rest of `skills/` (`extends:` cards where a card has parts in both), and the setup's private lessons
-in the `kompanion-skills-kees` repo, mounted at `/skills-local` (`KOMPANION_SKILLS_LOCAL_DIR` in `.env`;
+in the `kompas-skills-kees` repo, mounted at `/skills-local` (`KOMPANION_SKILLS_LOCAL_DIR` in `.env`;
 host tools read `[skills] local` in `kompanion.toml`). `tools/skills/split_layers.py` did the split from
 reviewed tags; new lessons go straight into the right layer.
+
+Since SK-03 part 4 (2026-10-06) `skills/general/` is a git subtree of the public `kompas-skills` repo
+(squashed). Change general cards in `kompas-skills` and bring them in with
+`git subtree pull --prefix skills/general <kompas-skills url> main --squash`, or edit them here and send
+them back with `git subtree push --prefix skills/general <kompas-skills url> <branch>`. The loaders read
+only `.md` files and skip `README.md`, so the library's README, LICENSE, `tools/` and `.forgejo/` are ignored.

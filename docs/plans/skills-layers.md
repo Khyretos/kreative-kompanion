@@ -8,7 +8,7 @@
 1. Create new public repo `kompas-skills` on Forgejo (mirrored to GitHub like the others) with licence CC BY-SA 4.0 containing only general knowledge: `work-habits.md`, prompting workers and fix rounds, shell, git, Python, colour themes, and `_model-notes/<family>/` for model quirks.
 2. Include `kompas-skills` in the Kompanion repo as a git subtree at `skills/general/`. The Open WebUI Kompas pipe reads the same `kompas-skills` files (its `SKILLS_DIR`), so `~/Docker/Services/ai/ai-skills` stops being a second copy.
 3. Keep Kompanion's own coding lessons (templates, sqlx rules, drafting pipeline) in the Kompanion repo `skills/`.
-4. Create new private repo `kompanion-skills-kees` on Forgejo to host hosts, IPs, paths, NFS mounts, soucouyant's fish shell and Hyprland, OVMS and the A770, the brand palette, and Kees's house rules (FOSS only, bright text, English and Spanish first); mount it read-only into the server at `/skills-local`.
+4. Create new private repo `kompas-skills-kees` on Forgejo to host hosts, IPs, paths, NFS mounts, soucouyant's fish shell and Hyprland, OVMS and the A770, the brand palette, and Kees's house rules (FOSS only, bright text, English and Spanish first); mount it read-only into the server at `/skills-local`.
 5. Configure the loader to merge general, Kompanion, and local layers where a local card with the same `name` extends or replaces the general one using front matter `overrides: <name>`.
 6. Split today's files by tagging each lesson `general` or `private` (Coder drafts tags, Claude reviews), moving them to the correct locations while preserving git history in commit messages.
 7. Add CI check in `kompas-skills` that fails on IP addresses, home paths (`/home/`, `~/`), host names from a deny list, and email addresses.
