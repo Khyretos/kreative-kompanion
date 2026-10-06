@@ -221,6 +221,11 @@ impl HostStats {
         }
     }
 
+    /// GPU-01: whether a game runs on a paired computer (None without a report in the last 2 min).
+    pub fn gaming(&self, machine_id: &str) -> Option<bool> {
+        self.remote.lock().unwrap().get(machine_id).filter(|r| r.at.elapsed() < Duration::from_secs(120)).and_then(|r| r.snap.gaming)
+    }
+
     /// A paired computer's runner version from its last report.
     pub fn runner_version(&self, machine_id: &str) -> Option<String> {
         self.remote.lock().unwrap().get(machine_id).and_then(|r| r.version.clone())

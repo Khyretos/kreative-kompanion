@@ -6,8 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// How long a ComfyUI may take to come up.
-const READY_WAIT: Duration = Duration::from_secs(180);
+/// How long a ComfyUI may take to come up (GPU-01: a stopped app is started by the runner on
+/// its next report, up to 60 s, and then boots).
+const READY_WAIT: Duration = Duration::from_secs(300);
 
 pub async fn run(
     http: &reqwest::Client,
