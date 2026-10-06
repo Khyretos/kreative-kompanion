@@ -281,6 +281,14 @@ pub fn coder_model() -> String {
         .unwrap_or_else(|| "Coder".to_string())
 }
 
+/// GPU-03: whether a call to this model would wait for the studio now.
+pub fn coder_paused(model: &str) -> bool {
+    gpu_id().is_some() && model == coder_model() && {
+        let st = STATE.lock().unwrap();
+        st.mode == "artist" || st.switching.is_some()
+    }
+}
+
 /// GPU-02: a call to Coder waits while the GPU is with the studio (artist mode, or a switch running), at most 30 min; the role policy switches back as soon as no studio job is queued.
 pub async fn wait_for_coder(model: &str) {
     if gpu_id().is_none() || model != coder_model() {
