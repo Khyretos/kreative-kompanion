@@ -38,7 +38,10 @@ export interface AppState {
   taskScope: "project" | "all";
   settingsOpen: boolean;
   pane: "main" | "left" | "right"; // which pane is visible on a phone
-  section: "chat" | "assets" | "capabilities"; // what the middle of the screen shows
+  section: "chat" | "assets" | "capabilities" | "studio"; // what the middle of the screen shows
+  studioTypes?: import("./views/studio").StudioType[]; // STU-01, loaded when the Studio opens
+  studioRuns?: import("./views/studio").StudioRun[];
+  studioForm: import("./views/studio").StudioForm;
   capabilities?: import("./views/capabilities").Capabilities; // loaded when the Capabilities section opens
   gpuTimeline?: import("./views/gputimeline").TlGpu[]; // M6-04, loaded with Capabilities
   gpuRange: 1 | 24;
@@ -79,6 +82,7 @@ export const store = new Store<AppState>({
   settingsOpen: false,
   pane: "main",
   section: "chat",
+  studioForm: { type: "", size: "", count: 1, busy: false },
   gpuRange: 1,
   expandedProjects: new Set(),
   allTasksShown: new Set(),

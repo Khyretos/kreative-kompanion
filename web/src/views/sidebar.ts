@@ -111,6 +111,8 @@ export function renderSidebar(s: AppState): SafeHtml {
     <div class="account">
       ${s.features.assets ? html`<button class="nav-item ${s.section === "assets" ? "active" : ""}" data-action="assets"
         ${s.section === "assets" ? html`aria-current="page"` : ""}>${icon("box")} Assets</button>` : ""}
+      ${s.features.gpus ? html`<button class="nav-item ${s.section === "studio" ? "active" : ""}" data-action="studio"
+        ${s.section === "studio" ? html`aria-current="page"` : ""}>${icon("image")} Studio</button>` : ""}
       <button class="nav-item ${s.section === "capabilities" ? "active" : ""}" data-action="capabilities"
         ${s.section === "capabilities" ? html`aria-current="page"` : ""}>${icon("spark")} Capabilities</button>
       <button class="nav-item settings-link" data-action="settings">${icon("gear")} Settings</button>
