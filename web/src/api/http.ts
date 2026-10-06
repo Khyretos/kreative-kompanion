@@ -158,7 +158,10 @@ export class HttpApi implements KompanionApi {
     }
     return res.blob();
   }
-  getSkill(id: string) { return this.request<{ id: string; text: string }>("GET", `/capabilities/skill?id=${encodeURIComponent(id)}`); }
+  getSkill(id: string, layer?: string) { return this.request<{ id: string; text: string; layer?: string }>("GET", `/capabilities/skill?id=${encodeURIComponent(id)}${layer ? `&layer=${encodeURIComponent(layer)}` : ""}`); }
+  skillHistory(layer: string, file: string) { return this.request<{ commits: import("../views/capabilities").SkillCommit[] }>("GET", `/capabilities/skill/history?layer=${encodeURIComponent(layer)}&file=${encodeURIComponent(file)}`); }
+  saveSkill(layer: string, file: string, text: string, message: string) { return this.request<{ commit: string }>("PUT", "/capabilities/skill", { layer, file, text, message }); }
+  moveLesson(from: string, to: string, file: string, line: string) { return this.request<{ to: string; from: string }>("POST", "/capabilities/skill/move", { from, to, file, line }); }
   async decideLesson(id: string, decision: "accept" | "dismiss", text?: string, layer?: "general" | "private"): Promise<void> {
     await this.request<void>("POST", `/lessons/${encodeURIComponent(id)}`, { decision, text, layer });
   }

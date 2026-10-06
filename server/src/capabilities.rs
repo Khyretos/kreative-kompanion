@@ -1,4 +1,5 @@
 use axum::{Extension, Json, extract::{Query, State}};
+use crate::skillrepo;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::PathBuf;
@@ -157,12 +158,11 @@ pub async fn indexes(s: &AppState) -> Vec<Value> {
     })]
 }
 
-/// Every SKILL.md under the skills folder: id (its folder, e.g. "worker/rust"), title,
-/// number of lessons and when it last changed.
-pub fn skills() -> Vec<Value> {
-    let root = skills_dir();
+/// Every SKILL.md and card under one layer's folder: id (e.g. "worker/rust"), title, number of
+/// lessons, when it last changed, its layer and its file inside the layer ("worker/rust/SKILL.md").
+fn layer_files(root: &std::path::Path, layer: &str) -> Vec<Value> {
     let mut files = Vec::new();
-    let mut todo = vec![root.clone()];
+    let mut todo = vec![root.to_path_buf()];
     while let Some(dir) = todo.pop() {
         for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
             let path = entry.path();
@@ -173,12 +173,12 @@ pub fn skills() -> Vec<Value> {
             }
         }
     }
-    let mut output: Vec<Value> = files
+    files
         .into_iter()
         .filter_map(|path| {
             // A role core (worker/web/SKILL.md) is "worker/web"; a card (shared/colour-themes.md) is "shared/colour-themes".
-            let rel = path.strip_prefix(&root).ok()?.with_extension("");
-            let rel = rel.to_string_lossy().to_string();
+            let file = path.strip_prefix(root).ok()?.to_string_lossy().replace('\\', "/");
+            let rel = file.strip_suffix(".md")?.to_string();
             let id = rel.strip_suffix("/SKILL").map(str::to_string).unwrap_or(rel);
             if id.is_empty() {
                 return None;
@@ -191,11 +191,9 @@ pub fn skills() -> Vec<Value> {
                 .ok()
                 .and_then(|t| OffsetDateTime::from(t).format(&Rfc3339).ok())
                 .unwrap_or_default();
-            Some(json!({ "id": id, "title": title, "lessons": lessons, "updated": updated }))
+            Some(json!({ "id": id, "title": title, "lessons": lessons, "updated": updated, "layer": layer, "file": file }))
         })
-        .collect();
-    output.sort_by(|a, b| a["id"].as_str().cmp(&b["id"].as_str()));
-    output
+        .collect()
 }
 
 /// The skill files use three styles: "12. ...", "## 1. Title" and plain "- " bullets.
@@ -210,8 +208,37 @@ fn is_numbered(line: &str) -> bool {
     digits > 0 && line[digits..].starts_with(". ")
 }
 
+/// The skill files of the three layers (general, Kompanion, private), sorted by layer and id.
+pub fn skills() -> Vec<Value> {
+    let root = skills_dir();
+    let mut output = layer_files(&root.join("general"), "general");
+    output.extend(layer_files(&root, "kompanion"));
+    output.extend(layer_files(&crate::skills::local_dir(), "private"));
+    output.retain_mut(|item| {
+        if item.get("layer").and_then(|v| v.as_str()) == Some("kompanion") {
+            if let Some(file) = item.get("file").and_then(|v| v.as_str()) {
+                if file.starts_with("general/") {
+                    return false;
+                }
+            }
+        }
+        true
+    });
+    output.sort_by(|a, b| {
+        let la = a.get("layer").and_then(|v| v.as_str()).unwrap_or("");
+        let lb = b.get("layer").and_then(|v| v.as_str()).unwrap_or("");
+        let ia = a.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let ib = b.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        la.cmp(lb).then_with(|| ia.cmp(ib))
+    });
+    output
+}
+
+
 #[derive(Deserialize)]
 pub struct SkillQuery {
+    #[serde(default)]
+    pub layer: Option<String>,
     pub id: String,
 }
 
@@ -220,14 +247,97 @@ pub async fn skill(Query(q): Query<SkillQuery>) -> ApiResult<Json<Value>> {
         return Err(ApiError::BadRequest("Unknown skill.".into()));
     }
 
-    let core = skills_dir().join(&q.id).join("SKILL.md");
-    let path = if core.exists() { core } else { skills_dir().join(format!("{}.md", q.id)) };
+    let layer = q.layer.as_deref().unwrap_or("kompanion");
+    let folder = match layer {
+        "private" => crate::skills::local_dir(),
+        "general" => skills_dir().join("general"),
+        _ => skills_dir(),
+    };
+    let core = folder.join(&q.id).join("SKILL.md");
+    let path = if core.exists() { core } else { folder.join(format!("{}.md", q.id)) };
     let text = std::fs::read_to_string(&path).map_err(|_| ApiError::NotFound)?;
 
     Ok(Json(json!({
         "id": q.id,
-        "text": text
+        "text": text,
+        "layer": layer
     })))
+}
+
+#[derive(Deserialize)]
+pub struct SkillFile { pub layer: String, pub file: String }
+#[derive(Deserialize)]
+pub struct SaveSkill { pub layer: String, pub file: String, pub text: String, #[serde(default)] pub message: String }
+#[derive(Deserialize)]
+pub struct MoveLesson { pub from: String, pub to: String, pub file: String, pub line: String }
+
+fn where_is(layer: &str, file: &str) -> ApiResult<(String, String)> {
+    if let Some((repo, prefix)) = skillrepo::target(layer) && skillrepo::safe_file(file) {
+        Ok((repo, format!("{prefix}{file}")))
+    } else {
+        Err(ApiError::BadRequest("Unknown skill file.".into()))
+    }
+}
+
+fn forge() -> ApiResult<crate::skillrepo::Forge> {
+    crate::skillrepo::Forge::from_env().ok_or_else(|| ApiError::BadRequest("Set KOMPANION_FORGE_TOKEN to edit skills.".into()))
+}
+
+fn forge_err(e: String) -> ApiError {
+    ApiError::BadRequest(format!("Forgejo: {e}"))
+}
+
+fn no_setup_fact(layer: &str, text: &str) -> ApiResult<()> {
+    match crate::lessons::setup_fact(text) {
+        Some(f) if layer == "general" => Err(ApiError::BadRequest(format!("A general card cannot hold a setup fact ({f}); move that lesson to private."))),
+        _ => Ok(()),
+    }
+}
+
+pub async fn skill_history(Query(q): Query<SkillFile>) -> ApiResult<Json<Value>> {
+    let (repo, path) = where_is(&q.layer, &q.file)?;
+    let f = forge()?;
+    let history = f.history(&repo, &path).await.map_err(forge_err)?;
+    Ok(Json(json!({"commits": history})))
+}
+
+pub async fn save_skill(State(s): State<AppState>, Extension(u): Extension<User>, Json(b): Json<SaveSkill>) -> ApiResult<Json<Value>> {
+    crate::admin::require_admin(&s, &u).await?;
+    let (repo, path) = where_is(&b.layer, &b.file)?;
+    no_setup_fact(&b.layer, &b.text)?;
+    let message = if b.message.trim().is_empty() {
+        format!("skills: edit {} ({})", b.file, b.layer)
+    } else {
+        b.message.trim().to_string()
+    };
+    let sha = forge()?.commit(&repo, &path, &b.text, &message, &u.name).await.map_err(forge_err)?;
+    Ok(Json(json!({"commit": sha})))
+}
+
+pub async fn move_lesson(State(s): State<AppState>, Extension(u): Extension<User>, Json(b): Json<MoveLesson>) -> ApiResult<Json<Value>> {
+    crate::admin::require_admin(&s, &u).await?;
+    if !(b.from == "general" && b.to == "private") && !(b.from == "private" && b.to == "general") {
+        return Err(ApiError::BadRequest("A lesson moves between general and private.".into()));
+    }
+    let (source_repo, source_path) = where_is(&b.from, &b.file)?;
+    let (target_repo, target_path) = where_is(&b.to, &b.file)?;
+    let f = forge()?;
+    let (_, source_text) = f.read(&source_repo, &source_path).await.map_err(forge_err)?.ok_or(ApiError::NotFound)?;
+    let (rest, lesson) = skillrepo::take_lesson(&source_text, &b.line).ok_or_else(|| ApiError::BadRequest("That lesson is not in the card.".into()))?;
+    // The whole lesson, continuation lines included, must be free of setup facts to go general.
+    no_setup_fact(&b.to, &lesson)?;
+    // A new private card extends the general one of the same name instead of replacing it.
+    let target_text = match f.read(&target_repo, &target_path).await.map_err(forge_err)? {
+        Some((_, text)) => text,
+        None if b.to == "private" => format!("---\nextends: {}\n---\n", b.file.trim_end_matches(".md")),
+        None => String::new(),
+    };
+    let new_target = skillrepo::append_line(&target_text, &lesson);
+    let message = format!("skills: move a lesson of {} from {} to {}", b.file, b.from, b.to);
+    // The target first: a failure between the two commits leaves the lesson in both, never in neither.
+    let first_sha = f.commit(&target_repo, &target_path, &new_target, &message, &u.name).await.map_err(forge_err)?;
+    let second_sha = f.commit(&source_repo, &source_path, &rest, &message, &u.name).await.map_err(forge_err)?;
+    Ok(Json(json!({"to": first_sha, "from": second_sha})))
 }
 
 pub async fn list(State(s): State<AppState>, Extension(u): Extension<User>) -> ApiResult<Json<Value>> {
@@ -330,12 +440,20 @@ mod tests {
         let skill_path = temp_dir.join("worker/rust/SKILL.md");
         std::fs::create_dir_all(skill_path.parent().unwrap()).unwrap();
         std::fs::write(&skill_path, "# Worker: Rust\n\n1. one\n2. two\n- detail\n3. three\n").unwrap();
+        std::fs::create_dir_all(temp_dir.join("general/shared")).unwrap();
+        std::fs::write(temp_dir.join("general/shared/git.md"), "# Git\n\n1. one\n").unwrap();
 
         let skills = skills();
-        assert_eq!(skills.len(), 1);
+        assert_eq!(skills.len(), 2);
+        assert_eq!(skills[0]["id"], "shared/git");
+        assert_eq!(skills[0]["layer"], "general");
+        assert_eq!(skills[0]["file"], "shared/git.md");
+        let skills = &skills[1..];
         assert_eq!(skills[0]["id"], "worker/rust");
         assert_eq!(skills[0]["title"], "Worker: Rust");
         assert_eq!(skills[0]["lessons"], 3);
+        assert_eq!(skills[0]["layer"], "kompanion");
+        assert_eq!(skills[0]["file"], "worker/rust/SKILL.md");
 
         unsafe {
             env::remove_var("KOMPANION_SKILLS");

@@ -51,7 +51,13 @@ export interface CapSkill {
   title: string;
   lessons: number;
   updated: string;
+  /** SK-03: general (kompas-skills), kompanion (this repo) or private (this setup). */
+  layer: "general" | "kompanion" | "private";
+  /** The path inside the layer, e.g. "shared/git.md". */
+  file: string;
 }
+
+export interface SkillCommit { sha: string; message: string; author: string; date: string }
 
 export interface CapHolding { name: string; kind: string; nowMib: number; peakMib: number; busy: boolean }
 export interface CapGpu { id: string; machine: string; totalMib: number; usedMib: number | null; reservedMib: number; otherMib: number; freeMib: number; schedulable: boolean; holdings: CapHolding[] }
@@ -164,9 +170,9 @@ function indexCard(i: CapIndex): SafeHtml {
 function skillCard(s: CapSkill): SafeHtml {
   return html`
     <li class="task cap s-done">
-      <button class="task-main" data-action="open-skill" data-id="${s.id}">
+      <button class="task-main" data-action="open-skill" data-id="${s.id}" data-layer="${s.layer}" data-file="${s.file}">
         <span class="task-top">
-          <span class="chip state">${s.lessons} lessons</span>
+          <span class="chip state">${s.lessons} lessons</span><span class="chip role">${s.layer}</span>
         </span>
         <span class="task-title">${s.title}</span>
         <span class="task-step"><code>${s.id}</code></span>

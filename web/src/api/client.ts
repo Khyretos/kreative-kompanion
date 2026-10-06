@@ -122,7 +122,13 @@ export interface KompanionApi {
   /** M6-04: per GPU, samples, jobs and events of the last 1 or 24 hours. */
   gpuTimeline(hours: 1 | 24): Promise<import("../views/gputimeline").TlGpu[]>;
   /** One skill's SKILL.md, read-only. */
-  getSkill(id: string): Promise<{ id: string; text: string }>;
+  getSkill(id: string, layer?: string): Promise<{ id: string; text: string; layer?: string }>;
+  /** SK-03: a skill file's commits in its layer's repo, newest first. */
+  skillHistory(layer: string, file: string): Promise<{ commits: import("../views/capabilities").SkillCommit[] }>;
+  /** SK-03: saves a skill file as a commit in its layer's repo. */
+  saveSkill(layer: string, file: string, text: string, message: string): Promise<{ commit: string }>;
+  /** SK-03: moves one lesson line between the general and private layers (a commit in each repo). */
+  moveLesson(from: string, to: string, file: string, line: string): Promise<{ to: string; from: string }>;
   /** W4: whether the server offers voice, and its voices. */
   voiceInfo(): Promise<{ enabled: boolean; voices: { id: string; label: string }[] }>;
   /** Speech to text: a recording from the microphone; lang "" lets Whisper detect it. */

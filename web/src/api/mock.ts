@@ -488,9 +488,11 @@ export class MockApi implements KompanionApi {
       mcp: [],
       indexes: [{ id: "assets", name: "Asset search by meaning", items: 41_230, of: 47_012, failed: 12, model: "Embedder (ovms-cpu)", status: "partly" as const }],
       skills: [
-        { id: "orchestrator", title: "Orchestrator", lessons: 9, updated: ago(30) },
-        { id: "worker/rust", title: "Worker: Rust", lessons: 37, updated: ago(5) },
-        { id: "worker/web", title: "Worker: web app (vanilla TypeScript)", lessons: 25, updated: ago(90) },
+        { id: "work-habits", title: "Work habits", lessons: 14, updated: ago(60), layer: "general" as const, file: "work-habits.md" },
+        { id: "orchestrator", title: "Orchestrator", lessons: 9, updated: ago(30), layer: "kompanion" as const, file: "orchestrator/SKILL.md" },
+        { id: "worker/rust", title: "Worker: Rust", lessons: 37, updated: ago(5), layer: "kompanion" as const, file: "worker/rust/SKILL.md" },
+        { id: "worker/web", title: "Worker: web app (vanilla TypeScript)", lessons: 25, updated: ago(90), layer: "kompanion" as const, file: "worker/web/SKILL.md" },
+        { id: "shared/colour-themes", title: "Colour themes (this setup)", lessons: 3, updated: ago(200), layer: "private" as const, file: "shared/colour-themes.md" },
       ],
     };
   }
@@ -511,8 +513,16 @@ export class MockApi implements KompanionApi {
     b.setUint16(34, 16, true); put(36, "data"); b.setUint32(40, n * 2, true);
     return new Blob([b.buffer], { type: "audio/wav" });
   }
-  async getSkill(id: string) {
-    return { id, text: `# ${id}\n\nLessons for this role, newest last.\n\n1. (2026-10-04) Plan steps are changes, each with a **done when**.\n2. Never \`test.skip\` inside a test.\n` };
+  async skillHistory(_layer: string, file: string) {
+    return { commits: [{ sha: "a1b2c3d", message: `skills: edit ${file}`, author: "kees", date: ago(60 * 26) }] };
+  }
+
+  async saveSkill(_layer: string, _file: string, _text: string, _message: string) { return { commit: "c0ffee1" }; }
+
+  async moveLesson(_from: string, _to: string, _file: string, _line: string) { return { to: "c0ffee2", from: "c0ffee3" }; }
+
+  async getSkill(id: string, layer?: string) {
+    return { id, layer: layer ?? "kompanion", text: `# ${id}\n\nLessons for this role, newest last.\n\n1. (2026-10-04) Plan steps are changes, each with a **done when**.\n2. Never \`test.skip\` inside a test.\n` };
   }
 
   async listActions(chatId: string) { return structuredClone(actions.filter((a) => (a as PcAction & { chatId?: string }).chatId === chatId)); }
