@@ -29,12 +29,18 @@ local = true
 # local = true
 # api_key_env = "OVMS_API_KEY"
 # extra_body = { chat_template_kwargs = { enable_thinking = false } } # Qwen otherwise thinks for thousands of tokens before a short answer.
+# What an effort level (Low, Medium, High; Auto picks one) means for this provider: merged over
+# extra_body for that level, and/or another model. Without a mapping a level only changes rounds.
+# [provider.effort.high]
+# extra_body = { chat_template_kwargs = { enable_thinking = true } }
 # [[provider]]
 # id = "deepseek"
 # name = "DeepSeek"
 # kind = "openai-compatible"
 # base_url = "https://api.deepseek.com"
 # api_key_env = "DEEPSEEK_API_KEY"
+# [provider.effort.high]
+# model = "deepseek-reasoner"
 # [[provider]]
 # id = "anthropic"
 # name = "Claude (Anthropic API)"
