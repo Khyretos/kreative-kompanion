@@ -206,6 +206,19 @@ pub struct ProviderConfig {
     /// "thinking" on Qwen: `extra_body = { chat_template_kwargs = { enable_thinking = false } }`
     #[serde(default)]
     pub extra_body: Option<toml::Table>,
+    /// What an effort level means for this provider (EF-01), keyed "low", "medium", "high":
+    /// `[provider.effort.high] extra_body = { chat_template_kwargs = { enable_thinking = true } }`.
+    #[serde(default)]
+    pub effort: std::collections::HashMap<String, EffortMapping>,
+}
+
+/// One effort level on one provider: fields merged over extra_body, and/or another model.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct EffortMapping {
+    #[serde(default)]
+    pub extra_body: Option<toml::Table>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 impl ProviderConfig {

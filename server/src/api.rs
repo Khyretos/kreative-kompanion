@@ -60,6 +60,9 @@ pub struct Chat {
     /// The project's thread: task runs post their updates here.
     #[sqlx(default)]
     pub thread: bool,
+    /// How hard the models work in this chat (EF-01): auto, low, medium, high.
+    #[sqlx(default)]
+    pub effort: String,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -109,7 +112,7 @@ pub async fn chats(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Chat>>> {
     let rows = sqlx::query_as(
-        "SELECT id, title, project_id, updated_at, pinned, thread FROM chats\n         WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
+        "SELECT id, title, project_id, updated_at, pinned, thread, effort FROM chats\n         WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -145,6 +148,7 @@ pub async fn create_chat(
         updated_at: util::now(),
         pinned: false,
         thread: false,
+        effort: "auto".into(),
     };
     sqlx::query(
         "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
@@ -182,6 +186,9 @@ pub struct SendBody {
     /// A paired computer picked in the chat: the answer may use its tools (F6).
     #[serde(default)]
     machine_id: Option<String>,
+    /// The chat's effort for this and later messages (EF-01); stored on the chat.
+    #[serde(default)]
+    effort: Option<String>,
 }
 
 /// Stores the user's message, then streams the orchestrator's answer as
@@ -202,6 +209,13 @@ pub async fn send(
         return Err(ApiError::NotFound);
     }
 
+    if let Some(level) = b.effort.as_deref().and_then(crate::effort::Effort::parse) {
+        sqlx::query("UPDATE chats SET effort = ? WHERE id = ?")
+            .bind(level.as_str())
+            .bind(&chat_id)
+            .execute(&s.db)
+            .await?;
+    }
     let user_msg = insert_message(&s, &chat_id, "user", &text).await?;
     s.bus.send(&u.id, Event::Message { message: user_msg });
 
@@ -281,6 +295,13 @@ pub(crate) async fn insert_message(
 }
 
 async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment) {
+    let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?")
+        .bind(&chat_id)
+        .fetch_optional(&s.db)
+        .await
+        .ok()
+        .flatten();
+    let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default().resolve();
     let reply_id = util::new_id();
     let at = util::now();
     s.bus.send(
@@ -368,6 +389,8 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     candidates.extend(others);
     let mut used = role.model_id.clone();
     let mut used_provider = role.provider_id.clone();
+    // What the effort added to the request body, for the call log (EF-01).
+    let mut sent_extra: Option<toml::Table> = None;
     for (attempt, (provider_id, model_id)) in candidates.iter().enumerate() {
         if attempt > 0 {
             if !text.is_empty() || error.is_none() {
@@ -383,7 +406,12 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         used_provider = provider_id.clone();
     match s.config.provider(provider_id) {
         None => error = Some(format!("provider {provider_id} is not configured")),
-        Some(p) => match llm::stream_chat(&s.http, p, model_id, &convo).await {
+        Some(p) => match {
+            let (p, model_id) = crate::effort::apply(p, model_id, effort);
+            used = model_id.clone();
+            sent_extra = p.extra_body.clone();
+            llm::stream_chat(&s.http, &p, &model_id, &convo).await
+        } {
             Err(e) => error = Some(format!("{e:#}")),
             Ok(stream) => {
                 tokio::pin!(stream);
@@ -466,10 +494,10 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     }
 
     // Every call is recorded in full (see the call inspector in the app).
-    let request = json!({ "messages": convo });
+    let request = json!({ "messages": convo, "extra_body": sent_extra });
     let _ = sqlx::query(
         "INSERT INTO calls (user_id, id, chat_id, role, provider_id, model_id, reason, request, response,
-         tokens_in, tokens_out, ms, error, at) VALUES (?, ?, ?, 'orchestrator', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         tokens_in, tokens_out, ms, error, at, effort) VALUES (?, ?, ?, 'orchestrator', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&user_id)
     .bind(util::new_id())
@@ -484,6 +512,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     .bind(started.elapsed().as_millis() as i64)
     .bind(&error)
     .bind(util::now())
+    .bind(effort.as_str())
     .execute(&s.db)
     .await;
 }
@@ -589,6 +618,8 @@ pub struct ChatChange {
     project_id: Option<String>,
     pinned: Option<bool>,
     archived: Option<bool>,
+    /// auto, low, medium or high (EF-01).
+    effort: Option<String>,
 }
 
 /// Rename, pin or archive a chat (the chat menu).
@@ -600,6 +631,16 @@ pub async fn update_chat(
 ) -> ApiResult<StatusCode> {
     if !owns(&s, "chats", &id, &u).await? {
         return Err(ApiError::NotFound);
+    }
+    if let Some(e) = b.effort {
+        let Some(e) = crate::effort::Effort::parse(&e) else {
+            return Err(ApiError::BadRequest("Effort is auto, low, medium or high.".into()));
+        };
+        sqlx::query("UPDATE chats SET effort = ? WHERE id = ?")
+            .bind(e.as_str())
+            .bind(&id)
+            .execute(&s.db)
+            .await?;
     }
     if let Some(t) = b.title {
         let t: String = t.trim().chars().take(120).collect();
@@ -730,10 +771,11 @@ pub async fn calls(
         i64,
         Option<String>,
         String,
+        Option<String>,
     );
     let rows: Vec<Row> =
         sqlx::query_as(
-            "SELECT id, chat_id, role, provider_id, model_id, reason, request, response, tokens_in, tokens_out, ms, error, at
+            "SELECT id, chat_id, role, provider_id, model_id, reason, request, response, tokens_in, tokens_out, ms, error, at, effort
              FROM calls WHERE user_id = ?3 AND (?1 IS NULL OR chat_id = ?1) ORDER BY at DESC LIMIT ?2",
         )
         .bind(&q.chat)
@@ -743,11 +785,11 @@ pub async fn calls(
         .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, chat_id, role, provider, model, reason, request, response, ti, to, ms, error, at)| {
+            .map(|(id, chat_id, role, provider, model, reason, request, response, ti, to, ms, error, at, effort)| {
                 json!({
                     "id": id, "chatId": chat_id, "role": role, "provider": provider, "model": model,
                     "reason": reason, "request": serde_json::from_str::<Value>(&request).unwrap_or(Value::Null),
-                    "response": response, "tokensIn": ti, "tokensOut": to, "ms": ms, "error": error, "at": at,
+                    "response": response, "tokensIn": ti, "tokensOut": to, "ms": ms, "error": error, "at": at, "effort": effort,
                 })
             })
             .collect(),

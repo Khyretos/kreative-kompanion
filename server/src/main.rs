@@ -7,6 +7,7 @@ mod capabilities;
 mod config;
 mod costs;
 mod contrast;
+mod effort;
 mod error;
 mod events;
 mod folders;
