@@ -11,6 +11,12 @@ export class ApiError extends Error {
   }
 }
 
+/** STU-02: the Studio's audio types (HeartMuLa and MOSS on the server). */
+export const AUDIO_TYPES: import("../views/studio").StudioType[] = [
+  { name: "music", label: "Music", hint: "A song or a loop, with optional lyrics", sizes: [], order: 7, audio: "music", seconds: { min: 5, max: 240, default: 30 } },
+  { name: "sfx", label: "Sound effect", hint: "A short sound for a game", sizes: [], order: 8, audio: "sfx", seconds: { min: 1, max: 30, default: 4 } },
+];
+
 export class HttpApi implements KompanionApi {
   private source?: EventSource;
   private listeners = new Set<(ev: ServerEvent) => void>();
@@ -142,8 +148,11 @@ export class HttpApi implements KompanionApi {
   async studioTypes() {
     const all = await this.request<{ name: string; studio?: { label: string; hint: string; sizes: string[]; order: number } | null }[]>("GET", "/studio/workflows");
     return all.filter((w) => w.studio).map((w) => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order }))
-      .sort((a, b) => a.order - b.order);
+      .sort((a, b) => a.order - b.order)
+      // STU-02: music and sound effects are apps, not workflows.
+      .concat(AUDIO_TYPES);
   }
+  studioAudio(kind: "music" | "sfx", prompt: string, lyrics: string, seconds: number) { return this.request<{ ids: string[] }>("POST", "/studio/audio", { kind, prompt, lyrics, seconds }); }
   studioMake(type: string, prompt: string, size: string, count: 1 | 4) { return this.request<{ ids: string[] }>("POST", "/studio/make", { type, prompt, size, count }); }
   studioMine() { return this.request<import("../views/studio").StudioRun[]>("GET", "/studio/mine"); }
   setStudioTarget(target: string) { return this.request<void>("PUT", "/studio/target", { target }); }

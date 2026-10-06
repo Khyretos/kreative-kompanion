@@ -127,6 +127,8 @@ export interface KompanionApi {
   studioTypes(): Promise<import("../views/studio").StudioType[]>;
   /** STU-01: make 1 or 4 images; returns the run ids. */
   studioMake(type: string, prompt: string, size: string, count: 1 | 4): Promise<{ ids: string[] }>;
+  /** STU-02: music or a sound effect; returns the run id. */
+  studioAudio(kind: "music" | "sfx", prompt: string, lyrics: string, seconds: number): Promise<{ ids: string[] }>;
   /** STU-01: the signed-in user's runs, newest first. */
   studioMine(): Promise<import("../views/studio").StudioRun[]>;
   /** M6-04: per GPU, samples, jobs and events of the last 1 or 24 hours. */

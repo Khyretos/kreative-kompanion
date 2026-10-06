@@ -29,6 +29,8 @@ import { renderStudioMake, renderStudioLibrary } from "./views/studio";
 
 // STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
 let studioPrompt = "";
+let studioLyrics = ""; // STU-02: music lyrics and the audio length, kept the same way
+let studioSeconds = "";
 import { ALL_FEATURES } from "./api/types";
 import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
@@ -316,7 +318,7 @@ function render(s: AppState, prev: AppState): void {
       <header class="caps-head"><div class="caps-title"><h1>Studio</h1>
         <p class="muted">Describe it, pick a type and a size; Kompanion picks the GPU.</p></div></header>
       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
-    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt));
+    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds));
     if (changed(s, prev, ["studioTypes", "studioRuns", "section"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns));
   }
 
@@ -687,7 +689,10 @@ function wire(shell: HTMLElement): void {
     },
     "studio-type": (el) => {
       const t = store.get().studioTypes?.find((x) => x.name === el.dataset.type);
-      if (t) store.set({ studioForm: { ...store.get().studioForm, type: t.name, size: t.sizes[0] ?? "square", error: undefined } });
+      if (t) {
+        studioSeconds = t.seconds ? String(t.seconds.default) : "";
+        store.set({ studioForm: { ...store.get().studioForm, type: t.name, size: t.sizes[0] ?? "square", error: undefined } });
+      }
     },
     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
     // A finished image, large, in a dialog that closes on Escape or a click.
@@ -1105,10 +1110,15 @@ function wire(shell: HTMLElement): void {
       ev.preventDefault();
       const f = store.get().studioForm;
       const prompt = studioPrompt.trim();
-      const count = (studioForm.elements.namedItem("four") as HTMLInputElement).checked ? 4 : 1;
+      const four = studioForm.elements.namedItem("four") as HTMLInputElement | null;
+      const count = four?.checked ? 4 : 1;
       if (!prompt) { store.set({ studioForm: { ...f, count, error: "Describe what to make." } }); return; }
+      const chosen = store.get().studioTypes?.find((t) => t.name === f.type);
       store.set({ studioForm: { ...f, count, busy: true, error: undefined } });
-      void api.studioMake(f.type, prompt, f.size, count)
+      const made = chosen?.audio
+        ? api.studioAudio(chosen.audio, prompt, studioLyrics, Number(studioSeconds) || chosen.seconds?.default || 4)
+        : api.studioMake(f.type, prompt, f.size, count);
+      void made
         .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
         .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
       return;
@@ -1262,6 +1272,8 @@ function wire(shell: HTMLElement): void {
     const el = ev.target as HTMLInputElement;
     if (el.id === "task-filter") { store.set({ taskFilter: el.value }); return; }
     if (el.id === "studio-prompt") { studioPrompt = el.value; return; }
+    if (el.id === "studio-lyrics") { studioLyrics = el.value; return; }
+    if (el.id === "studio-seconds") { studioSeconds = el.value; return; }
     if (el.name === "four" && el.closest(".studio-form")) { store.set({ studioForm: { ...store.get().studioForm, count: el.checked ? 4 : 1 } }); return; }
     if (el.id === "asset-pick-q") { pickSearch(el.dataset.project ?? "", el.value); return; }
     if (el.id !== "machines-refresh") return;

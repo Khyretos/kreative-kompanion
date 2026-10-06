@@ -112,6 +112,7 @@ pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> A
             "gpu": row.2,
             "prompt": prompt,
             "size": size,
+            "seconds": params["seconds"],
             "state": row.4,
             "error": row.5,
             "files": files,
