@@ -418,6 +418,25 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
             let (p, model_id) = crate::effort::apply(p, model_id, effort);
             used = model_id.clone();
             sent_extra = p.extra_body.clone();
+            // GPU-03: say why the answer waits (shown while streaming; the saved answer is the model's text).
+            if crate::gpus::role::coder_paused(&model_id) {
+                let left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM gpu_job WHERE kind = 'asset' AND state IN ('queued', 'running')")
+                    .fetch_one(&s.db)
+                    .await
+                    .unwrap_or(0);
+                s.bus.send(
+                    &user_id,
+                    Event::MessageDelta {
+                        message_id: reply_id.clone(),
+                        chat_id: chat_id.clone(),
+                        text: format!(
+                            "*Coder is paused while the A770 works for the studio ({left} studio job{} left); the answer starts when it is back.*\n\n",
+                            if left == 1 { "" } else { "s" }
+                        ),
+                        done: false,
+                    },
+                );
+            }
             llm::stream_chat(&s.http, &p, &model_id, &convo).await
         } {
             Err(e) => error = Some(format!("{e:#}")),
