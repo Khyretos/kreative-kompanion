@@ -95,8 +95,14 @@ async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
     Ok(Json(rows))
 }
 
+/// GPU-02: without a GPU, a run is placed by `place`.
+fn auto_gpu() -> String {
+    "auto".into()
+}
+
 #[derive(Deserialize)]
 struct Start {
+    #[serde(default = "auto_gpu")]
     gpu: String,
     #[serde(default)]
     params: Map<String, Value>,
@@ -114,6 +120,29 @@ async fn start(
     let (id, job) = queue(&s, &name, &b.gpu, &b.params, &u.id).await?;
     tokio::spawn(job);
     Ok((StatusCode::ACCEPTED, Json(json!({"id": id}))))
+}
+
+/// GPU-02: the GPU a studio run uses. A named GPU is used as asked; "auto" takes the first
+/// configured GPU with studio apps and a ComfyUI whose computer has the studio on, else
+/// `[studio] fallback_gpu` (e.g. the A770, at the cost of Coder), else an error saying why.
+pub async fn place(s: &AppState, gpu: &str) -> Result<String, String> {
+    if gpu != "auto" {
+        return Ok(gpu.to_string());
+    }
+    for g in &s.config.gpus {
+        if g.apps.is_empty() || comfy_target(&s.config.gpus, &g.id).is_none() {
+            continue;
+        }
+        if crate::gpus::gaming::studio_allowed(s, &g.machine).await {
+            return Ok(g.id.clone());
+        }
+    }
+    if let Some(f) = &s.config.studio.fallback_gpu
+        && comfy_target(&s.config.gpus, f).is_some()
+    {
+        return Ok(f.clone());
+    }
+    Err("The studio is off on every studio computer and no other GPU may take studio jobs (kompanion.toml [studio] fallback_gpu).".to_string())
 }
 
 /// Check and record a run; the returned future runs it (licences, GPU and parameters are
@@ -143,6 +172,8 @@ async fn queue(
             problems.join("; ")
         )));
     }
+    let placed = place(s, gpu).await.map_err(ApiError::BadRequest)?;
+    let gpu = placed.as_str();
     let (machine, url) = comfy_target(&s.config.gpus, gpu)
         .ok_or_else(|| ApiError::BadRequest(format!("{gpu} has no ComfyUI")))?;
     // GPU-01: refused while that computer games; starts ComfyUI there if Kompanion stopped it

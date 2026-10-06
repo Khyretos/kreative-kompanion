@@ -14,7 +14,7 @@ the pipeline retries up to 3 times with a patch job fixing the errors.
 Each check is tried once before any job runs; jobs whose check already fails
 are skipped as a spec error ("precheck": false turns that off).
 """
-import json, os, re, subprocess, sys, time, tomllib, urllib.request, urllib.parse, socket, threading
+import json, os, re, subprocess, sys, time, tomllib, urllib.error, urllib.request, urllib.parse, socket, threading
 
 # Only quirks of one model family live in skills/_model-notes/<NOTES>; every general rule is in
 # the role skills and work-habits.md, so a bigger model loaded later (MODEL_NOTES=gemma4, ...)
@@ -113,6 +113,32 @@ def skills(role, extra=(), task="", paths=()):
     LANE.skills = names
     return text
 
+# GPU-02 (drafted by Coder, spliced in by Claude).
+def open_paused(req, opener=urllib.request.urlopen, sleep=time.sleep, wait=30, limit=1800):
+    """Open req; while Coder is paused for the studio (404, 503 or no connection), wait and retry up to `limit` seconds."""
+    slept = 0
+    while True:
+        try:
+            return opener(req, timeout=1200)
+        except urllib.error.HTTPError as e:
+            if e.code in (404, 503):
+                if slept + wait > limit:
+                    raise
+                print(f"Coder is paused for the studio; retrying in {wait} s", file=sys.stderr, flush=True)
+                slept += wait
+                sleep(wait)
+            else:
+                raise
+        except urllib.error.URLError as e:
+            if not isinstance(e, urllib.error.HTTPError):
+                if slept + wait > limit:
+                    raise
+                print(f"Coder is paused for the studio; retrying in {wait} s", file=sys.stderr, flush=True)
+                slept += wait
+                sleep(wait)
+            else:
+                raise
+
 def ask(system, user, max_tokens):
     url, model, extra, key = backend()
     LANE.model = model
@@ -124,7 +150,7 @@ def ask(system, user, max_tokens):
     req = urllib.request.Request(url, body, headers)
     print(f"[{model}]", file=sys.stderr, flush=True)
     t = time.time()
-    with urllib.request.urlopen(req, timeout=1200) as r:
+    with open_paused(req) as r:
         v = json.load(r)
     choice = v["choices"][0]
     if choice.get("finish_reason") == "length":

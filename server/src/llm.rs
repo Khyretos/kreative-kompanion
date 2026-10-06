@@ -125,6 +125,8 @@ pub async fn stream_chat(
     model: &str,
     messages: &[ChatMessage],
 ) -> Result<impl Stream<Item = Result<Chunk>> + Send + 'static> {
+    // GPU-02: while the A770 is with the studio, a call to Coder waits instead of failing.
+    crate::gpus::role::wait_for_coder(model).await;
     let (url, body) = match p.kind {
         ProviderKind::OpenaiCompatible => (
             join(&p.base_url, "chat/completions"),
@@ -335,6 +337,8 @@ pub async fn chat_with_tools_full(
     tools: &Value,
 ) -> Result<(Value, Value)> {
     anyhow::ensure!(matches!(p.kind, ProviderKind::OpenaiCompatible), "this provider can't use tools");
+    // GPU-02: see stream_chat.
+    crate::gpus::role::wait_for_coder(model).await;
     let mut body = json!({ "model": model, "messages": messages, "max_tokens": 2048 });
     // No tools (plans, reviews): leave the key out; some servers reject an empty list.
     if tools.as_array().is_some_and(|t| !t.is_empty()) {
