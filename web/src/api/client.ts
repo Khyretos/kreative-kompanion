@@ -123,6 +123,12 @@ export interface KompanionApi {
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName): Promise<void>;
   /** GPU-03: where the studio runs: "auto", a GPU id or "off" (admins). */
   setStudioTarget(target: string): Promise<void>;
+  /** STU-01: the image types (workflows with a [studio] section), sorted by their order. */
+  studioTypes(): Promise<import("../views/studio").StudioType[]>;
+  /** STU-01: make 1 or 4 images; returns the run ids. */
+  studioMake(type: string, prompt: string, size: string, count: 1 | 4): Promise<{ ids: string[] }>;
+  /** STU-01: the signed-in user's runs, newest first. */
+  studioMine(): Promise<import("../views/studio").StudioRun[]>;
   /** M6-04: per GPU, samples, jobs and events of the last 1 or 24 hours. */
   gpuTimeline(hours: 1 | 24): Promise<import("../views/gputimeline").TlGpu[]>;
   /** One skill's SKILL.md, read-only. */
@@ -154,7 +160,7 @@ export type ServerEvent =
   | { type: "message-delta"; messageId: string; chatId: string; text: string; done: boolean }
   | { type: "task"; task: Task }
   | { type: "machines"; machines: MachineStats[] }
-  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus"; machineId?: string }
+  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio"; machineId?: string }
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
   | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app ignores it
   | { type: "resync" };

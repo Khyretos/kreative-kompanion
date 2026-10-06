@@ -21,6 +21,11 @@ let soucouyantMode: import("../views/capabilities").GpuModeName = "auto";
 let soucouyantStopped = false;
 /** GPU-03: "Studio runs on" in the demo. */
 let studioTarget = "auto";
+/** STU-01: the demo's Studio library (newest first). */
+const demoPic = (hue: number) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="hsl(${hue} 60% 45%)"/><circle cx="48" cy="40" r="18" fill="#f4eefc"/></svg>`);
+const studioRuns: import("../views/studio").StudioRun[] = [
+  { id: "sr1", type: "character", gpu: "rx9070", prompt: "a cheerful fox adventurer with a green scarf", size: "tall", state: "done", error: null, files: [demoPic(28)], startedAt: ago(30), endedAt: ago(29) },
+];
 const id = (p: string) => `${p}${++seq}`;
 
 const projects: Project[] = [
@@ -466,6 +471,28 @@ export class MockApi implements KompanionApi {
       { gpu: "a580", machine: "kireserver", hours, samples: samples.map((s) => ({ ...s, usedMib: 900, reservedMib: 0, watts: 12 })), jobs: [], events: [] },
     ];
   }
+  async studioTypes() {
+    return [
+      { name: "character", label: "Character", hint: "Full body, clean background", sizes: ["tall", "square"], order: 1 },
+      { name: "scene", label: "Scene", hint: "Characters in a place", sizes: ["wide", "square", "tall"], order: 2 },
+      { name: "landscape", label: "Landscape", hint: "Wide place, no people", sizes: ["wide", "square", "tall"], order: 3 },
+      { name: "sprite", label: "Sprite", hint: "One game object, plain background", sizes: ["square", "tall", "wide"], order: 4 },
+      { name: "icon", label: "Icon", hint: "Simple and bold, for menus", sizes: ["square"], order: 5 },
+    ];
+  }
+  async studioMake(type: string, prompt: string, size: string, count: 1 | 4) {
+    const made = Array.from({ length: count }, (_, i) => ({ id: id("sr"), type, gpu: "rx9070", prompt, size, state: "running" as const, error: null, files: [] as string[], startedAt: new Date().toISOString(), endedAt: null as string | null, hue: 200 + i * 30 }));
+    studioRuns.unshift(...made.map(({ hue: _h, ...r }) => r));
+    setTimeout(() => {
+      for (const m of made) {
+        const r = studioRuns.find((x) => x.id === m.id);
+        if (r) Object.assign(r, { state: "done", files: [demoPic(m.hue)], endedAt: new Date().toISOString() });
+      }
+      this.emit({ type: "changed", what: "studio" });
+    }, 1200);
+    return { ids: made.map((m) => m.id) };
+  }
+  async studioMine() { return structuredClone(studioRuns); }
   async setStudioTarget(target: string) {
     studioTarget = target;
     if (target === "off") { soucouyantMode = "gaming"; soucouyantStopped = true; }

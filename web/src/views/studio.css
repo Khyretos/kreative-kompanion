@@ -1,0 +1,34 @@
+/* STU-01: the Studio section (laid out like the Capabilities pane). */
+.shell .studio-pane { display: none; background: var(--bg); overflow-y: auto; }
+.shell[data-section="studio"] .center,
+.shell[data-section="studio"] .right,
+.shell[data-section="studio"] .resize-handle[data-side="right"],
+.shell[data-section="studio"] .collapse-btn[data-side="right"] { display: none; }
+.shell[data-section="studio"] .studio-pane { display: block; grid-column: 2 / -1; grid-row: 1; }
+@media (max-width: 760px) { .shell[data-section="studio"] .studio-pane { grid-column: 1 / -1; } }
+
+.studio { max-width: 72rem; margin: 0 auto; padding: 0.75rem 1rem 2rem; }
+.studio-make, .studio-library { margin-top: 1rem; }
+.studio-types { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); margin: 0.5rem 0 1rem; }
+.studio-type { display: flex; flex-direction: column; gap: 0.15rem; text-align: left; padding: 0.6rem 0.75rem; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line); color: var(--fg-strong); cursor: pointer; }
+.studio-type[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.studio-type:focus-visible, .studio-thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.studio-form { display: grid; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.studio-form label[for] { font-weight: 600; color: var(--fg-strong); }
+.studio-form textarea { width: 100%; resize: vertical; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; }
+.studio-options { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.studio-count { display: inline-flex; gap: 0.35rem; align-items: center; }
+.studio-runs { list-style: none; padding: 0; margin: 0.5rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); }
+.studio-run { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.studio-run p { margin: 0; overflow-wrap: anywhere; }
+.studio-pics { display: grid; gap: 0.35rem; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); }
+.studio-thumb { display: block; padding: 0; border: 0; border-radius: calc(var(--radius) - 2px); overflow: hidden; background: var(--bg); cursor: zoom-in; }
+.studio-thumb img { display: block; width: 100%; height: auto; aspect-ratio: auto; }
+.studio-thumb.pending, .studio-thumb.failed { display: grid; place-items: center; min-height: 6rem; color: var(--muted); cursor: default; }
+.studio-thumb.pending { background: linear-gradient(90deg, var(--surface), var(--accent-soft), var(--surface)); background-size: 200% 100%; animation: studio-wait 1.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .studio-thumb.pending { animation: none; } }
+@keyframes studio-wait { to { background-position: -200% 0; } }
+.studio-lightbox { padding: 0; border: 0; background: transparent; max-width: 95vw; max-height: 95vh; }
+.studio-lightbox::backdrop { background: var(--scrim); }
+.studio-lightbox img { display: block; max-width: 95vw; max-height: 95vh; border-radius: var(--radius); }

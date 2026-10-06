@@ -139,6 +139,13 @@ export class HttpApi implements KompanionApi {
   }
   listActivity() { return this.request<import("../views/activity").ActivityItem[]>("GET", "/activity"); }
   getCapabilities() { return this.request<import("../views/capabilities").Capabilities>("GET", "/capabilities"); }
+  async studioTypes() {
+    const all = await this.request<{ name: string; studio?: { label: string; hint: string; sizes: string[]; order: number } | null }[]>("GET", "/studio/workflows");
+    return all.filter((w) => w.studio).map((w) => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order }))
+      .sort((a, b) => a.order - b.order);
+  }
+  studioMake(type: string, prompt: string, size: string, count: 1 | 4) { return this.request<{ ids: string[] }>("POST", "/studio/make", { type, prompt, size, count }); }
+  studioMine() { return this.request<import("../views/studio").StudioRun[]>("GET", "/studio/mine"); }
   setStudioTarget(target: string) { return this.request<void>("PUT", "/studio/target", { target }); }
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName) { return this.request<void>("PUT", `/gpus/modes/${encodeURIComponent(machine)}`, { mode }); }
   gpuTimeline(hours: 1 | 24) { return this.request<import("../views/gputimeline").TlGpu[]>("GET", `/gpus/timeline?hours=${hours}`); }

@@ -25,6 +25,10 @@ import { HttpAssets, type AssetsApi } from "./api/assets";
 import { MockAssets } from "./api/assets-mock";
 import { renderActivity } from "./views/activity";
 import { renderCapabilities, type GpuModeName } from "./views/capabilities";
+import { renderStudioMake, renderStudioLibrary } from "./views/studio";
+
+// STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
+let studioPrompt = "";
 import { ALL_FEATURES } from "./api/types";
 import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
@@ -119,6 +123,7 @@ async function start(server: Server): Promise<void> {
       </main>
       <section class="pane assets-pane" id="assets" aria-label="Assets"></section>
       <section class="pane caps-pane" id="caps" aria-label="Capabilities"></section>
+      <section class="pane studio-pane" id="studio" aria-label="Studio"></section>
       <aside class="pane right" id="right" aria-label="Tasks"></aside>
       <div class="scrim" data-action="pane" data-pane="main"></div>
       <div id="settings" hidden></div>
@@ -305,6 +310,15 @@ function render(s: AppState, prev: AppState): void {
   if (s.section === "assets" && (s.section !== prev.section || firstRender)) assetsView?.show();
   if (s.section !== prev.section || firstRender) watchCapabilities(s.section === "capabilities");
   if (s.section === "capabilities" && changed(s, prev, ["capabilities", "section", "gpuTimeline", "gpuRange", "features"])) mount($("#caps"), renderCapabilities(s.capabilities, s.gpuTimeline, s.gpuRange, s.features.gpus));
+  if (s.section === "studio") {
+    // The form and the library render apart, so a finished image doesn't touch what is being typed.
+    if (s.section !== prev.section || firstRender) mount($("#studio"), h`<div class="studio">
+      <header class="caps-head"><div class="caps-title"><h1>Studio</h1>
+        <p class="muted">Describe it, pick a type and a size; Kompanion picks the GPU.</p></div></header>
+      <div id="studio-make"></div><div id="studio-lib"></div></div>`);
+    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt));
+    if (changed(s, prev, ["studioTypes", "studioRuns", "section"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns));
+  }
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
     "chatMenuId", "movingChatId", "renamingChatId", "server", "userName", "logoVersion", "section", "allTasksShown", "openTaskId"])) {
@@ -615,6 +629,7 @@ function refetch(what: string): void {
       else if (what === "lessons" && s.activeChatId) store.set({ lessons: await api.listLessons(s.activeChatId) });
       else if (what === "access") await loadAccess();
       if ((what === "access" || what === "machines" || what === "gpus") && store.get().section === "capabilities") loadCapabilities();
+      if (what === "studio") store.set({ studioRuns: await api.studioMine() });
       if (what === "project-assets") for (const id of Object.keys(store.get().projectAssets)) void loadProjectAssets(id);
       if ((what === "access" || what === "actions") && s.rightTab === "activity") store.set({ activity: await api.listActivity() });
       else if (what === "actions" && s.activeChatId) {
@@ -662,6 +677,32 @@ function wire(shell: HTMLElement): void {
     },
     assets: () => store.set({ section: "assets", pane: "main", chatMenuId: undefined }),
     capabilities: () => store.set({ section: "capabilities", pane: "main", chatMenuId: undefined }),
+    // STU-01: the Studio section; the first type and its first size are picked.
+    studio: async () => {
+      store.set({ section: "studio", pane: "main", chatMenuId: undefined });
+      const [types, runs] = await Promise.all([api.studioTypes(), api.studioMine()]);
+      const f = store.get().studioForm;
+      const t = types.find((x) => x.name === f.type) ?? types[0];
+      store.set({ studioTypes: types, studioRuns: runs, studioForm: { ...f, type: t?.name ?? "", size: t?.sizes.includes(f.size) ? f.size : (t?.sizes[0] ?? "square") } });
+    },
+    "studio-type": (el) => {
+      const t = store.get().studioTypes?.find((x) => x.name === el.dataset.type);
+      if (t) store.set({ studioForm: { ...store.get().studioForm, type: t.name, size: t.sizes[0] ?? "square", error: undefined } });
+    },
+    "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
+    // A finished image, large, in a dialog that closes on Escape or a click.
+    "studio-open": (el) => {
+      const d = document.createElement("dialog");
+      d.className = "studio-lightbox";
+      const img = document.createElement("img");
+      img.src = el.dataset.src ?? "";
+      img.alt = el.querySelector("img")?.alt ?? "";
+      d.append(img);
+      d.addEventListener("click", () => d.close());
+      d.addEventListener("close", () => d.remove());
+      document.body.append(d);
+      d.showModal();
+    },
     // A skill, read-only, in a sheet that closes on an outside click, × or Escape (lesson 15).
     "open-skill": (el) => {
       const ref = { id: el.dataset.id ?? "", layer: el.dataset.layer ?? "kompanion", file: el.dataset.file ?? "" };
@@ -1058,6 +1099,20 @@ function wire(shell: HTMLElement): void {
     if (c && title && title !== c.title) changeChat(id, { title });
   };
   shell.addEventListener("submit", (ev) => {
+    // STU-01: make 1 or 4 images of the chosen type and size.
+    const studioForm = (ev.target as HTMLElement).closest("form.studio-form") as HTMLFormElement | null;
+    if (studioForm) {
+      ev.preventDefault();
+      const f = store.get().studioForm;
+      const prompt = studioPrompt.trim();
+      const count = (studioForm.elements.namedItem("four") as HTMLInputElement).checked ? 4 : 1;
+      if (!prompt) { store.set({ studioForm: { ...f, count, error: "Describe what to make." } }); return; }
+      store.set({ studioForm: { ...f, count, busy: true, error: undefined } });
+      void api.studioMake(f.type, prompt, f.size, count)
+        .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
+        .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
+      return;
+    }
     const repoForm = (ev.target as HTMLElement).closest("form.project-repo") as HTMLFormElement | null;
     if (repoForm) {
       ev.preventDefault();
@@ -1206,6 +1261,8 @@ function wire(shell: HTMLElement): void {
   shell.addEventListener("input", (ev) => {
     const el = ev.target as HTMLInputElement;
     if (el.id === "task-filter") { store.set({ taskFilter: el.value }); return; }
+    if (el.id === "studio-prompt") { studioPrompt = el.value; return; }
+    if (el.name === "four" && el.closest(".studio-form")) { store.set({ studioForm: { ...store.get().studioForm, count: el.checked ? 4 : 1 } }); return; }
     if (el.id === "asset-pick-q") { pickSearch(el.dataset.project ?? "", el.value); return; }
     if (el.id !== "machines-refresh") return;
     const seconds = REFRESH_STEPS[Number(el.value)] ?? 5;
