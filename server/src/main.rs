@@ -32,6 +32,7 @@ mod projects;
 mod runs;
 mod search;
 mod skills;
+mod skillrepo;
 mod tasks;
 mod thread;
 mod util;
@@ -256,7 +257,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/activity", get(activity::list))
         .route("/machines/{id}/folder", post(folders::api))
         .route("/capabilities", get(capabilities::list))
-        .route("/capabilities/skill", get(capabilities::skill))
+        .route("/capabilities/skill", get(capabilities::skill).put(capabilities::save_skill))
+        .route("/capabilities/skill/history", get(capabilities::skill_history))
+        .route("/capabilities/skill/move", post(capabilities::move_lesson))
         .route("/voice", get(voice::info))
         .route("/voice/transcribe", post(voice::transcribe).layer(axum::extract::DefaultBodyLimit::max(10 * 1024 * 1024)))
         .route("/voice/speak", post(voice::speak))

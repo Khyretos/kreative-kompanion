@@ -37,6 +37,18 @@
 .skill-body ol { list-style: decimal; }
 .skill-body li { margin-bottom: 0.4rem; }
 .skill-body code { overflow-wrap: anywhere; }
+/* SK-03: edit, history and moving lessons between the general and private layers. */
+.skill-sheet h2 .chip { vertical-align: middle; font-size: 0.75rem; }
+.skill-actions { display: flex; gap: 0.5rem; margin: 0.75rem 0; }
+.skill-editor { display: grid; gap: 0.5rem; }
+.skill-editor textarea, .skill-editor input { width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; }
+.skill-editor textarea { font-family: ui-monospace, monospace; font-size: 0.85rem; resize: vertical; }
+.skill-history { font-size: 0.85rem; padding-left: 1.25rem; margin: 0 0 0.75rem; }
+.skill-history code { color: var(--accent); }
+.skill-lessons { list-style: none; padding: 0; font-size: 0.85rem; }
+.skill-lessons li { display: flex; gap: 0.5rem; align-items: baseline; justify-content: space-between; padding: 0.3rem 0; border-top: 1px solid var(--line); }
+.skill-lessons li span { overflow-wrap: anywhere; }
+.skill-lessons .btn { flex: none; }
 
 /* M6-04 GPU timeline: VRAM area (violet), reserved line (lilac, dashed), watts (orange),
    job bars by kind, events as orange marks. Scrolls sideways on a phone. */

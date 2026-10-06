@@ -73,6 +73,10 @@ Lessons for the orchestrator role. Numbered and dated, newest last.
   shared docs/qwen-log.jsonl conflicted on almost every merge. Never `git add -A` a folder in a
   worktree: it committed the worktree's web/node_modules symlink into main (#29). Run tools
   from the main checkout's node_modules instead of symlinking.
+- (2026-10-06) In a fresh worktree `npx tsc` finds no TypeScript, prints a "not the tsc command"
+  banner and exits 0, so a tsc check passed a draft with 20 type errors. Link the main checkout's
+  web/node_modules into the worktree first (gitignored, also as a symlink) and add files by name;
+  the main checkout's tsc alone cannot resolve the worktree's imports.
 - (2026-10-05) `tools/qwen/pipeline.py` takes the model from the worker role in kompanion.toml
   (KOMPANION_CONFIG, else the repo root, else the main checkout for worktrees). When you change
   the pipeline itself, run its jobs with `KOMPANION_CONFIG=<main checkout>/kompanion.toml` so a

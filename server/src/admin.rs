@@ -109,7 +109,7 @@ pub async fn is_admin(db: &SqlitePool, user_id: &str) -> sqlx::Result<bool> {
     Ok(row.is_some_and(|r| r.0))
 }
 
-async fn require_admin(s: &AppState, u: &User) -> ApiResult<()> {
+pub(crate) async fn require_admin(s: &AppState, u: &User) -> ApiResult<()> {
     if is_admin(&s.db, &u.id).await? {
         Ok(())
     } else {

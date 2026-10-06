@@ -44,6 +44,7 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
 import { renderSettings } from "./views/settings";
+import { openSkillSheet } from "./views/skillsheet";
 
 
 declare const __DEMO__: boolean;
@@ -655,33 +656,10 @@ function wire(shell: HTMLElement): void {
     assets: () => store.set({ section: "assets", pane: "main", chatMenuId: undefined }),
     capabilities: () => store.set({ section: "capabilities", pane: "main", chatMenuId: undefined }),
     // A skill, read-only, in a sheet that closes on an outside click, × or Escape (lesson 15).
-    "open-skill": (el) => api.getSkill(el.dataset.id ?? "").then((skill) => {
-      const box = document.createElement("div");
-      box.className = "skill-sheet";
-      const sheet = document.createElement("div");
-      sheet.className = "sheet";
-      sheet.setAttribute("role", "dialog");
-      sheet.setAttribute("aria-modal", "true");
-      sheet.setAttribute("aria-labelledby", "skill-title");
-      const close = document.createElement("button");
-      close.className = "icon-btn sheet-close";
-      close.setAttribute("aria-label", "Close");
-      close.textContent = "×";
-      const title = document.createElement("h2");
-      title.id = "skill-title";
-      title.textContent = `Skill: ${skill.id}`;
-      const body = document.createElement("div");
-      body.className = "skill-body";
-      body.append(renderMarkdown(skill.text));
-      sheet.append(close, title, body);
-      box.append(sheet);
-      document.body.append(box);
-      const m = modal(box, () => { box.remove(); document.removeEventListener("keydown", esc); });
-      const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") m.requestClose(); };
-      document.addEventListener("keydown", esc);
-      close.addEventListener("click", () => m.requestClose());
-      m.open(el);
-    }, showError),
+    "open-skill": (el) => {
+      const ref = { id: el.dataset.id ?? "", layer: el.dataset.layer ?? "kompanion", file: el.dataset.file ?? "" };
+      openSkillSheet(api, ref, el, showError, () => api.getCapabilities().then((capabilities) => store.set({ capabilities }), showError)).catch(showError);
+    },
     "new-chat": (el) => store.set({
       activeChatId: undefined, messages: [], pane: "main", chatMenuId: undefined, section: "chat",
       activeProjectId: el.dataset.project ?? store.get().activeProjectId,

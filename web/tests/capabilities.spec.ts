@@ -57,9 +57,10 @@ test.describe("Capabilities", () => {
     const sheet = page.locator(".skill-sheet");
 
     await card.click();
-    await expect(sheet.locator("h2")).toHaveText("Skill: worker/rust");
+    await expect(sheet.locator("h2")).toContainText("Skill: worker/rust");
     await expect(sheet.locator(".skill-body ol li")).toHaveCount(2);
-    await expect(sheet.locator("input, textarea")).toHaveCount(0);
+    await expect(sheet.locator("textarea")).toHaveCount(0);
+    await expect(sheet.locator(".skill-lessons li")).toHaveCount(0);
     await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0);
     await expect(card).toBeFocused();
@@ -70,6 +71,39 @@ test.describe("Capabilities", () => {
 
     await card.click();
     await sheet.click({ position: { x: 5, y: 5 } });
+    await expect(sheet).toHaveCount(0);
+  });
+
+  test("edits a card, shows its history and moves a lesson", async ({ page }) => {
+    await openCapabilities(page);
+    const card = page.locator('#caps [data-action="open-skill"][data-id="work-habits"]');
+    const sheet = page.locator(".skill-sheet");
+
+    await card.click();
+    await expect(sheet.locator("h2 .chip")).toHaveText("general");
+    await expect(sheet.locator(".skill-lessons li")).toHaveCount(2);
+    const moveBtn = sheet.locator(".skill-lessons li button").first();
+    await expect(moveBtn).toHaveText("Move to private");
+
+    await moveBtn.click();
+    await expect(sheet.locator(".skill-lessons li")).toHaveCount(1);
+    await expect(sheet.locator(".skill-body ol li")).toHaveCount(1);
+
+    await sheet.getByRole("button", { name: "History" }).click();
+    await expect(sheet.locator(".skill-history li")).toContainText("a1b2c3d");
+
+    await sheet.getByRole("button", { name: "Edit" }).click();
+    const textarea = sheet.locator("textarea.skill-edit");
+    await expect(textarea).toBeVisible();
+    await textarea.fill("# Work habits\n\n1. One lesson.\n");
+    await sheet.locator("input.skill-message").fill("Shorter");
+    await sheet.getByRole("button", { name: "Save" }).click();
+
+    await expect(textarea).toHaveCount(0);
+    await expect(sheet).toContainText("Saved as commit c0ffee1.");
+    await expect(sheet.locator(".skill-body")).toContainText("One lesson.");
+
+    await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0);
   });
 });

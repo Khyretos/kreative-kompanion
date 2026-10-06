@@ -13,7 +13,7 @@
 6. Split today's files by tagging each lesson `general` or `private` (Coder drafts tags, Claude reviews), moving them to the correct locations while preserving git history in commit messages.
 7. Add CI check in `kompas-skills` that fails on IP addresses, home paths (`/home/`, `~/`), host names from a deny list, and email addresses.
 8. New lessons become proposals: the reviewer writes a change (a branch and a PR, or a pending card in Kompanion), says whether it is general or private, and Kees approves it. Skills go straight into every prompt, so each change must be visible and show who made it.
-9. Update Capabilities page to show a Skills section listing each file with its layer (general, Kompanion, private), allowing Kees to edit files, view git commit history, and move lessons between general and private.
+9. Update Capabilities page to show a Skills section listing each file with its layer (general, Kompanion, private), allowing Kees to edit files, view git commit history, and move lessons between general and private. Done in part 4d (2026-10-06): each edit or move is a commit through the Forgejo API (KOMPANION_FORGE_TOKEN), general and Kompanion cards in this repo (skills/general/ then goes out by subtree push after privacy_check.py), private ones in kompas-skills-kees; a general card or a moved lesson with a setup fact is refused.
 
 **Done when:** `kompas-skills` has no setup facts (the CI check passes); Kompanion and Open WebUI load the same general files; a private card overrides a general one in a test; a lesson edited on the Capabilities page lands as a commit in the right repo.
 
