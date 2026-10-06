@@ -299,6 +299,9 @@ pub struct HolderConfig {
     pub kv_mb_per_seq: u64,
     #[serde(default = "one")]
     pub max_seqs: u64,
+    /// STU-02: the studio app this holder is ("heartmula", "moss-sfx"), for audio jobs.
+    #[serde(default)]
+    pub app: Option<String>,
 }
 
 impl HolderConfig {

@@ -6,6 +6,7 @@ pub mod licence;
 pub mod workflow;
 pub mod target;
 pub mod team;
+pub mod audio;
 
 use crate::{
     AppState,
@@ -32,6 +33,7 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/runs/{id}", get(run_get))
         .route("/studio/target", get(target::read).put(target::set))
         .route("/studio/make", post(team::make))
+        .route("/studio/audio", post(audio::make))
         .route("/studio/mine", get(team::mine))
         .route("/studio/runs/{id}/files/{n}", get(team::file))
         .route("/studio/target/service", get(target::service_read).put(target::service_set))
@@ -136,10 +138,38 @@ async fn start(
     Ok((StatusCode::ACCEPTED, Json(json!({"id": id}))))
 }
 
+/// STU-02: when a job doesn't fit on `gpu`, free what idles there: ComfyUI's cache (unless the
+/// job is ComfyUI's own) and the music/SFX apps other than `keep` (they hold 10-11.5 GB once loaded).
+pub async fn make_room(s: &AppState, gpu: &str, need_mib: u64, keep: &str) {
+    let free = crate::gpus::current(s).await.into_iter().find(|l| l.id == gpu).map(|l| l.free_mib);
+    if free.is_some_and(|f| f >= need_mib) {
+        return;
+    }
+    let Some(g) = s.config.gpus.iter().find(|g| g.id == gpu) else { return };
+    for h in &g.holders {
+        if let Some(url) = h.probe.strip_prefix("comfyui:") {
+            if keep != "comfyui" {
+                comfy::free_if_idle(&s.http, url.trim_end_matches('/')).await;
+            }
+        } else if let Some(url) = h.probe.strip_prefix("studio:")
+            && h.app.as_deref() != Some(keep)
+        {
+            let url = url.trim_end_matches('/');
+            let idle = match s.http.get(format!("{url}/health")).send().await {
+                Ok(r) => r.json::<Value>().await.is_ok_and(|v| v["loaded"] == true && v["busy"] != true),
+                Err(_) => false,
+            };
+            if idle {
+                let _ = s.http.post(format!("{url}/unload")).send().await;
+            }
+        }
+    }
+}
+
 /// GPU-02: the GPU a studio run uses. A named GPU is used as asked; "auto" takes the first
 /// configured GPU with studio apps and a ComfyUI whose computer has the studio on, else
 /// `[studio] fallback_gpu` (e.g. the A770, at the cost of Coder), else an error saying why.
-pub async fn place(s: &AppState, gpu: &str, machines: &[String]) -> Result<String, String> {
+pub async fn place(s: &AppState, gpu: &str, machines: &[String], has: impl Fn(&str) -> bool) -> Result<String, String> {
     // STU-02: a workflow may be limited to some machines (video: soucouyant).
     let allowed = |id: &str| machines.is_empty() || s.config.gpus.iter().any(|g| g.id == id && machines.contains(&g.machine));
     let only = || format!("This runs only on {}.", machines.join(", "));
@@ -155,7 +185,7 @@ pub async fn place(s: &AppState, gpu: &str, machines: &[String]) -> Result<Strin
         return if allowed(&chosen) { Ok(chosen) } else { Err(format!("{} The studio runs on {chosen} now.", only())) };
     }
     for g in &s.config.gpus {
-        if g.apps.is_empty() || comfy_target(&s.config.gpus, &g.id).is_none() || !allowed(&g.id) {
+        if g.apps.is_empty() || !has(&g.id) || !allowed(&g.id) {
             continue;
         }
         if crate::gpus::gaming::studio_allowed(s, &g.machine).await {
@@ -163,7 +193,7 @@ pub async fn place(s: &AppState, gpu: &str, machines: &[String]) -> Result<Strin
         }
     }
     if let Some(f) = &s.config.studio.fallback_gpu
-        && comfy_target(&s.config.gpus, f).is_some()
+        && has(f)
         && allowed(f)
     {
         return Ok(f.clone());
@@ -201,7 +231,7 @@ async fn queue(
             problems.join("; ")
         )));
     }
-    let placed = place(s, gpu, &wf.machines).await.map_err(ApiError::BadRequest)?;
+    let placed = place(s, gpu, &wf.machines, |id| comfy_target(&s.config.gpus, id).is_some()).await.map_err(ApiError::BadRequest)?;
     let gpu = placed.as_str();
     let (machine, url) = comfy_target(&s.config.gpus, gpu)
         .ok_or_else(|| ApiError::BadRequest(format!("{gpu} has no ComfyUI")))?;
@@ -298,6 +328,8 @@ async fn execute(
     } else if ledger.as_ref().is_none_or(|l| l.free_mib < spec.vram_mib) {
         comfy::free_if_idle(&s.http, &url).await;
     }
+    // STU-02: idle music/SFX apps on this GPU make way too.
+    make_room(&s, &gpu, spec.vram_mib, "comfyui").await;
     let result = match jobs::acquire(&s, spec, Duration::from_secs(3600)).await {
         Err(e) => Err(e),
         Ok(lease) => {
