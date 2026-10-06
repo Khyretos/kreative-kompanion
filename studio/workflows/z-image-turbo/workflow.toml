@@ -1,6 +1,6 @@
 # Z-Image Turbo text to image (M6-05 test workflow). Same parameters on both ComfyUI instances;
-# soucouyant runs the Q8 GGUF and the fp8 encoder (bf16 did not fit next to its games, see the
-# gpu-studio skill).
+# both run the Q8 GGUF and the fp8 encoder (bf16 did not fit next to soucouyant's games, and on
+# the A770 it offloaded through RAM; GPU-02: Q8 + --highvram keeps it all in VRAM).
 title = "Z-Image Turbo: text to image"
 description = "Fast 8-step image from a prompt; good for concept art and sprites."
 graph = "graph.json"
@@ -12,6 +12,7 @@ ram_mb = 8000
 
 [graphs]
 soucouyant = "graph-q8.json"
+kireserver = "graph-q8.json"
 
 [vram]
 soucouyant = 7000 # measured 6355 MiB peak, 40 s (2026-10-06)
