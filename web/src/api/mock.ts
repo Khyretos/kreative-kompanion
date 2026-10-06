@@ -419,13 +419,14 @@ export class MockApi implements KompanionApi {
     else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort });
   }
 
-  async createTask(t: { projectId: string; title: string; description: string; state?: TaskState }) {
+  async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }) {
     const task: Task = { id: id("t"), projectId: t.projectId, title: t.title, description: t.description, state: t.state ?? "queued",
-      progress: 0, step: "", role: "worker", model: "", events: [] };
+      progress: 0, step: "", role: "worker", model: "", events: [],
+      effort: t.effort ?? chats.find((c) => c.id === t.chatId)?.effort ?? "auto" };
     tasks.unshift(task);
     return structuredClone(task);
   }
-  async updateTask(taskId: string, change: { title?: string; description?: string; state?: TaskState }) {
+  async updateTask(taskId: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }) {
     const t = tasks.find((x) => x.id === taskId);
     if (!t) throw new Error("No such task.");
     Object.assign(t, Object.fromEntries(Object.entries(change).filter(([, v]) => v !== undefined)));
@@ -550,9 +551,10 @@ export class MockApi implements KompanionApi {
       { at: new Date(now - 600_000).toISOString(), kind: "grant", text: "system", target: "system", detail: "always allow, 24 h", machineId: "soucouyant", machine: "soucouyant" },
     ];
   }
-  async startTask(taskId: string, machineId: string) {
+  async startTask(taskId: string, machineId: string, _folder?: string, _check?: string, _tests?: boolean, effort?: import("./types").Effort) {
     const t = tasks.find((x) => x.id === taskId);
     if (!t) return;
+    if (effort) t.effort = effort;
     t.state = "running"; t.step = "planning";
     this.emit({ type: "task", task: structuredClone(t) });
     const thread = await this.openThread(t.projectId);
@@ -583,7 +585,7 @@ export class MockApi implements KompanionApi {
   }
   async weeklyCosts() { return { tasks: 5, coderOutput: 53100, claudeOutput: 301600, coderShare: 0.15 }; }
   async taskRuns(taskId: string) {
-    return taskId === "t-kk-1" ? [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found" }] : [];
+    return taskId === "t-kk-1" ? [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found", effort: "high" }] : [];
   }
   async stopAction(actionId: string) {
     const a = actions.find((x) => x.id === actionId);

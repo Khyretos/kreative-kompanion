@@ -33,3 +33,5 @@ paths: ["server/migrations/**"]
 56. (2026-10-06) Adding columns to a `query_as` tuple changes three places together: the SELECT
    string, the tuple type and the destructuring, all appended at the end in the same order. A
    tuple that compiles but doesn't match the SELECT fails only at run time.
+   The Rust type follows the column: TEXT is `String` (`Option<String>` when it may be NULL),
+   never `i64`; a draft added a tuple field but not the column to the SELECT (EF-01 part 3).

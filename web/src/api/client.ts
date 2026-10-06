@@ -91,8 +91,8 @@ export interface KompanionApi {
   openThread(projectId: string): Promise<string>;
   updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort }): Promise<void>;
   deleteChat(chatId: string): Promise<void>;
-  createTask(t: { projectId: string; title: string; description: string; state?: TaskState }): Promise<Task>;
-  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState }): Promise<Task>;
+  createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }): Promise<Task>;
+  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }): Promise<Task>;
   deleteTask(id: string): Promise<void>;
   reorderTasks(projectId: string, ids: string[]): Promise<void>;
   makeProjectInternal(projectId: string): Promise<void>;
@@ -103,13 +103,13 @@ export interface KompanionApi {
   /** The lessons proposed in a chat (the project thread), oldest first. */
   listLessons(chatId: string): Promise<Lesson[]>;
   /** W2: run a task by itself on a computer, in a folder, checked by a command. */
-  startTask(id: string, machineId: string, folder: string, check: string, testsMayChange?: boolean): Promise<void>;
+  startTask(id: string, machineId: string, folder: string, check: string, testsMayChange?: boolean, effort?: import("./types").Effort): Promise<void>;
   /** Stops a running step: the computer kills the command and what it started. */
   stopAction(id: string): Promise<void>;
   /** Stops a running W2 task (and its running step). */
   stopTask(id: string): Promise<void>;
   /** A task's W2 runs, newest first (their ids open the report: /api/runs/<id>/report). */
-  taskRuns(taskId: string): Promise<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null }[]>;
+  taskRuns(taskId: string): Promise<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null }[]>;
   /** Get cost lines for a task. */
   taskCosts(taskId: string): Promise<import("./types").CostLine | null>;
   /** Get weekly costs summary. */

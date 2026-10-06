@@ -109,10 +109,10 @@ export class HttpApi implements KompanionApi {
   updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort }) {
     return this.request<void>("PATCH", `/chats/${encodeURIComponent(chatId)}`, change);
   }
-  createTask(t: { projectId: string; title: string; description: string; state?: TaskState }) {
+  createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }) {
     return this.request<Task>("POST", "/tasks", t);
   }
-  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState }) {
+  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }) {
     return this.request<Task>("PATCH", `/tasks/${encodeURIComponent(id)}`, change);
   }
   deleteTask(id: string) { return this.request<void>("DELETE", `/tasks/${encodeURIComponent(id)}`); }
@@ -127,15 +127,15 @@ export class HttpApi implements KompanionApi {
   listActions(chatId: string) { return this.request<import("./client").PcAction[]>("GET", `/chats/${encodeURIComponent(chatId)}/actions`); }
   listLessons(chatId: string) { return this.request<import("./client").Lesson[]>("GET", `/chats/${encodeURIComponent(chatId)}/lessons`); }
   stopAction(id: string) { return this.request<void>("POST", `/actions/${encodeURIComponent(id)}/stop`); }
-  taskRuns(taskId: string) { return this.request<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null }[]>("GET", `/tasks/${encodeURIComponent(taskId)}/runs`); }
+  taskRuns(taskId: string) { return this.request<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null }[]>("GET", `/tasks/${encodeURIComponent(taskId)}/runs`); }
   taskCosts(taskId: string) { return this.request<import("./types").CostLine | null>("GET", `/tasks/${encodeURIComponent(taskId)}/costs`); }
   weeklyCosts() { return this.request<import("./types").WeeklyCosts>("GET", "/costs/weekly"); }
   stopTask(id: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(id)}/stop`); }
   checkFolder(machineId: string, path: string) {
     return this.request<{ state: "ok" | "nogrant" | "missing" | "notfolder" | "noanswer"; path: string; folders?: string[]; files?: number; message?: string }>("POST", `/machines/${encodeURIComponent(machineId)}/folder`, { path });
   }
-  startTask(id: string, machineId: string, folder: string, check: string, testsMayChange = false) {
-    return this.request<void>("POST", `/tasks/${encodeURIComponent(id)}/start`, { machine_id: machineId, folder, check, tests_may_change: testsMayChange });
+  startTask(id: string, machineId: string, folder: string, check: string, testsMayChange = false, effort?: import("./types").Effort) {
+    return this.request<void>("POST", `/tasks/${encodeURIComponent(id)}/start`, { machine_id: machineId, folder, check, tests_may_change: testsMayChange, effort });
   }
   listActivity() { return this.request<import("../views/activity").ActivityItem[]>("GET", "/activity"); }
   getCapabilities() { return this.request<import("../views/capabilities").Capabilities>("GET", "/capabilities"); }

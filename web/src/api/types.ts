@@ -96,6 +96,7 @@ export interface Task {
   description?: string; // markdown: goal, steps, done when
   position?: number;
   source?: string | null; // "windshift:SRV-12" for synced tasks
+  effort?: Effort; // EF-01: inherited from the chat it was made in; the Start form can change it
   events: TaskEvent[];
   question?: TaskQuestion;
 }
