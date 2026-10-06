@@ -121,6 +121,8 @@ export interface KompanionApi {
   getCapabilities(): Promise<import("../views/capabilities").Capabilities>;
   /** GPU-01: Studio, Gaming or Auto for a computer with studio apps (admins). */
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName): Promise<void>;
+  /** GPU-03: where the studio runs: "auto", a GPU id or "off" (admins). */
+  setStudioTarget(target: string): Promise<void>;
   /** M6-04: per GPU, samples, jobs and events of the last 1 or 24 hours. */
   gpuTimeline(hours: 1 | 24): Promise<import("../views/gputimeline").TlGpu[]>;
   /** One skill's SKILL.md, read-only. */

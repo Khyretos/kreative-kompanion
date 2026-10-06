@@ -895,6 +895,7 @@ function wire(shell: HTMLElement): void {
       document.getElementById("task-filter")?.focus();
     },
     "close-task": () => store.set({ openTaskId: undefined }),
+    "studio-target": (el) => api.setStudioTarget(el.dataset.target ?? "").then(loadCapabilities, showError),
     "gpu-mode": (el) => api.setGpuMode(el.dataset.machine ?? "", el.dataset.mode as GpuModeName).then(loadCapabilities, showError),
     "gpu-range": (el) => {
       const gpuRange = el.dataset.hours === "24" ? 24 : 1;

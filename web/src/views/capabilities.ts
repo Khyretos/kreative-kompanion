@@ -65,8 +65,8 @@ export interface CapSwitch { from: string; to: string; by: string; startedAt: st
 /** GPU-01: what a computer's GPU is for; "effective" is Gaming while a game runs (or 10 min after) in Auto. */
 export type GpuModeName = "studio" | "gaming" | "auto";
 const gpuLabels: [GpuModeName, string][] = [
-  ["studio", "Studio"],
-  ["gaming", "Gaming"],
+  ["studio", "Studio on"],
+  ["gaming", "Studio off"],
   ["auto", "Auto"],
 ];
 
@@ -76,16 +76,16 @@ function gpuModeSwitch(m: CapGpuMode): SafeHtml {
     !m.granted
       ? `Grant "GPU apps" for ${m.machine} under Machines, Access, so Kompanion can stop and start its studio apps.`
       : m.effective === "gaming" && m.gaming
-        ? "A game is running: the studio apps are stopped and Ollama is unloaded."
+        ? "Auto turned the studio off: a game is running. Studio apps stopped, Ollama unloaded."
         : m.effective === "gaming" && m.mode === "auto"
-          ? "A game ended less than 10 min ago: the studio apps stay off."
+          ? "Auto keeps the studio off for 10 min after the game ended."
           : m.effective === "gaming"
-            ? "Gaming: the studio apps are stopped and Ollama is unloaded."
+            ? "Studio off: the studio apps are stopped and Ollama is unloaded. Studio jobs go elsewhere or wait."
             : m.appsStopped
               ? `Studio apps stopped; the next studio job starts them on ${m.machine}.`
               : m.mode === "studio"
-                ? "Studio: the apps may run; nothing is stopped."
-                : "Auto: the studio apps stop after 15 min without a studio job.";
+                ? "Studio on: the apps may run; nothing is stopped."
+                : "Auto: the studio apps stop after 15 min without a studio job, and while a game runs.";
 
   return html`
     <span class="seg gpu-mode" role="group" aria-label="GPU mode on ${m.machine}">
@@ -98,12 +98,16 @@ function gpuModeSwitch(m: CapGpuMode): SafeHtml {
 }
 
 export interface CapGpuMode { machine: string; mode: GpuModeName; effective: GpuModeName; gaming: boolean; appsStopped: boolean; granted: boolean; studioAt: string | null; gpus: string[]; apps: string[] }
+/** GPU-03: where the studio runs ("auto", a GPU id or "off"), the choices and their cost. */
+export interface CapStudioChoice { value: string; label: string; cost: string }
+export interface CapStudioTarget { target: string; choices: CapStudioChoice[]; queued: number }
 export interface CapRole { gpu: string | null; mode: string; app: string | null; switching: string | null; last: CapSwitch | null }
 
 export interface Capabilities {
   gpus?: CapGpu[];
   gpuRole?: CapRole | null;
   gpuModes?: CapGpuMode[];
+  studioTarget?: CapStudioTarget | null;
   models: CapModel[];
   computers: CapComputer[];
   tools: CapTool[];
@@ -221,6 +225,25 @@ function skillCard(s: CapSkill): SafeHtml {
 
 const gb = (mib: number) => `${(mib / 1024).toFixed(1)} GB`;
 
+
+/** GPU-03: "Studio runs on": one button per choice, and what the current choice means. */
+function studioTargetControl(t: CapStudioTarget): SafeHtml {
+  const chosen = t.choices.find((c) => c.value === t.target);
+  let text = "";
+  if (chosen) {
+    text = chosen.cost || `Studio jobs run on ${chosen.label}.`;
+  }
+
+  const queuedText = t.queued > 0 ? ` · ${t.queued} studio ${t.queued === 1 ? "job" : "jobs"} queued` : "";
+
+  return html`<section class="caps-group studio-target" aria-labelledby="caps-studio-target">
+    <h2 id="caps-studio-target">Studio runs on</h2>
+    <span class="seg" role="group" aria-label="Studio runs on">${t.choices.map((c) =>
+      html`<button type="button" data-action="studio-target" data-target="${c.value}" aria-pressed="${t.target === c.value ? "true" : "false"}" title="${c.cost}">${c.label}</button>`)}</span>
+    <p class="muted small studio-target-cost">${text}${queuedText}</p>
+  </section>`;
+}
+
 /** M6-01: what each GPU holds (at its peak: weights plus KV cache), what else uses it, what is free. */
 function gpuCard(g: CapGpu, role?: CapRole | null, modes?: CapGpuMode[]): SafeHtml {
   const gm = modes?.find((m) => m.gpus.includes(g.id));
@@ -287,6 +310,7 @@ export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu
           <p class="muted">What Kompanion can use right now. Updates live.</p>
         </div>
       </header>
+      ${gpus && c.studioTarget ? studioTargetControl(c.studioTarget) : ""}
       ${gpus ? group("gpus", "GPUs", (c.gpus ?? []).map((g) => gpuCard(g, c.gpuRole, c.gpuModes)), "No GPUs configured (kompanion.toml [[gpu]]).") : ""}
       ${gpus && (c.gpus ?? []).length ? renderTimeline(timeline, range, Object.fromEntries((c.gpus ?? []).map((g) => [g.id, g.totalMib]))) : ""}
       ${group("models", "Models", models, "No model providers are configured.")}

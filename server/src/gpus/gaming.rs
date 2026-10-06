@@ -111,7 +111,12 @@ pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
         }
         
         let apps_up = !m.apps_stopped || app_seen;
-        let idle_long = !busy && m.studio_at.as_deref().is_none_or(|t| t < util::minutes_ago(gaming_policy::IDLE_STOP_MIN).as_str());
+        // No studio job seen yet (just granted, or a fresh install): the idle clock starts now,
+        // so granting the right doesn't stop the apps at once (GPU-03).
+        if m.studio_at.is_none() {
+            let _ = sqlx::query("UPDATE machines SET studio_at = ? WHERE id = ?").bind(util::now()).bind(&m.id).execute(&s.db).await;
+        }
+        let idle_long = !busy && m.studio_at.as_deref().is_some_and(|t| t < util::minutes_ago(gaming_policy::IDLE_STOP_MIN).as_str());
         
         let action = gaming_policy::decide(eff, apps_up, ollama_loaded, idle_long);
         
@@ -172,11 +177,11 @@ pub async fn ensure_started(s: &AppState, gpu: &str, app: &str) -> Result<(), St
     let (eff, gaming) = effective_of(s, &m);
     
     if gaming {
-        return Err(format!("{} is running a game; studio jobs wait until it ends, or switch it to Studio.", m.name));
+        return Err(format!("{} is running a game, so Auto turned its studio off; switch it to Studio on to use it anyway.", m.name));
     }
     
     if eff == GpuMode::Gaming {
-        return Err(format!("{} is in gaming mode; switch it to Auto or Studio first.", m.name));
+        return Err(format!("The studio is off on {}; switch it to Studio on or Auto first.", m.name));
     }
     
     let _ = sqlx::query("UPDATE machines SET studio_at = ?, apps_stopped = 0 WHERE id = ?")

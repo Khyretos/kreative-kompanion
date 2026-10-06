@@ -117,11 +117,13 @@ def skills(role, extra=(), task="", paths=()):
 def open_paused(req, opener=urllib.request.urlopen, sleep=time.sleep, wait=30, limit=1800):
     """Open req; while Coder is paused for the studio (404, 503 or no connection), wait and retry up to `limit` seconds."""
     slept = 0
+    errors500 = 0  # a 500 while Coder reloads after the switch back (GPU-03): retried 3 times
     while True:
         try:
             return opener(req, timeout=1200)
         except urllib.error.HTTPError as e:
-            if e.code in (404, 503):
+            errors500 += e.code == 500
+            if e.code in (404, 503) or (e.code == 500 and errors500 <= 3):
                 if slept + wait > limit:
                     raise
                 print(f"Coder is paused for the studio; retrying in {wait} s", file=sys.stderr, flush=True)

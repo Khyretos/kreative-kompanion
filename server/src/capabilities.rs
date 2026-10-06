@@ -349,6 +349,7 @@ pub async fn list(State(s): State<AppState>, Extension(u): Extension<User>) -> A
         "gpus": crate::gpus::current(&s).await,
         "gpuRole": crate::gpus::role::current(),
         "gpuModes": crate::gpus::gaming::modes(&s).await,
+        "studioTarget": crate::studio::target::read(State(s.clone())).await.map(|j| j.0).unwrap_or(Value::Null),
         "indexes": indexes(&s).await,
         "skills": skills()
     })))
