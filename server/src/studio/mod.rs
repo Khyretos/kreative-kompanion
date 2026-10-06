@@ -82,6 +82,7 @@ async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
             "models": wf.models,
             "vramMb": wf.vram_mb,
             "vramByMachine": wf.vram,
+            "ramByMachine": wf.ram,
             "ramMb": wf.ram_mb,
             "problems": problems,
             "runnable": runnable,
@@ -210,7 +211,7 @@ async fn execute(
         what: format!("studio:comfyui:{}", w.name),
         gpus: vec![gpu.clone()],
         vram_mib: w.vram_for(&machine),
-        ram_mib: w.ram_mb,
+        ram_mib: w.ram_for(&machine),
         tonight: false,
     };
     // Its own cached models would otherwise count as used VRAM and keep the job waiting.
@@ -218,7 +219,12 @@ async fn execute(
     let result = match jobs::acquire(&s, spec, Duration::from_secs(3600)).await {
         Err(e) => Err(e),
         Ok(lease) => {
-            let out_dir = s.config.studio.output_dir.join(&w.name);
+            // The output root is shared too (create_dir_all makes it 755 otherwise).
+            let root = &s.config.studio.output_dir;
+            if tokio::fs::create_dir_all(root).await.is_ok() {
+                comfy::shared(root, 0o2775).await;
+            }
+            let out_dir = root.join(&w.name);
             let r = comfy::run(
                 &s.http,
                 &url,

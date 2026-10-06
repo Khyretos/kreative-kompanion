@@ -16,6 +16,9 @@ soucouyant = "graph-q8.json"
 [vram]
 soucouyant = 7000 # measured 6355 MiB peak, 40 s (2026-10-06)
 
+[ram]
+soucouyant = 6000 # measured 5262 MiB; its ComfyUI keeps the models in RAM anyway (2026-10-06)
+
 [[param]]
 name = "prompt"
 type = "string"

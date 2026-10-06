@@ -44,6 +44,9 @@ pub struct Workflow {
     /// Machine name -> VRAM in MiB when its graph needs a different amount.
     #[serde(default)]
     pub vram: BTreeMap<String, u64>,
+    /// Machine name -> host RAM in MiB when it differs from `ram_mb`.
+    #[serde(default)]
+    pub ram: BTreeMap<String, u64>,
     #[serde(default)]
     pub ram_mb: u64,
     #[serde(default, rename = "param")]
@@ -65,6 +68,11 @@ impl Workflow {
                     .map(|e| format!("{}: {e}", m.file))
             })
             .collect()
+    }
+
+    /// Host RAM in MiB a run needs on this machine ([ram], else `ram_mb`).
+    pub fn ram_for(&self, machine: &str) -> u64 {
+        self.ram.get(machine).copied().unwrap_or(self.ram_mb)
     }
 
     /// VRAM in MiB the graph needs on this machine ([vram], else `vram_mb`).
@@ -301,5 +309,15 @@ licence = "CreativeML OpenRAIL-M"
         assert_eq!(w.graph_for("souc").unwrap(), json!({"k": 2}));
         assert!(load_all(&d.join("missing")).is_empty());
         std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn per_machine_vram_and_ram() {
+        let w: Workflow = toml::from_str(&format!(
+            "vram_mb = 11000\nram_mb = 8000\n{TOML}\n[vram]\nsouc = 7000\n[ram]\nsouc = 6000\n"
+        ))
+        .unwrap();
+        assert_eq!((w.vram_for("souc"), w.ram_for("souc")), (7000, 6000));
+        assert_eq!((w.vram_for("other"), w.ram_for("other")), (11000, 8000));
     }
 }
