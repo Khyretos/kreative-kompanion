@@ -187,6 +187,8 @@ async fn execute(
         ram_mib: w.ram_mb,
         tonight: false,
     };
+    // Its own cached models would otherwise count as used VRAM and keep the job waiting.
+    comfy::free_if_idle(&s.http, &url).await;
     let result = match jobs::acquire(&s, spec, Duration::from_secs(3600)).await {
         Err(e) => Err(e),
         Ok(lease) => {
