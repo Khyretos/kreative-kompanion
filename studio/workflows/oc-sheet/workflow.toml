@@ -1,0 +1,84 @@
+# STU-01b: OC sheet from Kreative Studio (lib/graphs.js build), SDXL novaAnimeXL + FaceDetailer; General rating only (ratings come in STU-01c).
+title = "OC sheet"
+description = "Kreative Studio's OC sheet: an original character as a turnaround sheet (front, side and back), SDXL novaAnimeXL with the character sheet and Marvel Rivals style LoRAs, faces and hands fixed."
+graph = "graph.json"
+outputs = ["20"]
+# soucouyant only: the A770 has the files but SDXL + FaceDetailer is not measured there yet.
+machines = ["soucouyant"]
+vram_mb = 10000
+ram_mb = 10000
+# estimates until measured
+
+[studio]
+label = "OC sheet"
+hint = "Character turnaround: front, side, back"
+sizes = ["wide"]
+order = 7
+px = { wide = [1216, 832] }
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "an adult woman knight with silver hair, a blue cloak and silver armour"
+node = "4"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, general, adult, mature, character sheet, character design sheet, full body, multiple views, front view, side view, back view, standing, simple background, white background, {value}"
+
+[[param]]
+name = "negative"
+type = "string"
+default = ""
+node = "5"
+input = "text"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, nsfw, nude, explicit, {value}"
+
+[[param]]
+name = "width"
+type = "int"
+default = 1216
+min = 512
+max = 2048
+node = "6"
+input = "width"
+
+[[param]]
+name = "height"
+type = "int"
+default = 832
+min = 512
+max = 2048
+node = "6"
+input = "height"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "7"
+input = "seed"
+also = [{ node = "9", input = "seed", add = 1 }, { node = "13", input = "seed", add = 2 }, { node = "15", input = "seed", add = 3 }]
+# hires pass, face fix and hand fix use seed+1..3 as in Kreative Studio
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "bbox/face_yolov8m.pt"
+licence = "AGPL-3.0"
+
+[[model]]
+file = "bbox/hand_yolov8s.pt"
+licence = "AGPL-3.0"
+
+[[model]]
+file = "sam_vit_b_01ec64.pth"
+licence = "Apache-2.0"
+
+[[model]]
+file = "character_Sheet_XL.safetensors"
+licence = "unknown (Civitai, check the model page)"
+
+[[model]]
+file = "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors"
+licence = "unknown (Civitai, check the model page)"
