@@ -8,6 +8,8 @@ pub mod sched;
 pub mod role_policy;
 pub mod role;
 pub mod timeline;
+pub mod gaming_policy;
+pub mod gaming;
 
 use std::{collections::HashMap, sync::Mutex, time::Duration};
 
@@ -173,12 +175,14 @@ async fn store(s: &AppState, ledgers: &[GpuLedger]) {
 
 /// The GPU area's API routes (TEN-02: main.rs merges them only when the area is on).
 pub fn routes() -> axum::Router<AppState> {
-    use axum::routing::get;
+    use axum::routing::{get, put};
     axum::Router::new()
         .route("/gpus", get(list))
         .route("/gpus/jobs", get(jobs::list))
         .route("/gpus/role", get(role::get).post(role::set))
         .route("/gpus/timeline", get(timeline::timeline))
+        .route("/gpus/modes", get(gaming::list))
+        .route("/gpus/modes/{machine}", put(gaming::set))
 }
 
 /// Every 10 s (and at once when a GPU job is queued or ends): probe, keep a sample, run a
@@ -201,6 +205,8 @@ pub fn spawn(s: AppState) {
             jobs::round(&s, &now).await;
             // M6-03: coder/artist switch of the A770 (off unless GPU_ROLE_GPU is set).
             role::step(&s, &now).await;
+            // GPU-01: Studio / Gaming / Auto for computers with studio apps (soucouyant).
+            gaming::step(&s, &now).await;
             let changed = {
                 let mut last = LAST.lock().unwrap();
                 // Small VRAM wobbles (under 64 MiB) are not news.
@@ -244,7 +250,7 @@ mod tests {
             ("soucouyant".into(), "0000:03:00.0".into(), Some(8000), Some(16304), None),
         ];
         let g = |machine: &str, pci: &str| GpuConfig {
-            id: "x".into(), machine: machine.into(), pci: pci.into(), vram_gb: 16.0, schedulable: true, holders: vec![],
+            id: "x".into(), machine: machine.into(), pci: pci.into(), vram_gb: 16.0, schedulable: true, holders: vec![], apps: vec![],
         };
         assert_eq!(find(&g("kireserver", "0000:10:00.0"), &all).unwrap().2, Some(12000));
         assert_eq!(find(&g("soucouyant", "*"), &all).unwrap().1, "0000:03:00.0");

@@ -270,6 +270,10 @@ pub struct GpuConfig {
     pub schedulable: bool,
     #[serde(default, rename = "holder")]
     pub holders: Vec<HolderConfig>,
+    /// GPU-01: the studio apps on this GPU's computer, by their name in the runner's
+    /// [gpu_apps] (e.g. ["comfyui", "heartmula", "sfx"]); empty: no gaming switch.
+    #[serde(default)]
+    pub apps: Vec<String>,
 }
 
 /// Something that can hold VRAM on a GPU and how to see it:

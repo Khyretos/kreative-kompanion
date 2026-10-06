@@ -145,6 +145,9 @@ async fn queue(
     }
     let (machine, url) = comfy_target(&s.config.gpus, gpu)
         .ok_or_else(|| ApiError::BadRequest(format!("{gpu} has no ComfyUI")))?;
+    // GPU-01: refused while that computer games; starts ComfyUI there if Kompanion stopped it
+    // (comfy::run waits for it to answer).
+    crate::gpus::gaming::ensure_started(s, gpu, "comfyui").await.map_err(ApiError::BadRequest)?;
     let graph = wf.graph_for(&machine).map_err(ApiError::BadRequest)?;
     let (graph, used) = wf.fill(&graph, params).map_err(ApiError::BadRequest)?;
     let id = util::new_id();
