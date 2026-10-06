@@ -35,6 +35,9 @@ pub struct StudioMeta {
     pub sizes: Vec<String>,
     #[serde(default)]
     pub order: i64,
+    /// STU-02: pixels per size when they differ from the image sizes (video: wide = [1280, 704]).
+    #[serde(default)]
+    pub px: BTreeMap<String, [i64; 2]>,
 }
 
 /// STU-01: a preset changes a base workflow's parameter: its template and/or default.
@@ -85,6 +88,9 @@ pub struct Workflow {
     pub ram: BTreeMap<String, u64>,
     #[serde(default)]
     pub ram_mb: u64,
+    /// STU-02: the machines it may run on (empty: every machine with a ComfyUI).
+    #[serde(default)]
+    pub machines: Vec<String>,
     #[serde(default, rename = "param")]
     pub params: Vec<Param>,
     #[serde(default, rename = "model")]

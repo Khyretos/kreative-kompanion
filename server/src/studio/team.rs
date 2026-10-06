@@ -17,13 +17,8 @@ pub fn size_px(size: &str) -> Option<(i64, i64)> {
 
 /// Convert pixel dimensions back to a size label.
 pub fn size_name(w: i64, h: i64) -> &'static str {
-    if w == 1344 && h == 768 {
-        "wide"
-    } else if w == 768 && h == 1344 {
-        "tall"
-    } else {
-        "square"
-    }
+    // STU-02: by shape, so video sizes (1280 x 704) name the same way as images.
+    if w > h { "wide" } else if h > w { "tall" } else { "square" }
 }
 
 /// Default count value for requests.
@@ -68,7 +63,12 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, Json
         return Err(ApiError::BadRequest(format!("{} comes in {}", studio.label, sizes.join(", "))));
     }
 
-    let (w_px, h_px) = size_px(&b.size).ok_or_else(|| ApiError::BadRequest("Pick square, wide or tall.".into()))?;
+    let (w_px, h_px) = studio
+        .px
+        .get(&b.size)
+        .map(|p| (p[0], p[1]))
+        .or_else(|| size_px(&b.size))
+        .ok_or_else(|| ApiError::BadRequest("Pick square, wide or tall.".into()))?;
 
     let mut ids = Vec::new();
     for _ in 0..b.count {

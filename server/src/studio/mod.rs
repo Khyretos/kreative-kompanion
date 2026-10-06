@@ -139,20 +139,23 @@ async fn start(
 /// GPU-02: the GPU a studio run uses. A named GPU is used as asked; "auto" takes the first
 /// configured GPU with studio apps and a ComfyUI whose computer has the studio on, else
 /// `[studio] fallback_gpu` (e.g. the A770, at the cost of Coder), else an error saying why.
-pub async fn place(s: &AppState, gpu: &str) -> Result<String, String> {
+pub async fn place(s: &AppState, gpu: &str, machines: &[String]) -> Result<String, String> {
+    // STU-02: a workflow may be limited to some machines (video: soucouyant).
+    let allowed = |id: &str| machines.is_empty() || s.config.gpus.iter().any(|g| g.id == id && machines.contains(&g.machine));
+    let only = || format!("This runs only on {}.", machines.join(", "));
     // GPU-03: "Studio runs on" (Off holds every job; a chosen GPU takes the automatic ones).
     let chosen = target::get(s).await;
     if chosen == "off" {
         return Err("The studio is off. Switch it on under Capabilities, GPUs (Studio runs on), or in Kreative Studio.".to_string());
     }
     if gpu != "auto" {
-        return Ok(gpu.to_string());
+        return if allowed(gpu) { Ok(gpu.to_string()) } else { Err(only()) };
     }
     if chosen != "auto" {
-        return Ok(chosen);
+        return if allowed(&chosen) { Ok(chosen) } else { Err(format!("{} The studio runs on {chosen} now.", only())) };
     }
     for g in &s.config.gpus {
-        if g.apps.is_empty() || comfy_target(&s.config.gpus, &g.id).is_none() {
+        if g.apps.is_empty() || comfy_target(&s.config.gpus, &g.id).is_none() || !allowed(&g.id) {
             continue;
         }
         if crate::gpus::gaming::studio_allowed(s, &g.machine).await {
@@ -161,8 +164,12 @@ pub async fn place(s: &AppState, gpu: &str) -> Result<String, String> {
     }
     if let Some(f) = &s.config.studio.fallback_gpu
         && comfy_target(&s.config.gpus, f).is_some()
+        && allowed(f)
     {
         return Ok(f.clone());
+    }
+    if !machines.is_empty() {
+        return Err(format!("{} Its studio is off now.", only()));
     }
     Err("The studio is off on every studio computer and no other GPU may take studio jobs (kompanion.toml [studio] fallback_gpu).".to_string())
 }
@@ -194,7 +201,7 @@ async fn queue(
             problems.join("; ")
         )));
     }
-    let placed = place(s, gpu).await.map_err(ApiError::BadRequest)?;
+    let placed = place(s, gpu, &wf.machines).await.map_err(ApiError::BadRequest)?;
     let gpu = placed.as_str();
     let (machine, url) = comfy_target(&s.config.gpus, gpu)
         .ok_or_else(|| ApiError::BadRequest(format!("{gpu} has no ComfyUI")))?;
