@@ -15,6 +15,8 @@ pub enum Tool {
     Service { action: String, #[serde(default)] unit: Option<String> },
     Package { manager: String, action: String, names: Vec<String> },
     Reload { what: String },
+    /// GPU-01: start, stop or status of the studio apps, or Ollama unload.
+    GpuApps { action: String, #[serde(default)] app: Option<String> },
     SystemInfo,
 }
 
@@ -152,6 +154,7 @@ pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
         Tool::Package { manager, action, names } => crate::systools::package(grants, manager, action, names, now),
         Tool::Reload { what } => crate::systools::reload(grants, what, now),
         Tool::SystemInfo => crate::sysinfo::system_info(),
+        Tool::GpuApps { action, app } => crate::gpuapps::gpu_apps(grants, crate::gpuapps::apps(), action, app.as_deref(), now),
     }
 }
 

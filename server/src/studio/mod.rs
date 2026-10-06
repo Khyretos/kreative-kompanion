@@ -214,8 +214,12 @@ async fn execute(
         ram_mib: w.ram_for(&machine),
         tonight: false,
     };
-    // Its own cached models would otherwise count as used VRAM and keep the job waiting.
-    comfy::free_if_idle(&s.http, &url).await;
+    // GPU-01: keep the models loaded while jobs keep coming (~9 s per image instead of ~19 s);
+    // free the target ComfyUI's cache only when the ledger says the job doesn't fit next to it.
+    let free = crate::gpus::current(&s).await.into_iter().find(|l| l.id == gpu).map(|l| l.free_mib);
+    if free.is_none_or(|f| f < spec.vram_mib) {
+        comfy::free_if_idle(&s.http, &url).await;
+    }
     let result = match jobs::acquire(&s, spec, Duration::from_secs(3600)).await {
         Err(e) => Err(e),
         Ok(lease) => {

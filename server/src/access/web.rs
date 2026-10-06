@@ -26,7 +26,7 @@ fn valid_grant(target: &str, rights: &[String]) -> bool {
     }
 
     if target == "system" {
-        let allowed = ["packages", "services", "desktop", "root"];
+        let allowed = ["packages", "services", "desktop", "root", "gpu"];
         for r in rights {
             if !allowed.contains(&r.as_str()) {
                 return false;
@@ -138,7 +138,7 @@ pub async fn add_grant(
     owned(&s, &id, &u).await?;
 
     if !valid_grant(&b.target, &b.rights) {
-        return Err(ApiError::BadRequest("That grant isn't valid: a folder takes read, write or shell; \"system\" takes packages, services, desktop or root.".to_string()));
+        return Err(ApiError::BadRequest("That grant isn't valid: a folder takes read, write or shell; \"system\" takes packages, services, desktop, root or gpu.".to_string()));
     }
 
     let mut grant_json = json!({

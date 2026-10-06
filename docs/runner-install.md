@@ -66,6 +66,25 @@ The PC shows up in the Machines tab within a minute. It reports every 60 s
 when nobody looks, at the slider's rate while the tab is open, and every
 second on "Live". Exit code 3 means the token was refused: pair again.
 
+## 5. Studio apps on a gaming PC (optional, GPU-01)
+
+On a PC that also runs the studio apps (ComfyUI, music, sound effects), the
+runner can start and stop them so the GPU is free for games. Name the apps and
+their containers in `config.toml`:
+
+```toml
+[gpu_apps]
+comfyui = "comfyui-rocm"
+heartmula = "heartmula-rocm"
+sfx = "moss-sfx-rocm"
+```
+
+Then grant "GPU apps" under Machines → Access → System rights. The runner only
+runs `docker start`, `docker stop` and `docker inspect` on these containers and
+asks the local Ollama to unload its models; nothing else. It also reports when
+a game runs (a `gamescope` process, or a Steam game started through
+`reaper SteamLaunch`), so Kompanion can switch the apps off by itself.
+
 ## What it reads
 
 `/proc/stat`, `/proc/meminfo`, `/proc/uptime`, `/proc/loadavg`, the root
