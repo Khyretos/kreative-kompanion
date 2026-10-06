@@ -83,6 +83,7 @@ pub async fn run(
     };
 
     tokio::fs::create_dir_all(out_dir).await?;
+    shared(out_dir, 0o2775).await;
     let mut files = Vec::new();
     for node in outputs {
         for key in &["images", "audio", "gifs", "videos"] {
@@ -111,6 +112,7 @@ pub async fn run(
                         .unwrap_or_else(|| "bin".to_string());
                     let path = out_dir.join(format!("{stem}-{}.{ext}", files.len() + 1));
                     tokio::fs::write(&path, &bytes).await?;
+                    shared(&path, 0o664).await;
                     files.push(path);
                 }
             }
@@ -120,6 +122,13 @@ pub async fn run(
         bail!("ComfyUI finished without outputs");
     }
     Ok(files)
+}
+
+/// Outputs go to a folder people share (/media/Generated): its group may change them, and a
+/// setgid folder hands its group on to new files.
+pub async fn shared(path: &Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).await;
 }
 
 /// Ask an idle ComfyUI to drop its cached models, so the VRAM ledger sees room for the next

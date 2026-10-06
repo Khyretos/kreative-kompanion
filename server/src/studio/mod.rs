@@ -123,17 +123,27 @@ async fn queue(
     gpu: &str,
     params: &Map<String, Value>,
     user_id: &str,
-) -> ApiResult<(String, impl std::future::Future<Output = ()> + Send + 'static)> {
-    let wf = match workflow::load_all(&s.config.studio.workflows_dir).into_iter().find(|(n, _)| n == name) {
+) -> ApiResult<(
+    String,
+    impl std::future::Future<Output = ()> + Send + 'static,
+)> {
+    let wf = match workflow::load_all(&s.config.studio.workflows_dir)
+        .into_iter()
+        .find(|(n, _)| n == name)
+    {
         None => return Err(ApiError::NotFound),
         Some((_, Err(e))) => return Err(ApiError::BadRequest(e)),
         Some((_, Ok(w))) => w,
     };
     let problems = wf.licence_problems();
     if !problems.is_empty() {
-        return Err(ApiError::BadRequest(format!("Refused licences: {}", problems.join("; "))));
+        return Err(ApiError::BadRequest(format!(
+            "Refused licences: {}",
+            problems.join("; ")
+        )));
     }
-    let (machine, url) = comfy_target(&s.config.gpus, gpu).ok_or_else(|| ApiError::BadRequest(format!("{gpu} has no ComfyUI")))?;
+    let (machine, url) = comfy_target(&s.config.gpus, gpu)
+        .ok_or_else(|| ApiError::BadRequest(format!("{gpu} has no ComfyUI")))?;
     let graph = wf.graph_for(&machine).map_err(ApiError::BadRequest)?;
     let (graph, used) = wf.fill(&graph, params).map_err(ApiError::BadRequest)?;
     let id = util::new_id();
@@ -148,7 +158,19 @@ async fn queue(
         .execute(&s.db)
         .await
         .map_err(anyhow::Error::from)?;
-    Ok((id.clone(), execute(s.clone(), wf, gpu.to_string(), machine, url, graph, used, id)))
+    Ok((
+        id.clone(),
+        execute(
+            s.clone(),
+            wf,
+            gpu.to_string(),
+            machine,
+            url,
+            graph,
+            used,
+            id,
+        ),
+    ))
 }
 
 /// `kompanion-server studio-run <workflow> <gpu> [params as JSON]`: queue a run as a normal GPU
@@ -161,10 +183,14 @@ pub async fn cli(s: &AppState, args: &[String]) -> anyhow::Result<()> {
         Some(p) => serde_json::from_str(p)?,
         None => Map::new(),
     };
-    let (id, job) = queue(s, name, gpu, &params, "cli").await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    let (id, job) = queue(s, name, gpu, &params, "cli")
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     eprintln!("run {id} queued on {gpu}");
     job.await;
-    let Json(run) = run_get(State(s.clone()), Path(id)).await.map_err(|e| anyhow::anyhow!("{e}"))?;
+    let Json(run) = run_get(State(s.clone()), Path(id))
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     println!("{}", serde_json::to_string_pretty(&run)?);
     Ok(())
 }
@@ -215,7 +241,10 @@ async fn execute(
                 if let Ok(bytes) = serde_json::to_vec_pretty(
                     &json!({"workflow": w.name, "title": w.title, "run": id, "gpu": gpu, "machine": machine, "params": used, "models": w.models, "created": util::now()}),
                 ) {
-                    let _ = tokio::fs::write(format!("{}.json", f.display()), bytes).await;
+                    let side = std::path::PathBuf::from(format!("{}.json", f.display()));
+                    if tokio::fs::write(&side, bytes).await.is_ok() {
+                        comfy::shared(&side, 0o664).await;
+                    }
                 }
             }
             let outputs = json!(
