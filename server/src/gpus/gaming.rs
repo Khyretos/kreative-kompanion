@@ -188,11 +188,16 @@ pub struct ModeBody {
 }
 
 pub async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
-    let machines_list = machines(&s).await;
+    Ok(Json(modes(&s).await))
+}
+
+/// Mode, effective mode and app state per computer with studio apps (also on the Capabilities page).
+pub async fn modes(s: &AppState) -> Vec<Value> {
+    let machines_list = machines(s).await;
     let mut result = Vec::new();
     
     for m in &machines_list {
-        let (eff, gaming) = effective_of(&s, &m);
+        let (eff, gaming) = effective_of(s, m);
         
         let gpus_on_machine = s.config.gpus.iter()
             .filter(|g| g.machine == m.name && !g.apps.is_empty())
@@ -217,7 +222,7 @@ pub async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
         }));
     }
     
-    Ok(Json(result))
+    result
 }
 
 pub async fn set(State(s): State<AppState>, Extension(u): Extension<User>, Path(machine): Path<String>, Json(b): Json<ModeBody>) -> ApiResult<Json<Value>> {

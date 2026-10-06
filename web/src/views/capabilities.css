@@ -75,3 +75,4 @@
 .tl-key-watts::before { height: 0; border-top: 2px solid var(--accent); vertical-align: 0.25rem; }
 .tl-key-jobs::before { background: var(--brand); }
 .tl-key-events::before { width: 0; border-left: 2px dashed var(--accent); }
+.cap .gpu-mode { align-self: flex-start; margin-top: 0.35rem; }

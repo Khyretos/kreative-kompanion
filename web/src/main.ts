@@ -24,7 +24,7 @@ import { AssetsView } from "./views/assets";
 import { HttpAssets, type AssetsApi } from "./api/assets";
 import { MockAssets } from "./api/assets-mock";
 import { renderActivity } from "./views/activity";
-import { renderCapabilities } from "./views/capabilities";
+import { renderCapabilities, type GpuModeName } from "./views/capabilities";
 import { ALL_FEATURES } from "./api/types";
 import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
@@ -895,6 +895,7 @@ function wire(shell: HTMLElement): void {
       document.getElementById("task-filter")?.focus();
     },
     "close-task": () => store.set({ openTaskId: undefined }),
+    "gpu-mode": (el) => api.setGpuMode(el.dataset.machine ?? "", el.dataset.mode as GpuModeName).then(loadCapabilities, showError),
     "gpu-range": (el) => {
       const gpuRange = el.dataset.hours === "24" ? 24 : 1;
       store.set({ gpuRange, gpuTimeline: undefined });
