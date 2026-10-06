@@ -749,10 +749,11 @@ function wire(shell: HTMLElement): void {
     },
     "lesson-accept": (el) => {
       const id = el.dataset.id ?? "";
+      const layer = (document.getElementById(`lesson-layer-${id}`) as HTMLSelectElement | null)?.value as "general" | "private" | undefined;
       const text = (document.getElementById(`lesson-${id}`) as HTMLTextAreaElement | null)?.value.trim();
       const before = store.get().lessons;
-      store.set({ lessons: before.map((l) => (l.id === id ? { ...l, state: "accepted" as const, text: text || l.text } : l)) });
-      return api.decideLesson(id, "accept", text).catch((e) => { store.set({ lessons: before }); showError(e); });
+      store.set({ lessons: before.map((l) => (l.id === id ? { ...l, state: "accepted" as const, text: text || l.text, layer: layer ?? l.layer } : l)) });
+      return api.decideLesson(id, "accept", text, layer).catch((e) => { store.set({ lessons: before }); showError(e); });
     },
     "lesson-dismiss": (el) => {
       const id = el.dataset.id ?? "";

@@ -159,8 +159,8 @@ export class HttpApi implements KompanionApi {
     return res.blob();
   }
   getSkill(id: string) { return this.request<{ id: string; text: string }>("GET", `/capabilities/skill?id=${encodeURIComponent(id)}`); }
-  decideLesson(id: string, decision: "accept" | "dismiss", text?: string) {
-    return this.request<void>("POST", `/lessons/${encodeURIComponent(id)}`, { decision, text });
+  async decideLesson(id: string, decision: "accept" | "dismiss", text?: string, layer?: "general" | "private"): Promise<void> {
+    await this.request<void>("POST", `/lessons/${encodeURIComponent(id)}`, { decision, text, layer });
   }
   decideAction(id: string, decision: "approve" | "always" | "deny") {
     return this.request<void>("POST", `/actions/${encodeURIComponent(id)}/decide`, { decision });

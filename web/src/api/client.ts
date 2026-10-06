@@ -12,6 +12,10 @@ export interface Lesson {
   text: string;
   /** The review finding it comes from. */
   finding: string;
+  /** general (for any project, published to kompas-skills) or private (this setup only). */
+  layer: "general" | "private";
+  /** The model that proposed it. */
+  proposedBy: string;
   state: "proposed" | "accepted" | "dismissed";
   createdAt: string;
 }
@@ -127,7 +131,7 @@ export interface KompanionApi {
   speak(text: string, voice: string): Promise<Blob>;
   decideAction(id: string, decision: "approve" | "always" | "deny"): Promise<void>;
   /** Accept (with the text as edited) or dismiss a proposed lesson. */
-  decideLesson(id: string, decision: "accept" | "dismiss", text?: string): Promise<void>;
+  decideLesson(id: string, decision: "accept" | "dismiss", text?: string, layer?: "general" | "private"): Promise<void>;
   answer(taskId: string, optionId: string): Promise<void>;
 
   /** Live updates: streamed tokens, task progress, new messages. A "resync"

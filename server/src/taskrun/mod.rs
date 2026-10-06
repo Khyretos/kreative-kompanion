@@ -327,9 +327,10 @@ async fn propose_lessons(s: &AppState, r: &Run, findings: &[String], cards: &[St
     let Some((project_id,)) = project else { return };
     let system = format!(
         "You turn review findings into lessons for a future worker model. Answer only with a JSON array of at most 3 \
-         objects {{\"card\": \"...\", \"lesson\": \"...\", \"finding\": \"...\"}}. card is one of: {}. lesson is one short \
-         imperative rule that would have prevented the finding, general enough for other tasks; finding is the finding it comes from. \
-         Leave out findings that only concern this one task.",
+         objects {{\"card\": \"...\", \"lesson\": \"...\", \"finding\": \"...\", \"layer\": \"...\"}}. card is one of: {}. \
+         lesson is one short imperative rule that would have prevented the finding, general enough for other tasks; \
+         finding is the finding it comes from; layer is \"general\" when the lesson holds for any project and names no host, \
+         address, path, person or tool of this setup, else \"private\". Leave out findings that only concern this one task.",
         cards.join(", ")
     );
     let user = format!("Task: {}\n\nFindings:\n{}", r.title, findings.iter().map(|f| format!("- {f}")).collect::<Vec<_>>().join("\n"));
@@ -341,7 +342,7 @@ async fn propose_lessons(s: &AppState, r: &Run, findings: &[String], cards: &[St
         if !cards.contains(&card) {
             continue;
         }
-        crate::lessons::propose(s, &r.user_id, &project_id, &r.run_id, &r.task_id, &card, &field("lesson"), &field("finding")).await;
+        crate::lessons::propose(s, &r.user_id, &project_id, &r.run_id, &r.task_id, &card, &field("lesson"), &field("finding"), &field("layer"), &r.reviewer.model_id).await;
     }
 }
 
