@@ -50,6 +50,9 @@ pub struct Config {
     /// `[voice]`: speech to text and text to speech; off when neither URL is set.
     #[serde(default)]
     pub voice: VoiceConfig,
+    /// `[studio]`: saved ComfyUI workflows and where their outputs go (M6-05).
+    #[serde(default)]
+    pub studio: StudioConfig,
     /// `[features]`: switch whole areas off (all on by default).
     #[serde(default)]
     pub features: FeaturesConfig,
@@ -120,6 +123,30 @@ pub struct VoiceConfig {
     pub tts_model: Option<String>,
     #[serde(default)]
     pub api_key_env: Option<String>,
+}
+
+/// `[studio]`: `workflows_dir` holds `<name>/graph.json` + `workflow.toml`; outputs and their
+/// provenance land in `output_dir`.
+#[derive(Debug, Clone, Deserialize)]
+pub struct StudioConfig {
+    #[serde(default = "default_workflows_dir")]
+    pub workflows_dir: PathBuf,
+    #[serde(default = "default_output_dir")]
+    pub output_dir: PathBuf,
+}
+
+impl Default for StudioConfig {
+    fn default() -> Self {
+        Self { workflows_dir: default_workflows_dir(), output_dir: default_output_dir() }
+    }
+}
+
+fn default_workflows_dir() -> PathBuf {
+    "/app/studio/workflows".into()
+}
+
+fn default_output_dir() -> PathBuf {
+    "/data/generated".into()
 }
 
 /// `[features]`: an area that is off has no routes, no background jobs and no menu item.

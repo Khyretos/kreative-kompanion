@@ -33,6 +33,7 @@ mod projects;
 mod runs;
 mod search;
 mod skills;
+mod studio;
 mod skillrepo;
 mod tasks;
 mod thread;
@@ -177,6 +178,9 @@ async fn main() -> anyhow::Result<()> {
         host: Default::default(),
         windshift: windshift.is_some() && config.features.windshift,
     };
+    if args.get(1).map(String::as_str) == Some("studio-run") {
+        return studio::cli(&state, &args[2..]).await;
+    }
     hoststats::HostStats::spawn_live(state.clone());
     notify::spawn_daily(state.db.clone());
     let _ = events::BUS.set(state.bus.clone());
@@ -278,6 +282,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/events", get(api::events))
         .merge(if state.config.features.assets { assets::routes() } else { Router::new() })
         .merge(if state.config.features.gpus { gpus::routes() } else { Router::new() })
+        .merge(if state.config.features.gpus { studio::routes() } else { Router::new() })
         .fallback(|| async { (axum::http::StatusCode::NOT_FOUND, "no such API route") })
         // Inside the guard, so the signed-in user is known.
         .layer(middleware::from_fn_with_state(state.clone(), live::notify_changes))

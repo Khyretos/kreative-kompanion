@@ -1,0 +1,85 @@
+# Z-Image Turbo text to image (M6-05 test workflow). Same parameters on both ComfyUI instances;
+# soucouyant runs the Q8 GGUF and the fp8 encoder (bf16 did not fit next to its games, see the
+# gpu-studio skill).
+title = "Z-Image Turbo: text to image"
+description = "Fast 8-step image from a prompt; good for concept art and sprites."
+graph = "graph.json"
+outputs = ["10"]
+# Estimates until measured with comfy-bench.sh: the A770 has about 12.6 GB left in artist mode
+# (Autocomplete and Whisper stay), ComfyUI offloads the bf16 encoder after use.
+vram_mb = 11000
+ram_mb = 8000
+
+[graphs]
+soucouyant = "graph-q8.json"
+
+[vram]
+soucouyant = 8000
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "a cute orange fox character for a 2D platformer game, full body, side view, clean cel shading"
+node = "5"
+input = "text"
+
+[[param]]
+name = "negative"
+type = "string"
+default = "blurry, low quality, text, watermark"
+node = "6"
+input = "text"
+
+[[param]]
+name = "width"
+type = "int"
+default = 1024
+min = 256
+max = 2048
+node = "7"
+input = "width"
+
+[[param]]
+name = "height"
+type = "int"
+default = 1024
+min = 256
+max = 2048
+node = "7"
+input = "height"
+
+[[param]]
+name = "steps"
+type = "int"
+default = 8
+min = 1
+max = 50
+node = "8"
+input = "steps"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "8"
+input = "seed"
+
+[[model]]
+file = "z_image_turbo_bf16.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "z-image-turbo-Q8_0.gguf"
+licence = "Apache-2.0"
+
+[[model]]
+file = "qwen_3_4b.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "qwen_3_4b_fp8_mixed.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "ae.safetensors"
+licence = "Apache-2.0"

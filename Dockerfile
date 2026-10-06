@@ -24,6 +24,8 @@ COPY --from=server /src/server/target/release/kompanion-server /usr/local/bin/ko
 COPY --from=web /src/web/dist /app/web
 # The role skills, shown read-only on the Capabilities page.
 COPY skills/ /app/skills/
+# Saved ComfyUI workflows (M6-05).
+COPY studio/ /app/studio/
 USER kompanion
 ENV KOMPANION_CONFIG=/config/kompanion.toml
 VOLUME /data
