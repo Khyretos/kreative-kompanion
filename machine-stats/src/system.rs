@@ -21,6 +21,9 @@ pub struct Snapshot {
     pub os: String,
     #[serde(default)]
     pub gpus: Vec<GpuStats>,
+    /// GPU-01: a game runs on this PC (the runner sets it; None from older runners).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gaming: Option<bool>,
 }
 
 /// Reads snapshots; keeps the previous CPU counters for the busy share.
@@ -82,6 +85,7 @@ impl Sampler {
                 }
                 gpus
             },
+            gaming: None,
         }
     }
 }

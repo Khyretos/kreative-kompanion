@@ -19,6 +19,7 @@ mod systools;
 mod sysinfo;
 mod setup;
 mod ask;
+mod gpuapps;
 
 use machine_stats::Sampler;
 use serde::Deserialize;
@@ -31,6 +32,9 @@ struct Config {
     token_file: String,
     #[serde(default = "default_grants")]
     grants_file: String,
+    /// GPU-01: studio app name -> its container name (`[gpu_apps]` in config.toml).
+    #[serde(default)]
+    gpu_apps: std::collections::BTreeMap<String, String>,
 }
 
 fn default_grants() -> String {
@@ -146,6 +150,7 @@ fn main() {
         std::process::exit(2);
     }
 
+    let _ = gpuapps::APPS.set(cfg.gpu_apps.clone());
     let base_url = cfg.server.trim_end_matches('/');
     let url = format!("{}/api/machines/{}/stats", base_url, cfg.machine_id);
     let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).build();
@@ -175,7 +180,9 @@ fn main() {
     eprintln!("kompanion-runner: reporting to {}", cfg.server);
     loop {
         thread::sleep(Duration::from_secs(interval.max(1)));
-        let snap = sampler.sample();
+        let mut snap = sampler.sample();
+        // GPU-01: the server switches this PC's studio apps off while a game runs.
+        snap.gaming = Some(gpuapps::game_running(std::path::Path::new("/proc")));
         match agent.post(&url).set("Authorization", &format!("Bearer {token}")).set("X-Kompanion-Runner", env!("CARGO_PKG_VERSION")).send_json(&snap) {
             Ok(resp) => {
                 backoff = 0;

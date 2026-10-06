@@ -64,6 +64,7 @@ export function renderAccess(machines: { id: string; name: string }[], grants: R
                 <label><input type="checkbox" name="rights" value="packages"> packages</label>
                 <label><input type="checkbox" name="rights" value="services"> user services</label>
                 <label><input type="checkbox" name="rights" value="desktop"> desktop reload</label>
+                <label><input type="checkbox" name="rights" value="gpu"> GPU apps (start or stop the studio apps, unload Ollama)</label>
                 <label><input type="checkbox" name="rights" value="root"> root (pkexec prompt on the PC)</label>
               </span>
               <select name="expires" aria-label="Expires">
