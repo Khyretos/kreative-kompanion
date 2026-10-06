@@ -146,8 +146,8 @@ export class HttpApi implements KompanionApi {
   listActivity() { return this.request<import("../views/activity").ActivityItem[]>("GET", "/activity"); }
   getCapabilities() { return this.request<import("../views/capabilities").Capabilities>("GET", "/capabilities"); }
   async studioTypes() {
-    const all = await this.request<{ name: string; studio?: { label: string; hint: string; sizes: string[]; order: number } | null }[]>("GET", "/studio/workflows");
-    return all.filter((w) => w.studio).map((w) => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order }))
+    const all = await this.request<{ name: string; problems?: string[]; studio?: { label: string; hint: string; sizes: string[]; order: number } | null }[]>("GET", "/studio/workflows");
+    return all.filter((w) => w.studio).map((w): import("../views/studio").StudioType => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order, warning: w.problems?.length ? w.problems.join("; ") : undefined }))
       .sort((a, b) => a.order - b.order)
       // STU-02: music and sound effects are apps, not workflows.
       .concat(AUDIO_TYPES);

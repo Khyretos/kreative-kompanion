@@ -8,7 +8,7 @@ test("Studio makes images from a type, a description and a size", async ({ page 
   const studio = page.locator("#studio");
   await expect(studio.locator("h1")).toHaveText("Studio");
   const types = studio.locator('.studio-types [role="radio"]');
-  await expect(types.locator("strong")).toHaveText(["Character", "Scene", "Landscape", "Sprite", "Icon", "Video", "Music", "Sound effect"]);
+  await expect(types.locator("strong")).toHaveText(["Character", "Scene", "Landscape", "Sprite", "Icon", "OC sheet", "Video", "Music", "Sound effect"]);
   await expect(types.first()).toHaveAttribute("aria-checked", "true");
   const sizes = studio.locator('.studio-form [aria-label="Size"] button');
   await expect(sizes).toHaveText(["Tall", "Square"]);

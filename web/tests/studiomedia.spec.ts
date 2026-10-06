@@ -7,7 +7,7 @@ test("Studio makes music and sound effects and plays results", async ({ page }) 
   await page.click('[data-action="studio"]');
   const studio = page.locator("#studio");
   const types = studio.locator('.studio-types [role="radio"]');
-  await expect(types.locator("strong")).toHaveText(["Character", "Scene", "Landscape", "Sprite", "Icon", "Video", "Music", "Sound effect"]);
+  await expect(types.locator("strong")).toHaveText(["Character", "Scene", "Landscape", "Sprite", "Icon", "OC sheet", "Video", "Music", "Sound effect"]);
   // Music: no sizes and no Make 4; a length and optional lyrics.
   await types.filter({ hasText: "Music" }).click();
   await expect(studio.locator('.studio-form [aria-label="Size"]')).toHaveCount(0);

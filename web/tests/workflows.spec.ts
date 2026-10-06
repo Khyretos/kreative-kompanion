@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 // STU-01 (M6-05 step 4): the Capabilities page lists the saved workflows with licences, GPUs and runs.
-test("Capabilities shows the workflows with licences, GPUs and run numbers", async ({ page }) => {
+test("Capabilities shows the workflows with licences, warnings, GPUs and run numbers", async ({ page }) => {
   await page.goto("/?demo");
   await page.click("button.found-server");
   await page.click('[data-action="capabilities"]');
@@ -16,7 +16,17 @@ test("Capabilities shows the workflows with licences, GPUs and run numbers", asy
   const preset = cards.filter({ hasText: "Landscape" });
   await expect(preset).toContainText("Image type, based on z-image-turbo");
   await expect(preset).toContainText("No runs yet");
-  const refused = cards.filter({ hasText: "Old SD 1.5 sprites" });
-  await expect(refused.locator(".chip.state")).toHaveText("licence refused");
-  await expect(refused.locator(".wf-problems")).toHaveText("sd15.ckpt: CreativeML OpenRAIL-M is not allowed");
+  const warned = cards.filter({ hasText: "Old SD 1.5 sprites" });
+  await expect(warned.locator(".chip.state")).toHaveText("licence warning");
+  await expect(warned.locator(".wf-problems")).toHaveText("licence warning: sd15.ckpt: CreativeML OpenRAIL-M: OpenRAIL licence, check its use restrictions");
+});
+
+// LIC-01: a type whose model licence is not OSI/permissive still runs; its card shows the warning.
+test("Studio type cards show a licence warning", async ({ page }) => {
+  await page.goto("/?demo");
+  await page.click("button.found-server");
+  await page.click('[data-action="studio"]');
+  const card = page.locator('#studio .studio-type[data-type="oc-sheet"]');
+  await expect(card.locator(".studio-warning")).toHaveText("Licence warning: novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use");
+  await expect(page.locator('#studio .studio-type[data-type="character"] .studio-warning')).toHaveCount(0);
 });

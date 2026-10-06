@@ -253,14 +253,14 @@ function workflowCard(w: CapWorkflow): SafeHtml {
   const kind = w.studio && w.base ? `Image type, based on ${w.base}` : w.studio ? "Image type" : w.base ? `Based on ${w.base}` : "";
   const runs = w.runs === 0 ? "No runs yet" : `${w.runs} ${w.runs === 1 ? "run" : "runs"}${w.avgSeconds !== null ? ` · ${Math.round(w.avgSeconds)} s on average` : ""}${w.lastRun ? ` · last ${relTime(w.lastRun)}` : ""}`;
 
-  return html`<li class="task cap s-${w.runnable ? "done" : "failed"}">
+  return html`<li class="task cap s-${w.problems.length ? "needs_input" : "done"}">
     <div class="task-main">
-      <span class="task-top"><span class="chip state">${w.runnable ? "ready" : "licence refused"}</span>${kind ? html`<span class="muted small">${kind}</span>` : ""}</span>
+      <span class="task-top"><span class="chip state">${w.problems.length ? "licence warning" : "ready"}</span>${kind ? html`<span class="muted small">${kind}</span>` : ""}</span>
       <span class="task-title">${w.title}</span>
       <span class="task-step">${w.description}</span>
       <span class="task-meta">${licences} · on ${w.targets.length ? w.targets.join(", ") : "no GPU"}</span>
       <span class="task-meta">${runs}</span>
-      ${w.problems.length ? html`<span class="task-meta wf-problems">${w.problems.join("; ")}</span>` : ""}
+      ${w.problems.length ? html`<span class="task-meta wf-problems">licence warning: ${w.problems.join("; ")}</span>` : ""}
     </div>
   </li>`;
 }

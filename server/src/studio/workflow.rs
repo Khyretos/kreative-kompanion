@@ -100,8 +100,8 @@ pub struct Workflow {
 }
 
 impl Workflow {
-    /// "<file>: <why>" for every model whose licence is refused.
-    pub fn licence_problems(&self) -> Vec<String> {
+    /// "<file>: <why>" for every model whose licence gets a warning (LIC-01: never refused).
+    pub fn licence_warnings(&self) -> Vec<String> {
         self.models
             .iter()
             .filter_map(|m| {
@@ -424,8 +424,8 @@ licence = "CreativeML OpenRAIL-M"
     #[test]
     fn licences() {
         assert_eq!(
-            wf().licence_problems(),
-            vec!["b.ckpt: CreativeML OpenRAIL-M: OpenRAIL licences are refused".to_string()]
+            wf().licence_warnings(),
+            vec!["b.ckpt: CreativeML OpenRAIL-M: OpenRAIL licence, check its use restrictions".to_string()]
         );
     }
 
@@ -517,8 +517,7 @@ licence = "CreativeML OpenRAIL-M"
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
         let all = load_all(&dir);
         for (name, w) in &all {
-            let w = w.as_ref().unwrap_or_else(|e| panic!("{name}: {e}"));
-            assert!(w.licence_problems().is_empty(), "{name}: licences");
+            let _w = w.as_ref().unwrap_or_else(|e| panic!("{name}: {e}"));
         }
         let types: Vec<&str> = all.iter().filter_map(|(_, w)| w.as_ref().ok()?.studio.as_ref().map(|s| s.label.as_str())).collect();
         for t in ["Character", "Scene", "Landscape", "Sprite", "Icon"] {

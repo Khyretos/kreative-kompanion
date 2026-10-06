@@ -479,7 +479,8 @@ export class MockApi implements KompanionApi {
       { name: "landscape", label: "Landscape", hint: "Wide place, no people", sizes: ["wide", "square", "tall"], order: 3 },
       { name: "sprite", label: "Sprite", hint: "One game object, plain background", sizes: ["square", "tall", "wide"], order: 4 },
       { name: "icon", label: "Icon", hint: "Simple and bold, for menus", sizes: ["square"], order: 5 },
-      { name: "video", label: "Video", hint: "A few seconds, no sound", sizes: ["wide", "tall", "square"], order: 6 },
+      { name: "oc-sheet", label: "OC sheet", hint: "Character turnaround", sizes: ["wide"], order: 6, warning: "novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use" },
+      { name: "video", label: "Video", hint: "A few seconds, no sound", sizes: ["wide", "tall", "square"], order: 7 },
       ...AUDIO_TYPES,
     ];
   }
@@ -534,8 +535,8 @@ export class MockApi implements KompanionApi {
           targets: ["a770", "rx9070"], runs: 12, lastRun: ago(20), avgSeconds: 23.4 },
         { name: "landscape", title: "Landscape", description: "A wide place without people.", studio: { label: "Landscape" }, base: "z-image-turbo",
           models: [{ file: "z-image-turbo-Q8_0.gguf", licence: "Apache-2.0" }], problems: [], runnable: true, targets: ["a770", "rx9070"], runs: 0, lastRun: null, avgSeconds: null },
-        { name: "sd15-sprites", title: "Old SD 1.5 sprites", description: "Kept to show a refused licence.", studio: null, base: null,
-          models: [{ file: "sd15.ckpt", licence: "CreativeML OpenRAIL-M" }], problems: ["sd15.ckpt: CreativeML OpenRAIL-M is not allowed"], runnable: false,
+        { name: "sd15-sprites", title: "Old SD 1.5 sprites", description: "Kept to show a licence warning.", studio: null, base: null,
+          models: [{ file: "sd15.ckpt", licence: "CreativeML OpenRAIL-M" }], problems: ["sd15.ckpt: CreativeML OpenRAIL-M: OpenRAIL licence, check its use restrictions"], runnable: true,
           targets: ["a770", "rx9070"], runs: 0, lastRun: null, avgSeconds: null },
       ],
       studioTarget: { target: studioTarget, queued: 0, choices: [
