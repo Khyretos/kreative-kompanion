@@ -181,6 +181,9 @@ async fn main() -> anyhow::Result<()> {
     if args.get(1).map(String::as_str) == Some("studio-run") {
         return studio::cli(&state, &args[2..]).await;
     }
+    if args.get(1).map(String::as_str) == Some("studio-audio") {
+        return studio::audio::cli(&state, &args[2..]).await;
+    }
     hoststats::HostStats::spawn_live(state.clone());
     notify::spawn_daily(state.db.clone());
     let _ = events::BUS.set(state.bus.clone());

@@ -153,6 +153,9 @@ pub async fn file(State(s): State<AppState>, Extension(u): Extension<User>, Path
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         Some("webp") => "image/webp",
+        Some("mp4") => "video/mp4",
+        Some("ogg") => "audio/ogg",
+        Some("wav") => "audio/wav",
         _ => "application/octet-stream",
     };
 
