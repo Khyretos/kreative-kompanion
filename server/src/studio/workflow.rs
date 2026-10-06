@@ -6,6 +6,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// STU-01b: another node that gets the same value; ints and seeds get `add` added.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Also {
+    pub node: String,
+    pub input: String,
+    #[serde(default)]
+    pub add: i64,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Param {
     pub name: String,
@@ -21,6 +30,9 @@ pub struct Param {
     /// STU-01: a string's text goes into the graph through this template ("{value}" = the text).
     #[serde(default)]
     pub template: Option<String>,
+    /// STU-01b: more nodes that get this value (TOML: also = [{ node = "9", input = "seed", add = 1 }]).
+    #[serde(default)]
+    pub also: Vec<Also>,
 }
 
 /// STU-01: how a workflow shows in the Studio (an image type such as "Character").
@@ -179,7 +191,13 @@ impl Workflow {
                             .ok_or_else(|| format!("{}: node {} not in the graph", p.name, p.node))?;
                         let inputs = node.entry("inputs").or_insert_with(|| json!({}));
                         if let Some(inputs) = inputs.as_object_mut() {
-                            inputs.insert(p.input.clone(), json!(t.replace("{value}", text)));
+                            // STU-01b: an empty text drops its slot (no trailing ", ").
+                            let filled = if text.trim().is_empty() {
+                                t.replace(", {value}", "").replace("{value}", "")
+                            } else {
+                                t.replace("{value}", text)
+                            };
+                            inputs.insert(p.input.clone(), json!(filled));
                         }
                         used.insert(p.name.clone(), json!(text));
                         continue;
@@ -205,6 +223,20 @@ impl Workflow {
             let inputs = node.entry("inputs").or_insert_with(|| json!({}));
             if let Some(inputs) = inputs.as_object_mut() {
                 inputs.insert(p.input.clone(), value.clone());
+            }
+            for a in &p.also {
+                let v = match value.as_i64() {
+                    Some(n) => json!(n + a.add),
+                    None => value.clone(),
+                };
+                if let Some(node) = g.get_mut(&a.node).and_then(Value::as_object_mut) {
+                    let inputs = node.entry("inputs").or_insert_with(|| json!({}));
+                    if let Some(inputs) = inputs.as_object_mut() {
+                        inputs.insert(a.input.clone(), v);
+                    }
+                } else {
+                    return Err(format!("{}: node {} not in the graph", p.name, a.node));
+                }
             }
             used.insert(p.name.clone(), value);
         }
@@ -511,6 +543,34 @@ licence = "CreativeML OpenRAIL-M"
         assert!(g.to_string().contains("mountains, wide landscape"));
     }
 
+
+    #[test]
+    fn also_gets_the_value_plus_add() {
+        let mut w = wf();
+        let seed = w.params.iter_mut().find(|p| p.kind == "seed").unwrap();
+        seed.also = vec![Also { node: "6".into(), input: "seed".into(), add: 2 }];
+        let (g, used) = w.fill(&graph(), &m(json!({"seed": 7}))).unwrap();
+        assert_eq!(g["3"]["inputs"]["seed"], json!(7));
+        assert_eq!(g["6"]["inputs"]["seed"], json!(9));
+        assert_eq!(used["seed"], json!(7));
+        seed_missing(&mut w);
+    }
+
+    fn seed_missing(w: &mut Workflow) {
+        w.params.iter_mut().find(|p| p.kind == "seed").unwrap().also[0].node = "99".into();
+        assert_eq!(w.fill(&graph(), &Map::new()).unwrap_err(), "seed: node 99 not in the graph");
+    }
+
+    #[test]
+    fn empty_value_drops_the_template_slot() {
+        let mut w = wf();
+        w.params.iter_mut().find(|p| p.kind == "string").unwrap().template = Some("safe, {value}".into());
+        let name = w.params.iter().find(|p| p.kind == "string").unwrap().name.clone();
+        let (g, _) = w.fill(&graph(), &m(json!({ name.clone(): "" }))).unwrap();
+        assert_eq!(g["6"]["inputs"]["text"], json!("safe"));
+        let (g, _) = w.fill(&graph(), &m(json!({ name: "cat" }))).unwrap();
+        assert_eq!(g["6"]["inputs"]["text"], json!("safe, cat"));
+    }
 
     #[test]
     fn repo_workflows_all_load() {
