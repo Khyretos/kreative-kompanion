@@ -89,7 +89,7 @@ export interface KompanionApi {
   createChat(title: string, projectId?: string): Promise<Chat>;
   /** The project's thread chat (created on first use); returns its chat id. */
   openThread(projectId: string): Promise<string>;
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string }): Promise<void>;
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort }): Promise<void>;
   deleteChat(chatId: string): Promise<void>;
   createTask(t: { projectId: string; title: string; description: string; state?: TaskState }): Promise<Task>;
   updateTask(id: string, change: { title?: string; description?: string; state?: TaskState }): Promise<Task>;
@@ -98,7 +98,7 @@ export interface KompanionApi {
   makeProjectInternal(projectId: string): Promise<void>;
   /** Sends a message; the reply streams back through `onEvent`. */
   /** With `machineId`, the answer may use that computer's tools (each step needs approval). */
-  send(chatId: string, text: string, machineId?: string): Promise<void>;
+  send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort): Promise<void>;
   listActions(chatId: string): Promise<PcAction[]>;
   /** The lessons proposed in a chat (the project thread), oldest first. */
   listLessons(chatId: string): Promise<Lesson[]>;

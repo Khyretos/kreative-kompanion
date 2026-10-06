@@ -106,7 +106,7 @@ export class HttpApi implements KompanionApi {
 
   createChat(title: string, projectId?: string) { return this.request<Chat>("POST", "/chats", { title, projectId }); }
   openThread(projectId: string) { return this.request<{ chatId: string }>("POST", `/projects/${encodeURIComponent(projectId)}/thread`).then((r) => r.chatId); }
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string }) {
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort }) {
     return this.request<void>("PATCH", `/chats/${encodeURIComponent(chatId)}`, change);
   }
   createTask(t: { projectId: string; title: string; description: string; state?: TaskState }) {
@@ -121,8 +121,8 @@ export class HttpApi implements KompanionApi {
     return this.request<void>("PATCH", `/projects/${encodeURIComponent(projectId)}`, { kind: "internal" });
   }
   deleteChat(chatId: string) { return this.request<void>("DELETE", `/chats/${encodeURIComponent(chatId)}`); }
-  send(chatId: string, text: string, machineId?: string) {
-    return this.request<void>("POST", `/chats/${encodeURIComponent(chatId)}/messages`, { text, machine_id: machineId ?? null });
+  send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort) {
+    return this.request<void>("POST", `/chats/${encodeURIComponent(chatId)}/messages`, { text, machine_id: machineId ?? null, effort });
   }
   listActions(chatId: string) { return this.request<import("./client").PcAction[]>("GET", `/chats/${encodeURIComponent(chatId)}/actions`); }
   listLessons(chatId: string) { return this.request<import("./client").Lesson[]>("GET", `/chats/${encodeURIComponent(chatId)}/lessons`); }

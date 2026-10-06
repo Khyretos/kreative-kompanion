@@ -1,6 +1,6 @@
 import { loadVoicePrefs } from "./core/voice";
 import { Store } from "./core/store";
-import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
+import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Effort, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
 
 export interface AppState {
   server?: Server;
@@ -60,6 +60,8 @@ export interface AppState {
   activeProjectId?: string; // project picked in the sidebar (tasks pane, new chats)
   chatMenuId?: string; // chat whose options menu is open
   movingChatId?: string; // chat whose "Move to project" list is open
+  effortMenuOpen?: boolean; // the composer's effort menu (EF-01)
+  draftEffort?: Effort; // effort picked before the chat exists
   renamingChatId?: string; // chat being renamed in place
   editingTaskId?: string; // task open in the editor ("new" for a new one)
 }
