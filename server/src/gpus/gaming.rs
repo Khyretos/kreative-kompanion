@@ -148,6 +148,18 @@ pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
     }
 }
 
+/// GPU-02: whether studio jobs may go to this computer now (its GPU-01 mode is not off).
+/// Computers without the "gpu" grant or without studio apps are not managed, so they may.
+pub async fn studio_allowed(s: &AppState, machine: &str) -> bool {
+    let Some(m) = machines(s).await.into_iter().find(|m| m.name == machine) else {
+        return true;
+    };
+    if !m.granted {
+        return true;
+    }
+    effective_of(s, &m).0 != GpuMode::Gaming
+}
+
 pub async fn ensure_started(s: &AppState, gpu: &str, app: &str) -> Result<(), String> {
     let Some(g) = s.config.gpus.iter().find(|g| g.id == gpu && g.apps.iter().any(|a| a == app)) else {
         return Ok(());

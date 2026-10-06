@@ -133,11 +133,15 @@ pub struct StudioConfig {
     pub workflows_dir: PathBuf,
     #[serde(default = "default_output_dir")]
     pub output_dir: PathBuf,
+    /// GPU-02: the GPU studio jobs use (at the cost of its other role, e.g. Coder on the A770)
+    /// when no studio computer is on; None: they are refused instead.
+    #[serde(default)]
+    pub fallback_gpu: Option<String>,
 }
 
 impl Default for StudioConfig {
     fn default() -> Self {
-        Self { workflows_dir: default_workflows_dir(), output_dir: default_output_dir() }
+        Self { workflows_dir: default_workflows_dir(), output_dir: default_output_dir(), fallback_gpu: None }
     }
 }
 

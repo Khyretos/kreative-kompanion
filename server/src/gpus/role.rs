@@ -38,6 +38,9 @@ pub struct RoleState {
     pub last_at: Option<Instant> 
 }
 
+/// GPU-02: Coder calls waiting while the GPU is with the studio (see wait_for_coder).
+pub static CODER_WAITING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 static STATE: LazyLock<Mutex<RoleState>> = LazyLock::new(|| Mutex::new(RoleState { mode: "unknown".into(), ..Default::default() }));
 
 fn gpu_id() -> Option<String> { std::env::var("GPU_ROLE_GPU").ok().filter(|g| !g.is_empty()) }
@@ -225,6 +228,14 @@ pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
     
     let studio_busy = l.holdings.iter().any(|h| h.kind == "app" && h.busy);
     let coder_busy = false;
+    // GPU-02: how long the studio has had nothing to do here.
+    let secs_idle: Option<i64> = sqlx::query_scalar(
+        "SELECT CAST((julianday('now') - julianday(MAX(ended_at))) * 86400 AS INTEGER) FROM gpu_job WHERE kind = 'asset' AND gpu = ?",
+    )
+    .bind(&gpu)
+    .fetch_one(&s.db)
+    .await
+    .unwrap_or(None);
     
     let mut state = STATE.lock().unwrap();
     let secs_since_switch = state.last_at.map(|t| t.elapsed().as_secs() as i64);
@@ -239,6 +250,8 @@ pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
         running_jobs: running,
         studio_busy,
         coder_busy,
+        coder_waiting: CODER_WAITING.load(std::sync::atomic::Ordering::Relaxed),
+        secs_idle,
     };
     
     if let Some(target) = role_policy::decide(&view) {
@@ -258,6 +271,39 @@ pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
 /// The role state for Capabilities (None while switching is off).
 pub fn current() -> Option<RoleState> {
     gpu_id().map(|_| STATE.lock().unwrap().clone())
+}
+
+/// GPU-02: the model name of Coder on the switched GPU (GPU_ROLE_CODER, default "Coder").
+pub fn coder_model() -> String {
+    std::env::var("GPU_ROLE_CODER")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "Coder".to_string())
+}
+
+/// GPU-02: a call to Coder waits while the GPU is with the studio (artist mode, or a switch running), at most 30 min; the role policy switches back as soon as no studio job is queued.
+pub async fn wait_for_coder(model: &str) {
+    if gpu_id().is_none() || model != coder_model() {
+        return;
+    }
+
+    let paused = || {
+        let st = STATE.lock().unwrap();
+        st.mode == "artist" || st.switching.is_some()
+    };
+
+    if !paused() { return };
+
+    CODER_WAITING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    super::jobs::KICK.notify_one();
+    tracing::info!("GPU-02: a Coder call waits for the studio to finish");
+
+    let start = Instant::now();
+    while paused() && start.elapsed() < Duration::from_secs(1800) {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+
+    CODER_WAITING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 pub async fn get(State(_s): State<AppState>) -> Json<RoleState> {

@@ -6,6 +6,9 @@
 //! switch per 5 minutes, coder is the normal state.
 
 pub const MIN_GAP_SECS: i64 = 300;
+/// GPU-02: back to coder after the studio has had no job for this long (sooner when a Coder
+/// call is waiting).
+pub const IDLE_BACK_SECS: i64 = 300;
 pub const STUDIO_APPS: &[&str] = &["comfyui", "heartmula", "moss-sfx"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,6 +33,10 @@ pub struct View<'a> {
     pub running_jobs: usize,
     pub studio_busy: bool,
     pub coder_busy: bool,
+    /// GPU-02: Coder calls waiting for the GPU to come back.
+    pub coder_waiting: usize,
+    /// GPU-02: seconds since the last studio job on this GPU ended (None: none yet).
+    pub secs_idle: Option<i64>,
 }
 
 /// The studio app an asset job needs: `what` "studio:<app>:..." names it;
@@ -70,8 +77,8 @@ pub fn decide(v: &View) -> Option<Target> {
             None
         }
         Mode::Artist => {
-            // Switch back to coder if studio is idle and either no assets queued or code is queued
-            if !v.studio_busy && (v.queued_asset.is_empty() || v.queued_code > 0) {
+            // Back to coder when the studio is idle: at once for queued code or a waiting Coder call, else after IDLE_BACK_SECS without a studio job
+            if !v.studio_busy && (v.queued_code > 0 || (v.queued_asset.is_empty() && (v.coder_waiting > 0 || v.secs_idle.is_none_or(|s| s >= IDLE_BACK_SECS)))) {
                 return Some(Target::Coder);
             }
             None
@@ -94,6 +101,8 @@ mod tests {
             running_jobs: 0,
             studio_busy: false,
             coder_busy: false,
+            coder_waiting: 0,
+            secs_idle: None,
         }
     }
 
@@ -186,5 +195,30 @@ mod tests {
     #[test]
     fn test_app_for_evil_x() {
         assert_eq!(app_for("studio:evil:x"), "comfyui");
+    }
+
+    #[test]
+    fn test_artist_stays_while_idle_less_than_300_s() {
+        let v = View { secs_idle: Some(120), ..view(Mode::Artist) };
+        assert_eq!(decide(&v), None);
+    }
+
+    #[test]
+    fn test_artist_goes_to_coder_after_300_s_idle() {
+        let v = View { secs_idle: Some(300), ..view(Mode::Artist) };
+        assert_eq!(decide(&v), Some(Target::Coder));
+    }
+
+    #[test]
+    fn test_artist_goes_to_coder_at_once_when_coder_waits() {
+        let v = View { secs_idle: Some(10), coder_waiting: 1, ..view(Mode::Artist) };
+        assert_eq!(decide(&v), Some(Target::Coder));
+    }
+
+    #[test]
+    fn test_artist_keeps_queued_assets_even_when_coder_waits() {
+        let assets = vec!["studio:comfyui:z-image-turbo".to_string()];
+        let v = View { coder_waiting: 2, queued_asset: &assets, ..view(Mode::Artist) };
+        assert_eq!(decide(&v), None);
     }
 }
