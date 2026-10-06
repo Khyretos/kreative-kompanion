@@ -15,4 +15,4 @@ Topic lessons moved into cards (theming-brand.md, models-and-gpus.md, processes.
 When a task says "make the test pass" or gives a check command, change the code under test, not
 the tests, the check command or the expected values. If the test looks wrong, stop and ask (state
 `needs_input`) with the reason. A planted impossible test in the nightly run was "fixed" by editing
-the test; the nightly script now fails any run that changes test files.
+the test; the nightly script now fails any run that changes test files (checked).
