@@ -98,6 +98,9 @@ function gpuModeSwitch(m: CapGpuMode): SafeHtml {
 }
 
 export interface CapGpuMode { machine: string; mode: GpuModeName; effective: GpuModeName; gaming: boolean; appsStopped: boolean; granted: boolean; studioAt: string | null; gpus: string[]; apps: string[] }
+/** STU-01 (M6-05 step 4): a saved workflow with its licences, GPUs and run numbers. */
+export interface CapWorkflow { name: string; title: string; description: string; studio?: { label: string } | null; base?: string | null;
+  models: { file: string; licence: string }[]; problems: string[]; runnable: boolean; targets: string[]; runs: number; lastRun: string | null; avgSeconds: number | null }
 /** GPU-03: where the studio runs ("auto", a GPU id or "off"), the choices and their cost. */
 export interface CapStudioChoice { value: string; label: string; cost: string }
 export interface CapStudioTarget { target: string; choices: CapStudioChoice[]; queued: number }
@@ -108,6 +111,7 @@ export interface Capabilities {
   gpuRole?: CapRole | null;
   gpuModes?: CapGpuMode[];
   studioTarget?: CapStudioTarget | null;
+  workflows?: CapWorkflow[];
   models: CapModel[];
   computers: CapComputer[];
   tools: CapTool[];
@@ -244,6 +248,23 @@ function studioTargetControl(t: CapStudioTarget): SafeHtml {
   </section>`;
 }
 
+function workflowCard(w: CapWorkflow): SafeHtml {
+  const licences = [...new Set(w.models.map((m) => m.licence))].join(", ");
+  const kind = w.studio && w.base ? `Image type, based on ${w.base}` : w.studio ? "Image type" : w.base ? `Based on ${w.base}` : "";
+  const runs = w.runs === 0 ? "No runs yet" : `${w.runs} ${w.runs === 1 ? "run" : "runs"}${w.avgSeconds !== null ? ` · ${Math.round(w.avgSeconds)} s on average` : ""}${w.lastRun ? ` · last ${relTime(w.lastRun)}` : ""}`;
+
+  return html`<li class="task cap s-${w.runnable ? "done" : "failed"}">
+    <div class="task-main">
+      <span class="task-top"><span class="chip state">${w.runnable ? "ready" : "licence refused"}</span>${kind ? html`<span class="muted small">${kind}</span>` : ""}</span>
+      <span class="task-title">${w.title}</span>
+      <span class="task-step">${w.description}</span>
+      <span class="task-meta">${licences} · on ${w.targets.length ? w.targets.join(", ") : "no GPU"}</span>
+      <span class="task-meta">${runs}</span>
+      ${w.problems.length ? html`<span class="task-meta wf-problems">${w.problems.join("; ")}</span>` : ""}
+    </div>
+  </li>`;
+}
+
 /** M6-01: what each GPU holds (at its peak: weights plus KV cache), what else uses it, what is free. */
 function gpuCard(g: CapGpu, role?: CapRole | null, modes?: CapGpuMode[]): SafeHtml {
   const gm = modes?.find((m) => m.gpus.includes(g.id));
@@ -312,6 +333,7 @@ export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu
       </header>
       ${gpus && c.studioTarget ? studioTargetControl(c.studioTarget) : ""}
       ${gpus ? group("gpus", "GPUs", (c.gpus ?? []).map((g) => gpuCard(g, c.gpuRole, c.gpuModes)), "No GPUs configured (kompanion.toml [[gpu]]).") : ""}
+      ${gpus ? group("workflows", "Workflows", (c.workflows ?? []).map((w) => workflowCard(w)), "No saved workflows yet (studio/workflows).") : ""}
       ${gpus && (c.gpus ?? []).length ? renderTimeline(timeline, range, Object.fromEntries((c.gpus ?? []).map((g) => [g.id, g.totalMib]))) : ""}
       ${group("models", "Models", models, "No model providers are configured.")}
       ${group("computers", "Computers", computers, "No computer is paired yet.")}

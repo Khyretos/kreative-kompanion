@@ -515,6 +515,16 @@ export class MockApi implements KompanionApi {
         { id: "rx9070", machine: "soucouyant", totalMib: 16304, usedMib: soucouyantStopped ? 400 : 6900, reservedMib: soucouyantStopped ? 0 : 6355, otherMib: 400, freeMib: soucouyantStopped ? 15904 : 9549, schedulable: true,
           holdings: soucouyantStopped ? [] : [{ name: "ComfyUI (soucouyant)", kind: "app", nowMib: 6355, peakMib: 6355, busy: false }] },
       ],
+      workflows: [
+        { name: "z-image-turbo", title: "Z-Image Turbo: text to image", description: "Fast 8-step image from a prompt.", studio: null, base: null,
+          models: [{ file: "z-image-turbo-Q8_0.gguf", licence: "Apache-2.0" }, { file: "ae.safetensors", licence: "Apache-2.0" }], problems: [], runnable: true,
+          targets: ["a770", "rx9070"], runs: 12, lastRun: ago(20), avgSeconds: 23.4 },
+        { name: "landscape", title: "Landscape", description: "A wide place without people.", studio: { label: "Landscape" }, base: "z-image-turbo",
+          models: [{ file: "z-image-turbo-Q8_0.gguf", licence: "Apache-2.0" }], problems: [], runnable: true, targets: ["a770", "rx9070"], runs: 0, lastRun: null, avgSeconds: null },
+        { name: "sd15-sprites", title: "Old SD 1.5 sprites", description: "Kept to show a refused licence.", studio: null, base: null,
+          models: [{ file: "sd15.ckpt", licence: "CreativeML OpenRAIL-M" }], problems: ["sd15.ckpt: CreativeML OpenRAIL-M is not allowed"], runnable: false,
+          targets: ["a770", "rx9070"], runs: 0, lastRun: null, avgSeconds: null },
+      ],
       studioTarget: { target: studioTarget, queued: 0, choices: [
         { value: "auto", label: "Automatic", cost: "The studio computer while its studio is on, else the fallback GPU" },
         { value: "a770", label: "kireserver (a770)", cost: "Coder pauses while it runs" },
