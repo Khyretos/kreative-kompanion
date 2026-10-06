@@ -6,7 +6,7 @@
 
 **Steps**
 1. Create new public repo `kompas-skills` on Forgejo (mirrored to GitHub like the others) with licence CC BY-SA 4.0 containing only general knowledge: `work-habits.md`, prompting workers and fix rounds, shell, git, Python, colour themes, and `_model-notes/<family>/` for model quirks.
-2. Include `kompas-skills` in the Kompanion repo as a git subtree at `skills/general/`. The Open WebUI Kompas pipe reads the same `kompas-skills` files (its `SKILLS_DIR`), so `~/Docker/Services/ai/ai-skills` stops being a second copy.
+2. Include `kompas-skills` in the Kompanion repo as a git subtree at `skills/general/`. The Open WebUI Kompas pipe reads the same `kompas-skills` files (valve `GENERAL_DIR`, the cards whose `roles:` include `orchestrator`, mounted from the Kompanion checkout), so `~/Docker/Services/ai/ai-skills` keeps only its task skills and stops being a second copy. Done in part 4b (2026-10-06).
 3. Keep Kompanion's own coding lessons (templates, sqlx rules, drafting pipeline) in the Kompanion repo `skills/`.
 4. Create new private repo `kompas-skills-kees` on Forgejo to host hosts, IPs, paths, NFS mounts, soucouyant's fish shell and Hyprland, OVMS and the A770, the brand palette, and Kees's house rules (FOSS only, bright text, English and Spanish first); mount it read-only into the server at `/skills-local`.
 5. Configure the loader to merge general, Kompanion, and local layers where a local card with the same `name` extends or replaces the general one using front matter `overrides: <name>`.
