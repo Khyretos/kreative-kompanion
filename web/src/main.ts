@@ -1010,9 +1010,17 @@ function wire(shell: HTMLElement): void {
       return;
     }
     const sel = ev.target as HTMLSelectElement;
+    const roleOf = (role?: string) => store.get().roles.find((r) => r.role === role);
+    if (sel.dataset.roleEffort) {
+      const current = roleOf(sel.dataset.roleEffort);
+      if (!current) return;
+      await api.setRole({ ...current, effort: sel.value as Effort });
+      store.set({ roles: await api.listRoles() });
+      return;
+    }
     if (!sel.dataset.role || !sel.value) return;
     const [providerId, modelId] = sel.value.split("::");
-    await api.setRole({ role: sel.dataset.role as Role, providerId, modelId });
+    await api.setRole({ role: sel.dataset.role as Role, providerId, modelId, effort: roleOf(sel.dataset.role)?.effort ?? "auto" });
     store.set({ roles: await api.listRoles() });
   });
 

@@ -49,7 +49,7 @@ export interface AppState {
   recording: "idle" | "recording" | "transcribing"; // the microphone button
   speaking: boolean; // a reply is being read aloud
   runCheck?: { taskId: string; machine: string; path: string; busy: boolean; result?: { state: "ok" | "nogrant" | "missing" | "notfolder" | "noanswer"; path: string; folders?: string[]; files?: number; message?: string } }; // the Run form's folder check
-  taskRuns?: { taskId: string; runs: { id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null }[] }; // the open task's W2 runs (report, run id)
+  taskRuns?: { taskId: string; runs: { id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null; effortPicked?: boolean }[] }; // the open task's W2 runs (report, run id)
   taskCosts?: { taskId: string; cost: import("./api/types").CostLine | null }; // TEN-05, the open task's cost line
   weeklyCosts?: import("./api/types").WeeklyCosts; // TEN-05, shown on the Activity tab
   cardStyle?: import("./core/cardtypes").CardStyle; // card colours and labels per action type (Settings)

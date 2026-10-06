@@ -130,8 +130,17 @@ struct Run {
     run_id: String,
     /// EF-01: tool rounds per step, fix rounds and the provider mapping follow it.
     effort: crate::effort::Effort,
+    /// The level Auto picked after the plan (Auto until then, which calls run as Medium).
+    picked: crate::effort::Effort,
     protected: Vec<String>,
     tests_may_change: bool,
+}
+
+impl Run {
+    /// The level one role's calls use: the task's, else the role's default, else Auto's pick.
+    fn effort_for(&self, role: &RoleAssignment) -> crate::effort::Effort {
+        crate::effort::Effort::for_role(self.effort, &role.effort, self.picked)
+    }
 }
 
 async fn role(s: &AppState, user_id: &str, name: &str) -> ApiResult<Option<RoleAssignment>> {
@@ -237,7 +246,7 @@ pub async fn start(
     }
     let r = Run {
         user_id: u.id.clone(), task_id: id, title, description, chat_id, machine_id: b.machine_id,
-        machine_name, folder, check, orchestrator, worker, reviewer, run_id, effort,
+        machine_name, folder, check, orchestrator, worker, reviewer, run_id, effort, picked: crate::effort::Effort::Auto,
         protected,
         tests_may_change: b.tests_may_change,
     };
@@ -307,7 +316,7 @@ async fn ask_model(s: &AppState, r: &Run, role: &RoleAssignment, reason: &str, s
     let Some(p) = s.config.provider(&role.provider_id) else {
         return Err(format!("The provider {} is not configured.", role.provider_id));
     };
-    let (p, model_id) = crate::effort::apply(p, &role.model_id, r.effort);
+    let (p, model_id) = crate::effort::apply(p, &role.model_id, r.effort_for(role));
     let messages = [json!({ "role": "system", "content": system }), json!({ "role": "user", "content": user })];
     let started = std::time::Instant::now();
     let answer = llm::chat_with_tools_full(&s.http, &p, &model_id, &messages, &json!([])).await;
@@ -316,7 +325,7 @@ async fn ask_model(s: &AppState, r: &Run, role: &RoleAssignment, reason: &str, s
         Err(e) => (Value::Null, Value::Null, Some(format!("{e:#}"))),
     };
     api::log_call(s, &r.user_id, &r.chat_id, Some(&r.run_id), &role.role, role, reason, &json!({ "messages": messages }), &msg, &usage,
-        started.elapsed().as_millis(), err.as_deref(), r.effort).await;
+        started.elapsed().as_millis(), err.as_deref(), r.effort_for(role)).await;
     if let Some(e) = err {
         return Err(e);
     }
@@ -375,7 +384,7 @@ fn agent(s: &AppState, r: &Run, max_steps: usize) -> pcagent::Agent {
         role: r.worker.clone(),
         auto: true,
         max_steps,
-        effort: r.effort,
+        effort: r.effort_for(&r.worker),
         folder: Some(r.folder.clone()),
         task_id: Some(r.task_id.clone()),
         run_id: Some(r.run_id.clone()),
@@ -463,7 +472,7 @@ async fn edits_since(s: &AppState, r: &Run, since: &str) -> String {
         .join("\n\n")
 }
 
-async fn run(s: AppState, r: Run) {
+async fn run(s: AppState, mut r: Run) {
     let started = util::now();
     crate::thread::post_run(&s, &r.run_id, &format!("Started **{}** on {}.", r.title, r.machine_name)).await;
     STOPPED.lock().unwrap().remove(&r.task_id); // a stop from an earlier run doesn't count
@@ -551,6 +560,27 @@ async fn run(s: AppState, r: Run) {
     let plan_json = json!(steps.iter().zip(&picked).map(|(x, k)| json!({ "step": x.what, "done_when": x.done_when, "area": x.area, "skills": k })).collect::<Vec<_>>());
     let _ = sqlx::query("UPDATE runs SET plan = ? WHERE id = ?").bind(plan_json.to_string()).bind(&r.run_id).execute(&s.db).await;
 
+    // EF-01: with the task at Auto, pick a level from the step cards' `effort` front matter and the plan's size, and say which.
+    if r.effort == crate::effort::Effort::Auto {
+        let names: Vec<String> = picked.iter().flatten().cloned().collect();
+        let levels = crate::skills::efforts(&crate::skills::layered(&skills_root), &names);
+        r.picked = crate::effort::Effort::auto_pick(&levels, steps.len(), r.description.len());
+        let used = r.effort_for(&r.worker);
+        let by_auto = used == r.picked;
+        let text = if by_auto {
+            format!("Effort: Auto picked {}.", r.picked.label())
+        } else {
+            format!("Effort: {} (the worker role's default).", used.label())
+        };
+        note(&s, &r, &text).await;
+        let _ = sqlx::query("UPDATE runs SET effort = ?, effort_picked = ? WHERE id = ?")
+            .bind(used.as_str())
+            .bind(by_auto)
+            .bind(&r.run_id)
+            .execute(&s.db)
+            .await;
+    }
+
     // 2. The steps.
     let n = steps.len();
     for (i, step) in steps.iter().enumerate() {
@@ -558,7 +588,7 @@ async fn run(s: AppState, r: Run) {
             return;
         }
         progress(&s, &r, i as f64 / n as f64 * 0.8, &format!("Step {}/{n}: {}", i + 1, step.what)).await;
-        match work_with(&s, &r, r.effort.tool_rounds() * 2, step_instruction(&r.description, i, n, step, &plan_list), &crate::skills::text_with(&skills_root, &lessons_dir, &picked[i])).await {
+        match work_with(&s, &r, r.effort_for(&r.worker).tool_rounds() * 2, step_instruction(&r.description, i, n, step, &plan_list), &crate::skills::text_with(&skills_root, &lessons_dir, &picked[i])).await {
             Ok(line) => {
                 note(&s, &r, &format!("Step {}: {line}", i + 1)).await;
                 crate::thread::post_run(&s, &r.run_id, &format!("**{}**, step {}/{n} done: {line}", r.title, i + 1)).await;
@@ -585,7 +615,7 @@ async fn run(s: AppState, r: Run) {
     let fix_skills = crate::skills::text_with(&skills_root, &lessons_dir, &used);
     let review_skills = crate::skills::text_with(&skills_root, &lessons_dir, &[vec!["reviewer/SKILL".to_string()], used.clone()].concat());
     // 3. Check and review, with fix rounds.
-    let rounds = r.effort.fix_rounds();
+    let rounds = r.effort_for(&r.worker).fix_rounds();
     for round in 1..=rounds {
         if held_or_stopped(&s, &r).await {
             return;
@@ -669,7 +699,7 @@ async fn run(s: AppState, r: Run) {
             let why = if changed.is_empty() && !tried { "review failed 3 times" } else { "the task may not change tests" };
             return finish(&s, &r, "needs_input", why).await;
         }
-        match work_with(&s, &r, r.effort.tool_rounds() * 2, format!("The task:\n{}\n\nFix these review findings, then answer with one short line:\n{findings}", cut(&r.description, 3000)), &fix_skills).await {
+        match work_with(&s, &r, r.effort_for(&r.worker).tool_rounds() * 2, format!("The task:\n{}\n\nFix these review findings, then answer with one short line:\n{findings}", cut(&r.description, 3000)), &fix_skills).await {
             Ok(line) => note(&s, &r, &format!("Fix {round}: {line}")).await,
             Err(_) if stopped_here(&s, &r).await => return,
             Err(why) => {
@@ -689,7 +719,7 @@ mod tests {
     use super::*;
 
     fn role() -> RoleAssignment {
-        RoleAssignment { role: "worker".into(), provider_id: "p".into(), model_id: "m".into() }
+        RoleAssignment { role: "worker".into(), provider_id: "p".into(), model_id: "m".into(), effort: "auto".into() }
     }
 
     #[test]
@@ -697,7 +727,7 @@ mod tests {
         let r = Run {
             user_id: "u".into(), task_id: "t".into(), title: "T".into(), description: "D".into(), chat_id: "c".into(),
             machine_id: "m".into(), machine_name: "soucouyant".into(), folder: "/home/k/app".into(), check: None,
-            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false,
+            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false,
         };
         let p = worker_prompt(&r);
         assert!(p.contains("/home/k/app") && p.contains("soucouyant"));

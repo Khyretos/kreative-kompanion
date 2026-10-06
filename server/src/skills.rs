@@ -66,6 +66,25 @@ pub fn layered(root: &Path) -> Vec<Card> {
     })
 }
 
+/// EF-01: the `effort` front matter (low, medium, high) of the named cards, for Auto's pick; cards without one are left out.
+pub fn efforts(cards: &[Card], names: &[String]) -> Vec<crate::effort::Effort> {
+    let mut result = Vec::new();
+    for name in names {
+        if let Some(card) = cards.iter().find(|c| c.name == *name) {
+            if let Some(values) = card.meta.get("effort") {
+                if let Some(first) = values.first() {
+                    if let Some(effort) = crate::effort::Effort::parse(first) {
+                        if matches!(effort, crate::effort::Effort::Low | crate::effort::Effort::Medium | crate::effort::Effort::High) {
+                            result.push(effort);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result
+}
+
 pub fn parse(text: &str) -> (HashMap<String, Vec<String>>, String) {
     if !text.starts_with("---\n") {
         return (HashMap::new(), text.to_string());
@@ -527,6 +546,18 @@ mod tests {
 
     fn s(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn efforts_reads_front_matter() {
+        use crate::effort::Effort;
+        let mk = |name: &str, line: &str| {
+            let (meta, body) = parse(&format!("---\nname: {name}\n{line}---\nbody\n"));
+            Card { name: name.into(), meta, body }
+        };
+        let cards = vec![mk("a", "effort: high\n"), mk("b", "effort: low\n"), mk("c", ""), mk("d", "effort: auto\n")];
+        assert_eq!(efforts(&cards, &s(&["a", "c", "d"])), vec![Effort::High]);
+        assert_eq!(efforts(&cards, &s(&["a", "b"])), vec![Effort::High, Effort::Low]);
     }
 
     #[test]

@@ -213,7 +213,7 @@ function runsList(t: Task, s: AppState): SafeHtml {
       <ul>${runs.slice(0, 5).map((r) => html`
         <li>
           <span class="chip state s-${r.status}">${r.status.replace("_", " ")}</span>
-          <span class="muted small">${relTime(r.startedAt)}${r.effort ? ` · ${EFFORT_LABELS[r.effort as Effort] ?? r.effort}` : ""}${r.step ? ` · ${r.step}` : ""}</span>
+          <span class="muted small">${relTime(r.startedAt)}${r.effort ? ` · ${EFFORT_LABELS[r.effort as Effort] ?? r.effort}${r.effortPicked ? " (Auto picked)" : ""}` : ""}${r.step ? ` · ${r.step}` : ""}</span>
           <button class="btn small" type="button" data-action="copy-text" data-text="${r.id}">Copy run ID</button>
           <a class="btn small" href="/api/runs/${encodeURIComponent(r.id)}/report?download=1" download>Export report</a>
         </li>`)}

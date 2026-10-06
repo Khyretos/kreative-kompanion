@@ -177,9 +177,9 @@ pub async fn calls_where(s: &AppState, column: &str, id: &str) -> ApiResult<Vec<
 
 /// Returns a report for a specific run.
 pub async fn run_report(s: &AppState, user_id: &str, run_id: &str) -> ApiResult<Value> {
-    type RunRow = (String, String, String, String, String, Option<String>, String, Option<String>, String, Option<String>, String, String, String, bool, Option<String>);
+    type RunRow = (String, String, String, String, String, Option<String>, String, Option<String>, String, Option<String>, String, String, String, bool, Option<String>, bool);
     let row = sqlx::query_as::<_, RunRow>(
-        "SELECT r.task_id, t.title, r.chat_id, COALESCE(m.name, r.machine_id), r.folder, r.check_cmd, r.started_at, r.ended_at, r.status, r.step, r.plan, r.rounds, r.protected, r.tests_may_change, r.effort FROM runs r JOIN tasks t ON t.id = r.task_id LEFT JOIN machines m ON m.id = r.machine_id WHERE r.id = ? AND r.user_id = ?"
+        "SELECT r.task_id, t.title, r.chat_id, COALESCE(m.name, r.machine_id), r.folder, r.check_cmd, r.started_at, r.ended_at, r.status, r.step, r.plan, r.rounds, r.protected, r.tests_may_change, r.effort, r.effort_picked FROM runs r JOIN tasks t ON t.id = r.task_id LEFT JOIN machines m ON m.id = r.machine_id WHERE r.id = ? AND r.user_id = ?"
     )
     .bind(run_id)
     .bind(user_id)
@@ -187,7 +187,7 @@ pub async fn run_report(s: &AppState, user_id: &str, run_id: &str) -> ApiResult<
     .await?
         .ok_or(ApiError::NotFound)?;
     
-    let (task_id, title, chat_id, computer, folder, check_cmd, started, ended, status, step, plan_str, rounds_str, protected_str, tests_may_change, effort) = row;
+    let (task_id, title, chat_id, computer, folder, check_cmd, started, ended, status, step, plan_str, rounds_str, protected_str, tests_may_change, effort, effort_picked) = row;
     
     let plan: Value = serde_json::from_str(&plan_str).unwrap_or(json!([]));
     let rounds: Value = serde_json::from_str(&rounds_str).unwrap_or(json!([]));
@@ -219,6 +219,7 @@ pub async fn run_report(s: &AppState, user_id: &str, run_id: &str) -> ApiResult<
         "modelCalls": calls,
         "testsMayChange": tests_may_change,
         "effort": effort,
+        "effortPicked": effort_picked,
         "protected": protected,
         "protectedChanged": changed
     }))
@@ -312,8 +313,8 @@ pub async fn chat(State(s): State<AppState>, Extension(u): Extension<User>, Path
 
 /// Lists recent runs for a task.
 pub async fn of_task(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> ApiResult<Json<Vec<Value>>> {
-    let rows: Vec<(String, Option<String>, Option<String>, String, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT id, started_at, ended_at, status, step, effort FROM runs WHERE task_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT 20"
+    let rows: Vec<(String, Option<String>, Option<String>, String, Option<String>, Option<String>, bool)> = sqlx::query_as(
+        "SELECT id, started_at, ended_at, status, step, effort, effort_picked FROM runs WHERE task_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT 20"
     )
     .bind(&id)
     .bind(&u.id)
@@ -321,14 +322,15 @@ pub async fn of_task(State(s): State<AppState>, Extension(u): Extension<User>, P
     .await?;
     
     let mut output = Vec::new();
-    for (rid, started, ended, status, step, effort) in rows {
+    for (rid, started, ended, status, step, effort, effort_picked) in rows {
         output.push(json!({
             "id": rid,
             "startedAt": started,
             "endedAt": ended,
             "status": status,
             "step": step,
-            "effort": effort
+            "effort": effort,
+            "effortPicked": effort_picked
         }));
     }
     Ok(Json(output))

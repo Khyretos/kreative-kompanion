@@ -4,6 +4,7 @@ description: SQLite with sqlx in the Kompanion server: runtime queries, tuple ro
 roles: [worker, reviewer]
 tags: [sql, sqlx, sqlite, query, migration, migrations, database, db, fts5, trigger, column, columns]
 paths: ["server/migrations/**"]
+effort: high
 ---
 # Worker: Rust (Kompanion server, runner, machine-stats): sql
 

@@ -585,7 +585,7 @@ export class MockApi implements KompanionApi {
   }
   async weeklyCosts() { return { tasks: 5, coderOutput: 53100, claudeOutput: 301600, coderShare: 0.15 }; }
   async taskRuns(taskId: string) {
-    return taskId === "t-kk-1" ? [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found", effort: "high" }] : [];
+    return taskId === "t-kk-1" ? [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found", effort: "high", effortPicked: true }] : [];
   }
   async stopAction(actionId: string) {
     const a = actions.find((x) => x.id === actionId);

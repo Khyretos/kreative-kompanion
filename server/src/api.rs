@@ -84,6 +84,14 @@ pub struct RoleAssignment {
     pub role: String,
     pub provider_id: String,
     pub model_id: String,
+    /// EF-01: the role's default effort when the task's is Auto ("auto" lets Auto pick).
+    #[serde(default = "auto")]
+    #[sqlx(default)]
+    pub effort: String,
+}
+
+fn auto() -> String {
+    "auto".into()
 }
 
 const ORCHESTRATOR_PROMPT: &str = "You are Kreative Kompanion's orchestrator. You talk with the user about \
@@ -548,7 +556,7 @@ pub async fn providers(State(s): State<AppState>) -> Json<Vec<Value>> {
 /// The user's roles; roles they haven't set yet come from the config file.
 pub(crate) async fn user_roles(s: &AppState, user_id: &str) -> ApiResult<Vec<RoleAssignment>> {
     let mut rows: Vec<RoleAssignment> =
-        sqlx::query_as("SELECT role, provider_id, model_id FROM user_roles WHERE user_id = ?")
+        sqlx::query_as("SELECT role, provider_id, model_id, effort FROM user_roles WHERE user_id = ?")
             .bind(user_id)
             .fetch_all(&s.db)
             .await?;
@@ -558,6 +566,7 @@ pub(crate) async fn user_roles(s: &AppState, user_id: &str) -> ApiResult<Vec<Rol
                 role: role.clone(),
                 provider_id: d.provider.clone(),
                 model_id: d.model.clone(),
+                effort: auto(),
             });
         }
     }
@@ -732,14 +741,18 @@ pub async fn set_role(
     if s.config.provider(&r.provider_id).is_none() {
         return Err(ApiError::BadRequest("Unknown provider.".into()));
     }
+    let Some(effort) = crate::effort::Effort::parse(&r.effort) else {
+        return Err(ApiError::BadRequest("Unknown effort.".into()));
+    };
     sqlx::query(
-        "INSERT INTO user_roles (user_id, role, provider_id, model_id) VALUES (?, ?, ?, ?)
-         ON CONFLICT(user_id, role) DO UPDATE SET provider_id = excluded.provider_id, model_id = excluded.model_id",
+        "INSERT INTO user_roles (user_id, role, provider_id, model_id, effort) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, role) DO UPDATE SET provider_id = excluded.provider_id, model_id = excluded.model_id, effort = excluded.effort",
     )
     .bind(&u.id)
     .bind(&r.role)
     .bind(&r.provider_id)
     .bind(&r.model_id)
+    .bind(effort.as_str())
     .execute(&s.db)
     .await?;
     Ok(StatusCode::NO_CONTENT)
