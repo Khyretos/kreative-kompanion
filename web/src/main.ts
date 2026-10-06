@@ -32,6 +32,8 @@ let studioPrompt = "";
 let studioLyrics = ""; // STU-02: music lyrics and the audio length, kept the same way
 let studioSeconds = "";
 let studioRating = ""; // STU-01c: the picked rating ("" = the first one offered)
+let studioFace: File | undefined; // STU-01d: the face photo (a re-render empties the file input)
+let studioFaceWeight = "";
 import { ALL_FEATURES } from "./api/types";
 import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
@@ -319,7 +321,7 @@ function render(s: AppState, prev: AppState): void {
       <header class="caps-head"><div class="caps-title"><h1>Studio</h1>
         <p class="muted">Describe it, pick a type and a size; Kompanion picks the GPU.</p></div></header>
       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
-    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult));
+    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight));
     if (changed(s, prev, ["studioTypes", "studioRuns", "section"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns));
   }
 
@@ -695,6 +697,7 @@ function wire(shell: HTMLElement): void {
         store.set({ studioForm: { ...store.get().studioForm, type: t.name, size: t.sizes[0] ?? "square", error: undefined } });
       }
     },
+    "studio-face-clear": () => { studioFace = undefined; store.set({ studioForm: { ...store.get().studioForm } }); },
     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
     // A finished image, large, in a dialog that closes on Escape or a click.
     "studio-open": (el) => {
@@ -1118,7 +1121,7 @@ function wire(shell: HTMLElement): void {
       store.set({ studioForm: { ...f, count, busy: true, error: undefined } });
       const made = chosen?.audio
         ? api.studioAudio(chosen.audio, prompt, studioLyrics, Number(studioSeconds) || chosen.seconds?.default || 4)
-        : api.studioMake(f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined);
+        : api.studioMake(f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined, chosen?.face && studioFace ? { file: studioFace, weight: Number(studioFaceWeight || "0.85") } : undefined);
       void made
         .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
         .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
@@ -1276,6 +1279,8 @@ function wire(shell: HTMLElement): void {
     if (el.id === "studio-lyrics") { studioLyrics = el.value; return; }
     if (el.id === "studio-seconds") { studioSeconds = el.value; return; }
     if (el.id === "studio-rating") { studioRating = el.value; return; }
+    if (el.id === "studio-face") { studioFace = el.files?.[0]; store.set({ studioForm: { ...store.get().studioForm } }); return; }
+    if (el.id === "studio-face-weight") { studioFaceWeight = el.value; return; }
     if (el.name === "four" && el.closest(".studio-form")) { store.set({ studioForm: { ...store.get().studioForm, count: el.checked ? 4 : 1 } }); return; }
     if (el.id === "asset-pick-q") { pickSearch(el.dataset.project ?? "", el.value); return; }
     if (el.id !== "machines-refresh") return;

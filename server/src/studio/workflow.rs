@@ -81,6 +81,15 @@ pub struct Model {
     pub attribution: Option<String>,
 }
 
+/// STU-01d: an optional face photo (IP-Adapter plus-face, as in Kreative Studio) switches to this
+/// graph; `image` is its LoadImage node, `weight` its IPAdapterAdvanced node.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Face {
+    pub graph: String,
+    pub image: String,
+    pub weight: String,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Workflow {
     #[serde(default)]
@@ -118,6 +127,8 @@ pub struct Workflow {
     pub params: Vec<Param>,
     #[serde(default, rename = "model")]
     pub models: Vec<Model>,
+    #[serde(default)]
+    pub face: Option<Face>,
     #[serde(default, skip_serializing)]
     pub dir: PathBuf,
 }
@@ -151,6 +162,32 @@ impl Workflow {
         let content =
             std::fs::read_to_string(self.dir.join(file)).map_err(|e| format!("{file}: {e}"))?;
         serde_json::from_str(&content).map_err(|e| format!("{file}: {e}"))
+    }
+
+    pub fn face_graph(&self, image: &str, weight: f64) -> Result<Value, String> {
+        let face = self.face.as_ref().ok_or_else(|| format!("{} takes no face photo", self.title))?;
+        if !(0.0..=1.2).contains(&weight) {
+            return Err("face weight must be between 0 and 1.2".to_string());
+        }
+        let content = std::fs::read_to_string(self.dir.join(&face.graph))
+            .map_err(|e| format!("{}: {e}", face.graph))?;
+        let mut g = serde_json::from_str::<Value>(&content)
+            .map_err(|e| format!("{}: {e}", face.graph))?;
+        let node_img = g.get_mut(&face.image)
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| format!("face: node {} not in the graph", face.image))?;
+        let inputs_img = node_img.entry("inputs").or_insert_with(|| json!({}));
+        if let Some(inputs_img) = inputs_img.as_object_mut() {
+            inputs_img.insert("image".into(), json!(image));
+        }
+        let node_wt = g.get_mut(&face.weight)
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| format!("face: node {} not in the graph", face.weight))?;
+        let inputs_wt = node_wt.entry("inputs").or_insert_with(|| json!({}));
+        if let Some(inputs_wt) = inputs_wt.as_object_mut() {
+            inputs_wt.insert("weight".into(), json!(weight));
+        }
+        Ok(g)
     }
 
     /// STU-01c: the first chosen value (given, else the default) of a "choice" param in that param's
@@ -636,6 +673,24 @@ licence = "CreativeML OpenRAIL-M"
         for t in ["Character", "Scene", "Landscape", "Sprite", "Icon"] {
             assert!(types.contains(&t), "missing image type {t}");
         }
+    }
+
+    #[test]
+    fn face_graph_sets_the_photo_and_weight() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let get = |n: &str| all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap();
+
+        for n in ["vn-portrait", "oc-sheet"] {
+            let g = get(n).face_graph("kompanion/abc.png", 0.7).unwrap();
+            assert_eq!(g["30"]["inputs"]["image"], json!("kompanion/abc.png"), "{n}");
+            assert_eq!(g["34"]["inputs"]["weight"], json!(0.7), "{n}");
+            assert_eq!(g["7"]["inputs"]["model"], json!(["34", 0]), "{n}");
+            assert!(get(n).face_graph("x.png", 1.5).unwrap_err().contains("between 0 and 1.2"), "{n}");
+        }
+
+        assert_eq!(get("vn-portrait").face_graph("x.png", 0.85).unwrap()["34"]["inputs"]["model"], json!(["1", 0]));
+        assert!(get("character").face_graph("x.png", 0.8).unwrap_err().contains("takes no face photo"));
     }
 
     fn rated() -> Workflow {

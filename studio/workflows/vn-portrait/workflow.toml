@@ -8,6 +8,13 @@ machines = ["soucouyant"]
 vram_mb = 10000
 ram_mb = 10000 # estimates until measured
 
+# STU-01d: an optional face photo makes the character resemble a person (IP-Adapter plus-face,
+# graph-face.json = graph.json plus Kreative Studio's nodes 30-34 with the model rewired).
+[face]
+graph = "graph-face.json"
+image = "30"
+weight = "34"
+
 [studio]
 label = "VN portrait"
 hint = "Visual novel sprite, upper body"
@@ -83,3 +90,11 @@ licence = "AGPL-3.0"
 [[model]]
 file = "sam_vit_b_01ec64.pth"
 licence = "Apache-2.0"
+
+[[model]]
+file = "ip-adapter-plus-face_sdxl_vit-h.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+licence = "MIT"

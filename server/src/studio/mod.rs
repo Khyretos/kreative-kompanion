@@ -32,7 +32,8 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/workflows/{name}/run", post(start))
         .route("/studio/runs/{id}", get(run_get))
         .route("/studio/target", get(target::read).put(target::set))
-        .route("/studio/make", post(team::make))
+        // STU-01d: room for a face photo (12 MiB) in the multipart form.
+        .route("/studio/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
         .route("/studio/audio", post(audio::make))
         .route("/studio/mine", get(team::mine))
         .route("/studio/runs/{id}/files/{n}", get(team::file))
@@ -96,6 +97,7 @@ pub async fn workflows_json(s: &AppState) -> ApiResult<Vec<Value>> {
             "base": wf.base,
             "params": wf.params,
             "models": wf.models,
+            "face": wf.face.is_some(),
             "vramMb": wf.vram_mb,
             "vramByMachine": wf.vram,
             "ramByMachine": wf.ram,
@@ -237,8 +239,19 @@ async fn queue(
     // GPU-01: refused while that computer games; starts ComfyUI there if Kompanion stopped it
     // (comfy::run waits for it to answer).
     crate::gpus::gaming::ensure_started(s, gpu, "comfyui").await.map_err(ApiError::BadRequest)?;
-    let graph = wf.graph_for(&machine).map_err(ApiError::BadRequest)?;
-    let (graph, used) = wf.fill(&graph, params).map_err(ApiError::BadRequest)?;
+    // STU-01d: a face photo ("face": its file on this server, "face_weight") switches to the face graph.
+    let mut params = params.clone();
+    let face = params.remove("face").and_then(|v| v.as_str().map(std::path::PathBuf::from));
+    let weight = params.remove("face_weight").and_then(|v| v.as_f64()).unwrap_or(0.85);
+    let graph = match &face {
+        Some(_) => wf.face_graph("", weight),
+        None => wf.graph_for(&machine),
+    }
+    .map_err(ApiError::BadRequest)?;
+    let (graph, mut used) = wf.fill(&graph, &params).map_err(ApiError::BadRequest)?;
+    if face.is_some() {
+        used.insert("face_weight".into(), json!(weight));
+    }
     let id = util::new_id();
     sqlx::query("INSERT INTO studio_run (id, workflow, gpu, user_id, params, models, state, started_at) VALUES (?, ?, ?, ?, ?, ?, 'running', ?)")
         .bind(&id)
@@ -263,6 +276,7 @@ async fn queue(
             used,
             id,
             user_id.to_string(),
+            face,
         ),
     ))
 }
@@ -295,10 +309,11 @@ async fn execute(
     gpu: String,
     machine: String,
     url: String,
-    graph: Value,
+    mut graph: Value,
     used: Map<String, Value>,
     id: String,
     user_id: String,
+    face: Option<std::path::PathBuf>,
 ) {
     let mut spec = jobs::Spec {
         kind: Kind::Asset,
@@ -339,16 +354,32 @@ async fn execute(
             }
             // STU-01: the team's runs go to a folder per user; CLI runs stay at the top.
             let out_dir = if user_id == "cli" { root.join(&w.name) } else { root.join("users").join(&user_id).join(&w.name) };
-            let r = comfy::run(
-                &s.http,
-                &url,
-                &graph,
-                &w.outputs,
-                &out_dir,
-                &id,
-                Duration::from_secs(1800),
-            )
-            .await;
+            // STU-01d: upload the face photo to that ComfyUI's input folder for the LoadImage node.
+            let up: anyhow::Result<()> = match (&face, &w.face) {
+                (Some(p), Some(f)) => match tokio::fs::read(p).await {
+                    Ok(bytes) => {
+                        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("png");
+                        comfy::upload(&s.http, &url, bytes, &format!("{id}.{ext}")).await.map(|name| {
+                            graph[f.image.as_str()]["inputs"]["image"] = json!(name);
+                        })
+                    }
+                    Err(e) => Err(anyhow::anyhow!("face photo: {e}")),
+                },
+                _ => Ok(()),
+            };
+            let r = match up {
+                Err(e) => Err(e),
+                Ok(()) => comfy::run(
+                    &s.http,
+                    &url,
+                    &graph,
+                    &w.outputs,
+                    &out_dir,
+                    &id,
+                    Duration::from_secs(1800),
+                )
+                .await,
+            };
             if let Err(e) = &r {
                 lease.fail(e.to_string());
             }
@@ -393,6 +424,12 @@ async fn execute(
             .bind(id)
             .execute(&s.db)
             .await;
+        }
+    }
+    // STU-01d: the photo leaves this server after the run (the CLI's own file stays).
+    if let Some(p) = &face {
+        if user_id != "cli" {
+            let _ = tokio::fs::remove_file(p).await;
         }
     }
     // STU-01: the user's Studio queue and library update live.

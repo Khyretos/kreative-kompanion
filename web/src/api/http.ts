@@ -25,15 +25,16 @@ export class HttpApi implements KompanionApi {
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const raw = body instanceof Blob;
+    const form = body instanceof FormData; // STU-01d: multipart, the browser sets the boundary
     const res = await fetch(`${this.base}/api${path}`, {
       method,
       credentials: "same-origin",
       headers: {
-        ...(body === undefined ? {} : { "Content-Type": raw ? (body as Blob).type || "application/octet-stream" : "application/json" }),
+        ...(body === undefined || form ? {} : { "Content-Type": raw ? (body as Blob).type || "application/octet-stream" : "application/json" }),
         // Required by the server for anything that changes state (CSRF guard).
         "X-Kompanion": "1",
       },
-      body: body === undefined ? undefined : raw ? (body as Blob) : JSON.stringify(body),
+      body: body === undefined ? undefined : form ? (body as FormData) : raw ? (body as Blob) : JSON.stringify(body),
     });
     if (!res.ok) {
       let message = `The server answered ${res.status}.`;
@@ -146,14 +147,28 @@ export class HttpApi implements KompanionApi {
   listActivity() { return this.request<import("../views/activity").ActivityItem[]>("GET", "/activity"); }
   getCapabilities() { return this.request<import("../views/capabilities").Capabilities>("GET", "/capabilities"); }
   async studioTypes() {
-    const all = await this.request<{ name: string; problems?: string[]; params?: { name: string; choices?: string[]; adult?: string[] }[]; studio?: { label: string; hint: string; sizes: string[]; order: number } | null }[]>("GET", "/studio/workflows");
-    return all.filter((w) => w.studio).map((w): import("../views/studio").StudioType => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order, warning: w.problems?.length ? w.problems.join("; ") : undefined, ratings: w.params?.find((p) => p.name === "rating")?.choices, adultRatings: w.params?.find((p) => p.name === "rating")?.adult }))
+    const all = await this.request<{ name: string; problems?: string[]; face?: boolean; params?: { name: string; choices?: string[]; adult?: string[] }[]; studio?: { label: string; hint: string; sizes: string[]; order: number } | null }[]>("GET", "/studio/workflows");
+    return all.filter((w) => w.studio).map((w): import("../views/studio").StudioType => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order, warning: w.problems?.length ? w.problems.join("; ") : undefined, ratings: w.params?.find((p) => p.name === "rating")?.choices, adultRatings: w.params?.find((p) => p.name === "rating")?.adult, face: !!w.face }))
       .sort((a, b) => a.order - b.order)
       // STU-02: music and sound effects are apps, not workflows.
       .concat(AUDIO_TYPES);
   }
   studioAudio(kind: "music" | "sfx", prompt: string, lyrics: string, seconds: number) { return this.request<{ ids: string[] }>("POST", "/studio/audio", { kind, prompt, lyrics, seconds }); }
-  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string) { return this.request<{ ids: string[] }>("POST", "/studio/make", { type, prompt, size, count, rating }); }
+  // STU-01d: with a face photo the form goes as multipart.
+  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string, face?: { file: File; weight: number }) {
+    if (face) {
+      const f = new FormData();
+      f.append("type", type);
+      f.append("prompt", prompt);
+      f.append("size", size);
+      f.append("count", String(count));
+      if (rating) f.append("rating", rating);
+      f.append("face", face.file);
+      f.append("face_weight", String(face.weight));
+      return this.request<{ ids: string[] }>("POST", "/studio/make", f);
+    }
+    return this.request<{ ids: string[] }>("POST", "/studio/make", { type, prompt, size, count, rating });
+  }
   studioMine() { return this.request<import("../views/studio").StudioRun[]>("GET", "/studio/mine"); }
   setStudioTarget(target: string) { return this.request<void>("PUT", "/studio/target", { target }); }
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName) { return this.request<void>("PUT", `/gpus/modes/${encodeURIComponent(machine)}`, { mode }); }
