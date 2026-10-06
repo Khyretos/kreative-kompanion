@@ -4,6 +4,7 @@
 pub mod comfy;
 pub mod licence;
 pub mod workflow;
+pub mod target;
 
 use crate::{
     AppState,
@@ -28,6 +29,7 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/workflows", get(list))
         .route("/studio/workflows/{name}/run", post(start))
         .route("/studio/runs/{id}", get(run_get))
+        .route("/studio/target", get(target::read).put(target::set))
 }
 
 pub fn comfy_target(gpus: &[GpuConfig], gpu: &str) -> Option<(String, String)> {
@@ -126,8 +128,16 @@ async fn start(
 /// configured GPU with studio apps and a ComfyUI whose computer has the studio on, else
 /// `[studio] fallback_gpu` (e.g. the A770, at the cost of Coder), else an error saying why.
 pub async fn place(s: &AppState, gpu: &str) -> Result<String, String> {
+    // GPU-03: "Studio runs on" (Off holds every job; a chosen GPU takes the automatic ones).
+    let chosen = target::get(s).await;
+    if chosen == "off" {
+        return Err("The studio is off. Switch it on under Capabilities, GPUs (Studio runs on), or in Kreative Studio.".to_string());
+    }
     if gpu != "auto" {
         return Ok(gpu.to_string());
+    }
+    if chosen != "auto" {
+        return Ok(chosen);
     }
     for g in &s.config.gpus {
         if g.apps.is_empty() || comfy_target(&s.config.gpus, &g.id).is_none() {

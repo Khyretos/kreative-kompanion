@@ -19,6 +19,8 @@ let seq = 100;
 /** GPU-01: soucouyant's GPU mode in the demo. */
 let soucouyantMode: import("../views/capabilities").GpuModeName = "auto";
 let soucouyantStopped = false;
+/** GPU-03: "Studio runs on" in the demo. */
+let studioTarget = "auto";
 const id = (p: string) => `${p}${++seq}`;
 
 const projects: Project[] = [
@@ -464,6 +466,11 @@ export class MockApi implements KompanionApi {
       { gpu: "a580", machine: "kireserver", hours, samples: samples.map((s) => ({ ...s, usedMib: 900, reservedMib: 0, watts: 12 })), jobs: [], events: [] },
     ];
   }
+  async setStudioTarget(target: string) {
+    studioTarget = target;
+    if (target === "off") { soucouyantMode = "gaming"; soucouyantStopped = true; }
+    this.emit({ type: "changed", what: "gpus" });
+  }
   async setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName) {
     if (machine === "soucouyant") {
       soucouyantMode = mode;
@@ -481,6 +488,11 @@ export class MockApi implements KompanionApi {
         { id: "rx9070", machine: "soucouyant", totalMib: 16304, usedMib: soucouyantStopped ? 400 : 6900, reservedMib: soucouyantStopped ? 0 : 6355, otherMib: 400, freeMib: soucouyantStopped ? 15904 : 9549, schedulable: true,
           holdings: soucouyantStopped ? [] : [{ name: "ComfyUI (soucouyant)", kind: "app", nowMib: 6355, peakMib: 6355, busy: false }] },
       ],
+      studioTarget: { target: studioTarget, queued: 0, choices: [
+        { value: "auto", label: "Automatic", cost: "The studio computer while its studio is on, else the fallback GPU" },
+        { value: "a770", label: "kireserver (a770)", cost: "Coder pauses while it runs" },
+        { value: "rx9070", label: "soucouyant (rx9070)", cost: "" },
+        { value: "off", label: "Off", cost: "No studio jobs; the studio apps are stopped" }] },
       gpuModes: [{ machine: "soucouyant", mode: soucouyantMode, effective: soucouyantMode, gaming: false, appsStopped: soucouyantStopped,
         granted: true, studioAt: ago(4), gpus: ["rx9070"], apps: ["comfyui", "heartmula", "sfx"] }],
       models: [
