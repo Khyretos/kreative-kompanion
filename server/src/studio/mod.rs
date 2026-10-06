@@ -82,6 +82,7 @@ async fn list(State(s): State<AppState>) -> ApiResult<Json<Vec<Value>>> {
             "models": wf.models,
             "vramMb": wf.vram_mb,
             "vramByMachine": wf.vram,
+            "ramByMachine": wf.ram,
             "ramMb": wf.ram_mb,
             "problems": problems,
             "runnable": runnable,
@@ -210,7 +211,7 @@ async fn execute(
         what: format!("studio:comfyui:{}", w.name),
         gpus: vec![gpu.clone()],
         vram_mib: w.vram_for(&machine),
-        ram_mib: w.ram_mb,
+        ram_mib: w.ram_for(&machine),
         tonight: false,
     };
     // Its own cached models would otherwise count as used VRAM and keep the job waiting.
