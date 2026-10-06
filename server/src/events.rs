@@ -42,7 +42,17 @@ pub enum Event {
         #[serde(skip_serializing_if = "Option::is_none")]
         machine_id: Option<String>,
     },
+    /// A task changed to a state the user's notification settings want (needs you, failed,
+    /// done): the phone app's own live connection shows it like a push. Fields as push::payload.
+    Notify {
+        title: String,
+        state: &'static str,
+        url: String,
+    },
 }
+
+/// The server's bus for code without the app state (notify.rs); set once at start.
+pub static BUS: std::sync::OnceLock<Bus> = std::sync::OnceLock::new();
 
 /// User id that reaches every listener.
 pub const ALL: &str = "*";

@@ -1,6 +1,7 @@
 # One-file deploy. Copy server/kompanion.example.toml to ./kompanion.toml,
 # put API keys in .env, then: docker compose up -d
 # The first start prints a setup code in the log: docker compose logs kompanion
+# Phone push via ntfy (optional): set KOMPANION_NTFY_URL in .env, then docker compose --profile push up -d
 services:
   kompanion:
     build: .
@@ -22,6 +23,45 @@ services:
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
+    depends_on:
+      push-setup:
+        condition: service_completed_successfully
+        required: false # only with the push profile
+
+  push-setup:
+    profiles: [push]
+    image: busybox:1.37
+    command: ["sh", "/push-setup.sh", "/config/kompanion.toml"]
+    environment:
+      KOMPANION_NTFY_URL: ${KOMPANION_NTFY_URL:-}
+    volumes:
+      - ./kompanion.toml:/config/kompanion.toml # read-write
+      - ./tools/push-setup.sh:/push-setup.sh:ro
+    # writes ntfy's address into [push] servers so nobody edits kompanion.toml by hand
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE] # root in the container may write your user's kompanion.toml
+    security_opt: ["no-new-privileges:true"]
+
+  ntfy:
+    profiles: [push]
+    image: binwiederhier/ntfy:v2.11.0
+    command: ["serve"]
+    restart: unless-stopped
+    environment:
+      NTFY_BASE_URL: ${KOMPANION_NTFY_URL:-}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+    ports:
+      - "127.0.0.1:8081:80" # put your HTTPS reverse proxy in front
+    volumes:
+      - ntfy-cache:/var/cache/ntfy
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE] # port 80 inside the container
+    security_opt: ["no-new-privileges:true"]
 
 volumes:
   kompanion-data:
+  ntfy-cache:

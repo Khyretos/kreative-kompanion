@@ -185,6 +185,9 @@ pub fn task_changed_at(db: SqlitePool, user_id: String, task_id: String, title: 
         };
         let Some(label) = wanted(&p, &to) else { return };
         let push_link = PUBLIC_URL.get().map(|u| format!("{u}/#{hash}")).unwrap_or_default();
+        if let Some(bus) = crate::events::BUS.get() {
+            bus.send(&user_id, crate::events::Event::Notify { title: title.clone(), state: label, url: push_link.clone() });
+        }
         crate::push::notify(db.clone(), user_id.clone(), title.clone(), label, push_link);
         if p.email.is_empty() {
             return;
@@ -307,5 +310,25 @@ mod tests {
         assert_eq!(reply_to_with_name("info@kreative-kompas.com"), "Kreative Kompas <info@kreative-kompas.com>");
         assert_eq!(reply_to_with_name("Team <a@b.c>"), "Team <a@b.c>");
         assert_eq!(reply_to_with_name(" "), "");
+    }
+
+    #[tokio::test]
+    async fn task_change_reaches_the_live_stream() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!().run(&db).await.unwrap();
+        let bus = crate::events::BUS.get_or_init(crate::events::Bus::new);
+        let mut rx = bus.subscribe();
+        task_changed(db.clone(), "u-live".into(), "t1".into(), "Backup".into(), "running".into(), "done".into());
+        task_changed(db.clone(), "u-live".into(), "t1".into(), "Backup".into(), "running".into(), "needs_input".into());
+        let event = loop {
+            let (user, e) = tokio::time::timeout(std::time::Duration::from_secs(5), rx.recv()).await.unwrap().unwrap();
+            if user == "u-live" {
+                break e;
+            }
+        };
+        let v = serde_json::to_value(&event).unwrap();
+        assert_eq!(v["type"], "notify");
+        assert_eq!(v["title"], "Backup");
+        assert_eq!(v["state"], "needs you");
     }
 }
