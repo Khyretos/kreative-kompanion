@@ -1,6 +1,8 @@
 # Z-Image Turbo text to image (M6-05 test workflow). Same parameters on both ComfyUI instances;
-# both run the Q8 GGUF and the fp8 encoder (bf16 did not fit next to soucouyant's games, and on
-# the A770 it offloaded through RAM; GPU-02: Q8 + --highvram keeps it all in VRAM).
+# both run the Q8 GGUF (bf16 did not fit next to soucouyant's games, and on the A770 it offloaded
+# through RAM). soucouyant uses the fp8 encoder; on the A770 (Intel XPU) the fp8 encoder crashes
+# ComfyUI on the second image (ScatterGatherKernels assertion, with or without --highvram), so
+# kireserver keeps the bf16 encoder (GPU-02, 2026-10-06).
 title = "Z-Image Turbo: text to image"
 description = "Fast 8-step image from a prompt; good for concept art and sprites."
 graph = "graph.json"
@@ -12,10 +14,11 @@ ram_mb = 8000
 
 [graphs]
 soucouyant = "graph-q8.json"
-kireserver = "graph-q8.json"
+kireserver = "graph-q8-xpu.json"
 
 [vram]
 soucouyant = 7000 # measured 6355 MiB peak, 40 s (2026-10-06)
+kireserver = 11500 # card peak 14.7 GiB incl. Autocomplete + Whisper (~3.4 GiB); 49 s first, 16 s next (2026-10-06)
 
 [ram]
 soucouyant = 6000 # measured 5262 MiB; its ComfyUI keeps the models in RAM anyway (2026-10-06)
