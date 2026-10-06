@@ -30,6 +30,7 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/workflows/{name}/run", post(start))
         .route("/studio/runs/{id}", get(run_get))
         .route("/studio/target", get(target::read).put(target::set))
+        .route("/studio/target/service", get(target::service_read).put(target::service_set))
 }
 
 pub fn comfy_target(gpus: &[GpuConfig], gpu: &str) -> Option<(String, String)> {

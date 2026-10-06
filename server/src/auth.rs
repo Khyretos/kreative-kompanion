@@ -327,7 +327,9 @@ pub async fn guard(State(state): State<AppState>, mut req: Request, next: Next) 
     // `kompanion-runner ask` uses the runner token too (POST to ask, GET to poll).
     let runner_ask = path.starts_with("/machines/") && path.split('/').nth(3) == Some("ask");
     let forge_hook = req.method() == Method::POST && path == "/forge/webhook";
-    if runner_ask || forge_hook || (req.method() == Method::POST && path.starts_with("/machines/") && (path.ends_with("/stats") || path.ends_with("/results"))) {
+    // GPU-03: Kreative Studio reads and sets "Studio runs on" with its own service token.
+    let studio_service = path == "/studio/target/service";
+    if runner_ask || forge_hook || studio_service || (req.method() == Method::POST && path.starts_with("/machines/") && (path.ends_with("/stats") || path.ends_with("/results"))) {
         return next.run(req).await;
     }
     let open = matches!(

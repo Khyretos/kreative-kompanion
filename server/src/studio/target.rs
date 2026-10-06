@@ -92,7 +92,12 @@ pub async fn set(State(s): State<AppState>, Extension(u): Extension<User>, Json(
         return Err(ApiError::Forbidden("Only admins can choose where the studio runs.".into()));
     }
     
-    if !valid(&s.config.gpus, &b.target) {
+    apply(&s, &b.target, &u.name).await
+}
+
+/// Store a new target and act on it (Off stops the studio everywhere); `by` is logged.
+async fn apply(s: &AppState, target: &str, by: &str) -> ApiResult<Json<Value>> {
+    if !valid(&s.config.gpus, target) {
         return Err(ApiError::BadRequest("Pick auto, off or a GPU with a ComfyUI.".into()));
     }
     
@@ -100,11 +105,11 @@ pub async fn set(State(s): State<AppState>, Extension(u): Extension<User>, Json(
         "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
     )
     .bind(KEY)
-    .bind(&b.target)
+    .bind(target)
     .execute(&s.db)
     .await?;
     
-    if b.target == "off" {
+    if target == "off" {
         for g in &s.config.gpus {
             if !g.apps.is_empty() {
                 let _ = sqlx::query("UPDATE machines SET gpu_mode = 'gaming' WHERE name = ?")
@@ -125,22 +130,67 @@ pub async fn set(State(s): State<AppState>, Extension(u): Extension<User>, Json(
                 .await;
                 
                 if busy.map(|b| b.unwrap_or(1) == 0).unwrap_or(false) {
-                    tokio::spawn(crate::gpus::role::switch(s.clone(), Target::Coder, u.name.clone()));
+                    tokio::spawn(crate::gpus::role::switch(s.clone(), Target::Coder, by.to_string()));
                 }
             }
         }
-    } else if let Some(g) = s.config.gpus.iter().find(|g| g.id == b.target && !g.apps.is_empty()) {
+    } else if let Some(g) = s.config.gpus.iter().find(|g| g.id == target && !g.apps.is_empty()) {
         let _ = sqlx::query("UPDATE machines SET gpu_mode = 'auto' WHERE name = ? AND gpu_mode = 'gaming'")
             .bind(&g.machine)
             .execute(&s.db)
             .await;
     }
     
-    tracing::info!(target = %b.target, by = %u.name, "GPU-03: studio target set");
+    tracing::info!(target = %target, by = %by, "GPU-03: studio target set");
     crate::gpus::jobs::KICK.notify_one();
     s.bus.send_all(Event::Changed { what: "gpus", machine_id: None });
     
-    Ok(Json(json!({"target": b.target})))
+    Ok(Json(json!({"target": target})))
+}
+
+pub const TOKEN_ENV: &str = "KOMPANION_STUDIO_TOKEN";
+
+/// GPU-03: the request carries the studio's service token (env KOMPANION_STUDIO_TOKEN; unset: off).
+pub fn service_ok(expected: Option<&str>, headers: &axum::http::HeaderMap) -> bool {
+    if expected.is_none_or(|s| s.is_empty()) {
+        return false;
+    }
+    let auth = headers.get(axum::http::header::AUTHORIZATION);
+    let Some(auth_str) = auth.and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    let Some(stripped) = auth_str.strip_prefix("Bearer ") else {
+        return false;
+    };
+    let given = stripped.trim();
+    crate::util::sha256_hex(given) == crate::util::sha256_hex(expected.unwrap())
+}
+
+async fn service_guard(s: &AppState, headers: &axum::http::HeaderMap) -> ApiResult<()> {
+    s.throttle.check("studio-token")?;
+    if service_ok(std::env::var(TOKEN_ENV).ok().as_deref(), headers) {
+        Ok(())
+    } else {
+        s.throttle.fail("studio-token");
+        Err(ApiError::Unauthorized)
+    }
+}
+
+pub async fn service_read(State(s): State<AppState>, headers: axum::http::HeaderMap) -> ApiResult<Json<Value>> {
+    service_guard(&s, &headers).await?;
+    read(State(s)).await
+}
+
+#[derive(Deserialize)]
+pub struct ServiceBody {
+    target: String,
+    by: String,
+}
+
+pub async fn service_set(State(s): State<AppState>, headers: axum::http::HeaderMap, Json(b): Json<ServiceBody>) -> ApiResult<Json<Value>> {
+    service_guard(&s, &headers).await?;
+    let by: String = format!("Kreative Studio ({})", b.by.chars().take(80).collect::<String>());
+    apply(&s, &b.target, &by).await
 }
 
 #[cfg(test)]
@@ -197,4 +247,23 @@ probe = "comfyui:http://192.168.178.80:8188"
         assert_eq!(c[2]["cost"], "");
         assert_eq!(c[2]["label"], "soucouyant (rx9070)");
     }
+
+    #[test]
+    fn service_token_must_match() {
+        let mut h = axum::http::HeaderMap::new();
+        assert!(!service_ok(Some("s3cret"), &h));
+        h.insert("authorization", "Bearer s3cret".parse().unwrap());
+        assert!(service_ok(Some("s3cret"), &h));
+        assert!(!service_ok(Some("other"), &h));
+        assert!(!service_ok(None, &h));
+        assert!(!service_ok(Some(""), &h));
+    }
+
+    #[test]
+    fn service_token_needs_bearer() {
+        let mut h = axum::http::HeaderMap::new();
+        h.insert("authorization", "s3cret".parse().unwrap());
+        assert!(!service_ok(Some("s3cret"), &h));
+    }
+
 }
