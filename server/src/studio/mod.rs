@@ -219,7 +219,12 @@ async fn execute(
     let result = match jobs::acquire(&s, spec, Duration::from_secs(3600)).await {
         Err(e) => Err(e),
         Ok(lease) => {
-            let out_dir = s.config.studio.output_dir.join(&w.name);
+            // The output root is shared too (create_dir_all makes it 755 otherwise).
+            let root = &s.config.studio.output_dir;
+            if tokio::fs::create_dir_all(root).await.is_ok() {
+                comfy::shared(root, 0o2775).await;
+            }
+            let out_dir = root.join(&w.name);
             let r = comfy::run(
                 &s.http,
                 &url,
