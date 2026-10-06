@@ -1,0 +1,78 @@
+# STU-02: a short clip from a description (Wan 2.2 TI2V-5B, Q8 GGUF), as in Kreative Studio.
+# Small VAE tiles: the Wan 2.2 VAE needs 9 GB for a plain 1280x704x73 decode.
+title = "Video"
+description = "A few seconds of moving picture, no sound."
+graph = "graph.json"
+outputs = ["20"]
+# soucouyant only until measured on the A770 (its XPU crashed with an fp8 text encoder, GPU-02).
+machines = ["soucouyant"]
+vram_mb = 13000
+ram_mb = 10000
+
+[studio]
+label = "Video"
+hint = "A few seconds, no sound"
+sizes = ["wide", "tall", "square"]
+order = 6
+px = { wide = [1280, 704], tall = [704, 1280], square = [960, 960] }
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "a fox running through a snowy forest, camera following"
+node = "5"
+input = "text"
+template = "{value}, smooth natural motion, cinematic"
+
+[[param]]
+name = "negative"
+type = "string"
+default = "vivid colours, overexposed, static, blurry details, subtitles, text, watermark, worst quality, low quality, jpeg artifacts, ugly, deformed, extra fingers, bad hands, bad face, still picture, cluttered background, three legs, walking backwards"
+node = "6"
+input = "text"
+
+[[param]]
+name = "width"
+type = "int"
+default = 1280
+min = 256
+max = 1280
+node = "7"
+input = "width"
+
+[[param]]
+name = "height"
+type = "int"
+default = 704
+min = 256
+max = 1280
+node = "7"
+input = "height"
+
+[[param]]
+name = "length"
+type = "int"
+default = 73
+min = 25
+max = 121
+node = "7"
+input = "length"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "8"
+input = "seed"
+
+[[model]]
+file = "Wan2.2-TI2V-5B-Q8_0.gguf"
+licence = "Apache-2.0"
+
+[[model]]
+file = "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "wan2.2_vae.safetensors"
+licence = "Apache-2.0"
