@@ -5,6 +5,7 @@ pub mod comfy;
 pub mod licence;
 pub mod workflow;
 pub mod target;
+pub mod team;
 
 use crate::{
     AppState,
@@ -30,6 +31,9 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/workflows/{name}/run", post(start))
         .route("/studio/runs/{id}", get(run_get))
         .route("/studio/target", get(target::read).put(target::set))
+        .route("/studio/make", post(team::make))
+        .route("/studio/mine", get(team::mine))
+        .route("/studio/runs/{id}/files/{n}", get(team::file))
         .route("/studio/target/service", get(target::service_read).put(target::service_set))
 }
 
@@ -217,6 +221,7 @@ async fn queue(
             graph,
             used,
             id,
+            user_id.to_string(),
         ),
     ))
 }
@@ -252,6 +257,7 @@ async fn execute(
     graph: Value,
     used: Map<String, Value>,
     id: String,
+    user_id: String,
 ) {
     let mut spec = jobs::Spec {
         kind: Kind::Asset,
@@ -288,7 +294,8 @@ async fn execute(
             if tokio::fs::create_dir_all(root).await.is_ok() {
                 comfy::shared(root, 0o2775).await;
             }
-            let out_dir = root.join(&w.name);
+            // STU-01: the team's runs go to a folder per user; CLI runs stay at the top.
+            let out_dir = if user_id == "cli" { root.join(&w.name) } else { root.join("users").join(&user_id).join(&w.name) };
             let r = comfy::run(
                 &s.http,
                 &url,
@@ -345,6 +352,8 @@ async fn execute(
             .await;
         }
     }
+    // STU-01: the user's Studio queue and library update live.
+    s.bus.send(&user_id, crate::events::Event::Changed { what: "studio", machine_id: None });
 }
 
 async fn run_get(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
