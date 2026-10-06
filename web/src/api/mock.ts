@@ -1,5 +1,6 @@
 // A fake server so the UI can be built and tried before the real one exists.
 // Everything here is example data.
+import { AUDIO_TYPES } from "./http";
 import type { AccessEvent, GrantView } from "../views/access";
 import type { KompanionApi, Lesson, ServerEvent } from "./client";
 import type { PcAction } from "./client";
@@ -478,6 +479,8 @@ export class MockApi implements KompanionApi {
       { name: "landscape", label: "Landscape", hint: "Wide place, no people", sizes: ["wide", "square", "tall"], order: 3 },
       { name: "sprite", label: "Sprite", hint: "One game object, plain background", sizes: ["square", "tall", "wide"], order: 4 },
       { name: "icon", label: "Icon", hint: "Simple and bold, for menus", sizes: ["square"], order: 5 },
+      { name: "video", label: "Video", hint: "A few seconds, no sound", sizes: ["wide", "tall", "square"], order: 6 },
+      ...AUDIO_TYPES,
     ];
   }
   async studioMake(type: string, prompt: string, size: string, count: 1 | 4) {
@@ -493,6 +496,16 @@ export class MockApi implements KompanionApi {
     return { ids: made.map((m) => m.id) };
   }
   async studioMine() { return structuredClone(studioRuns); }
+  async studioAudio(kind: "music" | "sfx", prompt: string, _lyrics: string, seconds: number) {
+    const run = { id: id("sr"), type: kind, gpu: "rx9070", prompt, size: "square", seconds, state: "running" as const, error: null, files: [] as string[], startedAt: new Date().toISOString(), endedAt: null as string | null };
+    studioRuns.unshift(run);
+    setTimeout(() => {
+      const r = studioRuns.find((x) => x.id === run.id);
+      if (r) Object.assign(r, { state: "done", files: ["data:audio/ogg;base64,", "data:audio/wav;base64,"], endedAt: new Date().toISOString() });
+      this.emit({ type: "changed", what: "studio" });
+    }, 1200);
+    return { ids: [run.id] };
+  }
   async setStudioTarget(target: string) {
     studioTarget = target;
     if (target === "off") { soucouyantMode = "gaming"; soucouyantStopped = true; }

@@ -32,3 +32,9 @@
 .studio-lightbox { padding: 0; border: 0; background: transparent; max-width: 95vw; max-height: 95vh; }
 .studio-lightbox::backdrop { background: var(--scrim); }
 .studio-lightbox img { display: block; max-width: 95vw; max-height: 95vh; border-radius: var(--radius); }
+/* STU-02: video, music and sound effects */
+.studio-video { display: block; width: 100%; border-radius: calc(var(--radius) - 2px); background: var(--bg); }
+.studio-audio { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.studio-audio audio { width: 100%; max-width: 100%; }
+.studio-length { display: inline-flex; gap: 0.35rem; align-items: center; }
+.studio-length input { width: 5rem; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.25rem 0.4rem; }
