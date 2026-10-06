@@ -83,6 +83,7 @@ pub async fn run(
     };
 
     tokio::fs::create_dir_all(out_dir).await?;
+    shared(out_dir, 0o2775).await;
     let mut files = Vec::new();
     for node in outputs {
         for key in &["images", "audio", "gifs", "videos"] {
@@ -111,6 +112,7 @@ pub async fn run(
                         .unwrap_or_else(|| "bin".to_string());
                     let path = out_dir.join(format!("{stem}-{}.{ext}", files.len() + 1));
                     tokio::fs::write(&path, &bytes).await?;
+                    shared(&path, 0o664).await;
                     files.push(path);
                 }
             }
@@ -120,6 +122,34 @@ pub async fn run(
         bail!("ComfyUI finished without outputs");
     }
     Ok(files)
+}
+
+/// Outputs go to a folder people share (/media/Generated): its group may change them, and a
+/// setgid folder hands its group on to new files.
+pub async fn shared(path: &Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).await;
+}
+
+/// Ask an idle ComfyUI to drop its cached models, so the VRAM ledger sees room for the next
+/// job on it. True when it was idle and took the request.
+pub async fn free_if_idle(http: &reqwest::Client, base: &str) -> bool {
+    let Ok(r) = http.get(format!("{base}/queue")).send().await else {
+        return false;
+    };
+    let Ok(v) = r.json::<Value>().await else {
+        return false;
+    };
+    let empty = |k: &str| v[k].as_array().is_none_or(|a| a.is_empty());
+    if !empty("queue_running") || !empty("queue_pending") {
+        return false;
+    }
+    let free = http
+        .post(format!("{base}/free"))
+        .json(&json!({"unload_models": true, "free_memory": true}))
+        .send()
+        .await;
+    free.is_ok_and(|r| r.status().is_success())
 }
 
 #[cfg(test)]
@@ -147,6 +177,7 @@ mod tests {
         polls: AtomicUsize,
         stats: AtomicUsize,
         got: Mutex<Option<Value>>,
+        freed: Mutex<Option<Value>>,
     }
 
     async fn prompt(State(f): State<Arc<Fake>>, Json(body): Json<Value>) -> Response {
@@ -182,6 +213,21 @@ mod tests {
         )
     }
 
+    /// mode "busy": one prompt running.
+    async fn queue(State(f): State<Arc<Fake>>) -> Json<Value> {
+        let running = if f.mode == "busy" {
+            json!([[0, "x"]])
+        } else {
+            json!([])
+        };
+        Json(json!({"queue_running": running, "queue_pending": []}))
+    }
+
+    async fn free(State(f): State<Arc<Fake>>, Json(body): Json<Value>) -> StatusCode {
+        *f.freed.lock().unwrap() = Some(body);
+        StatusCode::OK
+    }
+
     async fn view(Query(q): Query<HashMap<String, String>>) -> Response {
         if q.get("filename").map(String::as_str) == Some("a.png")
             && q.get("subfolder").map(String::as_str) == Some("kompanion")
@@ -198,12 +244,15 @@ mod tests {
             polls: AtomicUsize::new(0),
             stats: AtomicUsize::new(0),
             got: Mutex::new(None),
+            freed: Mutex::new(None),
         });
         let app = Router::new()
             .route("/prompt", post(prompt))
             .route("/history/{id}", get(history))
             .route("/view", get(view))
             .route("/system_stats", get(stats))
+            .route("/queue", get(queue))
+            .route("/free", post(free))
             .with_state(state.clone());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -274,5 +323,27 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(e.to_string(), "ComfyUI refused the graph: bad node");
+    }
+
+    #[tokio::test]
+    async fn frees_when_idle() {
+        let (base, f) = fake("ok").await;
+        assert!(free_if_idle(&Client::new(), &base).await);
+        assert_eq!(
+            f.freed.lock().unwrap().clone(),
+            Some(json!({"unload_models": true, "free_memory": true}))
+        );
+    }
+
+    #[tokio::test]
+    async fn keeps_when_busy() {
+        let (base, f) = fake("busy").await;
+        assert!(!free_if_idle(&Client::new(), &base).await);
+        assert!(f.freed.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn false_when_down() {
+        assert!(!free_if_idle(&Client::new(), "http://127.0.0.1:1").await);
     }
 }

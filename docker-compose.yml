@@ -19,6 +19,10 @@ services:
       - kompanion-data:/data
       - ${KOMPANION_SKILLS_LOCAL_DIR:-./skills-local}:/skills-local:ro # private skill cards of this setup (SK-03), may be empty
       - /etc/os-release:/host/os-release:ro # OS name in the Machines panel
+      # Studio outputs (M6-05): set KOMPANION_GENERATED_DIR to a host folder and [studio]
+      # output_dir under /generated; the group of that folder writes it (KOMPANION_GENERATED_GID).
+      - ${KOMPANION_GENERATED_DIR:-kompanion-generated}:/generated
+    group_add: ["${KOMPANION_GENERATED_GID:-10001}"]
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -64,4 +68,5 @@ services:
 
 volumes:
   kompanion-data:
+  kompanion-generated:
   ntfy-cache:
