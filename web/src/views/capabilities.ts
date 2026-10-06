@@ -62,11 +62,48 @@ export interface SkillCommit { sha: string; message: string; author: string; dat
 export interface CapHolding { name: string; kind: string; nowMib: number; peakMib: number; busy: boolean }
 export interface CapGpu { id: string; machine: string; totalMib: number; usedMib: number | null; reservedMib: number; otherMib: number; freeMib: number; schedulable: boolean; holdings: CapHolding[] }
 export interface CapSwitch { from: string; to: string; by: string; startedAt: string; seconds: number; ok: boolean; coderAnswerS: number | null; error: string | null }
+/** GPU-01: what a computer's GPU is for; "effective" is Gaming while a game runs (or 10 min after) in Auto. */
+export type GpuModeName = "studio" | "gaming" | "auto";
+const gpuLabels: [GpuModeName, string][] = [
+  ["studio", "Studio"],
+  ["gaming", "Gaming"],
+  ["auto", "Auto"],
+];
+
+/** GPU-01: the mode switch and one line saying what the mode does right now. */
+function gpuModeSwitch(m: CapGpuMode): SafeHtml {
+  const text =
+    !m.granted
+      ? `Grant "GPU apps" for ${m.machine} under Machines, Access, so Kompanion can stop and start its studio apps.`
+      : m.effective === "gaming" && m.gaming
+        ? "A game is running: the studio apps are stopped and Ollama is unloaded."
+        : m.effective === "gaming" && m.mode === "auto"
+          ? "A game ended less than 10 min ago: the studio apps stay off."
+          : m.effective === "gaming"
+            ? "Gaming: the studio apps are stopped and Ollama is unloaded."
+            : m.appsStopped
+              ? `Studio apps stopped; the next studio job starts them on ${m.machine}.`
+              : m.mode === "studio"
+                ? "Studio: the apps may run; nothing is stopped."
+                : "Auto: the studio apps stop after 15 min without a studio job.";
+
+  return html`
+    <span class="seg gpu-mode" role="group" aria-label="GPU mode on ${m.machine}">
+      ${gpuLabels.map(([k, label]) =>
+        html`<button type="button" data-action="gpu-mode" data-machine="${m.machine}" data-mode="${k}" aria-pressed="${m.mode === k ? "true" : "false"}">${label}</button>`
+      )}
+    </span>
+    <span class="task-meta gpu-mode-state">${text}</span>
+  `;
+}
+
+export interface CapGpuMode { machine: string; mode: GpuModeName; effective: GpuModeName; gaming: boolean; appsStopped: boolean; granted: boolean; studioAt: string | null; gpus: string[]; apps: string[] }
 export interface CapRole { gpu: string | null; mode: string; app: string | null; switching: string | null; last: CapSwitch | null }
 
 export interface Capabilities {
   gpus?: CapGpu[];
   gpuRole?: CapRole | null;
+  gpuModes?: CapGpuMode[];
   models: CapModel[];
   computers: CapComputer[];
   tools: CapTool[];
@@ -185,7 +222,8 @@ function skillCard(s: CapSkill): SafeHtml {
 const gb = (mib: number) => `${(mib / 1024).toFixed(1)} GB`;
 
 /** M6-01: what each GPU holds (at its peak: weights plus KV cache), what else uses it, what is free. */
-function gpuCard(g: CapGpu, role?: CapRole | null): SafeHtml {
+function gpuCard(g: CapGpu, role?: CapRole | null, modes?: CapGpuMode[]): SafeHtml {
+  const gm = modes?.find((m) => m.gpus.includes(g.id));
   const r = role && role.gpu === g.id ? role : null;
   const roleText = r ? (r.switching ? `switching to ${r.switching}…` : r.mode === "artist" && r.app ? `artist (${r.app})` : r.mode) : "";
   const last = r?.last ? `last switch ${r.last.startedAt.slice(11, 16)}: ${r.last.from} → ${r.last.to}, ${Math.round(r.last.seconds)} s${r.last.coderAnswerS !== null ? `, Coder answered in ${Math.round(r.last.coderAnswerS)} s` : ""}${r.last.ok ? "" : ` (failed: ${r.last.error ?? "unknown"})`}` : "";
@@ -203,6 +241,7 @@ function gpuCard(g: CapGpu, role?: CapRole | null): SafeHtml {
         <span class="task-step">${g.holdings.length
           ? g.holdings.map((h) => `${h.name} ${gb(Math.max(h.nowMib, h.peakMib))}${h.busy ? " (busy)" : ""}`).join(" · ")
           : "Nothing loaded"}</span>
+        ${gm ? gpuModeSwitch(gm) : ""}
         <span class="task-meta">${icon("spark")} reserved ${gb(g.reservedMib)} · other ${gb(g.otherMib)}${g.usedMib === null ? "" : ` · measured ${gb(g.usedMib)}`}</span>
         ${last ? html`<span class="task-meta">${last}</span>` : ""}
       </div>
@@ -248,7 +287,7 @@ export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu
           <p class="muted">What Kompanion can use right now. Updates live.</p>
         </div>
       </header>
-      ${gpus ? group("gpus", "GPUs", (c.gpus ?? []).map((g) => gpuCard(g, c.gpuRole)), "No GPUs configured (kompanion.toml [[gpu]]).") : ""}
+      ${gpus ? group("gpus", "GPUs", (c.gpus ?? []).map((g) => gpuCard(g, c.gpuRole, c.gpuModes)), "No GPUs configured (kompanion.toml [[gpu]]).") : ""}
       ${gpus && (c.gpus ?? []).length ? renderTimeline(timeline, range, Object.fromEntries((c.gpus ?? []).map((g) => [g.id, g.totalMib]))) : ""}
       ${group("models", "Models", models, "No model providers are configured.")}
       ${group("computers", "Computers", computers, "No computer is paired yet.")}

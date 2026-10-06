@@ -16,6 +16,9 @@ const now = Date.now();
 const ago = (min: number) => new Date(now - min * 60_000).toISOString();
 const later = (min: number) => new Date(now + min * 60_000).toISOString();
 let seq = 100;
+/** GPU-01: soucouyant's GPU mode in the demo. */
+let soucouyantMode: import("../views/capabilities").GpuModeName = "auto";
+let soucouyantStopped = false;
 const id = (p: string) => `${p}${++seq}`;
 
 const projects: Project[] = [
@@ -461,6 +464,13 @@ export class MockApi implements KompanionApi {
       { gpu: "a580", machine: "kireserver", hours, samples: samples.map((s) => ({ ...s, usedMib: 900, reservedMib: 0, watts: 12 })), jobs: [], events: [] },
     ];
   }
+  async setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName) {
+    if (machine === "soucouyant") {
+      soucouyantMode = mode;
+      if (mode === "gaming") soucouyantStopped = true;
+    }
+    this.emit({ type: "changed", what: "gpus" });
+  }
   async getCapabilities() {
     return {
       gpus: [
@@ -468,7 +478,11 @@ export class MockApi implements KompanionApi {
           holdings: [{ name: "Coder", kind: "model", nowMib: 11700, peakMib: 11700, busy: false },
             { name: "Whisper", kind: "model", nowMib: 1700, peakMib: 1700, busy: false }] },
         { id: "a580", machine: "kireserver", totalMib: 8192, usedMib: 900, reservedMib: 0, otherMib: 900, freeMib: 7292, schedulable: false, holdings: [] },
+        { id: "rx9070", machine: "soucouyant", totalMib: 16304, usedMib: soucouyantStopped ? 400 : 6900, reservedMib: soucouyantStopped ? 0 : 6355, otherMib: 400, freeMib: soucouyantStopped ? 15904 : 9549, schedulable: true,
+          holdings: soucouyantStopped ? [] : [{ name: "ComfyUI (soucouyant)", kind: "app", nowMib: 6355, peakMib: 6355, busy: false }] },
       ],
+      gpuModes: [{ machine: "soucouyant", mode: soucouyantMode, effective: soucouyantMode, gaming: false, appsStopped: soucouyantStopped,
+        granted: true, studioAt: ago(4), gpus: ["rx9070"], apps: ["comfyui", "heartmula", "sfx"] }],
       models: [
         { id: "ovms", name: "OVMS on kireserver", local: true, status: "ok" as const, error: null, models: ["Coder", "Whisper"],
           roles: ["orchestrator: Coder", "reviewer: Coder", "worker: Coder"], lastError: null },
