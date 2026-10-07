@@ -153,6 +153,45 @@ pub async fn free_if_idle(http: &reqwest::Client, base: &str) -> bool {
     free.is_ok_and(|r| r.status().is_success())
 }
 
+
+pub async fn upload(http: &reqwest::Client, base: &str, bytes: Vec<u8>, name: &str) -> Result<String> {
+    let started = Instant::now();
+    while !http
+        .get(format!("{base}/system_stats"))
+        .send()
+        .await
+        .is_ok_and(|r| r.status().is_success())
+    {
+        if started.elapsed() > READY_WAIT {
+            bail!(
+                "ComfyUI at {base} did not answer in {} s",
+                READY_WAIT.as_secs()
+            );
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+
+    let form = reqwest::multipart::Form::new()
+        .part("image", reqwest::multipart::Part::bytes(bytes).file_name(name.to_string()))
+        .text("subfolder", "kompanion")
+        .text("type", "input")
+        .text("overwrite", "true");
+
+    let resp = http.post(format!("{base}/upload/image")).multipart(form).send().await?;
+    if !resp.status().is_success() {
+        bail!("ComfyUI refused the photo: {}", resp.status());
+    }
+
+    let v: Value = resp.json().await?;
+    let file = v["name"].as_str().ok_or_else(|| anyhow::anyhow!("ComfyUI sent no file name"))?;
+    let sub = v["subfolder"].as_str().unwrap_or("");
+
+    Ok(if sub.is_empty() {
+        file.to_string()
+    } else {
+        format!("{sub}/{file}")
+    })
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,5 +385,37 @@ mod tests {
     #[tokio::test]
     async fn false_when_down() {
         assert!(!free_if_idle(&Client::new(), "http://127.0.0.1:1").await);
+    }
+
+    #[tokio::test]
+    async fn upload_sends_the_photo() {
+        use axum::extract::Multipart;
+        use serde_json::json;
+
+        async fn up(mut form: Multipart) -> Json<serde_json::Value> {
+            let mut got = serde_json::Map::new();
+            while let Some(f) = form.next_field().await.unwrap() {
+                let name = f.name().unwrap_or("").to_string();
+                let file = f.file_name().map(str::to_string);
+                let text = String::from_utf8_lossy(&f.bytes().await.unwrap()).to_string();
+                got.insert(name.clone(), json!(text));
+                if let Some(file) = file { got.insert(format!("{name}_file"), json!(file)); }
+            }
+            Json(json!({"name": got["image_file"], "subfolder": got["subfolder"], "type": got["type"], "got": got}))
+        }
+        let app = Router::new().route("/system_stats", get(|| async { "{}" })).route("/upload/image", post(up));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(axum::serve(listener, app).into_future());
+
+        let name = upload(&reqwest::Client::new(), &url, b"PNGDATA".to_vec(), "r1.png").await.unwrap();
+        assert_eq!(name, "kompanion/r1.png");
+
+        let bad_app = Router::new().route("/system_stats", get(|| async { "{}" }));
+        let bad_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url2 = format!("http://{}", bad_listener.local_addr().unwrap());
+        tokio::spawn(axum::serve(bad_listener, bad_app).into_future());
+
+        assert!(upload(&reqwest::Client::new(), &url2, vec![1], "r2.png").await.unwrap_err().to_string().contains("ComfyUI refused the photo"));
     }
 }

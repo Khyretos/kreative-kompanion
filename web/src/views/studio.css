@@ -39,5 +39,9 @@
 .studio-length { display: inline-flex; gap: 0.35rem; align-items: center; }
 .studio-length input { width: 5rem; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.25rem 0.4rem; }
 /* STU-01c: the rating select on the VN types, styled like the length field. */
+/* STU-01d: face photo */
+.studio-face { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; align-items: center; margin: 0.5rem 0; }
+.studio-face p { flex-basis: 100%; margin: 0; }
+.studio-face input[type="range"] { accent-color: var(--accent); }
 .studio-rating { display: inline-flex; gap: 0.35rem; align-items: center; }
 .studio-rating select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.25rem 0.4rem; }

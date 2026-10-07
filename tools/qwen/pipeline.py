@@ -236,8 +236,13 @@ def patch_job(job, log):
         lines = text.split("\n")
         keep = set()
         for pat in job["focus"]:
+            # STU-01d: `studioMake(` is no regex; such a pattern is matched literally (lesson 77).
+            try:
+                rx = re.compile(pat)
+            except re.error:
+                rx = re.compile(re.escape(pat))
             for i, l in enumerate(lines):
-                if re.search(pat, l):
+                if rx.search(l):
                     keep.update(range(max(0, i - 6), min(len(lines), i + 25)))
         out_lines, last = [], -2
         for i in sorted(keep):

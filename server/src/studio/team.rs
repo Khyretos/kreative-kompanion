@@ -37,8 +37,72 @@ pub struct Make {
     rating: Option<String>,
 }
 
+pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(Make, Option<(Vec<u8>, &'static str)>, f64)> {
+    let is_multipart = req
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("multipart/form-data"));
+
+    if !is_multipart {
+        let axum::Json(b) = <axum::Json<Make> as axum::extract::FromRequest<AppState>>::from_request(req, s)
+            .await
+            .map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
+        return Ok((b, None, 0.85));
+    }
+
+    let mut form = <axum::extract::Multipart as axum::extract::FromRequest<AppState>>::from_request(req, s)
+        .await
+        .map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
+
+    let (mut kind, mut prompt, mut size, mut count, mut rating, mut face, mut weight) = (String::new(), String::new(), String::new(), 1u32, None::<String>, None::<(Vec<u8>, &'static str)>, 0.85f64);
+
+    while let Some(field) = form.next_field().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))? {
+        let name = field.name().unwrap_or("").to_string();
+
+        match name.as_str() {
+            "face" => {
+                let ext = match field.content_type().unwrap_or("") {
+                    "image/jpeg" => "jpg",
+                    "image/png" => "png",
+                    "image/webp" => "webp",
+                    _ => return Err(crate::error::ApiError::BadRequest("The photo must be a JPEG, PNG or WebP.".into())),
+                };
+                let bytes = field.bytes().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
+                if bytes.len() > 12 * 1024 * 1024 {
+                    return Err(crate::error::ApiError::BadRequest("Keep the photo under 12 MB.".into()));
+                }
+                if !bytes.is_empty() {
+                    face = Some((bytes.to_vec(), ext));
+                }
+            }
+            _ => {
+                let text = field.text().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
+                match name.as_str() {
+                    "type" => kind = text,
+                    "prompt" => prompt = text,
+                    "size" => size = text,
+                    "count" => count = text.parse().unwrap_or(1),
+                    "rating" => {
+                        if !text.is_empty() {
+                            rating = Some(text);
+                        }
+                    }
+                    "face_weight" => {
+                        weight = text.parse().map_err(|_| crate::error::ApiError::BadRequest("The face weight must be a number.".into()))?;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    Ok((Make { kind, prompt, size, count, rating }, face, weight))
+}
+
 /// POST /api/studio/make: generate images based on a workflow.
-pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, Json(b): Json<Make>) -> ApiResult<(StatusCode, Json<Value>)> {
+pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req: axum::extract::Request) -> ApiResult<(StatusCode, Json<Value>)> {
+    let (b, face, weight) = read_make(req, &s).await?;
     let text = b.prompt.trim();
     if text.is_empty() {
         return Err(ApiError::BadRequest("Describe what to make.".into()));
@@ -73,6 +137,13 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, Json
         .or_else(|| size_px(&b.size))
         .ok_or_else(|| ApiError::BadRequest("Pick square, wide or tall.".into()))?;
 
+    // STU-01d: only types with a face graph take a photo.
+    if face.is_some() && !workflows.iter().any(|(n, r)| *n == b.kind && r.as_ref().is_ok_and(|w| w.face.is_some())) {
+        return Err(ApiError::BadRequest(format!("{} takes no face photo.", studio.label)));
+    }
+    if face.is_some() && !(0.0..=1.2).contains(&weight) {
+        return Err(ApiError::BadRequest("The face weight must be between 0 and 1.2.".into()));
+    }
     let mut ids = Vec::new();
     for _ in 0..b.count {
         let mut params = Map::new();
@@ -83,7 +154,24 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, Json
         if let Some(r) = &b.rating {
             params.insert("rating".into(), json!(r));
         }
-        let (id, job) = super::queue(&s, &b.kind, "auto", &params, &u.id).await?;
+        if let Some((bytes, ext)) = &face {
+            let dir = s.config.studio.output_dir.join("users").join(&u.id).join("faces");
+            tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
+            let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
+            tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
+            params.insert("face".into(), json!(path.display().to_string()));
+            params.insert("face_weight".into(), json!(weight));
+        }
+        // STU-01d: a refused run removes its photo copy.
+        let (id, job) = match super::queue(&s, &b.kind, "auto", &params, &u.id).await {
+            Ok(x) => x,
+            Err(e) => {
+                if let Some(p) = params.get("face").and_then(|v| v.as_str()) {
+                    let _ = tokio::fs::remove_file(p).await;
+                }
+                return Err(e);
+            }
+        };
         tokio::spawn(job);
         ids.push(id);
     }
