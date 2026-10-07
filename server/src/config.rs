@@ -50,6 +50,9 @@ pub struct Config {
     /// CHAT-02: `[search]`: SearXNG for the built-in web_search and read_page chat tools; off when empty.
     #[serde(default)]
     pub search: SearchConfig,
+    /// CHAT-03b: `[knowledge]`: Open WebUI's database to re-import from when it changes; off when empty.
+    #[serde(default)]
+    pub knowledge: KnowledgeConfig,
     /// `[assets]`: the models the asset library uses for tags and search; empty = the worker role's provider and model.
     #[serde(default)]
     pub assets: AssetsConfig,
@@ -73,6 +76,16 @@ pub struct SearchConfig {
     /// read_page may fetch private and local addresses (off: only public ones).
     #[serde(default)]
     pub allow_private: bool,
+}
+
+/// CHAT-03b: `[knowledge]`. `openwebui_db` is Open WebUI's webui.db (mounted read-only); its knowledge
+/// collections are re-imported into `openwebui_user`'s collections whenever the file changes.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct KnowledgeConfig {
+    #[serde(default)]
+    pub openwebui_db: Option<String>,
+    #[serde(default)]
+    pub openwebui_user: Option<String>,
 }
 
 /// CHAT-01: one MCP tool server. `token_env` names an environment variable (.env) with its

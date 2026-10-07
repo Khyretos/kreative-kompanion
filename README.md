@@ -37,6 +37,7 @@ The banner source is `docs/branding/banner.html`; `docs/branding/render-banner.m
 - Runner on each PC (`runner/`): pairing with a one-time code, CPU/RAM/disk/GPU stats, tools limited to the folders and time you grant (Access tab), with approval cards for anything else.
 - Tasks run by themselves on a computer: a plan with a "done when", steps under your grants, a check command, review and up to three fix rounds; progress live in the task's own chat.
 - Capabilities page: models, computers, tools, MCP servers, indexes and skills, live.
+- Knowledge for chats: collections of your documents (uploads of Markdown, text, HTML and PDF, or Open WebUI's collections kept in step), searched by words and by meaning, linked to projects; answers cite their sources (`docs/knowledge.md`).
 - Voice: push-to-talk with Whisper and replies read aloud with Kokoro, both on your own server; nothing is stored.
 - Asset library: index of your game assets with previews, AI tags, packs, licences, and per game the assets it needs and uses.
 - Global search (Ctrl K), desktop notifications and mail when a task needs you, failed or is done.

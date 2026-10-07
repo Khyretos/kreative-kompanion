@@ -121,6 +121,14 @@ export interface KompanionApi {
   listActivity(): Promise<import("../views/activity").ActivityItem[]>;
   /** What Kompanion can use right now (W3): models, computers, tools, MCP servers, indexes, skills. */
   getCapabilities(): Promise<import("../views/capabilities").Capabilities>;
+  /** CHAT-03b: the user's knowledge collections, uploads into them, links to projects. */
+  knowledge(): Promise<{ collections: import("../views/knowledge").KCollection[] }>;
+  createKnowledge(name: string): Promise<{ id: string; name: string }>;
+  deleteKnowledge(id: string): Promise<void>;
+  setKnowledgeProjects(id: string, projects: string[]): Promise<void>;
+  /** Sends one file; onProgress gets 0-100 while it goes up. */
+  uploadKnowledge(id: string, file: File, onProgress: (pct: number) => void): Promise<{ id: number; name: string; chunks: number }>;
+  deleteKnowledgeDoc(id: string, doc: number): Promise<void>;
   /** GPU-01: Studio, Gaming or Auto for a computer with studio apps (admins). */
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName): Promise<void>;
   /** GPU-03: where the studio runs: "auto", a GPU id or "off" (admins). */

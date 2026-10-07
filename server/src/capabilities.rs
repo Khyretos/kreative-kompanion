@@ -129,14 +129,6 @@ pub fn tools() -> Vec<Value> {
 }
 
 /// Index status for asset search.
-/// CHAT-03: the user's knowledge collections as search indexes (words, FTS5).
-async fn knowledge_indexes(s: &AppState, user_id: &str) -> Vec<Value> {
-    crate::knowledge::collections(&s.db, user_id).await.unwrap_or_default().into_iter()
-        .map(|(name, docs, chunks)| json!({"id": format!("knowledge:{name}"), "name": format!("Knowledge: {name} ({docs} documents)"),
-            "items": chunks, "of": chunks, "failed": 0, "model": "word search (FTS5)", "status": "ok"}))
-        .collect()
-}
-
 pub async fn indexes(s: &AppState) -> Vec<Value> {
     let (total,) = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM asset WHERE is_meta = 0 AND dup_of IS NULL")
         .fetch_one(&s.db)
@@ -369,7 +361,7 @@ pub async fn list(State(s): State<AppState>, Extension(u): Extension<User>) -> A
         "gpuModes": crate::gpus::gaming::modes(&s).await,
         "studioTarget": crate::studio::target::read(State(s.clone())).await.map(|j| j.0).unwrap_or(Value::Null),
         "workflows": crate::studio::workflows_json(&s).await.unwrap_or_default(),
-        "indexes": indexes(&s).await.into_iter().chain(knowledge_indexes(&s, &u.id).await).collect::<Vec<_>>(),
+        "indexes": indexes(&s).await,
         "skills": skills()
     })))
 }

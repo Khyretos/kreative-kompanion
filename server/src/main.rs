@@ -30,6 +30,7 @@ mod chat_tools;
 mod chat_files;
 mod web;
 mod knowledge;
+mod knowledge_web;
 mod notify;
 mod push;
 mod oidc;
@@ -133,6 +134,8 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| format!("opening {}", config.database.display()))?;
     sqlx::migrate!().run(&db).await?;
+    // CHAT-03b: the knowledge vectors (sqlite-vec, so not in a migration).
+    knowledge::ensure_vectors(&db).await?;
 
     let args: Vec<String> = std::env::args().collect();
     // `kompanion-server pair-code <account> [name]`: a one-time pairing code from the server's
@@ -256,6 +259,8 @@ async fn main() -> anyhow::Result<()> {
         let _ = notify::PUBLIC_URL.set(u.trim_end_matches('/').to_string());
     }
     if state.config.features.gpus { gpus::spawn(state.clone()); }
+    // CHAT-03b: vectors for knowledge chunks, and the Open WebUI re-import when [knowledge] names its database.
+    knowledge::spawn(state.db.clone(), state.http.clone(), state.config.knowledge.openwebui_db.clone().map(|p| (p, state.config.knowledge.openwebui_user.clone().unwrap_or_default())));
     if let Some(ws) = windshift.filter(|_| state.config.features.windshift) {
         tracing::info!("Windshift sync on");
         windshift::spawn(state.db.clone(), ws);
@@ -327,6 +332,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/activity", get(activity::list))
         .route("/machines/{id}/folder", post(folders::api))
         .route("/capabilities", get(capabilities::list))
+        .route("/knowledge", get(knowledge_web::list).post(knowledge_web::create))
+        .route("/knowledge/{id}", axum::routing::delete(knowledge_web::delete))
+        .route("/knowledge/{id}/projects", axum::routing::put(knowledge_web::set_projects))
+        .route("/knowledge/{id}/docs", post(knowledge_web::upload).layer(axum::extract::DefaultBodyLimit::max(25 * 1024 * 1024)))
+        .route("/knowledge/{id}/docs/{doc}", axum::routing::delete(knowledge_web::delete_doc))
         .route("/capabilities/skill", get(capabilities::skill).put(capabilities::save_skill))
         .route("/capabilities/skill/history", get(capabilities::skill_history))
         .route("/capabilities/skill/move", post(capabilities::move_lesson))

@@ -368,13 +368,12 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         .fetch_optional(&s.db)
         .await
         .unwrap_or_default();
-    if let Some((Some(pid),)) = project {
-        let ctx = crate::project_ctx::project_context(&s.db, &pid, &user_id, 8_000).await.unwrap_or_default();
+    let project_id: Option<String> = project.and_then(|p| p.0);
+    if let Some(pid) = &project_id {
+        let ctx = crate::project_ctx::project_context(&s.db, pid, &user_id, 8_000).await.unwrap_or_default();
+        // Into the first system message: Qwen's chat template refuses a second one (400) once tools are on.
         if !ctx.is_empty() {
-            convo.push(ChatMessage {
-                role: "system".into(),
-                content: format!("This chat belongs to a project. What you know about it:\n\n{ctx}"),
-            });
+            convo[0].content.push_str(&format!("\n\nThis chat belongs to a project. What you know about it:\n\n{ctx}"));
         }
     }
     convo.extend(history.into_iter().map(|(author, text)| ChatMessage {
@@ -396,7 +395,12 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         .unwrap_or_else(|| "[]".into());
     let names: Vec<String> = serde_json::from_str(&mcp).unwrap_or_default();
     let servers: Vec<crate::config::McpServerConfig> = s.config.mcp.iter().filter(|m| m.enabled && names.contains(&m.name)).cloned().collect();
-    let knowledge = names.iter().any(|n| n == crate::chat_tools::KNOWLEDGE).then_some(user_id.as_str());
+    // CHAT-03b: a project chat searches knowledge when its project has collections, even without the Tools pick.
+    let project_knowledge = match &project_id {
+        Some(pid) => !crate::knowledge::project_collections(&s.db, pid).await.unwrap_or_default().is_empty(),
+        None => false,
+    };
+    let knowledge = (project_knowledge || names.iter().any(|n| n == crate::chat_tools::KNOWLEDGE)).then_some((user_id.as_str(), project_id.as_deref()));
     let web = (names.iter().any(|n| n == crate::chat_tools::WEB) && s.config.search.searxng_url.is_some()).then_some(&s.config.search);
     let mut used_lines = String::new();
     if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none(), s.config.provider(&role.provider_id)) {

@@ -49,6 +49,8 @@ export interface AppState {
   studioSent: Record<string, string[]>; // STU-02b: run id -> project names it was sent to (this session)
   studioForm: import("./views/studio").StudioForm;
   capabilities?: import("./views/capabilities").Capabilities; // loaded when the Capabilities section opens
+  knowledge?: import("./views/knowledge").KCollection[]; // CHAT-03b: loaded with the Capabilities section
+  knowledgeUploads: Record<string, import("./views/knowledge").KUpload[]>; // files going up, by collection id
   gpuTimeline?: import("./views/gputimeline").TlGpu[]; // M6-04, loaded with Capabilities
   gpuRange: 1 | 24;
   expandedProjects: Set<string>; // projects open in the sidebar
@@ -77,6 +79,7 @@ export interface AppState {
 
 export const store = new Store<AppState>({
   projects: [],
+  knowledgeUploads: {},
   chats: [],
   messages: [],
   tasks: [],

@@ -25,6 +25,7 @@ import { HttpAssets, type AssetsApi } from "./api/assets";
 import { MockAssets } from "./api/assets-mock";
 import { renderActivity } from "./views/activity";
 import { renderCapabilities, type GpuModeName } from "./views/capabilities";
+import { renderKnowledge } from "./views/knowledge";
 import { renderStudioMake, renderStudioLibrary } from "./views/studio";
 
 // STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
@@ -314,7 +315,7 @@ function render(s: AppState, prev: AppState): void {
   shell.dataset.section = s.section;
   if (s.section === "assets" && (s.section !== prev.section || firstRender)) assetsView?.show();
   if (s.section !== prev.section || firstRender) watchCapabilities(s.section === "capabilities");
-  if (s.section === "capabilities" && changed(s, prev, ["capabilities", "section", "gpuTimeline", "gpuRange", "features"])) mount($("#caps"), renderCapabilities(s.capabilities, s.gpuTimeline, s.gpuRange, s.features.gpus));
+  if (s.section === "capabilities" && changed(s, prev, ["capabilities", "section", "gpuTimeline", "gpuRange", "features", "knowledge", "knowledgeUploads", "projects"])) mount($("#caps"), renderCapabilities(s.capabilities, s.gpuTimeline, s.gpuRange, s.features.gpus, renderKnowledge(s.knowledge, s.projects, s.knowledgeUploads)));
   if (s.section === "studio") {
     // The form and the library render apart, so a finished image doesn't touch what is being typed.
     if (s.section !== prev.section || firstRender) mount($("#studio"), h`<div class="studio">
@@ -600,8 +601,14 @@ function pickSearch(project: string, q: string): void {
 // The Capabilities section loads when it opens, then every 30 s (model status) and on
 // changes to computers or grants, until it is left.
 let capsTimer: number | undefined;
+// CHAT-03b: the user's knowledge collections, loaded with the Capabilities section.
+function loadKnowledge(): void {
+  api.knowledge().then((k) => store.set({ knowledge: k.collections }), showError);
+}
+
 function loadCapabilities(): void {
   api.getCapabilities().then((capabilities) => store.set({ capabilities }), showError);
+  loadKnowledge();
   api.gpuTimeline(store.get().gpuRange).then((gpuTimeline) => store.set({ gpuTimeline }), () => undefined);
 }
 function watchCapabilities(on: boolean): void {
@@ -977,6 +984,11 @@ function wire(shell: HTMLElement): void {
       markGrant(machineId, target, "revoke");
       return api.revokeGrant(machineId, target).catch((e) => { showError(e); void loadAccess(); });
     },
+    "kn-delete": (el) => {
+      if (!confirm(`Delete the collection ${el.dataset.name ?? ""}? Its documents are removed from Kompanion.`)) return;
+      return api.deleteKnowledge(el.dataset.id ?? "").then(loadKnowledge, showError);
+    },
+    "kn-doc-delete": (el) => api.deleteKnowledgeDoc(el.dataset.id ?? "", Number(el.dataset.doc)).then(loadKnowledge, showError),
     "grant-renew": async (el) => {
       const machineId = el.dataset.machine ?? "";
       const target = el.dataset.target ?? "";
@@ -1046,6 +1058,35 @@ function wire(shell: HTMLElement): void {
       const id = runField.dataset.id ?? "";
       const { machine, folder } = runFields(id);
       if (folder.trim()) void folderCheck(id, machine, folder);
+      return;
+    }
+    const target = ev.target as HTMLInputElement;
+    if (target.classList.contains("kn-file")) {
+      const id = target.dataset.id ?? "";
+      const files = [...(target.files ?? [])];
+      target.value = "";
+      const setUp = (list: import("./views/knowledge").KUpload[]) => store.set({ knowledgeUploads: { ...store.get().knowledgeUploads, [id]: list } });
+      let list: import("./views/knowledge").KUpload[] = files.map((f) => ({ name: f.name, pct: 0 }));
+      setUp(list);
+      for (const [i, f] of files.entries()) {
+        try {
+          await api.uploadKnowledge(id, f, (pct) => { list = list.map((u, j) => (j === i ? { ...u, pct } : u)); setUp(list); });
+          list = list.map((u, j) => (j === i ? { ...u, pct: 100 } : u));
+        } catch (e) {
+          list = list.map((u, j) => (j === i ? { ...u, error: e instanceof Error ? e.message : String(e) } : u));
+        }
+        setUp(list);
+      }
+      // Finished uploads leave the list; refused ones stay with their reason.
+      setUp(list.filter((u) => u.error));
+      loadKnowledge();
+      return;
+    }
+    if (target.classList.contains("kn-project")) {
+      const id = target.dataset.id ?? "";
+      const ids = [...document.querySelectorAll<HTMLInputElement>("input.kn-project")].filter((b) => b.dataset.id === id && b.checked).map((b) => b.value);
+      store.set({ knowledge: store.get().knowledge?.map((c) => (c.id === id ? { ...c, projects: ids } : c)) });
+      api.setKnowledgeProjects(id, ids).then(loadKnowledge, showError);
       return;
     }
     const cardInput = ev.target as HTMLInputElement;
@@ -1171,6 +1212,16 @@ function wire(shell: HTMLElement): void {
     if (c && title && title !== c.title) changeChat(id, { title });
   };
   shell.addEventListener("submit", (ev) => {
+    // CHAT-03b: create a new knowledge collection.
+    const knForm = (ev.target as HTMLElement).closest("form.kn-new") as HTMLFormElement | null;
+    if (knForm) {
+      ev.preventDefault();
+      const input = knForm.elements.namedItem("name") as HTMLInputElement;
+      const name = input.value.trim();
+      if (!name) return;
+      api.createKnowledge(name).then(() => { input.value = ""; loadKnowledge(); }, showError);
+      return;
+    }
     // STU-01: make 1 or 4 images of the chosen type and size.
     const studioForm = (ev.target as HTMLElement).closest("form.studio-form") as HTMLFormElement | null;
     if (studioForm) {

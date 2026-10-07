@@ -12,7 +12,7 @@ async function openCaps(page: Page): Promise<void> {
 /** Cards (or anything inside them) whose content is wider than the box. */
 function overflowing(page: Page): Promise<string[]> {
   return page.evaluate(() => [...document.querySelectorAll<HTMLElement>("#caps .cap, #caps .cap *")]
-    .filter((el) => el.offsetParent !== null && getComputedStyle(el).overflowX !== "auto" && el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0)
+    .filter((el) => el.offsetParent !== null && !el.classList.contains("sr-only") && getComputedStyle(el).overflowX !== "auto" && el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0)
     .map((el) => `${el.className || el.tagName}: ${(el.textContent ?? "").trim().slice(0, 50)} (${el.scrollWidth} > ${el.clientWidth})`));
 }
 
