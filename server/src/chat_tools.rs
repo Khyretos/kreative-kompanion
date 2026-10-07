@@ -9,7 +9,45 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_RESULT: usize = 6000;
 
 #[derive(Debug, Clone)]
-pub struct ToolUse { pub server: String, pub tool: String, pub args: Value, pub result: String, pub images: Vec<String> }
+pub struct ToolUse { pub server: String, pub tool: String, pub args: Value, pub result: String, pub images: Vec<String>, pub sources: Vec<Source> }
+
+/// CHAT-04: one thing an answer can cite: a web result or a knowledge part, numbered across the whole answer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Source { pub n: usize, pub name: String, pub url: Option<String>, pub excerpt: String }
+
+fn excerpt(t: &str) -> String {
+    let t = t.split_whitespace().collect::<Vec<_>>().join(" ");
+    if t.chars().count() > 500 { format!("{}…", t.chars().take(500).collect::<String>()) } else { t }
+}
+
+/// The sources the answer cites (web: its link is in the text; knowledge: `src:n`), or all consulted when none match.
+/// Appended to the saved answer as a `:::sources` line of JSON that the app shows as an expandable list.
+pub fn sources_block(uses: &[ToolUse], answer: &str) -> String {
+    let all: Vec<&Source> = uses.iter().flat_map(|u| u.sources.iter()).collect();
+    let cited: Vec<&Source> = all.iter().copied().filter(|x| match &x.url {
+        Some(u) => answer.contains(u.as_str()),
+        None => answer.contains(&format!("src:{}", x.n)),
+    }).collect();
+    let shown = if cited.is_empty() { all } else { cited };
+    if shown.is_empty() { return String::new(); }
+    let list: Vec<Value> = shown.iter().map(|x| json!({"n": x.n, "name": x.name, "url": x.url, "excerpt": x.excerpt})).collect();
+    format!("\n\n:::sources\n{}\n:::", Value::Array(list))
+}
+
+/// CHAT-04: the date, the server's name and place go into every chat prompt, so "how old is ..." is worked out from today.
+pub fn when_where(now: time::OffsetDateTime, machine: Option<&str>, location: Option<&str>, web: bool) -> String {
+    let (d, wd) = (now.date(), now.weekday());
+    let mut t = format!("Today is {wd} {d}, {:02}:{:02} UTC.", now.hour(), now.minute());
+    match (machine, location) {
+        (Some(m), Some(l)) => t.push_str(&format!(" Kompanion is installed on {m}, in {l}.")),
+        (Some(m), None) => t.push_str(&format!(" Kompanion is installed on {m}.")),
+        (None, Some(l)) => t.push_str(&format!(" Kompanion is installed in {l}.")),
+        _ => {}
+    }
+    t.push_str(" Your own knowledge ends before today: work out ages and \"how long ago\" from today's date, and treat office holders, news, prices and versions as possibly changed.");
+    if web { t.push_str(" Web search is on: search before answering anything that can change, and never guess it."); }
+    t
+}
 
 fn clean(s: &str) -> String {
     s.to_lowercase()
@@ -87,7 +125,7 @@ pub fn results_note(uses: &[ToolUse]) -> String {
     let pics = if uses.iter().any(|u| !u.images.is_empty()) {
         "Your tools made the picture shown to the user above your answer. Say in a sentence or two what it shows; never say you cannot render or that tools are missing.\n\n"
     } else { "" };
-    format!("{pics}You looked these up with tools for this answer. Use them, and cite where each point comes from: copy the [collection / document, part n] labels or the links next to the point.\n\n{}", parts.join("\n\n"))
+    format!("{pics}You looked these up with tools for this answer. Use them, and always cite where each point comes from, right after the point: a web result as a markdown link with the site's name and its URL, like [Reuters](https://...); a knowledge part as [collection / document](src:n) with its number n. Never cite what you did not get here, and do not add a list of sources: the app shows them under your answer.\n\n{}", parts.join("\n\n"))
 }
 
 /// CHAT-02: the built-in web tools' server name in a chat's tool list.
@@ -101,10 +139,19 @@ async fn knowledge_vector(s: &AppState, q: &str) -> Option<Vec<f32>> {
     tokio::time::timeout(Duration::from_secs(10), crate::assets::ai::embed_query(&ai, q)).await.ok().flatten()
 }
 
-async fn web_call(http: &reqwest::Client, w: &crate::config::SearchConfig, tool: &str, args: &Value) -> anyhow::Result<String> {
+async fn web_call(http: &reqwest::Client, w: &crate::config::SearchConfig, tool: &str, args: &Value, first_n: usize) -> anyhow::Result<(String, Vec<Source>)> {
     match tool {
-        "web_search" => crate::web::web_search(http, w.searxng_url.as_deref().unwrap_or(""), args["query"].as_str().unwrap_or("")).await,
-        "read_page" => crate::web::read_page(args["url"].as_str().unwrap_or(""), w.allow_private).await,
+        "web_search" => {
+            let (text, found) = crate::web::web_search_from(http, w.searxng_url.as_deref().unwrap_or(""), args["query"].as_str().unwrap_or(""), first_n).await?;
+            let sources = found.into_iter().enumerate().map(|(i, (name, url, c))| Source { n: first_n + i, name, url: Some(url), excerpt: excerpt(&c) }).collect();
+            Ok((text, sources))
+        }
+        "read_page" => {
+            let url = args["url"].as_str().unwrap_or("");
+            let text = crate::web::read_page(url, w.allow_private).await?;
+            let src = Source { n: first_n, name: url.to_string(), url: Some(url.to_string()), excerpt: excerpt(&text) };
+            Ok((format!("[page {first_n}] {url}\n{text}"), vec![src]))
+        }
         _ => anyhow::bail!("there is no tool {tool}"),
     }
 }
@@ -147,6 +194,7 @@ pub async fn run(
     let (specs, map) = tool_specs(&tools);
     let mut msgs = convo.to_vec();
     let mut uses = Vec::new();
+    let mut next_n = 1usize;
     
     for _ in 0..MAX_ROUNDS {
         let Ok(ans) = llm::chat_with_tools(&s.http, p, model, &msgs, &specs).await else { break };
@@ -161,12 +209,13 @@ pub async fn run(
             let args_str = call["function"]["arguments"].as_str().unwrap_or("{}");
             let args: Value = serde_json::from_str(args_str).unwrap_or_else(|_| json!({}));
             let mut images: Vec<String> = Vec::new();
+            let mut sources: Vec<Source> = Vec::new();
             
             let result = match map.get(&name).cloned() {
                 None => format!("error: there is no tool {name}"),
                 Some((srv, tool)) if srv == WEB => match web {
-                    Some(w) => match tokio::time::timeout(CALL_TIMEOUT, web_call(&s.http, w, &tool, &args)).await {
-                        Ok(Ok(text)) => text,
+                    Some(w) => match tokio::time::timeout(CALL_TIMEOUT, web_call(&s.http, w, &tool, &args, next_n)).await {
+                        Ok(Ok((text, found))) => { sources = found; text },
                         Ok(Err(e)) => format!("error: {e}"),
                         Err(_) => "error: the tool took too long".to_string(),
                     },
@@ -174,7 +223,10 @@ pub async fn run(
                 },
                 Some((srv, _)) if srv == KNOWLEDGE => match knowledge {
                     Some((uid, project)) => match crate::knowledge::search(&s.db, uid, args["query"].as_str().unwrap_or(""), knowledge_vector(s, args["query"].as_str().unwrap_or("")).await.as_deref(), args["collection"].as_str().filter(|c| !c.is_empty()), project, 8).await {
-                        Ok(hits) => crate::knowledge::hits_text(&hits),
+                        Ok(hits) => {
+                            sources = hits.iter().enumerate().map(|(i, h)| Source { n: next_n + i, name: format!("{} / {}", h.collection, h.doc), url: None, excerpt: excerpt(&h.text) }).collect();
+                            crate::knowledge::hits_numbered(&hits, next_n)
+                        }
                         Err(e) => format!("error: {e}"),
                     },
                     None => "error: knowledge is not turned on".to_string(),
@@ -200,10 +252,11 @@ pub async fn run(
             };
             
             let result: String = result.chars().take(MAX_RESULT).collect();
+            next_n += sources.len().max(1);
             msgs.push(json!({"role": "tool", "tool_call_id": call["id"], "content": result}));
             
             if let Some((srv, tool)) = map.get(&name) {
-                let u = ToolUse { server: srv.clone(), tool: tool.clone(), args, result, images };
+                let u = ToolUse { server: srv.clone(), tool: tool.clone(), args, result, images, sources };
                 on_use(&u);
                 uses.push(u);
             }

@@ -385,7 +385,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         } else {
             "assistant".into()
         },
-        content: text,
+        content: text.split("\n\n:::sources\n").next().unwrap_or("").to_string(),
     }));
 
     // CHAT-01: the MCP tools this chat turned on: a few tool rounds first, each use shown in the thread.
@@ -405,7 +405,10 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     };
     let knowledge = (project_knowledge || names.iter().any(|n| n == crate::chat_tools::KNOWLEDGE)).then_some((user_id.as_str(), project_id.as_deref()));
     let web = (names.iter().any(|n| n == crate::chat_tools::WEB) && s.config.search.searxng_url.is_some()).then_some(&s.config.search);
+    // CHAT-04: the date and where Kompanion is installed, on every request.
+    convo[0].content.push_str(&format!("\n\n{}", crate::chat_tools::when_where(time::OffsetDateTime::now_utc(), s.config.machine_name.as_deref(), s.config.location.as_deref(), web.is_some())));
     let mut used_lines = String::new();
+    let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
     if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none(), s.config.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| json!({"role": m.role, "content": m.content})).collect();
         let (bus, uid, rid, cid) = (s.bus.clone(), user_id.clone(), reply_id.clone(), chat_id.clone());
@@ -422,10 +425,9 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
             // Qwen's chat template takes system text only at the start: add the results to the first message.
             let note = crate::chat_tools::results_note(&uses);
             if let Some(first) = convo.first_mut() {
-                // The date, so "latest" and "upcoming" in search results are read right (CHAT-02).
-                let today = util::now().chars().take(10).collect::<String>();
-                first.content = format!("{}\n\nToday is {today}. Release pages may list planned future versions: say which is out now.\n\n{note}", first.content);
+                first.content = format!("{}\n\nRelease pages may list planned future versions: say which is out now.\n\n{note}", first.content);
             }
+            all_uses = uses;
         }
     }
 
@@ -529,6 +531,15 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         let note = format!("\n\n_({} was busy, so `{used}` answered.)_", role.model_id);
         text.push_str(&note);
         s.bus.send(&user_id, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: note, done: false });
+    }
+
+    // CHAT-04: the sources under the answer: names are links in the text, the excerpts open from the list.
+    if error.is_none() && !text.is_empty() {
+        let block = crate::chat_tools::sources_block(&all_uses, &text);
+        if !block.is_empty() {
+            text.push_str(&block);
+            s.bus.send(&user_id, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: block, done: false });
+        }
     }
 
     if let Some(e) = &error {

@@ -183,6 +183,14 @@ pub fn hits_text(hits: &[Hit]) -> String {
     hits.iter().map(|h| format!("[{} / {}, part {}]\n{}", h.collection, h.doc, h.n, h.text)).collect::<Vec<_>>().join("\n\n")
 }
 
+/// CHAT-04: hits numbered from `first_n` ("[3] collection / doc, part 1"), so an answer can cite `[name](src:3)`.
+pub fn hits_numbered(hits: &[Hit], first_n: usize) -> String {
+    if hits.is_empty() {
+        return "Nothing found in the knowledge collections.".into();
+    }
+    hits.iter().enumerate().map(|(i, h)| format!("[{}] {} / {}, part {}\n{}", first_n + i, h.collection, h.doc, h.n, h.text)).collect::<Vec<_>>().join("\n\n")
+}
+
 /// List user's knowledge collections with stats.
 pub async fn collections(db: &SqlitePool, user_id: &str) -> Result<Vec<(String, i64, i64)>> {
     let rows = sqlx::query_as::<_, (String, i64, i64)>(

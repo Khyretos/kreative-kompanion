@@ -19,6 +19,9 @@ pub struct Config {
     /// Name shown for this server in the Machines panel.
     #[serde(default)]
     pub machine_name: Option<String>,
+    /// CHAT-04: where this server is installed, e.g. "the Netherlands"; the chat prompt gets it with the date.
+    #[serde(default)]
+    pub location: Option<String>,
     /// What each GPU of this server is used for, by PCI slot, e.g.
     /// `gpu_labels = { "0000:10:00.0" = "AI (OVMS)" }`.
     #[serde(default)]

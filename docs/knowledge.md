@@ -36,3 +36,15 @@ with a compose volume like `- /path/to/open-webui-data:/openwebui:ro`. Every 10 
 | DELETE | /api/knowledge/{id}/docs/{doc} | Delete a document |
 
 Writes need the X-Kompanion: 1 header like every other write.
+
+## Sources under answers (CHAT-04)
+
+Every chat prompt starts with today's date and time (UTC), the server's `machine_name` and the optional
+top-level `location = "the Netherlands"` in `kompanion.toml`, so the model works out ages and "how long ago"
+from today. With Web on it is also told to search before answering anything that can change.
+
+When an answer used Web or Knowledge, the model cites in the text (a web result as `[Site](url)`, a knowledge
+part as `[collection / document](src:n)`), and the server ends the saved answer with a `:::sources` line of JSON.
+The app hides that line and shows "Sources (n)" under the answer: each source with its link and the excerpt
+it came from; clicking a knowledge citation opens the list at that source. Only cited sources are listed
+(all consulted ones when the model cited none).

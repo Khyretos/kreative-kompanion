@@ -37,8 +37,11 @@ test.describe("PC Agent approval cards", () => {
     
     await page.click('[data-action="tab"][data-tab="access"]');
     const section = page.locator("section.group", { hasText: "soucouyant" });
-    const count = await section.locator("li.grant-row", { hasText: "system" }).count();
-    await expect(count).toBe(0);
+    // The demo already has a system grant ending in about 3 h (ACC-01). Wait for it to render,
+    // then check Approve added no new 24 h grant (a bare count() raced the render).
+    const row = section.locator("li.grant-row").filter({ has: page.locator("code", { hasText: /^system$/ }) });
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText("expires in 3 h");
   });
 
   test("Always allow leaves a 24 h grant", async ({ page }) => {
