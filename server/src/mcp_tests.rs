@@ -19,6 +19,14 @@ fn tool_results_become_text() {
     assert_eq!(tool_text(&json!({"content": []})), "");
 }
 
+#[test]
+fn tool_results_give_their_images() {
+    let r = json!({"content": [{"type": "text", "text": "Rendered"}, {"type": "image", "mimeType": "image/png", "data": "iVBO"}, {"type": "image", "data": "nomime"}, {"type": "image", "mimeType": "image/jpeg"}]});
+    assert_eq!(tool_images(&r), vec![("image/png".to_string(), "iVBO".to_string())]);
+    assert!(tool_images(&json!({"content": [{"type": "text", "text": "x"}]})).is_empty());
+    assert!(tool_images(&json!({})).is_empty());
+}
+
 /// A stub MCP server: answers initialize, tools/list and tools/call; 401 without the right token.
 async fn stub() -> String {
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -76,7 +84,8 @@ async fn lists_and_calls_tools_on_a_stub_server() {
     let tools = list_tools(&http, &cfg).await.unwrap();
     assert_eq!(tools.len(), 1);
     assert_eq!(tools[0]["name"], "search");
-    let text = call_tool(&http, &cfg, "search", &json!({"q": "rust"})).await.unwrap();
+    let (text, pics) = call_tool_full(&http, &cfg, "search", &json!({"q": "rust"})).await.unwrap();
+    assert!(pics.is_empty());
     assert_eq!(text, "found rust");
     let bad = list_tools(&http, &server(&url, None)).await;
     assert!(bad.unwrap_err().to_string().contains("401"));

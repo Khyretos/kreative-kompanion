@@ -101,6 +101,14 @@ servers = []
 # url = "http://so-mcp:8000/mcp"
 # token_env = "MCP_SO_TOKEN"
 # description = "Answered programming questions"
+#
+# Blender (BLD-01), opt-in: chats build and render scenes in a headless Blender. Chats that use it can
+# run any Python inside Blender on that computer. Install with tools/blender-mcp/install.sh; see docs/blender-mcp.md.
+# [[mcp]]
+# name = "Blender"
+# url = "http://192.168.1.20:9876/mcp"
+# token_env = "MCP_BLENDER_TOKEN"
+# description = "Headless Blender: builds and renders scenes from a chat"
 
 # Web search and page reading in chats (CHAT-02), optional: a SearXNG instance with its JSON API on.
 # read_page only reads public addresses unless allow_private = true.

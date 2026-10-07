@@ -405,7 +405,8 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, &show).await;
+        let files_dir = crate::chat_files::dir_for(&s.config.database);
+        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));
             used_lines.push_str("\n\n");
@@ -781,6 +782,8 @@ pub async fn delete_chat(
     if done.rows_affected() == 0 {
         return Err(ApiError::NotFound);
     }
+    // BLD-01: its pictures (Blender renders) go with it.
+    let _ = tokio::fs::remove_dir_all(crate::chat_files::dir_for(&s.config.database).join(&id)).await;
     Ok(StatusCode::NO_CONTENT)
 }
 

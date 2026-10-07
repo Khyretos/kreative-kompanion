@@ -18,6 +18,15 @@ DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
 });
 
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "IMG") {
+    const src = node.getAttribute("src") ?? "";
+    if (!/^\/api\/chats\/[\w-]+\/files\/[0-9a-f-]{36}\.(png|jpg|webp)$/.test(src)) {
+      node.remove();
+      return;
+    }
+    node.setAttribute("loading", "lazy");
+    return;
+  }
   if (node.tagName === "A") {
     const href = node.getAttribute("href") ?? "";
     // Keep in-app hash links (#task=... or #chat=...) without target/rel; block everything else.
@@ -32,8 +41,8 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
 
 const config = {
   ALLOWED_TAGS: ["p", "br", "strong", "em", "del", "code", "pre", "ul", "ol", "li", "blockquote",
-    "h1", "h2", "h3", "h4", "h5", "h6", "a", "table", "thead", "tbody", "tr", "th", "td", "hr"],
-  ALLOWED_ATTR: ["href", "target", "rel", "align"],
+    "h1", "h2", "h3", "h4", "h5", "h6", "a", "table", "thead", "tbody", "tr", "th", "td", "hr", "img"],
+  ALLOWED_ATTR: ["href", "target", "rel", "align", "src", "alt"],
   RETURN_DOM_FRAGMENT: true as const,
 };
 
