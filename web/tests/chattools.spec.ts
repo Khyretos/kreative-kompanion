@@ -18,7 +18,7 @@ test("the Tools menu turns tool servers on for a new chat and keeps them after t
   await expect(page.locator(".tools-menu")).toHaveCount(0);
   // UI-02: a click outside closes it, like the Effort chip; Web is its own chip, not in the list.
   await chip.click();
-  await page.click("#prompt");
+  await page.click("#conv-head h1");
   await expect(page.locator(".tools-menu")).toHaveCount(0);
   const web = page.locator(".web-chip");
   await expect(web).toHaveText("Web off");
