@@ -179,6 +179,28 @@ async fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
+    // HOST-01: `kompanion-server pair-host [user name]`: a one-time code that pairs the server's own
+    // computer under machine_name (default user: the first admin). tools/install-host.sh runs it.
+    if args.get(1).map(String::as_str) == Some("pair-host") {
+        let host = config.machine_name.clone().filter(|n| !n.trim().is_empty()).context("set machine_name in kompanion.toml first")?;
+        let user: Option<(String,)> = match args.get(2) {
+            Some(name) => sqlx::query_as("SELECT id FROM users WHERE name = ?").bind(name).fetch_optional(&db).await?,
+            None => sqlx::query_as("SELECT id FROM users WHERE is_admin = 1 ORDER BY created_at LIMIT 1").fetch_optional(&db).await?,
+        };
+        let (user_id,) = user.context("no such user: create the first account in the app first")?;
+        let taken: Option<(String,)> = sqlx::query_as("SELECT name FROM machines WHERE user_id = ? AND lower(trim(name)) = lower(trim(?))")
+            .bind(&user_id)
+            .bind(&host)
+            .fetch_optional(&db)
+            .await?;
+        if let Some((name,)) = taken {
+            anyhow::bail!("{name} is already paired: unpair it in Machines first");
+        }
+        let (code, _) = pairing::new_pair_code(&db, &user_id, &host).await?;
+        println!("{code}");
+        return Ok(());
+    }
+
     let windshift = windshift::Windshift::from_env(llm::http_client()).map(Arc::new);
     let state = AppState {
         config: Arc::new(config.clone()),

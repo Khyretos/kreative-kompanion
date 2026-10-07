@@ -168,3 +168,4 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | ACC-01 access list | Claude | Live re-render (machines poll) closed every open <details>; only a wait-7-s test showed it | Remember open keys and render them open | `worker/web` (ACC-01 test) |
 | HOST-01 views job | Claude | My auth.rs line used `s` (the handler's state is `state`); the job's compile check failed Coder's correct views() 4 times | Compile own edits before the job | `general/orchestrator/prompting-workers` 100 |
 | HOST-01 pair action | Claude | Spec passed a button to busyWhile(form, ..) | Check helper signatures before the spec | `general/orchestrator/prompting-workers` 100 |
+| HOST-01 install-host.sh | Coder | Mode checked only when asked, no defaults on Enter, `\'` in single quotes, docker failure turned into CODE=error; 3 fix rounds failed; Claude fixed | Steps as code + stub-PATH branch test | `general/orchestrator/prompting-workers` 101 |

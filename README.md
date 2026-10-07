@@ -69,6 +69,8 @@ docker compose logs kompanion   # shows the one-time setup code
 
 Then open the app, enter the setup code and create your account.
 
+Optional, on the same computer: `sh tools/install-host.sh --url https://kompanion.example` lets Kompanion act on this computer too (it asks first; the runner has no rights until you grant them). See docs/runner-install.md.
+
 For development: `cd web && npm run build`, then
 `cd server && KOMPANION_CONFIG=../kompanion.toml cargo run` (set
 `web_dir = "../web/dist"` and, for plain http on localhost only,
