@@ -80,11 +80,13 @@ pub fn results_note(uses: &[ToolUse]) -> String {
         .iter()
         .map(|u| format!("{}: {}{}\n{}", u.server, u.tool, what(u).map(|w| format!(" ({w})")).unwrap_or_default(), u.result))
         .collect();
-    format!("You looked these up with tools for this answer. Use them, and say where an answer comes from.\n\n{}", parts.join("\n\n"))
+    format!("You looked these up with tools for this answer. Use them, and cite where each point comes from: copy the [collection / document, part n] labels or the links next to the point.\n\n{}", parts.join("\n\n"))
 }
 
 /// CHAT-02: the built-in web tools' server name in a chat's tool list.
 pub const WEB: &str = "Web";
+/// CHAT-03: the built-in knowledge search's name in a chat's tool list.
+pub const KNOWLEDGE: &str = "Knowledge";
 
 async fn web_call(http: &reqwest::Client, w: &crate::config::SearchConfig, tool: &str, args: &Value) -> anyhow::Result<String> {
     match tool {
@@ -94,7 +96,7 @@ async fn web_call(http: &reqwest::Client, w: &crate::config::SearchConfig, tool:
     }
 }
 
-pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value], servers: &[McpServerConfig], web: Option<&crate::config::SearchConfig>, on_use: &(dyn Fn(&ToolUse) + Send + Sync)) -> Vec<ToolUse> {
+pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value], servers: &[McpServerConfig], web: Option<&crate::config::SearchConfig>, knowledge: Option<&str>, on_use: &(dyn Fn(&ToolUse) + Send + Sync)) -> Vec<ToolUse> {
     let mut tools = Vec::new();
     for srv in servers {
         if !srv.enabled { continue; }
@@ -106,6 +108,13 @@ pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value],
     if let Some(w) = web.filter(|w| w.searxng_url.is_some()) {
         let _ = w;
         tools.push((WEB.to_string(), crate::web::tools()));
+    }
+    
+    if let Some(uid) = knowledge {
+        let names: Vec<String> = crate::knowledge::collections(&s.db, uid).await.unwrap_or_default().into_iter().map(|c| c.0).collect();
+        if !names.is_empty() {
+            tools.push((KNOWLEDGE.to_string(), crate::knowledge::tools(&names)));
+        }
     }
     
     if tools.is_empty() {
@@ -138,6 +147,13 @@ pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value],
                         Err(_) => "error: the tool took too long".to_string(),
                     },
                     None => "error: web search is not set up".to_string(),
+                },
+                Some((srv, _)) if srv == KNOWLEDGE => match knowledge {
+                    Some(uid) => match crate::knowledge::search(&s.db, uid, args["query"].as_str().unwrap_or(""), args["collection"].as_str().filter(|c| !c.is_empty()), 8).await {
+                        Ok(hits) => crate::knowledge::hits_text(&hits),
+                        Err(e) => format!("error: {e}"),
+                    },
+                    None => "error: knowledge is not turned on".to_string(),
                 },
                 Some((srv, tool)) => match servers.iter().find(|x| x.name == srv) {
                     None => format!("error: there is no tool {name}"),

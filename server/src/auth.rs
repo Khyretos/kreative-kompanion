@@ -146,6 +146,11 @@ pub async fn status(
 ) -> ApiResult<Json<serde_json::Value>> {
     let user = current_user(&state, &headers).await?;
     let settings = crate::admin::load(&state.db).await?;
+    // CHAT-03: "Knowledge" joins the Tools menu once the user has a collection.
+    let has_knowledge = match &user {
+        Some(u) => sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM knowledge_collection WHERE user_id = ?").bind(&u.id).fetch_one(&state.db).await.unwrap_or(0) > 0,
+        None => false,
+    };
     let (admin, adult, theme, refresh, pins, cards) = match &user {
         Some(u) => sqlx::query_as::<_, (bool, bool, String, i64, String, String)>(
             "SELECT is_admin, adult, theme, machines_refresh, gpu_pins, card_style FROM users WHERE id = ?",
@@ -172,6 +177,7 @@ pub async fn status(
         // CHAT-02: plus the built-in web tools when [search] is set up.
         "mcp": state.config.mcp.iter().filter(|m| m.enabled && user.is_some()).map(|m| m.name.clone())
             .chain((user.is_some() && state.config.search.searxng_url.is_some()).then(|| crate::chat_tools::WEB.to_string()))
+            .chain(has_knowledge.then(|| crate::chat_tools::KNOWLEDGE.to_string()))
             .collect::<Vec<_>>(),
         "features": {
             "assets": state.config.features.assets,
