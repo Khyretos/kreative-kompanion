@@ -1,7 +1,6 @@
 """Wraps the first `tokio::spawn(async move {` inside a named function into
 crate::util::supervise(name, move || { <clones>; async move { ... }}). Brace-matched, so the
 body is untouched. Usage: run from server/; prints each change."""
-import re, sys
 
 SITES = [  # file, function signature start, job name, variables to clone per run
     ("src/gpus/mod.rs", "pub fn spawn(s: AppState)", "gpus", ["s"]),

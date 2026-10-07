@@ -1,4 +1,7 @@
-import os, sys, tempfile, unittest
+import os
+import sys
+import tempfile
+import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import load
 

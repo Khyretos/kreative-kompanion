@@ -74,7 +74,7 @@ def main():
                 problems.append(f"skills/{rel}: models: belongs only in _model-notes")
 
     # Write JSON if not checking
-    if not ("--check" in sys.argv):
+    if "--check" not in sys.argv:
         output_path = os.path.join(SKILLS, "index.json")
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(entries, f, indent=1, sort_keys=True)

@@ -14,7 +14,18 @@ the pipeline retries up to 3 times with a patch job fixing the errors.
 Each check is tried once before any job runs; jobs whose check already fails
 are skipped as a spec error ("precheck": false turns that off).
 """
-import json, os, re, subprocess, sys, time, tomllib, urllib.error, urllib.request, urllib.parse, socket, threading
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+import tomllib
+import urllib.error
+import urllib.request
+import urllib.parse
+import socket
+import threading
 
 # Only quirks of one model family live in skills/_model-notes/<NOTES>; every general rule is in
 # the role skills and work-habits.md, so a bigger model loaded later (MODEL_NOTES=gemma4, ...)

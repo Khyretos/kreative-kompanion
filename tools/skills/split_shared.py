@@ -1,7 +1,8 @@
 """SK-01, one-time: split skills/shared/SKILL.md into topic cards (content word for word) and
 give every role core the card header, so tools/skills/load.py can pick what a job needs.
 Run from the repo root. Prints what it did; refuses to run twice."""
-import os, re, sys
+import re
+import sys
 
 CARDS = {  # card file -> (description, tags, heading prefixes that go into it)
     "shared/theming-brand.md": ("Theming apps and desktops in the Kreative Kompas brand: readability checks, colour roles, web, desktop and Kate themes.",
