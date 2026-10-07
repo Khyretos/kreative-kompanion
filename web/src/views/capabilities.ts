@@ -3,6 +3,7 @@ import { html, type SafeHtml } from "../core/html";
 import { renderTimeline, type TlGpu } from "./gputimeline";
 import { relTime } from "../core/time";
 import { icon } from "./icons";
+import { capHead, capStep } from "./cap-card";
 
 export interface CapModel {
   id: string;
@@ -126,14 +127,8 @@ function modelCard(m: CapModel): SafeHtml {
   return html`
     <li class="task cap s-${state}">
       <div class="task-main">
-        <span class="task-top">
-          <span class="chip state">${label}</span>
-          <span class="muted small">${m.local ? "local" : "cloud"}</span>
-        </span>
-        <span class="task-title">${m.name}</span>
-        <span class="task-step">
-          ${m.status === "down" ? (m.error ?? "") : `${m.models.length} model(s): ${m.models.slice(0, 4).join(", ")}${m.models.length > 4 ? "…" : ""}`}
-        </span>
+        ${capHead("spark", m.name, label, m.local ? "local" : "cloud")}
+        ${capStep(m.status === "down" ? (m.error ?? "") : `${m.models.length} model(s): ${m.models.slice(0, 4).join(", ")}${m.models.length > 4 ? "…" : ""}`)}
         <span class="task-meta">
           ${icon("spark")} ${m.roles.length ? m.roles.join(" · ") : "no role uses it"}
           ${m.lastError ? html` · last error <span class="cap-err" title="${m.lastError.text}">${relTime(m.lastError.at)}</span>` : ""}
@@ -152,11 +147,8 @@ function computerCard(c: CapComputer): SafeHtml {
   return html`
     <li class="task cap s-${state}">
       <div class="task-main">
-        <span class="task-top">
-          <span class="chip state">${label}</span>
-        </span>
-        <span class="task-title">${c.name}</span>
-        <span class="task-step">${grantsText}</span>
+        ${capHead("pc", c.name, label)}
+        ${capStep(grantsText)}
         <span class="task-meta">
           ${icon("pc")} ${c.online ? "seen " : "last seen "}
           ${c.lastSeen ? relTime(c.lastSeen) : "never"} · runner ${c.runnerVersion ?? "before 0.4.5"}
@@ -170,11 +162,8 @@ function toolCard(t: CapTool): SafeHtml {
   return html`
     <li class="task cap s-done">
       <div class="task-main">
-        <span class="task-top">
-          <span class="chip state">tool</span>
-        </span>
-        <span class="task-title"><code>${t.name}</code></span>
-        <span class="task-step">${t.description}</span>
+        ${capHead("terminal", html`<code>${t.name}</code>`, "tool")}
+        ${capStep(t.description)}
         <span class="task-meta">needs: ${t.needs || "nothing"}</span>
       </div>
     </li>
@@ -185,10 +174,7 @@ function mcpCard(m: { name: string; status: string }): SafeHtml {
   return html`
     <li class="task cap s-done">
       <div class="task-main">
-        <span class="task-top">
-          <span class="chip state">${m.status}</span>
-        </span>
-        <span class="task-title">${m.name}</span>
+        ${capHead("link", m.name, m.status)}
       </div>
     </li>
   `;
@@ -201,11 +187,8 @@ function indexCard(i: CapIndex): SafeHtml {
   return html`
     <li class="task cap s-${state}">
       <div class="task-main">
-        <span class="task-top">
-          <span class="chip state">${label}</span>
-        </span>
-        <span class="task-title">${i.name}</span>
-        <span class="task-step">${step}</span>
+        ${capHead("search", i.name, label)}
+        ${capStep(step)}
         <span class="task-meta">${icon("spark")} ${i.model}</span>
       </div>
     </li>
@@ -216,10 +199,7 @@ function skillCard(s: CapSkill): SafeHtml {
   return html`
     <li class="task cap s-done">
       <button class="task-main" data-action="open-skill" data-id="${s.id}" data-layer="${s.layer}" data-file="${s.file}">
-        <span class="task-top">
-          <span class="chip state">${s.lessons} lessons</span><span class="chip role">${s.layer}</span>
-        </span>
-        <span class="task-title">${s.title}</span>
+        ${capHead("braces", s.title, `${s.lessons} lessons`, `${s.layer} layer`)}
         <span class="task-step"><code>${s.id}</code></span>
         <span class="task-meta">${s.updated ? `updated ${relTime(s.updated)}` : ""}</span>
       </button>
@@ -255,9 +235,8 @@ function workflowCard(w: CapWorkflow): SafeHtml {
 
   return html`<li class="task cap s-${w.problems.length ? "needs_input" : "done"}">
     <div class="task-main">
-      <span class="task-top"><span class="chip state">${w.problems.length ? "licence warning" : "ready"}</span>${kind ? html`<span class="muted small">${kind}</span>` : ""}</span>
-      <span class="task-title">${w.title}</span>
-      <span class="task-step">${w.description}</span>
+      ${capHead("image", w.title, w.problems.length ? "licence warning" : "ready", kind || undefined)}
+      ${capStep(w.description)}
       <span class="task-meta">${licences} · on ${w.targets.length ? w.targets.join(", ") : "no GPU"}</span>
       <span class="task-meta">${runs}</span>
       ${w.problems.length ? html`<span class="task-meta wf-problems">licence warning: ${w.problems.join("; ")}</span>` : ""}
@@ -277,14 +256,13 @@ function gpuCard(g: CapGpu, role?: CapRole | null, modes?: CapGpuMode[]): SafeHt
   return html`
     <li class="task cap s-${state}">
       <div class="task-main">
-        <span class="task-top"><span class="chip state">${label}</span><span class="muted small">${g.machine}</span>${r ? html`<span class="chip role" title="Coder (OVMS) or one studio app; switches by itself (M6-03)">${roleText}</span>` : ""}</span>
-        <span class="task-title">${g.id} · ${gb(g.totalMib)}</span>
+        ${capHead("box", `${g.id} · ${gb(g.totalMib)}`, label, r ? html`${g.machine} <span class="chip role" title="Coder (OVMS) or one studio app; switches by itself (M6-03)">${roleText}</span>` : g.machine)}
         <span class="vram-bar" role="img" aria-label="${`${gb(g.reservedMib)} reserved, ${gb(g.otherMib)} other, ${gb(g.freeMib)} free`}">
           <span class="vb-res" style="width:${pct(g.reservedMib)}"></span><span class="vb-other" style="width:${pct(g.otherMib)}"></span>
         </span>
-        <span class="task-step">${g.holdings.length
+        ${capStep(g.holdings.length
           ? g.holdings.map((h) => `${h.name} ${gb(Math.max(h.nowMib, h.peakMib))}${h.busy ? " (busy)" : ""}`).join(" · ")
-          : "Nothing loaded"}</span>
+          : "Nothing loaded")}
         ${gm ? gpuModeSwitch(gm) : ""}
         <span class="task-meta">${icon("spark")} reserved ${gb(g.reservedMib)} · other ${gb(g.otherMib)}${g.usedMib === null ? "" : ` · measured ${gb(g.usedMib)}`}</span>
         ${last ? html`<span class="task-meta">${last}</span>` : ""}
