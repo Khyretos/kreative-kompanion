@@ -106,3 +106,6 @@ servers = []
 # read_page only reads public addresses unless allow_private = true.
 # [search]
 # searxng_url = "http://searxng:8080"
+
+# Knowledge collections for chats (CHAT-03) need no settings: import Open WebUI's with
+# `kompanion-server knowledge-import-openwebui <webui.db> [user name]`, then turn on "Knowledge" in a chat's Tools menu.

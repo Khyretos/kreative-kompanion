@@ -28,6 +28,7 @@ mod mailhtml;
 mod mcp;
 mod chat_tools;
 mod web;
+mod knowledge;
 mod notify;
 mod push;
 mod oidc;
@@ -208,6 +209,17 @@ async fn main() -> anyhow::Result<()> {
     if args.get(1).map(String::as_str) == Some("mcp-status") {
         let status = mcp::status(&llm::http_client(), &config.mcp).await;
         println!("{}", serde_json::to_string_pretty(&status)?);
+        return Ok(());
+    }
+    // CHAT-03: `kompanion-server knowledge-import-openwebui <webui.db> [user name]`: Open WebUI's knowledge
+    // collections into the user's (default: the first admin) knowledge collections.
+    if args.get(1).map(String::as_str) == Some("knowledge-import-openwebui") {
+        let path = args.get(2).context("usage: kompanion-server knowledge-import-openwebui <webui.db> [user name]")?;
+        let user: String = match args.get(3) {
+            Some(u) => u.clone(),
+            None => sqlx::query_scalar("SELECT name FROM users WHERE is_admin = 1 ORDER BY created_at LIMIT 1").fetch_optional(&db).await?.context("no admin user yet")?,
+        };
+        println!("{}", knowledge::import_openwebui(&db, path, &user).await?);
         return Ok(());
     }
 
