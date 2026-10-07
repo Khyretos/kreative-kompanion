@@ -7,6 +7,7 @@ pub mod workflow;
 pub mod target;
 pub mod team;
 pub mod audio;
+pub mod service;
 
 use crate::{
     AppState,
@@ -38,6 +39,12 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/mine", get(team::mine))
         .route("/studio/runs/{id}/files/{n}", get(team::file))
         .route("/studio/target/service", get(target::service_read).put(target::service_set))
+        // KS-01: Kreative Studio's jobs, on behalf of a studio user (auth::guard maps the user).
+        .route("/studio/service/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
+        .route("/studio/service/audio", post(audio::make))
+        .route("/studio/service/mine", get(team::mine))
+        .route("/studio/service/runs/{id}", get(run_get))
+        .route("/studio/service/runs/{id}/files/{n}", get(team::file))
 }
 
 pub fn comfy_target(gpus: &[GpuConfig], gpu: &str) -> Option<(String, String)> {
@@ -228,7 +235,7 @@ async fn queue(
     };
     // STU-01c: adult rating guard
     if let Some(r) = wf.adult_choice(params) {
-        if user_id != "cli" && !crate::admin::is_adult(&s.db, user_id).await? {
+        if user_id != "cli" && !user_id.starts_with(service::STUDIO_PREFIX) && !crate::admin::is_adult(&s.db, user_id).await? {
             return Err(ApiError::Forbidden(format!("Your account may not use the {r} rating. An admin can allow adult content for it.")));
         }
     }

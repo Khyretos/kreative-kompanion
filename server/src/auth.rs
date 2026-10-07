@@ -333,6 +333,13 @@ pub async fn guard(State(state): State<AppState>, mut req: Request, next: Next) 
     if runner_ask || forge_hook || studio_service || (req.method() == Method::POST && path.starts_with("/machines/") && (path.ends_with("/stats") || path.ends_with("/results"))) {
         return next.run(req).await;
     }
+    // KS-01: Kreative Studio's jobs carry the service token and the studio user's e-mail.
+    if path.starts_with("/studio/service/") {
+        return match crate::studio::service::as_user(&state, &mut req).await {
+            Ok(()) => next.run(req).await,
+            Err(e) => e.into_response(),
+        };
+    }
     let open = matches!(
         path.as_str(),
         "/status" | "/theme.css" | "/logo" | "/mail-logo.png" | "/setup" | "/login" | "/auth/oidc/start" | "/auth/oidc/callback" | "/pair"
