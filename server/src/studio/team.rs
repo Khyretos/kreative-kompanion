@@ -153,10 +153,25 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
     if face.is_some() && !(0.0..=1.2).contains(&weight) {
         return Err(ApiError::BadRequest("The face weight must be between 0 and 1.2.".into()));
     }
+    // KS-02: Coder describes the face photo; its tags go in front (what the prompt says wins).
+    let mut face_tags = String::new();
+    if let Some((bytes, _)) = &face {
+        let ai = crate::assets::ai::Ai::from_env(s.http.clone());
+        let tags = async {
+            let png = super::facetags::to_png(bytes).await?;
+            super::facetags::describe(&ai, &png).await
+        };
+        match tokio::time::timeout(std::time::Duration::from_secs(90), tags).await {
+            Ok(Ok(tags)) => face_tags = super::facetags::merge_tags(&tags, text),
+            Ok(Err(e)) => tracing::warn!(error = ?e, "face tags"),
+            Err(_) => tracing::warn!("face tags: no answer in 90 s"),
+        }
+    }
+    let prompt = if face_tags.is_empty() { text.to_string() } else { format!("{face_tags}, {text}") };
     let mut ids = Vec::new();
     for _ in 0..b.count {
         let mut params = Map::new();
-        params.insert("prompt".into(), json!(text));
+        params.insert("prompt".into(), json!(prompt));
         params.insert("width".into(), json!(w_px));
         params.insert("height".into(), json!(h_px));
         params.insert("seed".into(), json!(b.seed.unwrap_or(-1)));
@@ -188,7 +203,7 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         ids.push(id);
     }
 
-    Ok((StatusCode::ACCEPTED, Json(json!({"ids": ids}))))
+    Ok((StatusCode::ACCEPTED, Json(json!({"ids": ids, "faceTags": face_tags}))))
 }
 
 /// GET /api/studio/mine: list recent runs for the current user.

@@ -8,6 +8,7 @@ pub mod target;
 pub mod team;
 pub mod audio;
 pub mod service;
+pub mod facetags;
 
 use crate::{
     AppState,
@@ -42,6 +43,7 @@ pub fn routes() -> axum::Router<AppState> {
         // KS-01: Kreative Studio's jobs, on behalf of a studio user (auth::guard maps the user).
         .route("/studio/service/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
         .route("/studio/service/audio", post(audio::make))
+        .route("/studio/service/workflows", get(list))
         .route("/studio/service/mine", get(team::mine))
         .route("/studio/service/runs/{id}", get(run_get))
         .route("/studio/service/runs/{id}/files/{n}", get(team::file))
