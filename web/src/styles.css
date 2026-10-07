@@ -749,6 +749,14 @@ button[aria-busy="true"]::after {
 .task-run input, .task-run select { font-size: 0.9rem; padding: 0.3rem 0.45rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
 .task-run button { justify-self: start; }
 
+/* UI-01: the weekly token summary, a card like the activity cards below it. */
+.act-week { margin: 0.5rem 0.75rem 0; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.act-week-head { margin: 0 0 0.35rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.act-week-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); gap: 0.4rem 0.75rem; margin: 0; }
+.act-week-stats dt { font-size: 0.75rem; color: var(--muted); }
+.act-week-stats dd { margin: 0; font-weight: 600; color: var(--fg-strong); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.act-week-stats .act-share { color: var(--attn); }
+
 /* Activity tab, card style like Tasks (redesign 2026-10-04). */
 .act-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; }
 .small-select { font-size: 0.8rem; padding: 0.15rem 0.35rem; max-width: 10rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); }
