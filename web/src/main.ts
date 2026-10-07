@@ -719,7 +719,7 @@ function wire(shell: HTMLElement): void {
     },
     "new-chat": (el) => store.set({
       activeChatId: undefined, messages: [], pane: "main", chatMenuId: undefined, section: "chat",
-      activeProjectId: el.dataset.project ?? store.get().activeProjectId,
+      activeProjectId: el.dataset.project ?? undefined,
     }),
     project: (el) => {
       const id = el.dataset.id ?? "";
