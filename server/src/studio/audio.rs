@@ -124,8 +124,7 @@ async fn begin(s: &AppState, b: Make, user_id: &str) -> ApiResult<(String, impl 
     let params = json!({"prompt": prompt, "lyrics": if k.kind == "music" { json!(lyrics) } else { Value::Null }, "seconds": seconds, "seed": seed});
     let models = json!([{"file": if k.kind == "music" { "HeartMuLa" } else { "MOSS-SoundEffect" }, "licence": "Apache-2.0"}]);
     
-    let params_bytes = serde_json::to_vec(&params).map_err(|e| ApiError::BadRequest(format!("serialize params: {}", e)))?;
-    let models_bytes = serde_json::to_vec(&models).map_err(|e| ApiError::BadRequest(format!("serialize models: {}", e)))?;
+
     
     sqlx::query(
         r#"INSERT INTO studio_run (id, workflow, gpu, user_id, params, models, state, started_at) VALUES (?, ?, ?, ?, ?, ?, 'running', ?)"#
@@ -134,8 +133,8 @@ async fn begin(s: &AppState, b: Make, user_id: &str) -> ApiResult<(String, impl 
     .bind(k.kind)
     .bind(&gpu)
     .bind(user_id)
-    .bind(&params_bytes)
-    .bind(&models_bytes)
+    .bind(params.to_string())
+    .bind(models.to_string())
     .bind(util::now())
     .execute(&s.db)
     .await.map_err(ApiError::from)?;
