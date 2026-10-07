@@ -28,6 +28,13 @@ let soucouyantMode: import("../views/capabilities").GpuModeName = "auto";
 let soucouyantStopped = false;
 /** GPU-03: "Studio runs on" in the demo. */
 let studioTarget = "auto";
+/** CHAT-03b: knowledge collections of the demo user. */
+const knowledgeCols: import("../views/knowledge").KCollection[] = [
+  { id: "kc-godot", name: "Godot Assistant", source: "openwebui", docs: 412, chunks: 1830, vectors: 1208, projects: [],
+    documents: [{ id: 1, name: "classes/class_timer.md", chars: 5210, addedAt: ago(60 * 30) }, { id: 2, name: "tutorials/signals.md", chars: 9120, addedAt: ago(60 * 30) }] },
+  { id: "kc-notes", name: "Game notes", source: "app", docs: 2, chunks: 5, vectors: 5, projects: ["p-kk"],
+    documents: [{ id: 3, name: "combat-design.md", chars: 3400, addedAt: ago(90) }, { id: 4, name: "level-ideas.pdf", chars: 2100, addedAt: ago(30) }] },
+];
 /** STU-01: the demo's Studio library (newest first). */
 const demoPic = (hue: number) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="hsl(${hue} 60% 45%)"/><circle cx="48" cy="40" r="18" fill="#f4eefc"/></svg>`);
 const studioRuns: import("../views/studio").StudioRun[] = [
@@ -549,6 +556,50 @@ export class MockApi implements KompanionApi {
       if (mode === "gaming") soucouyantStopped = true;
     }
     this.emit({ type: "changed", what: "gpus" });
+  }
+  async knowledge() {
+    return { collections: structuredClone(knowledgeCols) };
+  }
+  async createKnowledge(name: string) {
+    const c = knowledgeCols.find((k) => k.name === name);
+    if (c) return { id: c.id, name: c.name };
+    const newCol: import("../views/knowledge").KCollection = { id: `kc-${++seq}`, name, source: "app", docs: 0, chunks: 0, vectors: 0, projects: [], documents: [] };
+    knowledgeCols.push(newCol);
+    knowledgeCols.sort((a, b) => a.name.localeCompare(b.name));
+    return { id: newCol.id, name };
+  }
+  async deleteKnowledge(id: string) {
+    const i = knowledgeCols.findIndex((k) => k.id === id);
+    if (i >= 0) knowledgeCols.splice(i, 1);
+  }
+  async setKnowledgeProjects(id: string, projects: string[]) {
+    const c = knowledgeCols.find((k) => k.id === id);
+    if (c) c.projects = projects;
+  }
+  async uploadKnowledge(id: string, file: File, onProgress: (pct: number) => void) {
+    const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+    if (!["md", "markdown", "txt", "text", "html", "htm", "pdf", "rst", "csv", "json"].includes(ext)) throw new Error(`unsupported file type: ${ext}`);
+    const c = knowledgeCols.find((k) => k.id === id);
+    if (!c) throw new Error("Not found.");
+    onProgress(50);
+    await new Promise((r) => setTimeout(r, 150));
+    onProgress(100);
+    const doc = { id: ++seq, name: file.name, chars: file.size, addedAt: new Date().toISOString() };
+    c.documents.unshift(doc);
+    c.docs += 1;
+    c.chunks += 1;
+    return { id: doc.id, name: doc.name, chunks: 1 };
+  }
+  async deleteKnowledgeDoc(id: string, doc: number) {
+    const c = knowledgeCols.find((k) => k.id === id);
+    if (c) {
+      const i = c.documents.findIndex((d) => d.id === doc);
+      if (i >= 0) {
+        c.documents.splice(i, 1);
+        c.docs = Math.max(0, c.docs - 1);
+        c.chunks = Math.max(0, c.chunks - 1);
+      }
+    }
   }
   async getCapabilities() {
     return {

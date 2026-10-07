@@ -150,6 +150,33 @@ export class HttpApi implements KompanionApi {
   }
   listActivity() { return this.request<import("../views/activity").ActivityItem[]>("GET", "/activity"); }
   getCapabilities() { return this.request<import("../views/capabilities").Capabilities>("GET", "/capabilities"); }
+  knowledge() { return this.request<{ collections: import("../views/knowledge").KCollection[] }>("GET", "/knowledge"); }
+  createKnowledge(name: string) { return this.request<{ id: string; name: string }>("POST", "/knowledge", { name }); }
+  deleteKnowledge(id: string) { return this.request<void>("DELETE", `/knowledge/${encodeURIComponent(id)}`); }
+  setKnowledgeProjects(id: string, projects: string[]) { return this.request<void>("PUT", `/knowledge/${encodeURIComponent(id)}/projects`, { projects }); }
+  uploadKnowledge(id: string, file: File, onProgress: (pct: number) => void): Promise<{ id: number; name: string; chunks: number }> {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${this.base}/api/knowledge/${encodeURIComponent(id)}/docs?name=${encodeURIComponent(file.name)}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("X-Kompanion", "1");
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    return new Promise((resolve, reject) => {
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress(100);
+          try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new ApiError("The server answered " + xhr.status + ".", xhr.status)); }
+        } else {
+          let message = `The server answered ${xhr.status}.`;
+          try { message = (JSON.parse(xhr.responseText) as { error: string }).error ?? message; } catch { /* not JSON */ }
+          reject(new ApiError(message, xhr.status));
+        }
+      };
+      xhr.onerror = () => reject(new ApiError("The upload failed: the server could not be reached.", 0));
+      xhr.send(file);
+    });
+  }
+  deleteKnowledgeDoc(id: string, doc: number) { return this.request<void>("DELETE", `/knowledge/${encodeURIComponent(id)}/docs/${doc}`); }
   async studioTypes() {
     const all = await this.request<{ name: string; problems?: string[]; face?: boolean; params?: { name: string; choices?: string[]; adult?: string[] }[]; studio?: { label: string; hint: string; sizes: string[]; order: number } | null }[]>("GET", "/studio/workflows");
     return all.filter((w) => w.studio).map((w): import("../views/studio").StudioType => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order, warning: w.problems?.length ? w.problems.join("; ") : undefined, ratings: w.params?.find((p) => p.name === "rating")?.choices, adultRatings: w.params?.find((p) => p.name === "rating")?.adult, face: !!w.face }))

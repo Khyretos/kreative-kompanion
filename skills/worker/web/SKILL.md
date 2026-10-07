@@ -32,4 +32,6 @@ extends: worker/web/SKILL
     object (`items.map((x) => x.id === id ? { ...x, done: true } : x)`), or keyed updates miss it.
 43. (2026-10-04) Union-typed fields in helper return types: use `Pick<Type, "a" | "b">`, not `string`.
 46. (2026-10-04) Boolean attributes in `html` templates: `${x ? "selected" : ""}`, never `${String(x)}`.
+113. (2026-10-07) Arrays of `html` pieces go into a template as they are: never `.join("")` (the string is escaped and shows as markup). Values per item are computed inside the `map` callback, not as functions used like arrays (CHAT-03b).
+114. (2026-10-07) A `<details>` that must stay open across `mount()` re-renders: read the DOM's open state when rendering; the toggle event is async and lost when the element is replaced first (CHAT-03b).
     Use only icon names that exist in `views/icons.ts`. One small function per template branch.

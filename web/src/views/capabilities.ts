@@ -284,7 +284,7 @@ function group(key: string, title: string, items: SafeHtml[], empty: string): Sa
   `;
 }
 
-export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu[], range: 1 | 24 = 1, gpus = true): SafeHtml {
+export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu[], range: 1 | 24 = 1, gpus = true, knowledge: SafeHtml | string = ""): SafeHtml {
   if (c === undefined) {
     return html`
       <div class="caps">
@@ -322,7 +322,8 @@ export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu
       ${group("computers", "Computers", computers, "No computer is paired yet.")}
       ${group("tools", "Tools", tools, "No tools found.")}
       ${group("mcp", "MCP servers", mcp, "No MCP servers yet.")}
-      ${group("indexes", "Knowledge indexes", indexes, "No indexes yet.")}
+      ${knowledge}
+      ${group("indexes", "Search indexes", indexes, "No indexes yet.")}
       ${group("skills", "Skills", skills, "No skills found.")}
     </div>
   `;

@@ -95,6 +95,12 @@ pub const WEB: &str = "Web";
 /// CHAT-03: the built-in knowledge search's name in a chat's tool list.
 pub const KNOWLEDGE: &str = "Knowledge";
 
+/// CHAT-03b: the query's embedding for the knowledge search; None when the Embedder is not there.
+async fn knowledge_vector(s: &AppState, q: &str) -> Option<Vec<f32>> {
+    let ai = crate::assets::ai::Ai::from_env(s.http.clone());
+    tokio::time::timeout(Duration::from_secs(10), crate::assets::ai::embed_query(&ai, q)).await.ok().flatten()
+}
+
 async fn web_call(http: &reqwest::Client, w: &crate::config::SearchConfig, tool: &str, args: &Value) -> anyhow::Result<String> {
     match tool {
         "web_search" => crate::web::web_search(http, w.searxng_url.as_deref().unwrap_or(""), args["query"].as_str().unwrap_or("")).await,
@@ -110,7 +116,7 @@ pub async fn run(
     convo: &[Value],
     servers: &[McpServerConfig],
     web: Option<&crate::config::SearchConfig>,
-    knowledge: Option<&str>,
+    knowledge: Option<(&str, Option<&str>)>,
     files: Option<(&std::path::Path, &str)>,
     on_use: &(dyn Fn(&ToolUse) + Send + Sync),
 ) -> Vec<ToolUse> {
@@ -127,7 +133,7 @@ pub async fn run(
         tools.push((WEB.to_string(), crate::web::tools()));
     }
     
-    if let Some(uid) = knowledge {
+    if let Some((uid, _)) = knowledge {
         let names: Vec<String> = crate::knowledge::collections(&s.db, uid).await.unwrap_or_default().into_iter().map(|c| c.0).collect();
         if !names.is_empty() {
             tools.push((KNOWLEDGE.to_string(), crate::knowledge::tools(&names)));
@@ -167,7 +173,7 @@ pub async fn run(
                     None => "error: web search is not set up".to_string(),
                 },
                 Some((srv, _)) if srv == KNOWLEDGE => match knowledge {
-                    Some(uid) => match crate::knowledge::search(&s.db, uid, args["query"].as_str().unwrap_or(""), args["collection"].as_str().filter(|c| !c.is_empty()), 8).await {
+                    Some((uid, project)) => match crate::knowledge::search(&s.db, uid, args["query"].as_str().unwrap_or(""), knowledge_vector(s, args["query"].as_str().unwrap_or("")).await.as_deref(), args["collection"].as_str().filter(|c| !c.is_empty()), project, 8).await {
                         Ok(hits) => crate::knowledge::hits_text(&hits),
                         Err(e) => format!("error: {e}"),
                     },
