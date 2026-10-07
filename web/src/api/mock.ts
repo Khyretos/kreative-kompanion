@@ -6,8 +6,14 @@ import type { KompanionApi, Lesson, ServerEvent } from "./client";
 import type { PcAction } from "./client";
 import type { TaskState, AdminSettings, DaySummary, MachineStats, Chat, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task } from "./types";
 
+const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 const grants: Record<string, GrantView[]> = {
-  soucouyant: [{ target: "/home/kees/projects/kompanion", rights: ["read", "write"], grantedBy: "demo", grantedAt: "2026-10-01T10:00:00Z", expires: null }],
+  // ACC-01: a permanent folder grant, a system grant ending soon (root) and one that ended yesterday.
+  soucouyant: [
+    { target: "/home/kees/projects/kompanion", rights: ["read", "write"], grantedBy: "demo", grantedAt: "2026-10-01T10:00:00Z", expires: null },
+    { target: "system", rights: ["packages", "root"], grantedBy: "demo", grantedAt: hoursFromNow(-21), expires: hoursFromNow(3) },
+    { target: "/home/kees/old-notes", rights: ["read"], grantedBy: "demo", grantedAt: hoursFromNow(-48), expires: hoursFromNow(-24) },
+  ],
 };
 const actions: PcAction[] = [];
 const projectAssets: Record<string, import("../views/projectpanel").ProjectAsset[]> = {};
@@ -346,6 +352,17 @@ export class MockApi implements KompanionApi {
       history.unshift({ at: new Date().toISOString(), kind: "revoked", target, detail: null, machine: machineId });
       this.emit({ type: "changed", what: "access", machineId });
     }, 400);
+  }
+  async renewGrant(machineId: string, target: string, expiresHours: number | null) {
+    setTimeout(() => {
+      const g = (grants[machineId] ?? []).find((x) => x.target === target);
+      if (!g) return;
+      const was = g.expires;
+      g.expires = expiresHours ? new Date(Date.now() + expiresHours * 3_600_000).toISOString() : null;
+      g.grantedAt = new Date().toISOString();
+      history.unshift({ at: g.grantedAt, kind: "renewed", target, detail: `${was ?? "permanent"} -> ${g.expires ?? "permanent"}`, machine: machineId });
+      this.emit({ type: "changed", what: "access", machineId });
+    }, 300);
   }
   async accessHistory() { return structuredClone(history); }
   async getAdmin() { return { settings: structuredClone(adminSettings), smtpPasswordSet: false }; }
@@ -700,7 +717,9 @@ export class MockApi implements KompanionApi {
     if (decision === "deny") { step("denied", null, 0); return; }
     step("granting", null, 0);
     if (decision === "always") {
-      (grants[a.machineId] ??= []).push({ target: "system", rights: ["packages", "root"], grantedBy: "demo",
+      // One grant per target, like the runner (ACC-01: the demo already has a system grant).
+      grants[a.machineId] = (grants[a.machineId] ?? []).filter((g) => g.target !== "system");
+      grants[a.machineId].push({ target: "system", rights: ["packages", "root"], grantedBy: "demo",
         grantedAt: new Date().toISOString(), expires: new Date(Date.now() + 86_400_000).toISOString() });
       this.emit({ type: "changed", what: "access", machineId: a.machineId });
     }

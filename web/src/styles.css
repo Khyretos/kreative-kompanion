@@ -302,8 +302,25 @@ li.task.dragging { opacity: 0.5; }
 .grant-add input[type="text"], .grant-add input:not([type]) { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.4rem 0.6rem; color: var(--fg); }
 .chip.refused { color: var(--bad); }
 .grants, .access-history { display: grid; gap: 0.4rem; }
-.grant-row { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.5rem; align-items: center; }
-.grant-row code { word-break: break-all; }
+.grant-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; padding: 0.5rem 0.6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.grant-row code { flex: 1 1 100%; word-break: break-all; color: var(--fg-strong); }
+.grant-when { flex: 1 1 100%; }
+.grant-row .chip.root { color: var(--bad); border-color: var(--bad); font-weight: 600; }
+.chip.permanent { color: var(--attn); border-color: var(--attn); }
+.grant-renew { margin-left: auto; }
+.grant-renew > summary { cursor: pointer; font-size: 0.8rem; color: var(--link); list-style: none; }
+.grant-renew-list { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+.grants-expired { margin-top: 0.4rem; }
+.grants-expired > summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); }
+.grants-old { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.3rem; }
+.grant-row.expired { opacity: 0.7; }
+.access-summary ul { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.25rem; }
+.access-summary li { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: baseline; }
+.perm-dialog { max-width: min(30rem, calc(100vw - 2rem)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--fg); padding: 1rem 1.25rem; }
+.perm-dialog::backdrop { background: var(--scrim); }
+.perm-dialog h2 { font-size: 1.05rem; margin: 0 0 0.5rem; color: var(--fg-strong); }
+.perm-dialog .row { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
+.perm-check { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.5rem; font-weight: 600; }
 .grant-rights { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .server-logo { width: 1.75rem; height: 1.75rem; flex: none; }
 .server small { display: flex; align-items: center; gap: 0.35rem; }

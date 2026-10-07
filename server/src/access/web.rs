@@ -175,6 +175,61 @@ pub async fn add_grant(
     Ok(StatusCode::ACCEPTED)
 }
 
+/// True when the runner would keep `old` instead of `new` (see Grants::add on the runner).
+pub fn needs_revoke(old: Option<&str>, new: Option<&str>) -> bool {
+    match (old, new) {
+        (Some(_), None) => true,
+        (Some(o), Some(n)) => n < o,
+        _ => false,
+    }
+}
+
+pub async fn renew_grant(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>, Json(b): Json<RenewBody>) -> ApiResult<StatusCode> {
+    owned(&s, &id, &u).await?;
+
+    let row: Option<(String, Option<String>)> = sqlx::query_as("SELECT rights, expires FROM machine_grants WHERE machine_id = ? AND target = ?")
+        .bind(&id)
+        .bind(&b.target)
+        .fetch_optional(&s.db)
+        .await?;
+    let Some((rights, old_expires)) = row else { return Err(ApiError::NotFound) };
+    let old = old_expires.filter(|e| !e.is_empty());
+    let rights: Vec<String> = serde_json::from_str(&rights).unwrap_or_default();
+
+    let new = match b.expires_hours {
+        Some(h) if !(1..=720).contains(&h) => return Err(ApiError::BadRequest("Expiry must be between 1 hour and 30 days.".to_string())),
+        Some(h) => Some(util::in_hours(h)),
+        None => None,
+    };
+
+    if needs_revoke(old.as_deref(), new.as_deref()) {
+        super::runner::queue_job(&s.db, &id, &u.id, &json!({"tool": "revoke_grant", "target": b.target}), None).await?;
+    }
+
+    let mut grant = json!({"target": b.target, "rights": rights, "granted_by": u.name, "granted_at": util::now()});
+    if let Some(e) = &new { grant["expires"] = e.clone().into(); }
+    super::runner::queue_job(&s.db, &id, &u.id, &json!({"tool": "add_grant", "grant": grant}), None).await?;
+
+    sqlx::query("INSERT INTO access_log (machine_id, user_id, at, kind, target, detail) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(&id)
+        .bind(&u.id)
+        .bind(&util::now())
+        .bind("renewed")
+        .bind(&b.target)
+        .bind(format!("{} -> {}", old.as_deref().unwrap_or("permanent"), new.as_deref().unwrap_or("permanent")))
+        .execute(&s.db)
+        .await?;
+
+    Ok(StatusCode::ACCEPTED)
+}
+
+#[derive(Deserialize)]
+pub struct RenewBody {
+    pub target: String,
+    #[serde(default)]
+    pub expires_hours: Option<i64>,
+}
+
 pub async fn history(
     State(s): State<AppState>,
     Extension(u): Extension<User>,
@@ -216,3 +271,7 @@ mod tests {
         assert!(!valid_grant("/home/k", &[]));
     }
 }
+
+#[cfg(test)]
+#[path = "renew_tests.rs"]
+mod renew_tests;

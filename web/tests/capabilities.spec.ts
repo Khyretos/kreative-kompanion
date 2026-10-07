@@ -48,7 +48,9 @@ test.describe("Capabilities", () => {
     await row.locator('[data-action="grant-revoke"]').click();
     await expect(row).toHaveCount(0);
     await openCapabilities(page);
-    await expect(pc.locator(".task-step")).toHaveText("No grants: every step asks first");
+    // ACC-01: the demo also has a system grant and an expired one, so check the revoked folder is gone.
+    await expect(pc.locator(".task-step")).not.toContainText("/home/kees/projects/kompanion");
+    await expect(pc.locator(".task-step")).toContainText("system (packages, root)");
   });
 
   test("a skill opens read-only and closes with Escape, × and an outside click", async ({ page }) => {

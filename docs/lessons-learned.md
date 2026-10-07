@@ -164,3 +164,5 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | STU-02b CSS | Coder | Appended `.studio-sent { display: block; }` etc.: one empty-ish rule per selector needle | Needle declarations or append plain CSS yourself | `general/orchestrator/prompting-workers` 97 |
 | STU-02b run card | Coder | Prose "add the chip and the menu" became chip OR menu; the test sending twice caught it | Condition as code + behaviour in the check | `general/orchestrator/prompting-workers` 98 |
 | STU-02b run card | Claude | chk.py kept the space before `)` of a wrapped signature, so 3 fix rounds chased a correct draft | chk.py drops whitespace before closing brackets | `tools/qwen/chk.py` |
+| ACC-01 renew | Claude | access_log kind 'renewed' broke the table's CHECK (500); the temp-server test caught it; the first rebuild missed the new migration | Migration 0116; touch the migrate! file after adding a migration | `general/orchestrator/prompting-workers` 99 |
+| ACC-01 access list | Claude | Live re-render (machines poll) closed every open <details>; only a wait-7-s test showed it | Remember open keys and render them open | `worker/web` (ACC-01 test) |

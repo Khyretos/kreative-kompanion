@@ -24,9 +24,9 @@ test.describe("Live updates without reload", () => {
     const targetText = "/home/kees/projects/kompanion";
     
     await page.click('[data-action="tab"][data-tab="access"]');
-    await expect(page.locator('li.grant-row')).toContainText(targetText);
+    await expect(page.locator('li.grant-row', { hasText: targetText })).toHaveCount(1);
 
-    await page.click(`[data-action="grant-revoke"]`);
+    await page.locator('li.grant-row', { hasText: targetText }).locator('[data-action="grant-revoke"]').click();
     
     await expect(page.locator('li.grant-row.pending', { hasText: targetText })).toBeVisible({ timeout: 300 });
     await expect(page.locator('li.grant-row', { hasText: targetText })).toHaveCount(0);
