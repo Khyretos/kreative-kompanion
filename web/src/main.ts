@@ -322,7 +322,7 @@ function render(s: AppState, prev: AppState): void {
         <p class="muted">Describe it, pick a type and a size; Kompanion picks the GPU.</p></div></header>
       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
     if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight));
-    if (changed(s, prev, ["studioTypes", "studioRuns", "section"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns));
+    if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent));
   }
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
@@ -698,6 +698,21 @@ function wire(shell: HTMLElement): void {
       }
     },
     "studio-face-clear": () => { studioFace = undefined; store.set({ studioForm: { ...store.get().studioForm } }); },
+    // STU-02b: a finished Studio result becomes an asset of the chosen project.
+    "studio-send": async (el) => {
+      const run = el.dataset.run ?? "";
+      const project = el.dataset.project ?? "";
+      const name = store.get().projects.find((p) => p.id === project)?.name ?? project;
+      try {
+        await api.studioToAssets(run, project);
+      } catch (e) {
+        showError(e);
+        return;
+      }
+      const sent = { ...store.get().studioSent };
+      sent[run] = [...new Set([...(sent[run] ?? []), name])];
+      store.set({ studioSent: sent });
+    },
     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
     // A finished image, large, in a dialog that closes on Escape or a click.
     "studio-open": (el) => {

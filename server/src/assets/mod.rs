@@ -3,7 +3,7 @@
 //! admin can start a scan. Pack files are listed from their index, never unpacked.
 
 pub mod ai;
-mod classify;
+pub(crate) mod classify;
 mod files;
 mod games;
 mod scenes;
@@ -445,10 +445,16 @@ async fn detail(State(s): State<AppState>, Path(id): Path<i64>) -> ApiResult<Jso
             .fetch_all(&s.db)
             .await?;
     let licence = games::licence_of_pack(&s.db, pack_id).await?;
+    // STU-02b: NULL for files a scan found; fetch_one with Option<String> decodes the NULL.
+    let provenance: Option<String> = sqlx::query_scalar("SELECT provenance FROM asset WHERE id = ?")
+        .bind(id)
+        .fetch_one(&s.db)
+        .await?;
     let used_in = scenes::used_in(&s.db, id).await?;
     let mut out = item_json(item);
     let extra = json!({
         "licence": licence,
+        "provenance": provenance.and_then(|p| serde_json::from_str::<serde_json::Value>(&p).ok()),
         "usedIn": used_in,
         "packKind": pack_kind, "mtime": mtime, "rule": rule, "missingSince": missing, "sampleRate": rate,
         "channels": channels, "hasAlpha": alpha, "previewState": state, "previewError": error,

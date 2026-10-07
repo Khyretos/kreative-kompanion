@@ -34,13 +34,33 @@ export function renderStudioMake(types: StudioType[] | undefined, form: StudioFo
   </section>`;
 }
 
-export function renderStudioLibrary(types: StudioType[] | undefined, runs: StudioRun[] | undefined): SafeHtml {
+export function renderStudioLibrary(
+  types: StudioType[] | undefined,
+  runs: StudioRun[] | undefined,
+  projects: { id: string; name: string }[],
+  sent: Record<string, string[]>
+): SafeHtml {
   const label = (name: string) => types?.find((t) => t.name === name)?.label ?? name;
-  const list = runs === undefined ? html`<p class="muted small">Loading your results…</p>` : runs.length === 0 ? html`<p class="muted small">Nothing yet. What you make appears here as soon as it is ready.</p>` : html`<ul class="studio-runs">${runs.map((r) => runCard(r, label(r.type)))}</ul>`;
-  return html`<section class="studio-library" aria-labelledby="studio-lib-h"><h2 id="studio-lib-h" class="label">Your results</h2>${list}</section>`;
+  const list =
+    runs === undefined
+      ? html`<p class="muted small">Loading your results…</p>`
+      : runs.length === 0
+        ? html`<p class="muted small">Nothing yet. What you make appears here as soon as it is ready.</p>`
+        : html`<ul class="studio-runs">
+            ${runs.map((r) => runCard(r, label(r.type), projects, sent[r.id] ?? []))}
+          </ul>`;
+  return html`<section class="studio-library" aria-labelledby="studio-lib-h">
+    <h2 id="studio-lib-h" class="label">Your results</h2>
+    ${list}
+  </section>`;
 }
 
-function runCard(r: StudioRun, typeLabel: string): SafeHtml {
+export function runCard(
+  r: StudioRun,
+  typeLabel: string,
+  projects: { id: string; name: string }[],
+  sentTo: string[]
+): SafeHtml {
   const isAudio = r.type === "music" || r.type === "sfx";
   const what = isAudio ? `${r.seconds ?? "?"} s` : SIZE_LABELS[r.size] ?? r.size;
   let pictures: SafeHtml;
@@ -55,5 +75,9 @@ function runCard(r: StudioRun, typeLabel: string): SafeHtml {
   } else {
     pictures = html`<div class="studio-pics">${r.files.map((src) => html`<button type="button" class="studio-thumb" data-action="studio-open" data-src="${src}"><img src="${src}" alt="${typeLabel}: ${r.prompt}" loading="lazy"></button>`)}</div>`;
   }
-  return html`<li class="studio-run s-${r.state}">${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p></li>`;
+  const sent = sentTo.length > 0 ? html`<span class="chip studio-sent">In Assets: ${sentTo.join(", ")}</span>` : "";
+  const menu = r.state === "done" && projects.length > 0
+    ? html`<details class="studio-send"><summary>Send to Assets</summary><div class="studio-send-list" role="group" aria-label="Send to which project">${projects.map((p) => html`<button type="button" class="btn small" data-action="studio-send" data-run="${r.id}" data-project="${p.id}">${p.name}</button>`)}</div></details>`
+    : "";
+  return html`<li class="studio-run s-${r.state}">${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p>${sent}${menu}</li>`;
 }

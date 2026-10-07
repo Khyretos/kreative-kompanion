@@ -53,6 +53,14 @@ export interface AssetDetail extends AssetItem {
   tags: AssetTag[];
   copies: { id: number; container: string; path: string }[];
   packDocs: { id: number; path: string }[];
+  /** STU-02b: where a Studio result came from; null for library files. */
+  provenance?: StudioProvenance | null;
+}
+
+export interface StudioProvenance {
+  source: string; workflow: string; gpu: string; created: string | null;
+  params: { prompt?: string; seed?: number; [k: string]: unknown } | null;
+  models: { file: string; licence: string }[];
 }
 
 export interface ScanProgress {

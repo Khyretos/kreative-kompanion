@@ -10,6 +10,7 @@ pub mod audio;
 pub mod service;
 pub mod facetags;
 pub mod import;
+pub mod to_assets;
 
 use crate::{
     AppState,
@@ -40,6 +41,8 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/audio", post(audio::make))
         .route("/studio/mine", get(team::mine))
         .route("/studio/runs/{id}/files/{n}", get(team::file))
+        // STU-02b: a finished result becomes an asset of one of the user's projects.
+        .route("/studio/runs/{id}/to-assets", post(to_assets::send))
         .route("/studio/target/service", get(target::service_read).put(target::service_set))
         // KS-01: Kreative Studio's jobs, on behalf of a studio user (auth::guard maps the user).
         .route("/studio/service/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))

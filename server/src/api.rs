@@ -727,7 +727,7 @@ pub async fn delete_chat(
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn owns(s: &AppState, table: &str, id: &str, u: &User) -> ApiResult<bool> {
+pub(crate) async fn owns(s: &AppState, table: &str, id: &str, u: &User) -> ApiResult<bool> {
     let sql = match table {
         "projects" => "SELECT 1 FROM projects WHERE id = ? AND user_id = ?",
         "chats" => "SELECT 1 FROM chats WHERE id = ? AND user_id = ?",

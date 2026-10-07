@@ -498,6 +498,11 @@ export class MockApi implements KompanionApi {
     return { ids: made.map((m) => m.id) };
   }
   async studioMine() { return structuredClone(studioRuns); }
+  async studioToAssets(runId: string, project: string, _n = 0) {
+    const r = studioRuns.find((x) => x.id === runId);
+    if (!r || r.state !== "done") throw new Error("Only a finished result can go to Assets.");
+    return { assetId: 9000, project, name: r.files[0] ?? "" };
+  }
   async studioAudio(kind: "music" | "sfx", prompt: string, _lyrics: string, seconds: number) {
     const run = { id: id("sr"), type: kind, gpu: "rx9070", prompt, size: "square", seconds, state: "running" as const, error: null, files: [] as string[], startedAt: new Date().toISOString(), endedAt: null as string | null };
     studioRuns.unshift(run);
