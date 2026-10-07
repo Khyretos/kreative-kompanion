@@ -85,6 +85,35 @@ asks the local Ollama to unload its models; nothing else. It also reports when
 a game runs (a `gamescope` process, or a Steam game started through
 `reaper SteamLaunch`), so Kompanion can switch the apps off by itself.
 
+## 6. The server's own computer (HOST-01)
+
+The computer that runs the Kompanion server can get its runner without copying
+code from the web page. After `docker compose up -d` and creating the first
+account, run this on the host as your normal user:
+
+```sh
+sh tools/install-host.sh --url https://kompanion.example
+```
+
+It asks whether Kompanion is your personal app on this PC or a service for
+several people and computers, then whether Kompanion may also act on this
+computer. Personal installs default to yes, services to no. Yes gets a one-time
+code with `docker exec kreative-kompanion kompanion-server pair-host` and runs
+the runner installer with it; the runner starts with no rights until you grant
+them in Access. No (or `--runner no`) installs nothing.
+
+Use `--mode personal|service`, `--runner yes|no` and `--container <name>` to
+skip the questions. The runner pairs under the server's `machine_name` in
+`kompanion.toml`. Machines shows ONE card for this computer, marked "this
+server", with the server's stats and the runner's grants. An existing pairing
+with that name merges the same way. Without a runner the built-in server card
+stays. Machines > Pair also offers "This server's computer" with the one
+command to run there.
+
+Security note: the container never installs or starts anything on the host by
+itself (no Docker socket or host home in the container); this script runs on
+the host, by you.
+
 ## What it reads
 
 `/proc/stat`, `/proc/meminfo`, `/proc/uptime`, `/proc/loadavg`, the root
