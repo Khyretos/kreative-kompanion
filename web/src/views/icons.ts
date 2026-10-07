@@ -31,6 +31,7 @@ const paths: Record<string, string> = {
   copy: "M9 9h11v11H9zM5 15H4V4h11v1",
   mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3M9 21h6",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5",
+  alert: "M12 3.5l9 16H3zM12 10v4.5M12 17.2v.3",
   spark: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6",
 };
 
