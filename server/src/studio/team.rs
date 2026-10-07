@@ -35,6 +35,12 @@ pub struct Make {
     /// STU-01c: general, sensitive, questionable or explicit (types with a rating).
     #[serde(default)]
     rating: Option<String>,
+    /// KS-01: Kreative Studio's own seed (none: random).
+    #[serde(default)]
+    seed: Option<i64>,
+    /// KS-01: video frames (the workflow's "length" parameter).
+    #[serde(default)]
+    length: Option<i64>,
 }
 
 pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(Make, Option<(Vec<u8>, &'static str)>, f64)> {
@@ -55,7 +61,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
         .await
         .map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
 
-    let (mut kind, mut prompt, mut size, mut count, mut rating, mut face, mut weight) = (String::new(), String::new(), String::new(), 1u32, None::<String>, None::<(Vec<u8>, &'static str)>, 0.85f64);
+    let (mut kind, mut prompt, mut size, mut count, mut rating, mut seed, mut length, mut face, mut weight) = (String::new(), String::new(), String::new(), 1u32, None::<String>, None::<i64>, None::<i64>, None::<(Vec<u8>, &'static str)>, 0.85f64);
 
     while let Some(field) = form.next_field().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))? {
         let name = field.name().unwrap_or("").to_string();
@@ -88,6 +94,8 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
                             rating = Some(text);
                         }
                     }
+                    "seed" => seed = text.trim().parse().ok(),
+                    "length" => length = text.trim().parse().ok(),
                     "face_weight" => {
                         weight = text.parse().map_err(|_| crate::error::ApiError::BadRequest("The face weight must be a number.".into()))?;
                     }
@@ -97,7 +105,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
         }
     }
 
-    Ok((Make { kind, prompt, size, count, rating }, face, weight))
+    Ok((Make { kind, prompt, size, count, rating, seed, length }, face, weight))
 }
 
 /// POST /api/studio/make: generate images based on a workflow.
@@ -107,8 +115,9 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
     if text.is_empty() {
         return Err(ApiError::BadRequest("Describe what to make.".into()));
     }
-    if text.chars().count() > 500 {
-        return Err(ApiError::BadRequest("Keep the description under 500 characters.".into()));
+    // KS-01: Kreative Studio allows 2000 characters (its face tags come in front).
+    if text.chars().count() > 2000 {
+        return Err(ApiError::BadRequest("Keep the description under 2000 characters.".into()));
     }
 
     if b.count != 1 && b.count != 4 {
@@ -150,7 +159,10 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         params.insert("prompt".into(), json!(text));
         params.insert("width".into(), json!(w_px));
         params.insert("height".into(), json!(h_px));
-        params.insert("seed".into(), json!(-1));
+        params.insert("seed".into(), json!(b.seed.unwrap_or(-1)));
+        if let Some(l) = b.length {
+            params.insert("length".into(), json!(l));
+        }
         if let Some(r) = &b.rating {
             params.insert("rating".into(), json!(r));
         }

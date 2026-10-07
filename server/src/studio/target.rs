@@ -166,7 +166,7 @@ pub fn service_ok(expected: Option<&str>, headers: &axum::http::HeaderMap) -> bo
     crate::util::sha256_hex(given) == crate::util::sha256_hex(expected.unwrap())
 }
 
-async fn service_guard(s: &AppState, headers: &axum::http::HeaderMap) -> ApiResult<()> {
+pub(crate) async fn service_guard(s: &AppState, headers: &axum::http::HeaderMap) -> ApiResult<()> {
     s.throttle.check("studio-token")?;
     if service_ok(std::env::var(TOKEN_ENV).ok().as_deref(), headers) {
         Ok(())
