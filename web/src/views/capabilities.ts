@@ -116,7 +116,7 @@ export interface Capabilities {
   models: CapModel[];
   computers: CapComputer[];
   tools: CapTool[];
-  mcp: { name: string; status: string }[];
+  mcp: CapMcp[];
   indexes: CapIndex[];
   skills: CapSkill[];
 }
@@ -170,11 +170,16 @@ function toolCard(t: CapTool): SafeHtml {
   `;
 }
 
-function mcpCard(m: { name: string; status: string }): SafeHtml {
+/** CHAT-01: an MCP tool server from [[mcp]] in kompanion.toml: ok with its tools, down, or off. */
+export interface CapMcp { name: string; status: "ok" | "down" | "off"; description?: string | null; error?: string; tools: { name: string; description?: string | null }[] }
+
+function mcpCard(m: CapMcp): SafeHtml {
+  const state = m.status === "ok" ? "done" : m.status === "down" ? "failed" : "queued";
   return html`
-    <li class="task cap s-done">
+    <li class="task cap s-${state}">
       <div class="task-main">
-        ${capHead("link", m.name, m.status)}
+        ${capHead("link", m.name, m.status, m.description ?? undefined)}
+        ${capStep(m.status === "down" ? (m.error ?? "not reachable") : m.tools.length ? `${m.tools.length} tools: ${m.tools.map((t) => t.name).join(", ")}` : "No tools")}
       </div>
     </li>
   `;

@@ -345,7 +345,7 @@ pub async fn list(State(s): State<AppState>, Extension(u): Extension<User>) -> A
         "models": models(&s, &u.id).await?,
         "computers": computers(&s, &u.id).await?,
         "tools": tools(),
-        "mcp": [],
+        "mcp": crate::mcp::status(&s.http, &s.config.mcp).await,
         "gpus": crate::gpus::current(&s).await,
         "gpuRole": crate::gpus::role::current(),
         "gpuModes": crate::gpus::gaming::modes(&s).await,
