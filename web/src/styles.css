@@ -376,6 +376,28 @@ li.task.dragging { opacity: 0.5; }
 .composer:focus-within { border-color: var(--accent); }
 .composer textarea { border: 0; background: none; resize: none; max-height: 12.5rem; padding: 0.45rem 0.5rem; }
 .composer textarea:focus { border: 0; }
+/* CHAT-07: live markdown. The mirror paints the text; the textarea on top is transparent but keeps the caret.
+   Only colour, tint and underline: glyph widths must not change or the caret drifts. */
+.prompt-box { flex: 1; min-width: 0; position: relative; display: flex; }
+.prompt-box textarea { flex: 1; width: 100%; position: relative; }
+.prompt-box.lm-wrap textarea { color: transparent; caret-color: var(--fg); }
+.prompt-box.lm-wrap textarea::placeholder { color: var(--muted); }
+.lm-mirror {
+  position: absolute; inset: 0 auto auto 0; width: 100%; overflow: hidden; pointer-events: none;
+  padding: 0.45rem 0.5rem; box-sizing: border-box; border: 0; color: var(--fg);
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; font: inherit; letter-spacing: normal;
+}
+.lm-mark { color: var(--muted); }
+.lm-h { color: var(--link); text-shadow: 0 0 0.6px currentColor; }
+.lm-b { text-shadow: 0 0 0.7px currentColor; color: var(--fg-strong); }
+.lm-i { text-decoration: underline dotted; text-underline-offset: 3px; }
+.lm-s { text-decoration: line-through; color: var(--muted); }
+.lm-link { color: var(--link); text-decoration: underline; }
+.lm-code { background: var(--surface-2); border-radius: 3px; }
+.lm-fence { background: var(--surface-2); color: var(--fg); }
+.lm-quote { color: var(--muted); box-shadow: -3px 0 0 var(--accent); }
+.lm-li { color: var(--link); }
+.lm-row { background: var(--accent-soft); }
 .send { width: 2.5rem; padding: 0; flex: none; }
 /* .btn sets display, which beats the hidden attribute; keep hidden buttons hidden. */
 .btn[hidden] { display: none; }
