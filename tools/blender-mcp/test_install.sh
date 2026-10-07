@@ -7,7 +7,7 @@ T=$(mktemp -d); mkdir -p $T/bin $T/home
 printf '#!/bin/sh\necho "$@" >> %s/systemctl.log\n' "$T" > $T/bin/systemctl; chmod +x $T/bin/systemctl
 fail=0
 err() { echo "error: $F: $1"; fail=1; }
-OUT=$(HOME=$T/home PATH=$T/bin:$PATH sh $F --bind 10.0.0.5:9999 --blender "flatpak run org.blender.Blender" 2>&1) || err "exit code $? ($OUT)"
+OUT=$(HOME=$T/home PATH=$T/bin:$PATH sh $F --no-check --bind 10.0.0.5:9999 --blender "flatpak run org.blender.Blender" 2>&1) || err "exit code $? ($OUT)"
 D=$T/home/.local/share/kompanion/blender-mcp
 test -f $D/server.py && test -f $D/scene.py || err "server.py and scene.py not copied to ~/.local/share/kompanion/blender-mcp"
 E=$T/home/.config/kompanion/blender-mcp.env
@@ -26,7 +26,7 @@ grep -q '^--user enable --now kompanion-blender-mcp.service$' $T/systemctl.log 2
 echo "$OUT" | grep -q 'url = "http://10.0.0.5:9999/mcp"' || err "no [[mcp]] snippet with the url"
 echo "$OUT" | grep -q "$TOK" && err "the token was printed"
 # a second run keeps the token
-HOME=$T/home PATH=$T/bin:$PATH sh $F --bind 10.0.0.5:9999 --blender "flatpak run org.blender.Blender" >/dev/null 2>&1
+HOME=$T/home PATH=$T/bin:$PATH sh $F --no-check --bind 10.0.0.5:9999 --blender "flatpak run org.blender.Blender" >/dev/null 2>&1
 [ "$(sed -n 's/^BLENDER_MCP_TOKEN=//p' $E)" = "$TOK" ] || err "a second run changed the token"
 rm -rf $T
 [ $fail = 0 ] && echo "ALL PASS"

@@ -5,7 +5,7 @@ T=$(mktemp -d); mkdir -p $T/bin $T/home
 printf '#!/bin/sh\necho "$@" >> %s/systemctl.log\n' "$T" > $T/bin/systemctl; chmod +x $T/bin/systemctl
 fail=0
 err() { echo "error: $F: $1"; fail=1; }
-HOME=$T/home PATH=$T/bin:$PATH sh $F --on-demand --bind 10.0.0.5:9999 --blender "blender" >/dev/null 2>&1 || err "exit code $?"
+HOME=$T/home PATH=$T/bin:$PATH sh $F --no-check --on-demand --bind 10.0.0.5:9999 --blender "blender" >/dev/null 2>&1 || err "exit code $?"
 U=$T/home/.config/systemd/user
 grep -q '^ListenStream=10.0.0.5:9999$' $U/kompanion-blender-mcp.socket 2>/dev/null || err "socket: ListenStream=10.0.0.5:9999 missing"
 grep -q '^WantedBy=sockets.target$' $U/kompanion-blender-mcp.socket 2>/dev/null || err "socket: WantedBy=sockets.target missing"
