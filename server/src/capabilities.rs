@@ -340,12 +340,22 @@ pub async fn move_lesson(State(s): State<AppState>, Extension(u): Extension<User
     Ok(Json(json!({"to": first_sha, "from": second_sha})))
 }
 
+/// CHAT-01/02: the MCP servers, then the built-in web tools when [search] is set up.
+async fn mcp_and_web(s: &AppState) -> Vec<Value> {
+    let mut out = crate::mcp::status(&s.http, &s.config.mcp).await;
+    if s.config.search.searxng_url.is_some() {
+        let tools: Vec<Value> = crate::web::tools().iter().map(|t| json!({"name": t["name"], "description": t["description"]})).collect();
+        out.push(json!({"name": crate::chat_tools::WEB, "status": "ok", "description": "Web search (SearXNG) and page reading", "tools": tools}));
+    }
+    out
+}
+
 pub async fn list(State(s): State<AppState>, Extension(u): Extension<User>) -> ApiResult<Json<Value>> {
     Ok(Json(json!({
         "models": models(&s, &u.id).await?,
         "computers": computers(&s, &u.id).await?,
         "tools": tools(),
-        "mcp": crate::mcp::status(&s.http, &s.config.mcp).await,
+        "mcp": mcp_and_web(&s).await,
         "gpus": crate::gpus::current(&s).await,
         "gpuRole": crate::gpus::role::current(),
         "gpuModes": crate::gpus::gaming::modes(&s).await,

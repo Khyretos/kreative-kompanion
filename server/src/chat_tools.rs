@@ -83,13 +83,29 @@ pub fn results_note(uses: &[ToolUse]) -> String {
     format!("You looked these up with tools for this answer. Use them, and say where an answer comes from.\n\n{}", parts.join("\n\n"))
 }
 
-pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value], servers: &[McpServerConfig], on_use: &(dyn Fn(&ToolUse) + Send + Sync)) -> Vec<ToolUse> {
+/// CHAT-02: the built-in web tools' server name in a chat's tool list.
+pub const WEB: &str = "Web";
+
+async fn web_call(http: &reqwest::Client, w: &crate::config::SearchConfig, tool: &str, args: &Value) -> anyhow::Result<String> {
+    match tool {
+        "web_search" => crate::web::web_search(http, w.searxng_url.as_deref().unwrap_or(""), args["query"].as_str().unwrap_or("")).await,
+        "read_page" => crate::web::read_page(args["url"].as_str().unwrap_or(""), w.allow_private).await,
+        _ => anyhow::bail!("there is no tool {tool}"),
+    }
+}
+
+pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value], servers: &[McpServerConfig], web: Option<&crate::config::SearchConfig>, on_use: &(dyn Fn(&ToolUse) + Send + Sync)) -> Vec<ToolUse> {
     let mut tools = Vec::new();
     for srv in servers {
         if !srv.enabled { continue; }
         if let Ok(t) = crate::mcp::tools_cached(&s.http, srv).await {
             tools.push((srv.name.clone(), t));
         }
+    }
+    
+    if let Some(w) = web.filter(|w| w.searxng_url.is_some()) {
+        let _ = w;
+        tools.push((WEB.to_string(), crate::web::tools()));
     }
     
     if tools.is_empty() {
@@ -113,12 +129,23 @@ pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value],
             let args_str = call["function"]["arguments"].as_str().unwrap_or("{}");
             let args: Value = serde_json::from_str(args_str).unwrap_or_else(|_| json!({}));
             
-            let result = match map.get(&name).and_then(|(srv, tool)| servers.iter().find(|x| &x.name == srv).map(|cfg| (cfg, tool.clone()))) {
+            let result = match map.get(&name).cloned() {
                 None => format!("error: there is no tool {name}"),
-                Some((cfg, tool)) => match tokio::time::timeout(CALL_TIMEOUT, crate::mcp::call_tool(&s.http, cfg, &tool, &args)).await {
-                    Ok(Ok(text)) => text,
-                    Ok(Err(e)) => format!("error: {e}"),
-                    Err(_) => "error: the tool took too long".to_string(),
+                Some((srv, tool)) if srv == WEB => match web {
+                    Some(w) => match tokio::time::timeout(CALL_TIMEOUT, web_call(&s.http, w, &tool, &args)).await {
+                        Ok(Ok(text)) => text,
+                        Ok(Err(e)) => format!("error: {e}"),
+                        Err(_) => "error: the tool took too long".to_string(),
+                    },
+                    None => "error: web search is not set up".to_string(),
+                },
+                Some((srv, tool)) => match servers.iter().find(|x| x.name == srv) {
+                    None => format!("error: there is no tool {name}"),
+                    Some(cfg) => match tokio::time::timeout(CALL_TIMEOUT, crate::mcp::call_tool(&s.http, cfg, &tool, &args)).await {
+                        Ok(Ok(text)) => text,
+                        Ok(Err(e)) => format!("error: {e}"),
+                        Err(_) => "error: the tool took too long".to_string(),
+                    },
                 },
             };
             

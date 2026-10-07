@@ -47,6 +47,9 @@ pub struct Config {
     /// CHAT-01: `[[mcp]]` tool servers (MCP over streamable HTTP) for chats; none by default.
     #[serde(default, rename = "mcp")]
     pub mcp: Vec<McpServerConfig>,
+    /// CHAT-02: `[search]`: SearXNG for the built-in web_search and read_page chat tools; off when empty.
+    #[serde(default)]
+    pub search: SearchConfig,
     /// `[assets]`: the models the asset library uses for tags and search; empty = the worker role's provider and model.
     #[serde(default)]
     pub assets: AssetsConfig,
@@ -62,6 +65,16 @@ pub struct Config {
 }
 
 /// `[skills]`: how many tokens of skill cards a plan step gets on top of the role cores.
+/// CHAT-02: web search through a SearXNG instance (its JSON API) and page reading for chats.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SearchConfig {
+    #[serde(default)]
+    pub searxng_url: Option<String>,
+    /// read_page may fetch private and local addresses (off: only public ones).
+    #[serde(default)]
+    pub allow_private: bool,
+}
+
 /// CHAT-01: one MCP tool server. `token_env` names an environment variable (.env) with its
 /// bearer token; never the token itself.
 #[derive(Debug, Clone, Deserialize)]

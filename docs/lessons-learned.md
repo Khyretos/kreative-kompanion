@@ -172,3 +172,5 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | STU-R1 research doc | Coder | Stuffed needle words into one sentence; "Tested on: European Union"; animation verdict lost "slow" | Needle whole facts; review docs | `general/orchestrator/prompting-workers` 102 |
 | CHAT-01 config | Claude | McpServerConfig inserted inside Config's doc comment; the MCP client drafts failed on that compile error (and fix rounds duplicated the file) | cargo check after every hand edit | `general/orchestrator/prompting-workers` 103 |
 | CHAT-01 answer | Claude | Tool results pushed as a late system message: OVMS 400 ("busy or out of GPU memory") | Merge into the first system message | `general/worker/rust` 104 |
+| CHAT-02 web.rs | Claude | Needle `is_private(ip: std::net::IpAddr)` while the prompt imported IpAddr and wrote `ip: IpAddr`; 3 fix rounds then broke two correct functions | Lesson 95 again: needles copy the prompt's exact form | `general/orchestrator/prompting-workers` 95 |
+| CHAT-02 answer | Claude | Coder called a planned release "latest" from a releases page | Give today's date with tool results | `general/worker/rust` 104 |
