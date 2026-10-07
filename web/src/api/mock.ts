@@ -346,7 +346,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Stack Overflow", "Developer docs"], version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs"], mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}

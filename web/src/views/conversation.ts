@@ -205,16 +205,35 @@ export function effortChip(s: AppState): SafeHtml {
   </span>`;
 }
 
-/** CHAT-01: the Tools chip and its menu (MCP servers this chat may use); nothing when none are set up. */
-export function toolsChip(s: AppState): SafeHtml {
-  if (s.mcpServers.length === 0) return html``;
+const WEB = "Web";
+const TOOL_HINTS: Record<string, string> = {
+  Knowledge: "Your document collections (Capabilities > Knowledge, plus the Open WebUI ones): I search them and cite the file I used.",
+};
+
+/** UI-02: Web is a core feature, so it is its own chip; shown only when a search engine is set up. */
+export function webChip(s: AppState): SafeHtml {
+  if (!s.mcpServers.includes(WEB)) return html``;
   const chat = activeChat(s);
-  const on = (chat ? chat.mcp : s.draftMcp) ?? [];
+  const on = ((chat ? chat.mcp : s.draftMcp) ?? []).includes(WEB);
+  return html`<button class="chip web-chip" type="button" data-action="mcp-toggle" data-name="${WEB}" aria-pressed="${on ? "true" : "false"}"
+    title="Search the web and read pages before answering; answers cite their sources">Web ${on ? "on" : "off"}</button>`;
+}
+
+/** CHAT-01: the Tools chip and its menu (MCP servers this chat may use, each with a short description; Web has its own chip). */
+export function toolsChip(s: AppState): SafeHtml {
+  const names = s.mcpServers.filter((n) => n !== WEB);
+  if (names.length === 0) return html``;
+  const chat = activeChat(s);
+  const on = ((chat ? chat.mcp : s.draftMcp) ?? []).filter((n) => n !== WEB);
   const label = on.length ? `Tools: ${on.length}` : "Tools off";
   return html`<span class="tools">
     <button class="chip tools-chip" type="button" data-action="tools-menu" aria-haspopup="menu" aria-expanded="${s.toolsMenuOpen ? "true" : "false"}">${label} ▾</button>
     ${s.toolsMenuOpen ? html`<div class="menu tools-menu" role="menu" aria-label="Tools for this chat">
-      ${s.mcpServers.map((name) => html`<button role="menuitemcheckbox" aria-checked="${on.includes(name) ? "true" : "false"}" data-action="mcp-toggle" data-name="${name}">${name}</button>`)}
+      ${names.map((name) => {
+        const hint = TOOL_HINTS[name] ?? s.mcpInfo[name] ?? `Tools from the ${name} server, added to this chat.`;
+        return html`<button role="menuitemcheckbox" aria-checked="${on.includes(name) ? "true" : "false"}" data-action="mcp-toggle" data-name="${name}" title="${hint}">
+          <span class="effort-name">${name}</span><span class="effort-hint">${hint}</span></button>`;
+      })}
     </div>` : ""}
   </span>`;
 }
@@ -230,6 +249,7 @@ export function composer(): SafeHtml {
     <p class="composer-hint"><span class="hint-text">Enter sends, Shift+Enter adds a line.</span>
       <span id="voice-status" role="status"></span>
       <button class="btn small" type="button" id="voice-stop" data-action="voice-stop" hidden>Stop reading</button>
+      <span class="web-slot" id="web-slot"></span>
       <span class="tools-slot" id="tools-slot"></span>
       <span class="effort-slot" id="effort-slot"></span></p>`;
 }
