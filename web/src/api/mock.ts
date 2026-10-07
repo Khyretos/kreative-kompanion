@@ -588,7 +588,12 @@ export class MockApi implements KompanionApi {
         // CAP-02: long names and text, so the overflow test has something to wrap and clamp.
         { name: "gpu_apps_status_start_stop_unload_ollama_and_free_the_vram", description: "Start, stop or check a GPU app by its container name (ComfyUI, HeartMuLa, the sound effects app) on a computer with the GPU right, and unload Ollama's models first when a job needs the VRAM: /home/kees/.config/comfyui-rocm/compose.override.yml", needs: "gpu on the computer" },
       ],
-      mcp: [],
+      // CHAT-01: two tool servers in the demo, one of them down.
+      mcp: [
+        { name: "Stack Overflow", status: "ok" as const, description: "3.5 million answered questions", tools: [
+          { name: "search_stackoverflow", description: "Search Stack Overflow questions" }, { name: "get_post", description: "Read a question and its answers" }] },
+        { name: "Developer docs", status: "down" as const, description: null, error: "Developer docs answered 401 Unauthorized", tools: [] },
+      ],
       indexes: [{ id: "assets", name: "Asset search by meaning", items: 41_230, of: 47_012, failed: 12, model: "Embedder (ovms-cpu)", status: "partly" as const }],
       skills: [
         { id: "work-habits", title: "Work habits", lessons: 14, updated: ago(60), layer: "general" as const, file: "work-habits.md" },

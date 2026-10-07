@@ -93,3 +93,11 @@ reviewer = { provider = "ollama", model = "qwen3.5:9b" }
 # Push to the Android app through UnifiedPush (an ntfy server, FOSS), optional. Phones may only register endpoints on these servers. Empty: push is off; the app can still notify through its own connection.
 [push]
 servers = []
+
+# MCP tool servers (CHAT-01), optional: chats can use their tools, and the Capabilities page lists
+# them. MCP over streamable HTTP; token_env names a variable in .env that holds the bearer token.
+# [[mcp]]
+# name = "Stack Overflow"
+# url = "http://so-mcp:8000/mcp"
+# token_env = "MCP_SO_TOKEN"
+# description = "Answered programming questions"

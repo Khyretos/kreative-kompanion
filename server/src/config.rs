@@ -44,6 +44,9 @@ pub struct Config {
     /// (`budget_tokens = { "Coder" = 1500, default = 2000 }`); 1500 when not set.
     #[serde(default)]
     pub skills: SkillsConfig,
+    /// CHAT-01: `[[mcp]]` tool servers (MCP over streamable HTTP) for chats; none by default.
+    #[serde(default, rename = "mcp")]
+    pub mcp: Vec<McpServerConfig>,
     /// `[assets]`: the models the asset library uses for tags and search; empty = the worker role's provider and model.
     #[serde(default)]
     pub assets: AssetsConfig,
@@ -59,6 +62,20 @@ pub struct Config {
 }
 
 /// `[skills]`: how many tokens of skill cards a plan step gets on top of the role cores.
+/// CHAT-01: one MCP tool server. `token_env` names an environment variable (.env) with its
+/// bearer token; never the token itself.
+#[derive(Debug, Clone, Deserialize)]
+pub struct McpServerConfig {
+    pub name: String,
+    pub url: String,
+    #[serde(default)]
+    pub token_env: Option<String>,
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
 /// `budget_tokens` is a number, or a table per model name with an optional "default"
 /// (`budget_tokens = { "Coder" = 1500, default = 2000 }`); 1500 when not set.
 #[derive(Debug, Clone, Default, Deserialize)]

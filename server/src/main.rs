@@ -25,6 +25,7 @@ mod lessons;
 mod llm;
 mod mail;
 mod mailhtml;
+mod mcp;
 mod notify;
 mod push;
 mod oidc;
@@ -198,6 +199,13 @@ async fn main() -> anyhow::Result<()> {
         }
         let (code, _) = pairing::new_pair_code(&db, &user_id, &host).await?;
         println!("{code}");
+        return Ok(());
+    }
+
+    // CHAT-01: `kompanion-server mcp-status`: each [[mcp]] server's state and tools, as JSON (setup check).
+    if args.get(1).map(String::as_str) == Some("mcp-status") {
+        let status = mcp::status(&llm::http_client(), &config.mcp).await;
+        println!("{}", serde_json::to_string_pretty(&status)?);
         return Ok(());
     }
 

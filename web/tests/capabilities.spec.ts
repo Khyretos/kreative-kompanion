@@ -29,7 +29,14 @@ test.describe("Capabilities", () => {
     await expect(down.locator(".chip.state")).toHaveText("down");
     await expect(down.locator(".task-step")).toContainText("connection refused");
     await expect(page.locator("#caps li.cap", { hasText: "OVMS on kireserver" }).locator(".task-meta")).toContainText("orchestrator: Coder");
-    await expect(page.locator("#caps-mcp").locator("..").locator("p.muted")).toHaveText("No MCP servers yet.");
+    // CHAT-01: each MCP server with its state and tools.
+    const so = page.locator("#caps li.cap", { hasText: "Stack Overflow" });
+    await expect(so.locator(".chip.state")).toHaveText("ok");
+    await expect(so.locator(".task-step")).toContainText("search_stackoverflow, get_post");
+    await expect(so.locator(".cap-sub")).toHaveText("3.5 million answered questions");
+    const docs = page.locator("#caps li.cap", { hasText: "Developer docs" });
+    await expect(docs.locator(".chip.state")).toHaveText("down");
+    await expect(docs.locator(".task-step")).toContainText("401 Unauthorized");
     // The chat is hidden while the section is open; nothing reloaded.
     await expect(page.locator("main.center")).toBeHidden();
     expect(loads).toBe(0);
