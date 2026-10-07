@@ -1,6 +1,7 @@
 // Middle pane: the conversation with the project's orchestrator.
 import { html, type SafeHtml } from "../core/html";
 import { renderMarkdown } from "../core/markdown";
+import { linkSources, renderSources, splitSources } from "../core/sources";
 import { clock } from "../core/time";
 import { activeChat, activeProject, type AppState } from "../state";
 import type { Effort, Message, Task } from "../api/types";
@@ -162,7 +163,9 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
 /** Fills the message body with sanitised markdown (never via the template). */
 export function fillMessage(el: HTMLElement, { m }: MessageView): void {
   const body = el.querySelector(".body")!;
-  body.append(renderMarkdown(m.text));
+  const { text, sources } = splitSources(m.text);
+  body.append(renderMarkdown(linkSources(text)));
+  if (sources.length) body.append(renderSources(sources));
   if (m.streaming) {
     const caret = document.createElement("span");
     caret.className = "caret";

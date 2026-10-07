@@ -21,7 +21,7 @@ fn tool_specs_map_back_to_server_and_tool() {
 
 #[test]
 fn a_use_line_and_the_note_for_the_answer() {
-    let u = ToolUse { server: "Stack Overflow".into(), tool: "search_stackoverflow".into(), args: json!({"query": "rust borrow checker", "limit": 3}), result: "Q1: ...".into(), images: vec![] };
+    let u = ToolUse { server: "Stack Overflow".into(), tool: "search_stackoverflow".into(), args: json!({"query": "rust borrow checker", "limit": 3}), result: "Q1: ...".into(), images: vec![], sources: vec![] };
     assert_eq!(use_line(&u), "*Looked up Stack Overflow: search_stackoverflow (rust borrow checker)*");
     let none = ToolUse { args: json!({}), ..u.clone() };
     assert_eq!(use_line(&none), "*Looked up Stack Overflow: search_stackoverflow*");
@@ -32,10 +32,36 @@ fn a_use_line_and_the_note_for_the_answer() {
 
 #[test]
 fn a_use_with_a_picture_shows_it() {
-    let u = ToolUse { server: "Blender".into(), tool: "blender_render".into(), args: json!({"code": "bpy.ops.mesh.primitive_monkey_add()"}), result: "Rendered 640x480.".into(), images: vec!["/api/chats/c1/files/a.png".into()] };
+    let u = ToolUse { server: "Blender".into(), tool: "blender_render".into(), args: json!({"code": "bpy.ops.mesh.primitive_monkey_add()"}), result: "Rendered 640x480.".into(), images: vec!["/api/chats/c1/files/a.png".into()], sources: vec![] };
     assert_eq!(use_line(&u), "*Looked up Blender: blender_render (bpy.ops.mesh.primitive_monkey_add())*\n\n![Blender: blender_render](/api/chats/c1/files/a.png)");
     let code = ToolUse { args: json!({"code": "# a cube\nbpy.ops.mesh.primitive_cube_add()"}), images: vec![], ..u.clone() };
     assert_eq!(use_line(&code), "*Looked up Blender: blender_render (# a cube bpy.ops.mesh.primitive_cube_add())*");
     assert!(results_note(&[u.clone()]).starts_with("Your tools made the picture shown to the user above your answer."));
     assert!(results_note(&[code]).starts_with("You looked these up"));
+}
+
+#[test]
+fn the_prompt_knows_today_and_where_it_is_installed() {
+    let now = time::macros::datetime!(2026-10-07 20:45 UTC);
+    let t = when_where(now, Some("kireserver"), Some("the Netherlands"), true);
+    assert!(t.starts_with("Today is Wednesday 2026-10-07, 20:45 UTC. Kompanion is installed on kireserver, in the Netherlands."));
+    assert!(t.contains("Web search is on"));
+    let bare = when_where(now, None, None, false);
+    assert!(!bare.contains("installed") && !bare.contains("Web search"));
+}
+
+#[test]
+fn sources_show_what_the_answer_cites() {
+    let web = Source { n: 1, name: "Reuters".into(), url: Some("https://reuters.com/a".into()), excerpt: "snippet a".into() };
+    let other = Source { n: 2, name: "Blog".into(), url: Some("https://blog.example/b".into()), excerpt: "snippet b".into() };
+    let kb = Source { n: 3, name: "Godot / timer.md".into(), url: None, excerpt: "Timer counts down".into() };
+    let u = ToolUse { server: "Web".into(), tool: "web_search".into(), args: json!({}), result: String::new(), images: vec![], sources: vec![web, other, kb] };
+    let block = sources_block(&[u.clone()], "He is 80 ([Reuters](https://reuters.com/a)) and a Timer counts down [Godot / timer.md](src:3).");
+    let json: Value = serde_json::from_str(block.trim().strip_prefix(":::sources\n").unwrap().strip_suffix("\n:::").unwrap()).unwrap();
+    assert_eq!(json.as_array().unwrap().iter().map(|x| x["n"].as_u64().unwrap()).collect::<Vec<_>>(), vec![1, 3]);
+    assert_eq!(json[0]["excerpt"], "snippet a");
+    assert_eq!(json[1]["url"], Value::Null);
+    // Nothing cited: every consulted source is listed.
+    assert_eq!(serde_json::from_str::<Value>(sources_block(&[u], "no links").trim().lines().nth(1).unwrap()).unwrap().as_array().unwrap().len(), 3);
+    assert_eq!(sources_block(&[], "x"), "");
 }

@@ -58,6 +58,7 @@ const chats: Chat[] = [
   { id: "c-3dco", title: "SDL3 port", projectId: "p-3dco", updatedAt: ago(60 * 26) },
   { id: "c-nohboard", title: "Wayland input capture", projectId: "p-nohboard", updatedAt: ago(60 * 24 * 4) },
   { id: "c-blender", title: "Blender scene", updatedAt: ago(60 * 24 * 5) },
+  { id: "c-sources", title: "Sourced answer", updatedAt: ago(60 * 24 * 6) },
   { id: "c-loose", title: "Which local model next?", updatedAt: ago(60 * 3) },
 ];
 
@@ -73,6 +74,16 @@ const messages: Message[] = [
     id: "m-bl2", chatId: "c-blender", author: "orchestrator", at: ago(60 * 24 * 5 - 1),
     text: "*Looked up Blender: blender_render (bpy.ops.mesh.primitive_monkey_add())*\n\n![Blender: blender_render](/api/chats/c-blender/files/0f8e2c1a-5b7d-4c3e-9a21-6d4f0b9e7c55.png)\n\n" +
       "Here is Suzanne on a grey plane, lit by a sun from the upper left.\n\n![tracker](https://example.com/pixel.png)",
+  },
+  // CHAT-04: an answer with inline source names and the list of sources under it.
+  { id: "m-so1", chatId: "c-sources", author: "user", at: ago(60 * 24 * 6), text: "What does the Timer node do, and when is Godot 4.5 out?" },
+  {
+    id: "m-so2", chatId: "c-sources", author: "orchestrator", at: ago(60 * 24 * 6 - 1),
+    text: "*Looked up Web: web_search (godot 4.5 release)*\n\nThe Timer node counts down an interval and emits `timeout` ([Godot Assistant / timer.md](src:2)). Godot 4.5 was released in September ([Godot Engine](https://godotengine.org/releases/4.5/)).\n\n" +
+      ":::sources\n" + JSON.stringify([
+        { n: 1, name: "Godot Engine", url: "https://godotengine.org/releases/4.5/", excerpt: "Godot 4.5 is out: shader baking, accessibility support, and more." },
+        { n: 2, name: "Godot Assistant / timer.md", url: null, excerpt: "The Timer node counts down an interval and emits timeout when it reaches 0." },
+      ]) + "\n:::",
   },
   {
     id: "m1", chatId: "c-kk", author: "user", at: ago(20),

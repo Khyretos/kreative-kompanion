@@ -119,6 +119,11 @@ pub fn tools() -> Vec<Value> {
 }
 
 pub async fn web_search(http: &reqwest::Client, base: &str, query: &str) -> Result<String> {
+    Ok(web_search_from(http, base, query, 1).await?.0)
+}
+
+/// Results numbered from `first_n`, plus (title, url, snippet) of each for the sources list (CHAT-04).
+pub async fn web_search_from(http: &reqwest::Client, base: &str, query: &str, first_n: usize) -> Result<(String, Vec<(String, String, String)>)> {
     let url = format!("{}/search", base.trim_end_matches('/'));
     let resp = http.get(&url)
         .query(&[("q", query), ("format", "json")])
@@ -135,19 +140,21 @@ pub async fn web_search(http: &reqwest::Client, base: &str, query: &str) -> Resu
     let results = json_val["results"].as_array().ok_or_else(|| anyhow::anyhow!("no results array"))?;
     
     if results.is_empty() {
-        return Ok("No results.".to_string());
+        return Ok(("No results.".to_string(), Vec::new()));
     }
 
     let mut parts: Vec<String> = Vec::new();
+    let mut found = Vec::new();
     for (i, item) in results.iter().take(8).enumerate() {
         let title = item["title"].as_str().unwrap_or("").to_string();
         let url_str = item["url"].as_str().unwrap_or("").to_string();
         let content = item["content"].as_str().unwrap_or("").to_string();
         
-        parts.push(format!("{}. {title}\n{url_str}\n{content}", i + 1).trim_end().to_string());
+        parts.push(format!("{}. {title}\n{url_str}\n{content}", first_n + i).trim_end().to_string());
+        found.push((title, url_str, content));
     }
 
-    Ok(parts.join("\n\n"))
+    Ok((parts.join("\n\n"), found))
 }
 
 pub async fn read_page(url: &str, allow_private: bool) -> Result<String> {
