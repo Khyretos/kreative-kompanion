@@ -1,6 +1,6 @@
 #!/bin/sh
 # BLD-01: Install the Blender MCP server as a systemd USER service.
-# Usage: sh tools/blender-mcp/install.sh [--bind HOST:PORT] [--blender "CMD"]
+# Usage: sh tools/blender-mcp/install.sh [--bind HOST:PORT] [--blender "CMD"] [--on-demand]
 # This is opt-in: chats that use it can run any Python inside Blender as this user.
 
 set -eu
@@ -9,14 +9,17 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 D="$HOME/.local/share/kompanion/blender-mcp"
 ENVF="$HOME/.config/kompanion/blender-mcp.env"
 UNIT="$HOME/.config/systemd/user/kompanion-blender-mcp.service"
+SOCKET="$HOME/.config/systemd/user/kompanion-blender-mcp.socket"
 
 BIND="127.0.0.1:9876"
 BLENDER=""
+ONDEMAND=0
 
 while [ $# -gt 0 ]; do
     case $1 in
         --bind) BIND="$2"; shift 2 ;;
         --blender) BLENDER="$2"; shift 2 ;;
+        --on-demand) ONDEMAND=1; shift ;;
         *) echo "unknown option $1" >&2; exit 1 ;;
     esac
 done
@@ -51,7 +54,28 @@ fi
 )
 
 mkdir -p "$(dirname "$UNIT")"
-cat > "$UNIT" <<EOF
+if [ "$ONDEMAND" = "1" ]; then
+    cat > "$UNIT" <<EOF
+[Unit]
+Description=Kompanion Blender MCP (BLD-01)
+[Service]
+EnvironmentFile=$ENVF
+ExecStart=/usr/bin/env python3 $D/server.py
+Restart=on-failure
+Environment=BLENDER_IDLE_EXIT=300
+EOF
+
+    mkdir -p "$(dirname "$SOCKET")"
+    cat > "$SOCKET" <<EOF
+[Unit]
+Description=Kompanion Blender MCP socket
+[Socket]
+ListenStream=$BIND
+[Install]
+WantedBy=sockets.target
+EOF
+else
+    cat > "$UNIT" <<EOF
 [Unit]
 Description=Kompanion Blender MCP (BLD-01)
 [Service]
@@ -61,9 +85,14 @@ Restart=on-failure
 [Install]
 WantedBy=default.target
 EOF
+fi
 
 systemctl --user daemon-reload
-systemctl --user enable --now kompanion-blender-mcp.service
+if [ "$ONDEMAND" = "1" ]; then
+    systemctl --user enable --now kompanion-blender-mcp.socket
+else
+    systemctl --user enable --now kompanion-blender-mcp.service
+fi
 
 echo "Installed. Add this to kompanion.toml and put the token in Kompanion's .env:"
 echo "[[mcp]]"
