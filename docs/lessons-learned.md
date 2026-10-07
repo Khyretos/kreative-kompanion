@@ -169,3 +169,4 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | HOST-01 views job | Claude | My auth.rs line used `s` (the handler's state is `state`); the job's compile check failed Coder's correct views() 4 times | Compile own edits before the job | `general/orchestrator/prompting-workers` 100 |
 | HOST-01 pair action | Claude | Spec passed a button to busyWhile(form, ..) | Check helper signatures before the spec | `general/orchestrator/prompting-workers` 100 |
 | HOST-01 install-host.sh | Coder | Mode checked only when asked, no defaults on Enter, `\'` in single quotes, docker failure turned into CODE=error; 3 fix rounds failed; Claude fixed | Steps as code + stub-PATH branch test | `general/orchestrator/prompting-workers` 101 |
+| STU-R1 research doc | Coder | Stuffed needle words into one sentence; "Tested on: European Union"; animation verdict lost "slow" | Needle whole facts; review docs | `general/orchestrator/prompting-workers` 102 |
