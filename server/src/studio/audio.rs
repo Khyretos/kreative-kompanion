@@ -143,7 +143,33 @@ async fn begin(s: &AppState, b: Make, user_id: &str) -> ApiResult<(String, impl 
     Ok((id, job))
 }
 
+/// BUG-02: POST the job to the audio app and wait for its answer; fails when its /health has not
+/// shown it busy for `stall` (polled every stall / 9), or when it answers with an error.
+pub async fn request(http: &reqwest::Client, url: &str, k: AudioKind, body: &Value, stall: Duration) -> anyhow::Result<Map<String, Value>> {
+    let post = http.post(format!("{url}{}", k.path)).json(body).timeout(super::watchdog::limit(k.kind)).send();
+    tokio::pin!(post);
+    let mut progress = super::watchdog::Progress::new(stall, std::time::Instant::now());
+    let r = loop {
+        tokio::select! {
+            r = &mut post => break r?,
+            _ = tokio::time::sleep(stall / 9) => {
+                let health = http.get(format!("{url}/health")).timeout(Duration::from_secs(5)).send().await;
+                let alive = match health {
+                    Ok(h) => h.json::<Value>().await.is_ok_and(|v| super::watchdog::audio_alive(&v)),
+                    Err(_) => false,
+                };
+                progress.tick(alive, std::time::Instant::now())?;
+            }
+        }
+    };
+    if !r.status().is_success() {
+        anyhow::bail!("{} answered {}", k.app, r.status());
+    }
+    Ok(r.json().await?)
+}
+
 async fn run(s: AppState, k: AudioKind, gpu: String, url: String, params: Value, id: String, user_id: String) {
+    let w = super::watchdog::watch(&id, &gpu);
     let spec = jobs::Spec {
         kind: Kind::Asset,
         what: format!("studio:{}:{}", k.app, k.kind),
@@ -156,7 +182,7 @@ async fn run(s: AppState, k: AudioKind, gpu: String, url: String, params: Value,
     
     let result: anyhow::Result<Vec<String>> = async {
         super::make_room(&s, &gpu, k.vram_mib, k.app).await;
-        let lease = jobs::acquire(&s, spec, Duration::from_secs(3600)).await?;
+        let lease = jobs::acquire(&s, spec, Duration::from_secs(900)).await?;
         
         let body = request_body(
             k,
@@ -166,28 +192,13 @@ async fn run(s: AppState, k: AudioKind, gpu: String, url: String, params: Value,
             params["seed"].as_u64().unwrap_or(0),
         );
         
-        let resp = s.http
-            .post(format!("{url}{}", k.path))
-            .json(&body)
-            .timeout(Duration::from_secs(1800))
-            .send()
-            .await;
-        
-        let r = match resp {
-            Ok(r) => r,
+        let answer = match super::watchdog::guard(&w, super::watchdog::limit(k.kind), request(&s.http, &url, k, &body, super::watchdog::STALL)).await {
+            Ok(a) => a,
             Err(e) => {
-                lease.fail(format!("request failed: {}", e));
-                anyhow::bail!(e);
+                lease.fail(e.to_string());
+                return Err(e);
             }
         };
-        
-        if !r.status().is_success() {
-            let msg = format!("{} answered {}", k.app, r.status());
-            lease.fail(msg.clone());
-            anyhow::bail!(msg);
-        }
-        
-        let answer: Map<String, Value> = r.json().await.map_err(|e| anyhow::anyhow!("parse error: {}", e))?;
         
         let dir = s.config.studio.output_dir.join("users").join(&user_id).join(k.kind);
         tokio::fs::create_dir_all(&dir).await?;
@@ -286,5 +297,46 @@ mod tests {
         assert_eq!(audio_target(&gpus, "a770", "heartmula"), Some(("kireserver".to_string(), "http://heartmula:8190".to_string())));
         assert_eq!(audio_target(&gpus, "a770", "moss-sfx"), None);
         assert_eq!(audio_target(&gpus, "a580", "heartmula"), None);
+    }
+
+    /// BUG-02: a fake audio app: /sfx answers after `wait_ms` with `status`, /health says `busy`.
+    async fn fake_app(wait_ms: u64, status: u16, busy: bool) -> String {
+        use axum::{Router, routing::{get, post}};
+        let app = Router::new()
+            .route("/sfx", post(move || async move {
+                tokio::time::sleep(Duration::from_millis(wait_ms)).await;
+                (axum::http::StatusCode::from_u16(status).unwrap(), Json(json!({"file": "a.ogg"})))
+            }))
+            .route("/health", get(move || async move { Json(json!({"loaded": true, "busy": busy})) }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(axum::serve(listener, app).into_future());
+        url
+    }
+
+    #[tokio::test]
+    async fn a_busy_app_answers() {
+        let url = fake_app(300, 200, true).await;
+        let k = kind_of("sfx").unwrap();
+        let a = request(&reqwest::Client::new(), &url, k, &json!({}), Duration::from_millis(900)).await.unwrap();
+        assert_eq!(a.get("file").and_then(Value::as_str), Some("a.ogg"));
+    }
+
+    #[tokio::test]
+    async fn a_stuck_app_fails_after_the_stall() {
+        let url = fake_app(10_000, 200, false).await;
+        let k = kind_of("sfx").unwrap();
+        let t = std::time::Instant::now();
+        let e = request(&reqwest::Client::new(), &url, k, &json!({}), Duration::from_millis(900)).await.unwrap_err().to_string();
+        assert!(e.contains("no progress"), "{e}");
+        assert!(t.elapsed() < Duration::from_secs(3), "{:?}", t.elapsed());
+    }
+
+    #[tokio::test]
+    async fn an_app_error_is_reported() {
+        let url = fake_app(0, 500, true).await;
+        let k = kind_of("sfx").unwrap();
+        let e = request(&reqwest::Client::new(), &url, k, &json!({}), Duration::from_millis(900)).await.unwrap_err().to_string();
+        assert!(e.contains("moss-sfx answered 500"), "{e}");
     }
 }

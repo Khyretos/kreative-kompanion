@@ -46,7 +46,7 @@ pub fn gpu_apps(grants: &Grants, apps: &BTreeMap<String, String>, action: &str, 
             }
             Outcome { ok: true, output: lines.join("\n") }
         }
-        "start" | "stop" => {
+        "start" | "stop" | "kill" => {
             let mut all_ok = true;
             let mut lines = Vec::new();
             for (name, container) in targets {
@@ -65,9 +65,13 @@ pub fn gpu_apps(grants: &Grants, apps: &BTreeMap<String, String>, action: &str, 
     }
 }
 
-/// The docker arguments for "status", "start" or "stop" of one container.
+/// The docker arguments for "status", "start", "stop" or "kill" of one container.
 fn docker_args(action: &str, container: &str) -> Vec<String> {
-    let parts: &[&str] = if action == "status" { &["inspect", "-f", "{{.State.Status}}"] } else { &[action] };
+    let parts: &[&str] = match action {
+        "status" => &["inspect", "-f", "{{.State.Status}}"],
+        "kill" => &["stop", "-t", "0"],
+        _ => &[action],
+    };
     parts.iter().map(|s| s.to_string()).chain([container.to_string()]).collect()
 }
 
@@ -182,6 +186,7 @@ mod tests {
         assert_eq!(docker_args("stop", "comfyui-rocm"), ["stop", "comfyui-rocm"]);
         assert_eq!(docker_args("start", "comfyui-rocm"), ["start", "comfyui-rocm"]);
         assert_eq!(docker_args("status", "sfx"), ["inspect", "-f", "{{.State.Status}}", "sfx"]);
+        assert_eq!(docker_args("kill", "comfyui-rocm"), ["stop", "-t", "0", "comfyui-rocm"]);
     }
 
     #[test]

@@ -109,10 +109,10 @@ pub async fn acquire(s: &AppState, spec: Spec, wait: Duration) -> Result<Lease> 
     let deadline = tokio::time::Instant::now() + wait;
     let mut last_beat = tokio::time::Instant::now();
     loop {
-        let row: Option<(String, Option<String>)> =
-            sqlx::query_as("SELECT state, gpu FROM gpu_job WHERE id = ?").bind(&id).fetch_optional(&s.db).await?;
+        let row: Option<(String, Option<String>, Option<String>)> =
+            sqlx::query_as("SELECT state, gpu, error FROM gpu_job WHERE id = ?").bind(&id).fetch_optional(&s.db).await?;
         match row {
-            Some((state, Some(gpu))) if state == "running" => {
+            Some((state, Some(gpu), _)) if state == "running" => {
                 let (s2, id2) = (s.clone(), id.clone());
                 let beat_task = tokio::spawn(async move {
                     loop {
@@ -122,7 +122,7 @@ pub async fn acquire(s: &AppState, spec: Spec, wait: Duration) -> Result<Lease> 
                 });
                 return Ok(Lease { job_id: id, gpu, s: s.clone(), beat: beat_task, failed: None });
             }
-            Some((state, _)) if state != "queued" => bail!("the GPU job was {state}"),
+            Some((state, _, error)) if state != "queued" => bail!("{}", error.unwrap_or(format!("the GPU job was {state}"))),
             None => bail!("the GPU job is gone"),
             _ => {}
         }

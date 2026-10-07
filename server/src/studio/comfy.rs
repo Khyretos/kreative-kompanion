@@ -10,6 +10,52 @@ use std::{
 /// its next report, up to 60 s, and then boots).
 const READY_WAIT: Duration = Duration::from_secs(300);
 
+/// BUG-02: wait for a queued prompt; fails at `timeout`, or when ComfyUI's queue has not listed
+/// it for `stall` (it crashed, restarted or lost the prompt).
+pub async fn wait(http: &reqwest::Client, base: &str, id: &str, timeout: Duration, stall: Duration) -> Result<Value> {
+    let started = Instant::now();
+    let mut progress = super::watchdog::Progress::new(stall, Instant::now());
+    let mut checked = Instant::now();
+    let h = loop {
+        if started.elapsed() > timeout {
+            bail!("ComfyUI did not finish in {} s", timeout.as_secs());
+        }
+        let v: Value = http
+            .get(format!("{base}/history/{id}"))
+            .timeout(Duration::from_secs(20))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        let h = &v[id];
+        if h["status"]["status_str"] == "error" {
+            let msg = h["status"]["messages"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|m| m[0] == "execution_error")
+                .and_then(|m| m[1]["exception_message"].as_str())
+                .unwrap_or("execution failed")
+                .to_string();
+            bail!("ComfyUI: {msg}");
+        }
+        if h["status"]["completed"] == true {
+            break h.clone();
+        }
+        if checked.elapsed() >= stall / 9 {
+            checked = Instant::now();
+            let alive = match http.get(format!("{base}/queue")).timeout(Duration::from_secs(10)).send().await {
+                Ok(r) => r.json::<Value>().await.is_ok_and(|q| super::watchdog::in_queue(&q, id)),
+                Err(_) => false,
+            };
+            progress.tick(alive, Instant::now())?;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
+    Ok(h)
+}
+
 pub async fn run(
     http: &reqwest::Client,
     base: &str,
@@ -53,35 +99,7 @@ pub async fn run(
         .ok_or_else(|| anyhow::anyhow!("ComfyUI sent no prompt_id"))?
         .to_string();
 
-    let started = Instant::now();
-    let h = loop {
-        if started.elapsed() > timeout {
-            bail!("ComfyUI did not finish in {} s", timeout.as_secs());
-        }
-        let v: Value = http
-            .get(format!("{base}/history/{id}"))
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
-        let h = &v[id.as_str()];
-        if h["status"]["status_str"] == "error" {
-            let msg = h["status"]["messages"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .find(|m| m[0] == "execution_error")
-                .and_then(|m| m[1]["exception_message"].as_str())
-                .unwrap_or("execution failed")
-                .to_string();
-            bail!("ComfyUI: {msg}");
-        }
-        if h["status"]["completed"] == true {
-            break h.clone();
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    };
+    let h = wait(http, base, &id, timeout, super::watchdog::STALL).await?;
 
     tokio::fs::create_dir_all(out_dir).await?;
     shared(out_dir, 0o2775).await;
@@ -238,7 +256,7 @@ mod tests {
     }
 
     async fn history(State(f): State<Arc<Fake>>) -> Json<Value> {
-        if f.polls.fetch_add(1, Ordering::SeqCst) == 0 {
+        if f.polls.fetch_add(1, Ordering::SeqCst) == 0 || f.mode == "lost" || f.mode == "running" {
             return Json(json!({}));
         }
         if f.mode == "error" {
@@ -257,6 +275,8 @@ mod tests {
     async fn queue(State(f): State<Arc<Fake>>) -> Json<Value> {
         let running = if f.mode == "busy" {
             json!([[0, "x"]])
+        } else if f.mode == "running" {
+            json!([[0, "p1"]])
         } else {
             json!([])
         };
@@ -417,5 +437,23 @@ mod tests {
         tokio::spawn(axum::serve(bad_listener, bad_app).into_future());
 
         assert!(upload(&reqwest::Client::new(), &url2, vec![1], "r2.png").await.unwrap_err().to_string().contains("ComfyUI refused the photo"));
+    }
+
+    /// BUG-02: a prompt ComfyUI lost (not in its queue, no history) fails after the stall.
+    #[tokio::test]
+    async fn a_lost_prompt_fails_after_the_stall() {
+        let (url, _f) = fake("lost").await;
+        let t = Instant::now();
+        let e = wait(&Client::new(), &url, "p1", Duration::from_secs(30), Duration::from_millis(900)).await.unwrap_err().to_string();
+        assert!(e.contains("no progress"), "{e}");
+        assert!(t.elapsed() < Duration::from_secs(4), "{:?}", t.elapsed());
+    }
+
+    /// BUG-02: a prompt that stays running ends at the time limit.
+    #[tokio::test]
+    async fn a_running_prompt_ends_at_the_limit() {
+        let (url, _f) = fake("running").await;
+        let e = wait(&Client::new(), &url, "p1", Duration::from_millis(1500), Duration::from_millis(900)).await.unwrap_err().to_string();
+        assert!(e.contains("did not finish"), "{e}");
     }
 }
