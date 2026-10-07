@@ -169,12 +169,13 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
     }
     let prompt = if face_tags.is_empty() { text.to_string() } else { format!("{face_tags}, {text}") };
     let mut ids = Vec::new();
-    for _ in 0..b.count {
+    for i in 0..b.count {
         let mut params = Map::new();
         params.insert("prompt".into(), json!(prompt));
         params.insert("width".into(), json!(w_px));
         params.insert("height".into(), json!(h_px));
-        params.insert("seed".into(), json!(b.seed.unwrap_or(-1)));
+        // KS-02: "Make 4" with a seed makes four different pictures (seed, seed + 1, ...).
+        params.insert("seed".into(), json!(b.seed.map(|s| s + i as i64).unwrap_or(-1)));
         if let Some(l) = b.length {
             params.insert("length".into(), json!(l));
         }
