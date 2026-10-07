@@ -125,6 +125,7 @@ async fn gpu_ledger(s: &AppState, g: &GpuConfig, all: &[Measured]) -> GpuLedger 
     let used_mib = find(g, all).and_then(|m| m.2);
     let mut l = ledger::ledger(&g.id, &g.machine, total, used_mib, g.schedulable, holdings);
     l.watts = find(g, all).and_then(|m| m.4);
+    l.free_mib = l.free_mib.saturating_sub(g.headroom_mib);
     l
 }
 
@@ -250,7 +251,7 @@ mod tests {
             ("soucouyant".into(), "0000:03:00.0".into(), Some(8000), Some(16304), None),
         ];
         let g = |machine: &str, pci: &str| GpuConfig {
-            id: "x".into(), machine: machine.into(), pci: pci.into(), vram_gb: 16.0, schedulable: true, holders: vec![], apps: vec![],
+            id: "x".into(), machine: machine.into(), pci: pci.into(), vram_gb: 16.0, schedulable: true, holders: vec![], apps: vec![], headroom_mib: 0,
         };
         assert_eq!(find(&g("kireserver", "0000:10:00.0"), &all).unwrap().2, Some(12000));
         assert_eq!(find(&g("soucouyant", "*"), &all).unwrap().1, "0000:03:00.0");

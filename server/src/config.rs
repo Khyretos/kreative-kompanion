@@ -308,6 +308,10 @@ pub struct GpuConfig {
     /// [gpu_apps] (e.g. ["comfyui", "heartmula", "sfx"]); empty: no gaming switch.
     #[serde(default)]
     pub apps: Vec<String>,
+    /// BUG-02: VRAM kept free for a desktop on this GPU (soucouyant's display ran out of VRAM
+    /// during a Studio run on 2026-10-07 and the compositor crashed).
+    #[serde(default)]
+    pub headroom_mib: u64,
 }
 
 /// Something that can hold VRAM on a GPU and how to see it:

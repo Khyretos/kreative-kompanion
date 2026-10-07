@@ -11,6 +11,7 @@ pub mod service;
 pub mod facetags;
 pub mod import;
 pub mod to_assets;
+pub mod watchdog;
 
 use crate::{
     AppState,
@@ -330,6 +331,8 @@ async fn execute(
     user_id: String,
     face: Option<std::path::PathBuf>,
 ) {
+    // BUG-02: Studio off stops this run at once; it also has a time limit.
+    let watch = watchdog::watch(&id, &gpu);
     let mut spec = jobs::Spec {
         kind: Kind::Asset,
         what: format!("studio:comfyui:{}", w.name),
@@ -360,7 +363,7 @@ async fn execute(
     }
     // STU-02: idle music/SFX apps on this GPU make way too.
     make_room(&s, &gpu, spec.vram_mib, "comfyui").await;
-    let result = match jobs::acquire(&s, spec, Duration::from_secs(3600)).await {
+    let result = match jobs::acquire(&s, spec, Duration::from_secs(1800)).await {
         Err(e) => Err(e),
         Ok(lease) => {
             // The output root is shared too (create_dir_all makes it 755 otherwise).
@@ -385,7 +388,7 @@ async fn execute(
             };
             let r = match up {
                 Err(e) => Err(e),
-                Ok(()) => comfy::run(
+                Ok(()) => watchdog::guard(&watch, watchdog::limit("comfyui"), comfy::run(
                     &s.http,
                     &url,
                     &graph,
@@ -393,7 +396,7 @@ async fn execute(
                     &out_dir,
                     &id,
                     Duration::from_secs(1800),
-                )
+                ))
                 .await,
             };
             if let Err(e) = &r {

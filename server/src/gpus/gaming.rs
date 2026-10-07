@@ -112,7 +112,7 @@ fn hurry(machine_id: &str) {
     );
 }
 
-/// GPU-04: how often a runner reports: every 3 s while a change is pending, at most every 20 s on a managed computer (Studio off frees the GPU within 30 s), else as asked.
+/// GPU-04: how often a runner reports: every 3 s while a change is pending, at most every 5 s on a managed computer (BUG-02: Studio off reaches it within seconds), else as asked.
 pub fn report_interval(machine_id: &str, interval: u32) -> u32 {
     if let Some(exp) = FAST.lock().unwrap().get(machine_id) {
         if *exp > Instant::now() {
@@ -120,7 +120,7 @@ pub fn report_interval(machine_id: &str, interval: u32) -> u32 {
         }
     }
     if MANAGED.lock().unwrap().contains(machine_id) {
-        return interval.min(20);
+        return interval.min(5);
     }
     interval
 }
@@ -130,6 +130,30 @@ async fn send(s: &AppState, m: &Machine, tool: Value) {
     if let Err(e) = crate::access::queue_job(&s.db, &m.id, &m.user_id, &tool, None).await {
         tracing::warn!(machine = %m.name, "GPU-01: can't queue {tool}: {e}");
     }
+}
+
+/// BUG-02: Studio off is off: kill the apps, unload Ollama and end this computer's studio jobs now.
+async fn off_now(s: &AppState, m: &Machine) {
+    send(s, m, json!({"tool": "gpu_apps", "action": "kill"})).await;
+    send(s, m, json!({"tool": "gpu_apps", "action": "unload_ollama"})).await;
+    let _ = sqlx::query("UPDATE machines SET apps_stopped = 1 WHERE id = ?").bind(&m.id).execute(&s.db).await;
+    let gpus: Vec<String> = s.config.gpus.iter().filter(|g| g.machine == m.name).map(|g| g.id.clone()).collect();
+    for g in &gpus {
+        let _ = sqlx::query(
+            "UPDATE gpu_job SET state = 'dropped', error = 'Studio turned off', ended_at = ?
+             WHERE state IN ('queued', 'running') AND what LIKE 'studio:%' AND (gpu = ? OR (gpu IS NULL AND gpus LIKE ?))",
+        )
+        .bind(util::now())
+        .bind(g)
+        .bind(format!("%\"{g}\"%"))
+        .execute(&s.db)
+        .await;
+    }
+    let stopped = crate::studio::watchdog::stop_gpus(&gpus);
+    SEEN.lock().unwrap().entry(m.id.clone()).or_default().sent_at = Some(Instant::now());
+    hurry(&m.id);
+    super::jobs::KICK.notify_one();
+    tracing::info!(machine = %m.name, stopped, "BUG-02: Studio off, apps killed");
 }
 
 pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
@@ -183,7 +207,8 @@ pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
             }
 
             if apps_up {
-                send(s, m, json!({"tool": "gpu_apps", "action": "stop"})).await;
+                let how = if eff == GpuMode::Gaming { "kill" } else { "stop" };
+                send(s, m, json!({"tool": "gpu_apps", "action": how})).await;
                 let _ = sqlx::query("UPDATE machines SET apps_stopped = 1 WHERE id = ?")
                     .bind(&m.id)
                     .execute(&s.db)
@@ -312,6 +337,9 @@ pub async fn set(State(s): State<AppState>, Extension(u): Extension<User>, Path(
         .await?;
     
     tracing::info!(machine = %m.name, mode = mode.as_str(), by = %u.name, "GPU-01: mode set");
+    if mode == GpuMode::Gaming {
+        off_now(&s, &m).await;
+    }
     hurry(&m.id);
     super::jobs::KICK.notify_one();
     s.bus.send_all(Event::Changed { what: "gpus", machine_id: None });
@@ -353,12 +381,48 @@ mod tests {
         assert!(studio_allowed(&s, "souc").await);
     }
 
+    /// BUG-02: Studio off kills the apps, unloads Ollama and ends this computer's studio jobs at once.
+    #[tokio::test]
+    async fn studio_off_stops_everything_at_once() {
+        let s = state().await;
+        for (id, st, gpu, gpus, what) in [
+            ("j1", "queued", None, "[\"rx9070\"]", "studio:moss-sfx:sfx"),
+            ("j2", "running", Some("rx9070"), "[\"rx9070\"]", "studio:comfyui:oc-sheet"),
+            ("j3", "queued", None, "[\"a770\"]", "studio:comfyui:oc-sheet"),
+            ("j4", "running", Some("rx9070"), "[\"rx9070\"]", "chat"),
+        ] {
+            sqlx::query("INSERT INTO gpu_job (id, kind, what, gpus, vram_mib, ram_mib, state, gpu, created_at, beat_at) VALUES (?, 'asset', ?, ?, 1, 1, ?, ?, '2026', '2026')")
+                .bind(id).bind(what).bind(gpus).bind(st).bind(gpu).execute(&s.db).await.unwrap();
+        }
+        let w = crate::studio::watchdog::watch("run-off", "rx9070");
+        let m = machines(&s).await.into_iter().next().unwrap();
+        off_now(&s, &m).await;
+        for (id, want) in [("j1", "dropped"), ("j2", "dropped"), ("j3", "queued"), ("j4", "running")] {
+            let (st, err): (String, Option<String>) = sqlx::query_as("SELECT state, error FROM gpu_job WHERE id = ?").bind(id).fetch_one(&s.db).await.unwrap();
+            assert_eq!(st, want, "{id}");
+            if want == "dropped" {
+                assert_eq!(err.as_deref(), Some("Studio turned off"));
+            }
+        }
+        let tools: Vec<String> = sqlx::query_scalar("SELECT tool FROM machine_jobs").fetch_all(&s.db).await.unwrap();
+        assert!(tools.iter().any(|t| t.contains("\"kill\"")), "{tools:?}");
+        assert!(tools.iter().any(|t| t.contains("unload_ollama")), "{tools:?}");
+        let stopped: i64 = sqlx::query_scalar("SELECT apps_stopped FROM machines").fetch_one(&s.db).await.unwrap();
+        assert_eq!(stopped, 1);
+        let r = crate::studio::watchdog::guard(&w, Duration::from_secs(5), async {
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            Ok::<_, anyhow::Error>(())
+        })
+        .await;
+        assert!(r.unwrap_err().to_string().contains("turned off"));
+    }
+
     /// GPU-04: managed computers report every 20 s at most, every 3 s right after a change.
     #[test]
     fn managed_computers_report_often_and_faster_after_a_change() {
         assert_eq!(report_interval("x1", 60), 60);
         MANAGED.lock().unwrap().insert("x1".into());
-        assert_eq!(report_interval("x1", 60), 20);
+        assert_eq!(report_interval("x1", 60), 5);
         assert_eq!(report_interval("x1", 5), 5);
         hurry("x1");
         assert_eq!(report_interval("x1", 60), 3);
