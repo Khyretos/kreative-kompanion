@@ -202,6 +202,20 @@ export function effortChip(s: AppState): SafeHtml {
   </span>`;
 }
 
+/** CHAT-01: the Tools chip and its menu (MCP servers this chat may use); nothing when none are set up. */
+export function toolsChip(s: AppState): SafeHtml {
+  if (s.mcpServers.length === 0) return html``;
+  const chat = activeChat(s);
+  const on = (chat ? chat.mcp : s.draftMcp) ?? [];
+  const label = on.length ? `Tools: ${on.length}` : "Tools off";
+  return html`<span class="tools">
+    <button class="chip tools-chip" type="button" data-action="tools-menu" aria-haspopup="menu" aria-expanded="${s.toolsMenuOpen ? "true" : "false"}">${label} ▾</button>
+    ${s.toolsMenuOpen ? html`<div class="menu tools-menu" role="menu" aria-label="Tools for this chat">
+      ${s.mcpServers.map((name) => html`<button role="menuitemcheckbox" aria-checked="${on.includes(name) ? "true" : "false"}" data-action="mcp-toggle" data-name="${name}">${name}</button>`)}
+    </div>` : ""}
+  </span>`;
+}
+
 export function composer(): SafeHtml {
   return html`
     <form class="composer" id="composer">
@@ -213,5 +227,6 @@ export function composer(): SafeHtml {
     <p class="composer-hint"><span class="hint-text">Enter sends, Shift+Enter adds a line.</span>
       <span id="voice-status" role="status"></span>
       <button class="btn small" type="button" id="voice-stop" data-action="voice-stop" hidden>Stop reading</button>
+      <span class="tools-slot" id="tools-slot"></span>
       <span class="effort-slot" id="effort-slot"></span></p>`;
 }

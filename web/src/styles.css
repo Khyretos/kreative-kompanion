@@ -394,6 +394,16 @@ li.task.dragging { opacity: 0.5; }
 .effort-menu button[aria-checked="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 .effort-name { font-weight: 600; }
 .effort-hint { font-size: 0.78rem; color: var(--fg); }
+/* CHAT-01: the Tools chip (MCP servers for this chat), left of the effort chip. */
+.tools-slot { margin-left: auto; position: relative; }
+.tools-slot + .effort-slot { margin-left: 0.4rem; }
+.tools { position: relative; display: inline-flex; }
+.tools-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; min-height: 1.75rem; }
+.tools-chip:hover { border-color: var(--accent); }
+.tools-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tools-menu { position: absolute; right: 0; bottom: calc(100% + 0.35rem); left: auto; top: auto; min-width: 14rem; z-index: 20; }
+.tools-menu button { width: 100%; color: var(--fg); }
+.tools-menu button[aria-checked="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 
 /* Tasks pane */
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 2px; }
@@ -500,7 +510,8 @@ li.task.dragging { opacity: 0.5; }
   .messages { padding: 1rem; }
   .composer-wrap { padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
   /* Phones: only the effort chip stays on the hint line (EF-01). */
-  .composer-hint > :not(.effort-slot) { display: none; }
+  .composer-hint > :not(.effort-slot):not(.tools-slot) { display: none; }
+  .tools-chip, .tools-menu button { min-height: 44px; }
   .role { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
 }
 @media (prefers-reduced-motion: reduce) {

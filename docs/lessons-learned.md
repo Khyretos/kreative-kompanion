@@ -170,3 +170,5 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | HOST-01 pair action | Claude | Spec passed a button to busyWhile(form, ..) | Check helper signatures before the spec | `general/orchestrator/prompting-workers` 100 |
 | HOST-01 install-host.sh | Coder | Mode checked only when asked, no defaults on Enter, `\'` in single quotes, docker failure turned into CODE=error; 3 fix rounds failed; Claude fixed | Steps as code + stub-PATH branch test | `general/orchestrator/prompting-workers` 101 |
 | STU-R1 research doc | Coder | Stuffed needle words into one sentence; "Tested on: European Union"; animation verdict lost "slow" | Needle whole facts; review docs | `general/orchestrator/prompting-workers` 102 |
+| CHAT-01 config | Claude | McpServerConfig inserted inside Config's doc comment; the MCP client drafts failed on that compile error (and fix rounds duplicated the file) | cargo check after every hand edit | `general/orchestrator/prompting-workers` 103 |
+| CHAT-01 answer | Claude | Tool results pushed as a late system message: OVMS 400 ("busy or out of GPU memory") | Merge into the first system message | `general/worker/rust` 104 |

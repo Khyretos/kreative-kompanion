@@ -167,6 +167,8 @@ pub async fn status(
         "version": env!("CARGO_PKG_VERSION"),
         // HOST-01: the server's own computer, offered as "This server's computer" when pairing.
         "machineName": state.config.machine_name,
+        // CHAT-01: the tool servers a chat can turn on (names only; their state is on Capabilities).
+        "mcp": state.config.mcp.iter().filter(|m| m.enabled).map(|m| m.name.clone()).collect::<Vec<_>>(),
         "features": {
             "assets": state.config.features.assets,
             "gpus": state.config.features.gpus,

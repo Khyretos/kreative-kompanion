@@ -50,6 +50,7 @@ export interface Chat {
   pinned?: boolean;
   thread?: boolean; // the project's thread: task runs post their updates here
   effort?: Effort; // EF-01: stored per chat, used for its answers
+  mcp?: string[]; // CHAT-01: the tool servers this chat may use
 }
 
 /** How hard the model works on an answer (EF-01). Auto resolves to Medium on the server. */
@@ -205,6 +206,7 @@ export interface ServerStatus {
   user: string | null;
   admin?: boolean;
   adult?: boolean; // STU-01c: may use the questionable and explicit Studio ratings
+  mcp?: string[]; // CHAT-01: [[mcp]] tool servers a chat can turn on
   machineName?: string | null; // HOST-01: the server's own computer ([machine_name] in kompanion.toml)
   theme?: ThemeChoice;
   machinesRefresh?: number; // seconds; 1 = live

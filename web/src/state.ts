@@ -7,6 +7,9 @@ export interface AppState {
   userName?: string; // signed-in user
   isAdmin: boolean;
   isAdult: boolean; // STU-01c: the adult-content right (Studio ratings)
+  mcpServers: string[]; // CHAT-01: tool servers a chat can turn on
+  draftMcp?: string[]; // CHAT-01: tools picked before a new chat exists
+  toolsMenuOpen?: boolean;
   machineName?: string; // HOST-01: the server's own computer, for "This server's computer" in Pair
   grants: Record<string, import("./views/access").GrantView[]>; // per paired machine
   accessHistory: import("./views/access").AccessEvent[];
@@ -83,6 +86,7 @@ export const store = new Store<AppState>({
   rightTab: "tasks",
   taskScope: "project",
   studioSent: {},
+  mcpServers: [],
   settingsOpen: false,
   pane: "main",
   section: "chat",
