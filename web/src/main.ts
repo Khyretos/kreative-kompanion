@@ -1,6 +1,7 @@
 import { showSignIn } from "./views/signin";
 import { HttpApi } from "./api/http";
 import { $, html, html as h, mount, onAction, restoreBusy, busyWhile, swUrl } from "./core/html";
+import { attachLiveMarkdown } from "./core/livemd";
 import { initResize } from "./core/resize";
 import { modal, type Modal } from "./core/modal";
 import { MockApi } from "./api/mock";
@@ -1436,7 +1437,9 @@ function wire(shell: HTMLElement): void {
   const autosize = () => {
     prompt.style.height = "auto";
     prompt.style.height = `${Math.min(prompt.scrollHeight, 200)}px`;
+    syncMirror();
   };
+  const syncMirror = attachLiveMarkdown(prompt);
   form.addEventListener("submit", (ev) => { ev.preventDefault(); submit(); });
   prompt.addEventListener("input", autosize);
   prompt.addEventListener("keydown", (ev) => {

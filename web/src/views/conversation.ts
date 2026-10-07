@@ -242,7 +242,7 @@ export function composer(): SafeHtml {
   return html`
     <form class="composer" id="composer">
       <label class="sr-only" for="prompt">Message</label>
-      <textarea id="prompt" rows="1" placeholder="Ask, plan, or hand over a task…"></textarea>
+      <div class="prompt-box"><textarea id="prompt" rows="1" placeholder="Ask, plan, or hand over a task…"></textarea></div>
       <button class="btn mic" type="button" id="voice-mic" data-action="voice-mic" aria-label="Speak" aria-pressed="false" hidden>${icon("mic")}</button>
       <button class="btn primary send" type="submit" aria-label="Send">${icon("send")}</button>
     </form>
