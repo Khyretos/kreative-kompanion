@@ -29,6 +29,12 @@ use crate::{
     util,
 };
 
+/// HOST-01: the paired computer whose name is the server's [machine_name] (case and spaces ignored).
+pub fn host_of(names: &[&str], machine_name: Option<&str>) -> Option<usize> {
+    let host = machine_name.map(str::trim).filter(|n| !n.is_empty())?;
+    names.iter().position(|n| n.trim().eq_ignore_ascii_case(host))
+}
+
 const SAMPLES: usize = 60;
 /// Never sample (or accept runner reports) faster than this.
 const MIN_INTERVAL: Duration = Duration::from_secs(1);
@@ -257,16 +263,32 @@ impl HostStats {
 
     /// Everything `user_id` may see: this server plus their own paired PCs.
     async fn views(&self, state: &AppState, user_id: &str) -> ApiResult<Vec<Value>> {
-        let mut out = vec![self.local_view(state)];
+        let local = self.local_view(state);
         let rows: Vec<(String, String)> = sqlx::query_as("SELECT id, name FROM machines WHERE user_id = ? ORDER BY created_at")
             .bind(user_id)
             .fetch_all(&state.db)
             .await?;
+        let host = host_of(&rows.iter().map(|(_, n)| n.as_str()).collect::<Vec<_>>(), state.config.machine_name.as_deref());
+        let mut out = Vec::new();
+        if host.is_none() {
+            out.push(local.clone());
+        }
         let remote = self.remote.lock().unwrap();
-        for (id, name) in rows {
-            match remote.get(&id) {
+        for (i, (id, name)) in rows.into_iter().enumerate() {
+            let r = remote.get(&id);
+            let online = r.is_some_and(|r| r.at.elapsed() < Duration::from_secs(3 * r.interval.max(1) as u64 + 5));
+            if host == Some(i) {
+                let mut v = local.clone();
+                v["id"] = json!(id);
+                v["name"] = json!(name);
+                v["isServer"] = json!(true);
+                v["online"] = json!(online);
+                v["runnerVersion"] = json!(r.and_then(|r| r.version.clone()));
+                out.insert(0, v);
+                continue;
+            }
+            match r {
                 Some(r) => {
-                    let online = r.at.elapsed() < Duration::from_secs(3 * r.interval.max(1) as u64 + 5);
                     let labels = HashMap::new();
                     out.push(view(&id, &name, &r.snap, &r.history, online, &r.at_iso, &labels, r.version.as_deref()));
                 }
@@ -545,3 +567,7 @@ mod tests {
         assert_eq!(s.gpus[0].vram_used_gb, None);
     }
 }
+
+#[cfg(test)]
+#[path = "hoststats_host_tests.rs"]
+mod host_tests;

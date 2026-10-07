@@ -33,7 +33,7 @@ export function setGpuView(open: Set<string>, pinned: string[]): void { openGpus
 function machine(m: MachineStats): SafeHtml {
   const cpuKind = m.historyKind === "cpu";
   const watts = m.history[m.history.length - 1];
-  if (!m.online) {
+  if (!m.online && !m.isServer) {
     return html`<li class="machine off"><div class="machine-head"><span class="dot" aria-hidden="true"></span>
       <strong>${m.name}</strong><span class="muted small">${m.os} · offline</span></div></li>`;
   }
@@ -41,7 +41,7 @@ function machine(m: MachineStats): SafeHtml {
     <li class="machine">
       <div class="machine-head">
         <span class="dot ok" aria-hidden="true"></span>
-        <strong>${m.name}</strong><span class="muted small">${m.os}${m.id !== "server" ? ` · runner ${m.runnerVersion ?? "before 0.4.5"}` : ""}</span>
+        <strong>${m.name}</strong>${m.isServer ? html`<span class="chip this-server">this server</span>` : ""}${m.isServer && !m.online ? html`<span class="chip warn-chip">runner offline</span>` : ""}<span class="muted small">${m.os}${m.id !== "server" ? ` · runner ${m.runnerVersion ?? "before 0.4.5"}` : ""}</span>
         ${m.id !== "server" && m.runnerLatest && m.runnerVersion !== m.runnerLatest ? html`<span class="chip warn-chip" title="Pair a computer shows the one-line installer">update to ${m.runnerLatest}</span>` : ""}
         ${m.id !== "server" ? html`<button class="icon-btn" data-action="unpair" data-id="${m.id}" aria-label="Unpair ${m.name}">${icon("trash")}</button>` : ""}
         <span class="watts">${cpuKind ? `${pct(m.cpu)} CPU` : watts === undefined ? "" : `${watts} W`}</span>
@@ -192,7 +192,7 @@ function gpuPanel(m: MachineStats, g: GpuStats, open: boolean, pins: string[]): 
 }
 
 export function renderMachines(machines: MachineStats[], day: DaySummary | undefined, refresh: number,
-  pairing?: { code: string; expiresAt: string; name: string }): SafeHtml {
+  pairing?: { code: string; expiresAt: string; name: string }, machineName?: string): SafeHtml {
   const step = Math.max(0, REFRESH_STEPS.indexOf(refresh));
   const newest = machines.map((m) => m.sampledAt).filter(Boolean).sort().pop();
   return html`
@@ -223,6 +223,7 @@ export function renderMachines(machines: MachineStats[], day: DaySummary | undef
               <input id="pair-name" name="name" placeholder="Name (optional), e.g. soucouyant" maxlength="60">
               <button class="btn" type="submit">Get install command</button>
             </div>
+            ${machineName && !machines.some((m) => m.isServer) ? html`<button type="button" class="btn small" data-action="pair-host">This server's computer (${machineName})</button>` : ""}
           </form>`}
       </section>
     </div>`;

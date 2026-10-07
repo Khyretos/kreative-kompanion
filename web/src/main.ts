@@ -140,7 +140,7 @@ async function start(server: Server): Promise<void> {
   ]);
   store.set({
     server: { ...server, name: status.name || server.name }, projects, chats, tasks, providers, roles, machines, today,
-    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, theme: status.theme ?? "system",
+    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, theme: status.theme ?? "system",
     machinesRefresh: status.machinesRefresh ?? 5, gpuPins: status.gpuPins ?? [], cardStyle: status.cardStyle ?? {}, windshift: status.windshift, windshiftWarning: status.windshiftWarning, features: { ...ALL_FEATURES, ...(status.features ?? {}) }, logoVersion: status.logoVersion,
   });
   setStepCardStyle(status.cardStyle ?? {});
@@ -387,7 +387,7 @@ function render(s: AppState, prev: AppState): void {
       ${renderAccess(s.machines.filter((m) => m.id !== "server").map((m) => ({ id: m.id, name: m.name })), s.grants, s.accessHistory)}` : h`
       <div class="pane-head">${paneTabs(s)}
         <button class="icon-btn only-narrow" data-action="pane" data-pane="main" aria-label="Close">✕</button></div>
-      ${(setGpuView(s.gpuOpen, s.gpuPins), renderMachines(s.machines, s.today, s.machinesRefresh, s.pairing))}`);
+      ${(setGpuView(s.gpuOpen, s.gpuPins), renderMachines(s.machines, s.today, s.machinesRefresh, s.pairing, s.machineName))}`);
     // Task descriptions are markdown, rendered sanitised after mounting.
     for (const el of document.querySelectorAll<HTMLElement>("[data-md-task]")) {
       const t = s.tasks.find((x) => x.id === el.dataset.mdTask);
@@ -824,6 +824,11 @@ function wire(shell: HTMLElement): void {
       const m = store.get().machines.find((x) => x.id === el.dataset.id);
       if (!m || !confirm(`Unpair ${m.name}? Its runner stops being accepted.`)) return;
       return api.unpairMachine(m.id).then(() => api.listMachines()).then((machines) => store.set({ machines }), showError);
+    },
+    // HOST-01: pair the server's own computer under its machine name, so its runner merges into the server card.
+    "pair-host": (el) => {
+      const name = store.get().machineName ?? "";
+      void busyWhile(el.closest("form") as HTMLFormElement, api.pairCode(name).then((r) => store.set({ pairing: { ...r, name } }), showError));
     },
     "new-task": () => store.set({ editingTaskId: "new" }),
     "edit-task": (el) => store.set({ editingTaskId: el.dataset.id }),

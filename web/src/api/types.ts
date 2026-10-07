@@ -131,6 +131,8 @@ export interface ModelCall {
 /** Live stats a runner (or the server) reports every few seconds. */
 export interface MachineStats {
   id: string;
+  /** HOST-01: the paired runner on the server's own computer (one card with the server's stats). */
+  isServer?: boolean;
   name: string;
   os: string;
   /** The paired computer's runner version (null before 0.4.5), and the newest the server ships. */
@@ -203,6 +205,7 @@ export interface ServerStatus {
   user: string | null;
   admin?: boolean;
   adult?: boolean; // STU-01c: may use the questionable and explicit Studio ratings
+  machineName?: string | null; // HOST-01: the server's own computer ([machine_name] in kompanion.toml)
   theme?: ThemeChoice;
   machinesRefresh?: number; // seconds; 1 = live
   gpuPins?: string[];

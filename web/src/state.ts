@@ -7,6 +7,7 @@ export interface AppState {
   userName?: string; // signed-in user
   isAdmin: boolean;
   isAdult: boolean; // STU-01c: the adult-content right (Studio ratings)
+  machineName?: string; // HOST-01: the server's own computer, for "This server's computer" in Pair
   grants: Record<string, import("./views/access").GrantView[]>; // per paired machine
   accessHistory: import("./views/access").AccessEvent[];
   logoVersion?: string | null;

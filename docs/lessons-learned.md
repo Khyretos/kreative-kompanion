@@ -166,3 +166,5 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | STU-02b run card | Claude | chk.py kept the space before `)` of a wrapped signature, so 3 fix rounds chased a correct draft | chk.py drops whitespace before closing brackets | `tools/qwen/chk.py` |
 | ACC-01 renew | Claude | access_log kind 'renewed' broke the table's CHECK (500); the temp-server test caught it; the first rebuild missed the new migration | Migration 0116; touch the migrate! file after adding a migration | `general/orchestrator/prompting-workers` 99 |
 | ACC-01 access list | Claude | Live re-render (machines poll) closed every open <details>; only a wait-7-s test showed it | Remember open keys and render them open | `worker/web` (ACC-01 test) |
+| HOST-01 views job | Claude | My auth.rs line used `s` (the handler's state is `state`); the job's compile check failed Coder's correct views() 4 times | Compile own edits before the job | `general/orchestrator/prompting-workers` 100 |
+| HOST-01 pair action | Claude | Spec passed a button to busyWhile(form, ..) | Check helper signatures before the spec | `general/orchestrator/prompting-workers` 100 |
