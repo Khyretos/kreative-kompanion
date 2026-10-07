@@ -245,7 +245,7 @@ let roles: RoleAssignment[] = [
 
 const machines: MachineStats[] = [
   {
-    id: "kireserver", name: "kireserver", os: "Ubuntu", online: true, cpu: 0.34, ramUsedGb: 41, ramTotalGb: 64,
+    id: "kireserver", name: "kireserver", isServer: !(globalThis as { __kkDemoNoHost?: boolean }).__kkDemoNoHost, os: "Ubuntu", online: true, cpu: 0.34, ramUsedGb: 41, ramTotalGb: 64,
     kompanionShare: 0.12, history: [92, 95, 140, 151, 148, 150, 97, 94, 149, 152, 150, 149],
     gpus: [{ name: "Arc A770", load: 0.71, vramUsedGb: 11.2, vramTotalGb: 16, watts: 162, tempC: 67, use: "Qwen3.5-9B (OVMS)" }],
   },
@@ -320,7 +320,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}

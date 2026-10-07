@@ -165,6 +165,8 @@ pub async fn status(
         "gpuPins": serde_json::from_str::<serde_json::Value>(&pins).unwrap_or(serde_json::json!([])),
         "cardStyle": serde_json::from_str::<serde_json::Value>(&cards).unwrap_or(serde_json::json!({})),
         "version": env!("CARGO_PKG_VERSION"),
+        // HOST-01: the server's own computer, offered as "This server's computer" when pairing.
+        "machineName": state.config.machine_name,
         "features": {
             "assets": state.config.features.assets,
             "gpus": state.config.features.gpus,
