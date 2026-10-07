@@ -44,6 +44,24 @@ pub fn tool_text(result: &Value) -> String {
         .unwrap_or_default()
 }
 
+/// BLD-01: the images of a tools/call result as (mime type, base64 data); items without either are skipped.
+pub fn tool_images(result: &Value) -> Vec<(String, String)>
+{
+    result["content"]
+        .as_array()
+        .map(|items| {
+            items.iter()
+                .filter(|i| i.get("type").and_then(|v| v.as_str()) == Some("image"))
+                .filter_map(|i| {
+                    let mime = i.get("mimeType").and_then(|v| v.as_str());
+                    let data = i.get("data").and_then(|v| v.as_str());
+                    mime.and_then(|m| data.map(|d| (m.to_string(), d.to_string())))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 async fn rpc(http: &reqwest::Client, s: &McpServerConfig, session: Option<&str>, method: &str, params: Value, id: Option<u64>) -> Result<(Value, Option<String>)> {
     let mut body = json!({"jsonrpc": "2.0", "method": method, "params": params});
     if let Some(id) = id {
@@ -93,7 +111,9 @@ pub async fn list_tools(http: &reqwest::Client, s: &McpServerConfig) -> Result<V
     Ok(tools)
 }
 
-pub async fn call_tool(http: &reqwest::Client, s: &McpServerConfig, name: &str, args: &Value) -> Result<String> {
+/// tools/call with its text and its images.
+pub async fn call_tool_full(http: &reqwest::Client, s: &McpServerConfig, name: &str, args: &Value) -> Result<(String, Vec<(String, String)>)>
+{
     let sid = session(http, s).await?;
     let (res, _) = rpc(http, s, sid.as_deref(), "tools/call", json!({
         "name": name,
@@ -104,7 +124,7 @@ pub async fn call_tool(http: &reqwest::Client, s: &McpServerConfig, name: &str, 
         bail!("{}", tool_text(&res));
     }
 
-    Ok(tool_text(&res))
+    Ok((tool_text(&res), tool_images(&res)))
 }
 
 /// list_tools, remembered per server for CACHE_FOR.

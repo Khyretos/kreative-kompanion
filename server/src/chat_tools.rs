@@ -9,7 +9,7 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_RESULT: usize = 6000;
 
 #[derive(Debug, Clone)]
-pub struct ToolUse { pub server: String, pub tool: String, pub args: Value, pub result: String }
+pub struct ToolUse { pub server: String, pub tool: String, pub args: Value, pub result: String, pub images: Vec<String> }
 
 fn clean(s: &str) -> String {
     s.to_lowercase()
@@ -65,14 +65,17 @@ pub fn tool_specs(tools: &[(String, Vec<Value>)]) -> (Value, HashMap<String, (St
 
 /// The first string argument of a use, shortened: what it looked up.
 fn what(u: &ToolUse) -> Option<String> {
-    u.args.as_object()?.values().find_map(|v| v.as_str()).map(|t| t.chars().take(60).collect())
+    // One line, also for code arguments (BLD-01: Blender scripts).
+    u.args.as_object()?.values().find_map(|v| v.as_str()).map(|t| t.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(60).collect())
 }
 
 pub fn use_line(u: &ToolUse) -> String {
-    match what(u) {
+    let line = match what(u) {
         Some(w) => format!("*Looked up {}: {} ({w})*", u.server, u.tool),
         None => format!("*Looked up {}: {}*", u.server, u.tool),
-    }
+    };
+    let pics: String = u.images.iter().map(|url| format!("\n\n![{}: {}]({url})", u.server, u.tool)).collect();
+    format!("{line}{pics}")
 }
 
 pub fn results_note(uses: &[ToolUse]) -> String {
@@ -80,7 +83,11 @@ pub fn results_note(uses: &[ToolUse]) -> String {
         .iter()
         .map(|u| format!("{}: {}{}\n{}", u.server, u.tool, what(u).map(|w| format!(" ({w})")).unwrap_or_default(), u.result))
         .collect();
-    format!("You looked these up with tools for this answer. Use them, and cite where each point comes from: copy the [collection / document, part n] labels or the links next to the point.\n\n{}", parts.join("\n\n"))
+    // BLD-01: a tool made a picture (a Blender render): the model must not deny it or offer it again.
+    let pics = if uses.iter().any(|u| !u.images.is_empty()) {
+        "Your tools made the picture shown to the user above your answer. Say in a sentence or two what it shows; never say you cannot render or that tools are missing.\n\n"
+    } else { "" };
+    format!("{pics}You looked these up with tools for this answer. Use them, and cite where each point comes from: copy the [collection / document, part n] labels or the links next to the point.\n\n{}", parts.join("\n\n"))
 }
 
 /// CHAT-02: the built-in web tools' server name in a chat's tool list.
@@ -96,7 +103,17 @@ async fn web_call(http: &reqwest::Client, w: &crate::config::SearchConfig, tool:
     }
 }
 
-pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value], servers: &[McpServerConfig], web: Option<&crate::config::SearchConfig>, knowledge: Option<&str>, on_use: &(dyn Fn(&ToolUse) + Send + Sync)) -> Vec<ToolUse> {
+pub async fn run(
+    s: &AppState,
+    p: &ProviderConfig,
+    model: &str,
+    convo: &[Value],
+    servers: &[McpServerConfig],
+    web: Option<&crate::config::SearchConfig>,
+    knowledge: Option<&str>,
+    files: Option<(&std::path::Path, &str)>,
+    on_use: &(dyn Fn(&ToolUse) + Send + Sync),
+) -> Vec<ToolUse> {
     let mut tools = Vec::new();
     for srv in servers {
         if !srv.enabled { continue; }
@@ -137,6 +154,7 @@ pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value],
             let name = call["function"]["name"].as_str().unwrap_or("").to_string();
             let args_str = call["function"]["arguments"].as_str().unwrap_or("{}");
             let args: Value = serde_json::from_str(args_str).unwrap_or_else(|_| json!({}));
+            let mut images: Vec<String> = Vec::new();
             
             let result = match map.get(&name).cloned() {
                 None => format!("error: there is no tool {name}"),
@@ -157,8 +175,18 @@ pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value],
                 },
                 Some((srv, tool)) => match servers.iter().find(|x| x.name == srv) {
                     None => format!("error: there is no tool {name}"),
-                    Some(cfg) => match tokio::time::timeout(CALL_TIMEOUT, crate::mcp::call_tool(&s.http, cfg, &tool, &args)).await {
-                        Ok(Ok(text)) => text,
+                    Some(cfg) => match tokio::time::timeout(CALL_TIMEOUT, crate::mcp::call_tool_full(&s.http, cfg, &tool, &args)).await {
+                        Ok(Ok((text, pics))) => {
+                            if let Some((dir, chat)) = files {
+                                for (mime, data) in pics {
+                                    match crate::chat_files::save(dir, chat, &mime, &data).await {
+                                        Ok(file) => images.push(format!("/api/chats/{chat}/files/{file}")),
+                                        Err(e) => tracing::warn!("chat picture not saved: {e}"),
+                                    }
+                                }
+                            }
+                            if images.is_empty() { text } else { format!("{text}\n(Done: the picture is rendered and the user already sees it above your answer. Say in a sentence or two what it shows; do not offer to render it again.)") }
+                        }
                         Ok(Err(e)) => format!("error: {e}"),
                         Err(_) => "error: the tool took too long".to_string(),
                     },
@@ -169,7 +197,7 @@ pub async fn run(s: &AppState, p: &ProviderConfig, model: &str, convo: &[Value],
             msgs.push(json!({"role": "tool", "tool_call_id": call["id"], "content": result}));
             
             if let Some((srv, tool)) = map.get(&name) {
-                let u = ToolUse { server: srv.clone(), tool: tool.clone(), args, result };
+                let u = ToolUse { server: srv.clone(), tool: tool.clone(), args, result, images };
                 on_use(&u);
                 uses.push(u);
             }

@@ -27,6 +27,7 @@ mod mail;
 mod mailhtml;
 mod mcp;
 mod chat_tools;
+mod chat_files;
 mod web;
 mod knowledge;
 mod notify;
@@ -286,6 +287,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/chats", get(api::chats).post(api::create_chat))
         .route("/chats/{id}", patch(api::update_chat).delete(api::delete_chat))
         .route("/chats/{id}/messages", get(api::messages).post(api::send))
+        .route("/chats/{id}/files/{name}", get(chat_files::file))
         .route("/providers", get(api::providers))
         .route("/roles", get(api::roles).put(api::set_role))
         .route("/calls", get(api::calls))

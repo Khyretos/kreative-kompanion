@@ -346,6 +346,7 @@ li.task.dragging { opacity: 0.5; }
 .msg.orchestrator .who { color: var(--link); }
 .msg time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .msg .body { display: grid; gap: 0.6rem; overflow-wrap: anywhere; }
+.msg .body img { display: block; max-width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); }
 .msg.user .body { background: var(--user-bubble); padding: 0.7rem 0.9rem; border-radius: 12px; }
 .msg .body ul { list-style: disc; padding-left: 1.25rem; display: grid; gap: 0.2rem; }
 .msg .body code { background: var(--surface-2); padding: 0.05rem 0.3rem; border-radius: 4px; }

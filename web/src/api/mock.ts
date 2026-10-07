@@ -50,6 +50,7 @@ const chats: Chat[] = [
   { id: "c-kompanion", title: "First UI draft", projectId: "p-kompanion", updatedAt: ago(2) },
   { id: "c-3dco", title: "SDL3 port", projectId: "p-3dco", updatedAt: ago(60 * 26) },
   { id: "c-nohboard", title: "Wayland input capture", projectId: "p-nohboard", updatedAt: ago(60 * 24 * 4) },
+  { id: "c-blender", title: "Blender scene", updatedAt: ago(60 * 24 * 5) },
   { id: "c-loose", title: "Which local model next?", updatedAt: ago(60 * 3) },
 ];
 
@@ -59,6 +60,13 @@ const adminSettings: AdminSettings = {
 };
 
 const messages: Message[] = [
+  // BLD-01: a Blender render from a chat tool, shown as a picture in the answer.
+  { id: "m-bl1", chatId: "c-blender", author: "user", at: ago(60 * 24 * 5), text: "Render a monkey on a plane." },
+  {
+    id: "m-bl2", chatId: "c-blender", author: "orchestrator", at: ago(60 * 24 * 5 - 1),
+    text: "*Looked up Blender: blender_render (bpy.ops.mesh.primitive_monkey_add())*\n\n![Blender: blender_render](/api/chats/c-blender/files/0f8e2c1a-5b7d-4c3e-9a21-6d4f0b9e7c55.png)\n\n" +
+      "Here is Suzanne on a grey plane, lit by a sun from the upper left.\n\n![tracker](https://example.com/pixel.png)",
+  },
   {
     id: "m1", chatId: "c-kk", author: "user", at: ago(20),
     text: "I keep turning the Vulkan validation layers on and off by editing code. Can you make that a setting, and finally add tests for the module loader?",
