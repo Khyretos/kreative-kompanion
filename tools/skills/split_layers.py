@@ -16,7 +16,6 @@ import glob
 import os
 import sys
 import re
-from pathlib import Path
 
 
 def split_card(text: str):
