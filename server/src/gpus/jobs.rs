@@ -26,6 +26,8 @@ pub struct Spec {
     pub vram_mib: u64,
     pub ram_mib: u64,
     pub tonight: bool,
+    /// GPU-04: the studio run this job belongs to (failed when the job is dropped).
+    pub run_id: Option<String>,
 }
 
 /// A GPU reservation; dropping it ends the job and frees the GPU for the next one.
@@ -87,8 +89,8 @@ pub async fn acquire(s: &AppState, spec: Spec, wait: Duration) -> Result<Lease> 
     let id = util::new_id();
     let now = util::now();
     sqlx::query(
-        "INSERT INTO gpu_job (id, kind, what, gpus, vram_mib, ram_mib, tonight, state, created_at, beat_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)",
+        "INSERT INTO gpu_job (id, kind, what, gpus, vram_mib, ram_mib, tonight, state, created_at, beat_at, run_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)",
     )
     .bind(&id)
     .bind(kind_str(spec.kind))
@@ -99,6 +101,7 @@ pub async fn acquire(s: &AppState, spec: Spec, wait: Duration) -> Result<Lease> 
     .bind(spec.tonight)
     .bind(&now)
     .bind(&now)
+    .bind(&spec.run_id)
     .execute(&s.db)
     .await?;
     KICK.notify_one();
@@ -154,6 +157,11 @@ pub async fn round(s: &AppState, ledgers: &[super::ledger::GpuLedger]) {
     .await
     .map(|r| r.rows_affected())
     .unwrap_or(0);
+    // GPU-04: a studio run whose GPU job was dropped never finishes: mark it failed (also after a restart).
+    let _ = sqlx::query("UPDATE studio_run SET state = 'failed', ended_at = ?, error = (SELECT 'its GPU job was dropped: ' || COALESCE(j.error, '') FROM gpu_job j WHERE j.run_id = studio_run.id AND j.state = 'dropped' LIMIT 1) WHERE state = 'running' AND id IN (SELECT run_id FROM gpu_job WHERE state = 'dropped' AND run_id IS NOT NULL)")
+        .bind(util::now())
+        .execute(&s.db)
+        .await;
     let rows: Vec<JobRow> = sqlx::query_as(
         "SELECT id, kind, gpus, vram_mib, ram_mib, tonight, state, gpu, created_at FROM gpu_job WHERE state IN ('queued', 'running')",
     )
@@ -263,7 +271,7 @@ mod tests {
     }
 
     fn spec(vram: u64) -> Spec {
-        Spec { kind: Kind::Asset, what: "test".into(), gpus: vec!["a770".into()], vram_mib: vram, ram_mib: 0, tonight: false }
+        Spec { kind: Kind::Asset, what: "test".into(), gpus: vec!["a770".into()], vram_mib: vram, ram_mib: 0, tonight: false, run_id: None }
     }
 
     async fn states(s: &AppState) -> Vec<String> {
@@ -309,5 +317,41 @@ mod tests {
         .unwrap();
         round(&s, &[ledger("a770", "kireserver", 16384, None, true, vec![])]).await;
         assert_eq!(states(&s).await, ["dropped"]);
+    }
+
+    #[tokio::test]
+    async fn a_dropped_job_fails_its_studio_run() {
+        let s = state().await;
+        sqlx::query(
+            "INSERT INTO studio_run (id, workflow, gpu, user_id, params, models, state, started_at)
+             VALUES ('r1', 'oc-sheet', 'rx9070', 'cli', '{}', '[]', 'running', '2026-01-01T00:00:00Z')",
+        )
+        .execute(&s.db)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO gpu_job (tonight, run_id, state, created_at, beat_at, id, kind, what, gpus, vram_mib, ram_mib, gpu)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(false)
+        .bind("r1")
+        .bind("running")
+        .bind("2026-01-01T00:00:00Z")
+        .bind("2026-01-01T00:00:00Z")
+        .bind("old")
+        .bind("asset")
+        .bind("x")
+        .bind("[\"a770\"]")
+        .bind(8000)
+        .bind(0)
+        .bind("a770")
+        .execute(&s.db)
+        .await
+        .unwrap();
+        round(&s, &[ledger("a770", "kireserver", 16384, None, true, vec![])]).await;
+        let (state, error): (String, Option<String>) =
+            sqlx::query_as("SELECT state, error FROM studio_run WHERE id = 'r1'").fetch_one(&s.db).await.unwrap();
+        assert_eq!(state, "failed");
+        assert!(error.unwrap_or_default().contains("its owner stopped"));
     }
 }

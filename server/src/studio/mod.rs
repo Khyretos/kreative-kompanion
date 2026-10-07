@@ -322,6 +322,7 @@ async fn execute(
         vram_mib: w.vram_for(&machine),
         ram_mib: w.ram_for(&machine),
         tonight: false,
+        run_id: Some(id.clone()),
     };
     // GPU-02: the same workflow again reuses ComfyUI's loaded models (16 s instead of 68 s on
     // the A770): ask only for what is missing. Another workflow frees the cache when it doesn't fit.

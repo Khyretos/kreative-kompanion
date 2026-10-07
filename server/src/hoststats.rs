@@ -474,7 +474,8 @@ pub async fn report(
     .fetch_optional(&s.db)
     .await
     .unwrap_or(None);
-    let interval = if busy.is_some() || !jobs.is_empty() { 1 } else { interval };
+    // GPU-04: computers with a managed studio report more often (Studio off within 30 s).
+    let interval = if busy.is_some() || !jobs.is_empty() { 1 } else { crate::gpus::gaming::report_interval(&id, interval) };
     Ok(Json(json!({ "interval": interval, "jobs": jobs })))
 }
 

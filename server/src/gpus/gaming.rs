@@ -1,6 +1,6 @@
 //! GPU-01: Studio / Gaming / Auto per computer with studio apps; the runner's `gpu_apps` tool
 //! stops and starts them. Decisions come from gaming_policy.
-use std::{collections::HashMap, sync::{LazyLock, Mutex}, time::{Duration, Instant}};
+use std::{collections::{HashMap, HashSet}, sync::{LazyLock, Mutex}, time::{Duration, Instant}};
 use axum::{Extension, Json, extract::{Path, State}};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -10,7 +10,6 @@ use crate::{AppState, auth::User, error::{ApiError, ApiResult}, events::Event, u
 #[derive(Default)]
 struct Seen { 
     was_gaming: bool, 
-    game_end: Option<Instant>, 
     sent_at: Option<Instant> 
 }
 
@@ -26,16 +25,19 @@ struct Machine {
     studio_at: Option<String>,
     /// The runner has the "gpu" system grant; without it nothing is stopped or started.
     granted: bool,
+    /// GPU-04: a game ran here until this time plus the cooldown (RFC 3339, from the database).
+    gaming_until: Option<String>,
 }
 
 async fn machines(s: &AppState) -> Vec<Machine> {
     let mut result: Vec<Machine> = Vec::new();
     for g in &s.config.gpus {
         if g.apps.is_empty() || result.iter().any(|m| m.name == g.machine) { continue; }
-        let row = sqlx::query_as::<_, (String, String, String, i64, Option<String>, bool)>(
+        let row = sqlx::query_as::<_, (String, String, String, i64, Option<String>, bool, Option<String>)>(
             "SELECT id, user_id, gpu_mode, apps_stopped, studio_at,
                     EXISTS(SELECT 1 FROM machine_grants g WHERE g.machine_id = machines.id AND g.target = 'system'
-                           AND g.rights LIKE '%\"gpu\"%' AND (g.expires IS NULL OR g.expires > ?))
+                           AND g.rights LIKE '%\"gpu\"%' AND (g.expires IS NULL OR g.expires > ?)),
+                    gaming_until
              FROM machines WHERE name = ?"
         )
         .bind(util::now())
@@ -55,6 +57,7 @@ async fn machines(s: &AppState) -> Vec<Machine> {
                     apps_stopped,
                     studio_at: r.4,
                     granted: r.5,
+                    gaming_until: r.6,
                 });
             }
             Ok(None) | Err(_) => {}
@@ -63,23 +66,65 @@ async fn machines(s: &AppState) -> Vec<Machine> {
     result
 }
 
-fn effective_of(s: &AppState, m: &Machine) -> (GpuMode, bool) {
-    let gaming = s.host.gaming(&m.id).unwrap_or(false);
-    
-    let mut map = SEEN.lock().unwrap();
-    let e = map.entry(m.id.clone()).or_default();
-    
-    if e.was_gaming && !gaming {
-        e.game_end = Some(Instant::now());
-    }
-    
-    e.was_gaming = gaming;
-    
-    let eff = gaming_policy::effective(m.mode, gaming, e.game_end.map(|t| t.elapsed()));
-    drop(map);
-    
-    (eff, gaming)
+/// GPU-04: the effective mode and whether a game runs or ran within the cooldown. The server
+/// writes gaming_until (now + the cooldown) while a game runs and when it ends, so the CLI,
+/// which gets no runner reports, reads the same state from the database.
+async fn effective_of(s: &AppState, m: &Machine) -> (GpuMode, bool) {
+    let live = s.host.gaming(&m.id).unwrap_or(false);
+
+    let ended = {
+        let mut map = SEEN.lock().unwrap();
+        let e = map.entry(m.id.clone()).or_default();
+        let ended = e.was_gaming && !live;
+        e.was_gaming = live;
+        ended
+    };
+
+    let until = if live || ended {
+        let u = util::in_minutes(gaming_policy::GAME_COOLDOWN.as_secs() as i64 / 60);
+        let _ = sqlx::query("UPDATE machines SET gaming_until = ? WHERE id = ?")
+            .bind(&u)
+            .bind(&m.id)
+            .execute(&s.db)
+            .await;
+        Some(u)
+    } else {
+        m.gaming_until.clone()
+    };
+
+    let cooling = until.as_deref().is_some_and(|u| u > util::now().as_str());
+
+    (gaming_policy::effective(m.mode, live || cooling, None), live || cooling)
 }
+
+/// GPU-04: the computers whose studio Kompanion manages ("gpu" grant and studio apps), set by step().
+static MANAGED: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
+
+/// GPU-04: until when a computer reports fast (a mode change or a stop is pending).
+static FAST: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Default::default);
+
+/// GPU-04: report every 3 s for the next 2 minutes, so a stop reaches the runner at once.
+fn hurry(machine_id: &str) {
+    let mut map = FAST.lock().unwrap();
+    map.insert(
+        machine_id.to_string(),
+        Instant::now() + Duration::from_secs(120),
+    );
+}
+
+/// GPU-04: how often a runner reports: every 3 s while a change is pending, at most every 20 s on a managed computer (Studio off frees the GPU within 30 s), else as asked.
+pub fn report_interval(machine_id: &str, interval: u32) -> u32 {
+    if let Some(exp) = FAST.lock().unwrap().get(machine_id) {
+        if *exp > Instant::now() {
+            return interval.min(3);
+        }
+    }
+    if MANAGED.lock().unwrap().contains(machine_id) {
+        return interval.min(20);
+    }
+    interval
+}
+
 
 async fn send(s: &AppState, m: &Machine, tool: Value) {
     if let Err(e) = crate::access::queue_job(&s.db, &m.id, &m.user_id, &tool, None).await {
@@ -88,8 +133,10 @@ async fn send(s: &AppState, m: &Machine, tool: Value) {
 }
 
 pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
-    for m in machines(s).await.iter().filter(|m| m.granted) {
-        let (eff, _) = effective_of(s, m);
+    let list = machines(s).await;
+    *MANAGED.lock().unwrap() = list.iter().filter(|m| m.granted).map(|m| m.id.clone()).collect();
+    for m in list.iter().filter(|m| m.granted) {
+        let (eff, _) = effective_of(s, m).await;
         
         let app_seen = ledgers.iter()
             .filter(|l| l.machine == m.name)
@@ -147,6 +194,7 @@ pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
                 send(s, m, json!({"tool": "gpu_apps", "action": "unload_ollama"})).await;
             }
             
+            hurry(&m.id);
             tracing::info!(machine = %m.name, mode = eff.as_str(), unload, "GPU-01: freeing the GPU");
             s.bus.send_all(Event::Changed { what: "gpus", machine_id: None });
         }
@@ -162,7 +210,7 @@ pub async fn studio_allowed(s: &AppState, machine: &str) -> bool {
     if !m.granted {
         return true;
     }
-    effective_of(s, &m).0 != GpuMode::Gaming
+    effective_of(s, &m).await.0 != GpuMode::Gaming
 }
 
 pub async fn ensure_started(s: &AppState, gpu: &str, app: &str) -> Result<(), String> {
@@ -174,10 +222,10 @@ pub async fn ensure_started(s: &AppState, gpu: &str, app: &str) -> Result<(), St
         return Ok(());
     };
     
-    let (eff, gaming) = effective_of(s, &m);
+    let (eff, gaming) = effective_of(s, &m).await;
     
-    if gaming {
-        return Err(format!("{} is running a game, so Auto turned its studio off; switch it to Studio on to use it anyway.", m.name));
+    if gaming && eff == GpuMode::Gaming {
+        return Err(format!("{} is running a game (or ran one in the last 10 minutes), so Auto turned its studio off; switch it to Studio on to use it anyway.", m.name));
     }
     
     if eff == GpuMode::Gaming {
@@ -214,7 +262,7 @@ pub async fn modes(s: &AppState) -> Vec<Value> {
     let mut result = Vec::new();
     
     for m in &machines_list {
-        let (eff, gaming) = effective_of(s, m);
+        let (eff, gaming) = effective_of(s, m).await;
         
         let gpus_on_machine = s.config.gpus.iter()
             .filter(|g| g.machine == m.name && !g.apps.is_empty())
@@ -230,7 +278,8 @@ pub async fn modes(s: &AppState) -> Vec<Value> {
             "machine": m.name,
             "mode": m.mode,
             "effective": eff,
-            "gaming": gaming,
+            // A game running now (the cooldown alone shows as Auto keeping the studio off).
+            "gaming": gaming && s.host.gaming(&m.id).unwrap_or(false),
             "appsStopped": m.apps_stopped,
             "granted": m.granted,
             "studioAt": m.studio_at,
@@ -262,8 +311,57 @@ pub async fn set(State(s): State<AppState>, Extension(u): Extension<User>, Path(
         .await?;
     
     tracing::info!(machine = %m.name, mode = mode.as_str(), by = %u.name, "GPU-01: mode set");
+    hurry(&m.id);
     super::jobs::KICK.notify_one();
     s.bus.send_all(Event::Changed { what: "gpus", machine_id: None });
     
     Ok(Json(json!({"machine": m.name, "mode": mode})))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn state() -> AppState {
+        let db = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!().run(&db).await.unwrap();
+        for q in [
+            "INSERT INTO users (id, name, password_hash, created_at) VALUES ('u', 'kees', '-', '2026-10-04')",
+            "INSERT INTO machines (id, user_id, name, token_hash, created_at) VALUES ('m', 'u', 'souc', 'h', '2026-10-04')",
+            "INSERT INTO machine_grants (machine_id, target, rights, granted_by, granted_at) VALUES ('m', 'system', '[\"gpu\"]', 'u', '2026-10-04')",
+        ] {
+            sqlx::query(q).execute(&db).await.unwrap();
+        }
+        let cfg = toml::from_str("[[gpu]]\nid = \"rx9070\"\nmachine = \"souc\"\npci = \"x\"\nvram_gb = 16\napps = [\"comfyui\"]").unwrap();
+        AppState::for_tests(cfg, db)
+    }
+
+    /// GPU-04: the CLI gets no runner reports; the game cooldown stored by the server still
+    /// keeps studio jobs off that computer in Auto (Studio on ignores it).
+    #[tokio::test]
+    async fn the_stored_game_cooldown_turns_the_studio_off() {
+        let s = state().await;
+        assert!(studio_allowed(&s, "souc").await);
+        sqlx::query("UPDATE machines SET gaming_until = ?").bind(util::in_minutes(5)).execute(&s.db).await.unwrap();
+        assert!(!studio_allowed(&s, "souc").await);
+        assert!(ensure_started(&s, "rx9070", "comfyui").await.is_err());
+        sqlx::query("UPDATE machines SET gpu_mode = 'studio'").execute(&s.db).await.unwrap();
+        assert!(studio_allowed(&s, "souc").await);
+        assert!(ensure_started(&s, "rx9070", "comfyui").await.is_ok());
+        sqlx::query("UPDATE machines SET gpu_mode = 'auto', gaming_until = ?").bind(util::minutes_ago(1)).execute(&s.db).await.unwrap();
+        assert!(studio_allowed(&s, "souc").await);
+    }
+
+    /// GPU-04: managed computers report every 20 s at most, every 3 s right after a change.
+    #[test]
+    fn managed_computers_report_often_and_faster_after_a_change() {
+        assert_eq!(report_interval("x1", 60), 60);
+        MANAGED.lock().unwrap().insert("x1".into());
+        assert_eq!(report_interval("x1", 60), 20);
+        assert_eq!(report_interval("x1", 5), 5);
+        hurry("x1");
+        assert_eq!(report_interval("x1", 60), 3);
+        assert_eq!(report_interval("x1", 1), 1);
+        assert_eq!(report_interval("x2", 60), 60);
+    }
 }
