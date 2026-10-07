@@ -17,7 +17,7 @@ import { composer, effortChip, elapsedText, fillMessage, flashMessage, groupChoi
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { renderMachines, REFRESH_STEPS, setGpuView } from "./views/machines";
-import { grantFromForm, renderAccess, type GrantView } from "./views/access";
+import { confirmPermanent, grantFromForm, renderAccess, type GrantView } from "./views/access";
 import { renderPcActions, renderPcPicker } from "./views/pcactions";
 import { renderLessons } from "./views/lessons";
 import { AssetsView } from "./views/assets";
@@ -955,6 +955,14 @@ function wire(shell: HTMLElement): void {
       markGrant(machineId, target, "revoke");
       return api.revokeGrant(machineId, target).catch((e) => { showError(e); void loadAccess(); });
     },
+    "grant-renew": async (el) => {
+      const machineId = el.dataset.machine ?? "";
+      const target = el.dataset.target ?? "";
+      const hours = el.dataset.hours ? Number(el.dataset.hours) : null;
+      el.closest("details")?.removeAttribute("open");
+      if (hours === null && !(await confirmPermanent())) return;
+      return api.renewGrant(machineId, target, hours).catch((e) => { showError(e); void loadAccess(); });
+    },
     "clear-task-filter": () => {
       store.set({ taskFilter: "" });
       document.getElementById("task-filter")?.focus();
@@ -1174,9 +1182,12 @@ function wire(shell: HTMLElement): void {
       ev.preventDefault();
       const g = grantFromForm(grantForm);
       const machineId = grantForm.dataset.machine ?? "";
-      markGrant(machineId, g.target, "add", { rights: g.rights });
-      grantForm.reset();
-      api.addGrant(machineId, g.target, g.rights, g.expiresHours).catch((e) => { showError(e); void loadAccess(); });
+      void (async () => {
+        if (g.expiresHours === undefined && !(await confirmPermanent())) return;
+        markGrant(machineId, g.target, "add", { rights: g.rights });
+        grantForm.reset();
+        api.addGrant(machineId, g.target, g.rights, g.expiresHours).catch((e) => { showError(e); void loadAccess(); });
+      })();
       return;
     }
     const pairForm = (ev.target as HTMLElement).closest("#pair-form") as HTMLFormElement | null;

@@ -61,6 +61,8 @@ export interface KompanionApi {
   listGrants(machineId: string): Promise<import("../views/access").GrantView[]>;
   addGrant(machineId: string, target: string, rights: string[], expiresHours?: number): Promise<void>;
   revokeGrant(machineId: string, target: string): Promise<void>;
+  /** ACC-01: same target and rights, a new expiry (null: permanent). */
+  renewGrant(machineId: string, target: string, expiresHours: number | null): Promise<void>;
   accessHistory(): Promise<import("../views/access").AccessEvent[]>;
   getAdmin(): Promise<{ settings: AdminSettings; smtpPasswordSet: boolean }>;
   saveAdmin(settings: AdminSettings): Promise<AdminSettings>;
