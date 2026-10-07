@@ -2,6 +2,7 @@
 
 import bpy
 import math
+import os
 from mathutils import Vector
 
 
@@ -68,7 +69,10 @@ def finish(out, width=640, height=480, engine="EEVEE"):
     engine_upper = engine.upper()
     if engine_upper == "CYCLES":
         scene.render.engine = "CYCLES"
-        scene.cycles.samples = 32
+        scene.cycles.device = "CPU"
+        scene.cycles.samples = int(os.environ.get("BLENDER_SAMPLES", "128"))
+        scene.cycles.use_denoising = True
+        scene.cycles.denoiser = "OPENIMAGEDENOISE"
     else:
         try:
             scene.render.engine = "BLENDER_EEVEE"

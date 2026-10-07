@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""BLD-01: a small MCP server (streamable HTTP, JSON answers) that runs Blender headless. Opt-in: run it only on a machine where chats may run Python inside Blender. Env: BLENDER_MCP_TOKEN (required), BLENDER_MCP_BIND (default 127.0.0.1:9876), BLENDER_CMD (default "blender"; e.g. "flatpak run --filesystem=/tmp org.blender.Blender"), BLENDER_TIMEOUT seconds (default 120)."""
-import base64, http.server, json, os, shutil, subprocess, sys, tempfile, uuid
+"""BLD-01: a small MCP server (streamable HTTP, JSON answers) that runs Blender headless. Opt-in: run it only on a machine where chats may run Python inside Blender. Env: BLENDER_MCP_TOKEN (required), BLENDER_MCP_BIND (default 127.0.0.1:9876), BLENDER_CMD (default "blender"; e.g. "flatpak run --filesystem=/tmp org.blender.Blender"), BLENDER_TIMEOUT seconds (default 120), BLENDER_ENGINE (CYCLES, CPU with denoising; or EEVEE), BLENDER_SAMPLES (Cycles samples, default 128). Env: LISTEN_FDS=1 enables socket activation (binds fd 3); BLENDER_IDLE_EXIT=N exits after N seconds of inactivity."""
+import base64, http.server, json, os, shutil, subprocess, sys, tempfile, uuid, time, socket, threading
 
 TOKEN = os.environ.get("BLENDER_MCP_TOKEN", "")
 HOST, _, PORT = os.environ.get("BLENDER_MCP_BIND", "127.0.0.1:9876").rpartition(":")
 CMD = __import__("shlex").split(os.environ.get("BLENDER_CMD", "blender"))
 TIMEOUT = int(os.environ.get("BLENDER_TIMEOUT", "120"))
+DEFAULT_ENGINE = os.environ.get("BLENDER_ENGINE", "CYCLES")
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCENE = open(os.path.join(HERE, "scene.py")).read()
 
@@ -39,7 +40,7 @@ def scene_code(objects):
 TOOLS = [
     {"name": "blender_scene", "description": "Render a simple 3D scene from a list of shapes and show the picture to the user. Prefer this tool. A camera aimed at everything and a sun light are added for you. Example: objects [{\"shape\": \"plane\", \"size\": 8}, {\"shape\": \"cube\", \"location\": [0, 0, 1], \"color\": [0.8, 0.1, 0.1]}]", "inputSchema": {"type": "object", "properties": {"objects": {"type": "array", "items": {"type": "object", "properties": {"shape": {"type": "string", "enum": ["cube", "sphere", "plane", "cylinder", "cone", "torus", "monkey"]}, "size": {"type": "number", "description": "Width in metres, default 2"}, "location": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z]; z is up"}, "rotation": {"type": "array", "items": {"type": "number"}, "description": "[x, y, z] in degrees"}, "color": {"type": "array", "items": {"type": "number"}, "description": "[r, g, b], each 0..1"}}, "required": ["shape"]}}, "width": {"type": "integer", "default": 640}, "height": {"type": "integer", "default": 480}}, "required": ["objects"]}},
     {"name": "blender_run", "description": "Run Python (bpy) in a fresh headless Blender and return its printed output. Use print() for answers.", "inputSchema": {"type": "object", "properties": {"code": {"type": "string", "description": "Python code using bpy"}}, "required": ["code"]}},
-    {"name": "blender_render", "description": "Build a scene with Python (bpy) and render it to a picture the user sees. The scene starts empty. Add only objects and colours: a camera aimed at everything and a sun light are added for you, so do not add your own unless the user asks. color(obj, (r, g, b)) gives an object a coloured material. Example code: bpy.ops.mesh.primitive_plane_add(size=6); bpy.ops.mesh.primitive_cube_add(location=(0, 0, 1)); color(bpy.context.active_object, (0.8, 0.1, 0.1))", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "width": {"type": "integer", "default": 640}, "height": {"type": "integer", "default": 480}, "engine": {"type": "string", "enum": ["EEVEE", "CYCLES"], "default": "EEVEE"}}, "required": ["code"]}}
+    {"name": "blender_render", "description": "Build a scene with Python (bpy) and render it to a picture the user sees. The scene starts empty. Add only objects and colours: a camera aimed at everything and a sun light are added for you, so do not add your own unless the user asks. color(obj, (r, g, b)) gives an object a coloured material. Example code: bpy.ops.mesh.primitive_plane_add(size=6); bpy.ops.mesh.primitive_cube_add(location=(0, 0, 1)); color(bpy.context.active_object, (0.8, 0.1, 0.1))", "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, "width": {"type": "integer", "default": 640}, "height": {"type": "integer", "default": 480}, "engine": {"type": "string", "enum": ["EEVEE", "CYCLES"], "default": "CYCLES"}}, "required": ["code"]}}
 ]
 
 def blender(script, d=None):
@@ -72,7 +73,7 @@ def call(name, args):
     if name == "blender_render":
         w = int(args.get("width", 640))
         h = int(args.get("height", 480))
-        eng = str(args.get("engine", "EEVEE"))
+        eng = str(args.get("engine", DEFAULT_ENGINE))
         d = tempfile.mkdtemp(prefix="kk-blender-", dir="/tmp")
         out = os.path.join(d, "render.png")
         code = args.get("code", "")
@@ -87,11 +88,14 @@ def call(name, args):
         return {"content": [{"type": "text", "text": log}], "isError": True}
     return {"content": [{"type": "text", "text": f"unknown tool {name}"}], "isError": True}
 
+LAST = [time.time()]
+BUSY = [0]
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def do_GET(self): self.send_error(405)
     def do_DELETE(self): self.send_error(405)
-    def do_POST(self):
+    def _post(self):
         if self.path != "/mcp": self.send_error(404); return
         auth = self.headers.get("Authorization")
         if not TOKEN or auth != "Bearer " + TOKEN:
@@ -126,6 +130,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(500); self.send_header("Content-Type", "application/json"); self.end_headers()
             self.wfile.write(json.dumps({"jsonrpc": "2.0", "id": id_, "error": {"code": -32603, "message": "internal error"}}).encode())
 
+    def do_POST(self):
+        BUSY[0] += 1
+        try:
+            self._post()
+        finally:
+            BUSY[0] -= 1
+            LAST[0] = time.time()
+
 if __name__ == "__main__":
     if not TOKEN: print("set BLENDER_MCP_TOKEN", file=sys.stderr); sys.exit(2)
-    http.server.ThreadingHTTPServer((HOST, int(PORT)), Handler).serve_forever()
+    idle_exit = int(os.environ.get("BLENDER_IDLE_EXIT", "0"))
+    if os.environ.get("LISTEN_FDS") == "1":
+        srv = http.server.ThreadingHTTPServer((HOST, 0), Handler, bind_and_activate=False)
+        srv.socket = socket.socket(fileno=3)
+        srv.server_address = srv.socket.getsockname()
+    else:
+        srv = http.server.ThreadingHTTPServer((HOST, int(PORT)), Handler)
+    if idle_exit > 0:
+        def check_idle():
+            while True:
+                time.sleep(0.5)
+                if BUSY[0] == 0 and time.time() - LAST[0] > idle_exit:
+                    os._exit(0)
+        t = threading.Thread(target=check_idle, daemon=True)
+        t.start()
+    srv.serve_forever()
