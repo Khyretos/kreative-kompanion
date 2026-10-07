@@ -166,11 +166,12 @@ pub async fn status(
         "cardStyle": serde_json::from_str::<serde_json::Value>(&cards).unwrap_or(serde_json::json!({})),
         "version": env!("CARGO_PKG_VERSION"),
         // HOST-01: the server's own computer, offered as "This server's computer" when pairing.
-        "machineName": state.config.machine_name,
+        // Only for a signed-in user: the setup and sign-in screens need neither (HOST-01, CHAT-01).
+        "machineName": if user.is_some() { state.config.machine_name.clone() } else { None },
         // CHAT-01: the tool servers a chat can turn on (names only; their state is on Capabilities).
         // CHAT-02: plus the built-in web tools when [search] is set up.
-        "mcp": state.config.mcp.iter().filter(|m| m.enabled).map(|m| m.name.clone())
-            .chain(state.config.search.searxng_url.is_some().then(|| crate::chat_tools::WEB.to_string()))
+        "mcp": state.config.mcp.iter().filter(|m| m.enabled && user.is_some()).map(|m| m.name.clone())
+            .chain((user.is_some() && state.config.search.searxng_url.is_some()).then(|| crate::chat_tools::WEB.to_string()))
             .collect::<Vec<_>>(),
         "features": {
             "assets": state.config.features.assets,
