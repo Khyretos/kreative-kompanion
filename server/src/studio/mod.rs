@@ -9,6 +9,7 @@ pub mod team;
 pub mod audio;
 pub mod service;
 pub mod facetags;
+pub mod import;
 
 use crate::{
     AppState,
@@ -47,6 +48,8 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/service/mine", get(team::mine))
         .route("/studio/service/runs/{id}", get(run_get))
         .route("/studio/service/runs/{id}/files/{n}", get(team::file))
+        // KS-03: Kreative Studio's own finished jobs join the same library.
+        .route("/studio/service/import", post(import::import))
 }
 
 pub fn comfy_target(gpus: &[GpuConfig], gpu: &str) -> Option<(String, String)> {

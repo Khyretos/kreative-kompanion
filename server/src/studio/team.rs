@@ -238,6 +238,8 @@ pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> A
             "state": row.4,
             "error": row.5,
             "files": files,
+            // KS-03: file names, so Kreative Studio can label downloads.
+            "names": outputs.iter().map(|o| o.rsplit('/').next().unwrap_or("")).collect::<Vec<_>>(),
             "startedAt": row.7,
             "endedAt": row.8
         }));
