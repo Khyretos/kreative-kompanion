@@ -153,3 +153,5 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | KS-03 sync check | Claude | sed path prefix with slashes broke the check; the fix round saw a sed error | Prefix with `s|^|...|`, run each check once by hand first | `general/orchestrator/prompting-workers` 86 |
 | KS-03 sync test | Claude | server.js loads jobs only under require.main; the test saw none and failed a correct draft | Check what a module does on require; export and await the loader | `general/orchestrator/prompting-workers` 87 |
 | KS-03 test server | Claude | `pkill -f` pattern in the same command killed the shell, commit skipped | Kill by port PID or `$!` | `general/orchestrator/prompting-workers` 88 |
+| STU-UI1 check | Claude | `chk && tsc | grep . && exit 1 || exit 0` returned 0 although the needles were missing | End each check step with `|| exit 1`; run it on the untouched tree | `general/orchestrator/prompting-workers` 89 |
+| STU-UI1 keys test | Claude | Two key presses before the rAF re-render; the second hit a removed card and the correct draft failed | Assert focus after each key | `general/orchestrator/prompting-workers` 90 |

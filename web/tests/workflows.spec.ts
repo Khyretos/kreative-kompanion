@@ -26,7 +26,10 @@ test("Studio type cards show a licence warning", async ({ page }) => {
   await page.goto("/?demo");
   await page.click("button.found-server");
   await page.click('[data-action="studio"]');
+  // STU-UI1: the card shows a warning badge; the full text is in the detail panel.
   const card = page.locator('#studio .studio-type[data-type="oc-sheet"]');
-  await expect(card.locator(".studio-warning")).toHaveText("Licence warning: novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use");
-  await expect(page.locator('#studio .studio-type[data-type="character"] .studio-warning')).toHaveCount(0);
+  await expect(card.locator('.studio-badge.warn [role="img"]')).toHaveAttribute("aria-label", "Licence warning");
+  await expect(page.locator('#studio .studio-type[data-type="character"] .studio-badge.warn')).toHaveCount(0);
+  await card.click();
+  await expect(page.locator("#studio-type-detail .studio-warning")).toHaveText("Licence warning: novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use");
 });

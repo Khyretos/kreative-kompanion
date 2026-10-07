@@ -1083,6 +1083,20 @@ function wire(shell: HTMLElement): void {
       openSearchPalette(document.activeElement as HTMLElement | null);
     }
   });
+  // STU-UI1: arrow keys, Home and End move the Studio type selection (a radiogroup).
+  shell.addEventListener("keydown", (ev) => {
+    const card = (ev.target as HTMLElement).closest<HTMLElement>('.studio-types [role="radio"]');
+    if (!card || !card.parentElement) return;
+    const cards = [...card.parentElement.querySelectorAll<HTMLElement>('[role="radio"]')];
+    const i = cards.indexOf(card);
+    const moves: Record<string, number> = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: cards.length - 1 };
+    if (!(ev.key in moves)) return;
+    ev.preventDefault();
+    const next = cards[(moves[ev.key] + cards.length) % cards.length];
+    next.click();
+    // The store re-renders on the next animation frame; focus the new card after that.
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`.studio-types [role="radio"][data-type="${next.dataset.type}"]`)?.focus({ preventScroll: true }));
+  });
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
     const s = store.get();

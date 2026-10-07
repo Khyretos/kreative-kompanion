@@ -9,10 +9,22 @@
 
 .studio { max-width: 72rem; margin: 0 auto; padding: 0.75rem 1rem 2rem; }
 .studio-make, .studio-library { margin-top: 1rem; }
-.studio-types { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); margin: 0.5rem 0 1rem; }
-.studio-type { display: flex; flex-direction: column; gap: 0.15rem; text-align: left; padding: 0.6rem 0.75rem; border-radius: var(--radius);
-  background: var(--surface); border: 1px solid var(--line); color: var(--fg-strong); cursor: pointer; }
+.studio-pick { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem); align-items: start; margin: 0.5rem 0 1rem; }
+@media (max-width: 760px) { .studio-pick { grid-template-columns: 1fr; } }
+.studio-types { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr)); grid-auto-rows: 1fr; }
+.studio-type { display: flex; flex-direction: column; justify-content: space-between; gap: 0.4rem; min-height: 4.25rem; text-align: left; padding: 0.6rem 0.75rem; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); color: var(--fg-strong); cursor: pointer; transition: transform 150ms ease; }
+.studio-type:hover { transform: translateY(-1px); }
 .studio-type[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.studio-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.studio-badge { display: inline-flex; align-items: center; font-size: 0.7rem; line-height: 1.4; padding: 0 0.4rem; border-radius: 999px; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
+.studio-badge.warn { color: var(--attn); padding: 0 0.3rem; }
+.studio-badge.warn svg { width: 0.9rem; height: 0.9rem; }
+.studio-type-detail { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.75rem 1rem; position: sticky; top: 0.75rem; animation: studio-detail-in 160ms ease-out; }
+.studio-type-detail h3 { margin: 0 0 0.35rem; font-size: 1rem; font-weight: 600; color: var(--fg-strong); }
+.studio-type-detail p { margin: 0.25rem 0; }
+.studio-warning { border-left: 3px solid var(--attn); padding-left: 0.5rem; color: var(--fg); overflow-wrap: anywhere; }
+@keyframes studio-detail-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .studio-type { transition: none; } .studio-type:hover { transform: none; } .studio-type-detail { animation: none; } }
 .studio-type:focus-visible, .studio-thumb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .studio-form { display: grid; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .studio-form label[for] { font-weight: 600; color: var(--fg-strong); }
