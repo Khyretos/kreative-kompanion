@@ -101,3 +101,8 @@ servers = []
 # url = "http://so-mcp:8000/mcp"
 # token_env = "MCP_SO_TOKEN"
 # description = "Answered programming questions"
+
+# Web search and page reading in chats (CHAT-02), optional: a SearXNG instance with its JSON API on.
+# read_page only reads public addresses unless allow_private = true.
+# [search]
+# searxng_url = "http://searxng:8080"

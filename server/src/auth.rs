@@ -168,7 +168,10 @@ pub async fn status(
         // HOST-01: the server's own computer, offered as "This server's computer" when pairing.
         "machineName": state.config.machine_name,
         // CHAT-01: the tool servers a chat can turn on (names only; their state is on Capabilities).
-        "mcp": state.config.mcp.iter().filter(|m| m.enabled).map(|m| m.name.clone()).collect::<Vec<_>>(),
+        // CHAT-02: plus the built-in web tools when [search] is set up.
+        "mcp": state.config.mcp.iter().filter(|m| m.enabled).map(|m| m.name.clone())
+            .chain(state.config.search.searxng_url.is_some().then(|| crate::chat_tools::WEB.to_string()))
+            .collect::<Vec<_>>(),
         "features": {
             "assets": state.config.features.assets,
             "gpus": state.config.features.gpus,

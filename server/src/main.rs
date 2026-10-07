@@ -27,6 +27,7 @@ mod mail;
 mod mailhtml;
 mod mcp;
 mod chat_tools;
+mod web;
 mod notify;
 mod push;
 mod oidc;

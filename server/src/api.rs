@@ -396,14 +396,15 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         .unwrap_or_else(|| "[]".into());
     let names: Vec<String> = serde_json::from_str(&mcp).unwrap_or_default();
     let servers: Vec<crate::config::McpServerConfig> = s.config.mcp.iter().filter(|m| m.enabled && names.contains(&m.name)).cloned().collect();
+    let web = (names.iter().any(|n| n == crate::chat_tools::WEB) && s.config.search.searxng_url.is_some()).then_some(&s.config.search);
     let mut used_lines = String::new();
-    if let (false, Some(p)) = (servers.is_empty(), s.config.provider(&role.provider_id)) {
+    if let (false, Some(p)) = (servers.is_empty() && web.is_none(), s.config.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| json!({"role": m.role, "content": m.content})).collect();
         let (bus, uid, rid, cid) = (s.bus.clone(), user_id.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, &show).await;
+        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));
             used_lines.push_str("\n\n");
@@ -412,7 +413,9 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
             // Qwen's chat template takes system text only at the start: add the results to the first message.
             let note = crate::chat_tools::results_note(&uses);
             if let Some(first) = convo.first_mut() {
-                first.content = format!("{}\n\n{note}", first.content);
+                // The date, so "latest" and "upcoming" in search results are read right (CHAT-02).
+                let today = util::now().chars().take(10).collect::<String>();
+                first.content = format!("{}\n\nToday is {today}. Release pages may list planned future versions: say which is out now.\n\n{note}", first.content);
             }
         }
     }
@@ -716,7 +719,7 @@ pub async fn update_chat(
     }
     if let Some(list) = b.mcp {
         // CHAT-01: only names from [[mcp]] in kompanion.toml.
-        if let Some(bad) = list.iter().find(|n| !s.config.mcp.iter().any(|m| &m.name == *n)) {
+        if let Some(bad) = list.iter().find(|n| !(s.config.mcp.iter().any(|m| &m.name == *n) || (n.as_str() == crate::chat_tools::WEB && s.config.search.searxng_url.is_some()))) {
             return Err(ApiError::BadRequest(format!("There is no tool server {bad}.")));
         }
         sqlx::query("UPDATE chats SET mcp = ? WHERE id = ?")
