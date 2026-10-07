@@ -156,6 +156,26 @@ async fn off_now(s: &AppState, m: &Machine) {
     tracing::info!(machine = %m.name, stopped, "BUG-02: Studio off, apps killed");
 }
 
+/// BUG-02: "Studio runs on: Off": every managed computer's studio stops now, every studio job
+/// ends and the ComfyUIs drop what they are running (kireserver's A770 has no runner to kill it).
+pub async fn studio_off(s: &AppState) {
+    for m in machines(s).await.iter().filter(|m| m.granted) {
+        off_now(s, m).await;
+    }
+    let _ = sqlx::query("UPDATE gpu_job SET state = 'dropped', error = 'Studio turned off', ended_at = ? WHERE state IN ('queued', 'running') AND what LIKE 'studio:%'")
+        .bind(util::now())
+        .execute(&s.db)
+        .await;
+    let all: Vec<String> = s.config.gpus.iter().map(|g| g.id.clone()).collect();
+    crate::studio::watchdog::stop_gpus(&all);
+    for url in s.config.gpus.iter().flat_map(|g| &g.holders).filter_map(|h| h.probe.strip_prefix("comfyui:")) {
+        let url = url.trim_end_matches('/');
+        let _ = s.http.post(format!("{url}/queue")).json(&json!({"clear": true})).timeout(Duration::from_secs(3)).send().await;
+        let _ = s.http.post(format!("{url}/interrupt")).timeout(Duration::from_secs(3)).send().await;
+    }
+    super::jobs::KICK.notify_one();
+}
+
 pub async fn step(s: &AppState, ledgers: &[GpuLedger]) {
     let list = machines(s).await;
     *MANAGED.lock().unwrap() = list.iter().filter(|m| m.granted).map(|m| m.id.clone()).collect();
@@ -379,6 +399,27 @@ mod tests {
         assert!(ensure_started(&s, "rx9070", "comfyui").await.is_ok());
         sqlx::query("UPDATE machines SET gpu_mode = 'auto', gaming_until = ?").bind(util::minutes_ago(1)).execute(&s.db).await.unwrap();
         assert!(studio_allowed(&s, "souc").await);
+    }
+
+    /// BUG-02: the global Studio off ends every studio job, on every GPU, at once.
+    #[tokio::test]
+    async fn the_global_studio_off_ends_every_studio_job() {
+        let s = state().await;
+        for (id, st, gpu, gpus, what) in [
+            ("k1", "queued", None, "[\"a770\"]", "studio:comfyui:oc-sheet"),
+            ("k2", "running", Some("rx9070"), "[\"rx9070\"]", "studio:moss-sfx:sfx"),
+            ("k3", "running", Some("a770"), "[\"a770\"]", "chat"),
+        ] {
+            sqlx::query("INSERT INTO gpu_job (id, kind, what, gpus, vram_mib, ram_mib, state, gpu, created_at, beat_at) VALUES (?, 'asset', ?, ?, 1, 1, ?, ?, '2026', '2026')")
+                .bind(id).bind(what).bind(gpus).bind(st).bind(gpu).execute(&s.db).await.unwrap();
+        }
+        studio_off(&s).await;
+        for (id, want) in [("k1", "dropped"), ("k2", "dropped"), ("k3", "running")] {
+            let st: String = sqlx::query_scalar("SELECT state FROM gpu_job WHERE id = ?").bind(id).fetch_one(&s.db).await.unwrap();
+            assert_eq!(st, want, "{id}");
+        }
+        let tools: Vec<String> = sqlx::query_scalar("SELECT tool FROM machine_jobs").fetch_all(&s.db).await.unwrap();
+        assert!(tools.iter().any(|t| t.contains("\"kill\"")), "{tools:?}");
     }
 
     /// BUG-02: Studio off kills the apps, unloads Ollama and ends this computer's studio jobs at once.

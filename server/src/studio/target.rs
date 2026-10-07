@@ -118,21 +118,13 @@ async fn apply(s: &AppState, target: &str, by: &str) -> ApiResult<Json<Value>> {
                     .await;
             }
         }
-        
-        let r = crate::gpus::role::current();
-        if let Some(r) = r {
-            if r.mode == "artist" && r.switching.is_none() {
-                let busy = sqlx::query_scalar::<_, i64>(
-                    "SELECT COUNT(*) FROM gpu_job WHERE state = 'running' AND gpu = ?"
-                )
-                .bind(r.gpu.clone().unwrap_or_default())
-                .fetch_optional(&s.db)
-                .await;
-                
-                if busy.map(|b| b.unwrap_or(1) == 0).unwrap_or(false) {
-                    tokio::spawn(crate::gpus::role::switch(s.clone(), Target::Coder, by.to_string()));
-                }
-            }
+        crate::gpus::gaming::studio_off(s).await;
+        // Off is off: the A770 goes back to the coder now, without waiting for idle.
+        if let Some(r) = crate::gpus::role::current()
+            && r.mode == "artist"
+            && r.switching.is_none()
+        {
+            tokio::spawn(crate::gpus::role::switch(s.clone(), Target::Coder, by.to_string()));
         }
     } else if let Some(g) = s.config.gpus.iter().find(|g| g.id == target && !g.apps.is_empty()) {
         let _ = sqlx::query("UPDATE machines SET gpu_mode = 'auto' WHERE name = ? AND gpu_mode = 'gaming'")
