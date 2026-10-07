@@ -72,8 +72,8 @@ const messages: Message[] = [
   { id: "m-bl1", chatId: "c-blender", author: "user", at: ago(60 * 24 * 5), text: "Render a monkey on a plane." },
   {
     id: "m-bl2", chatId: "c-blender", author: "orchestrator", at: ago(60 * 24 * 5 - 1),
-    text: "*Looked up Blender: blender_render (bpy.ops.mesh.primitive_monkey_add())*\n\n![Blender: blender_render](/api/chats/c-blender/files/0f8e2c1a-5b7d-4c3e-9a21-6d4f0b9e7c55.png)\n\n" +
-      "Here is Suzanne on a grey plane, lit by a sun from the upper left.\n\n![tracker](https://example.com/pixel.png)",
+    text: "*Looked up Blender: blender_render (bpy.ops.mesh.primitive_monkey_add())*\n\n![Blender: blender_render](/api/chats/c-blender/files/0f8e2c1a-5b7d-4c3e-9a21-6d4f0b9e7c55.png)\n\n[Download scene.blend](/api/chats/c-blender/files/1a2b3c4d-5b7d-4c3e-9a21-6d4f0b9e7c66.blend)\n\n" +
+      "Here is Suzanne on a grey plane, lit by a sun from the upper left.\n\n```python\nbpy.ops.mesh.primitive_monkey_add()\n```\n\n![tracker](https://example.com/pixel.png)",
   },
   // CHAT-04: an answer with inline source names and the list of sources under it.
   { id: "m-so1", chatId: "c-sources", author: "user", at: ago(60 * 24 * 6), text: "What does the Timer node do, and when is Godot 4.5 out?" },

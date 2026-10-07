@@ -46,3 +46,14 @@ async fn refuses_other_types_bad_data_and_odd_names() {
     assert!(path_for(&d, "chat-2", &name).is_none(), "another chat's folder has no such file");
     std::fs::remove_dir_all(&d).ok();
 }
+
+#[tokio::test]
+async fn saves_a_blend_file_that_is_only_downloaded() {
+    let d = tmp();
+    let name = save(&d, "chat-1", "application/x-blender", "QkxFTkQ=").await.unwrap();
+    assert!(name.ends_with(".blend"), "{name}");
+    assert!(path_for(&d, "chat-1", &name).is_some());
+    assert_eq!(content_type(&name), "application/octet-stream");
+    assert!(save(&d, "chat-1", "text/html", "PGI+").await.is_err());
+    std::fs::remove_dir_all(&d).ok();
+}

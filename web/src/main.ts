@@ -10,7 +10,8 @@ import type { AdminSettings, Effort, Project, Role, Server, TaskState, ThemeChoi
 import { openSearch } from "./views/search";
 import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
-import { onCodeAction } from "./core/codeblocks";
+import { saveText, onCodeAction } from "./core/codeblocks";
+import { onMediaAction } from "./core/media";
 import { activeProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
@@ -686,6 +687,9 @@ function wire(shell: HTMLElement): void {
   onAction(shell, {
     "code-copy": (el) => onCodeAction(el),
     "code-wrap": (el) => onCodeAction(el),
+    "code-download": (el) => onCodeAction(el),
+    "media-copy": (el) => void onMediaAction(el),
+    "media-download": (el) => void onMediaAction(el),
     "open-chat": (el) => openChat(el.dataset.id),
     // The project thread: created on first use, then opened like any chat.
     "open-thread": async (el) => {
@@ -831,6 +835,7 @@ function wire(shell: HTMLElement): void {
       store.set({ pcActions: before.map((a) => (a.id === id ? { ...a, state: decision === "deny" ? "denied" : decision === "always" ? "always" : "approved" } : a)) });
       return api.decideAction(id, decision).catch((e) => { store.set({ pcActions: before }); showError(e); });
     },
+    "save-text": (el) => saveText(el.dataset.text ?? "", `${(el.dataset.name ?? "output").replace(/[^\w.-]+/g, "_").slice(0, 50)}.${el.dataset.kind === "json" ? "json" : el.dataset.kind === "diff" ? "diff" : "txt"}`),
     "copy-text": (el) => navigator.clipboard.writeText(el.dataset.text ?? "").then(
       () => { el.textContent = "Copied"; setTimeout(() => { el.textContent = "Copy"; }, 1500); }, showError),
     unpair: (el) => {

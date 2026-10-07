@@ -232,11 +232,16 @@ export function renderOutput(o: Output): SafeHtml {
   // Copy button
   const copyBtn = html`<button class="icon-btn output-copy" data-action="copy-text" data-text="${body}" aria-label="Copy">${icon("copy")}</button>`;
 
+  // CHAT-05: every output can be saved, like it can be copied.
+  const saveBtn = o.kind === "image"
+    ? html`<a class="icon-btn output-save" href="${o.src ?? ""}" download aria-label="Download">${icon("download")}</a>`
+    : html`<button class="icon-btn output-save" data-action="save-text" data-text="${body}" data-name="${o.title ?? "output"}" data-kind="${o.kind}" aria-label="Download">${icon("download")}</button>`;
+
   const headParts = [iconHtml, labelHtml];
   if (hasTitle && titleHtml) headParts.push(titleHtml);
   if (hasMachine && machineHtml) headParts.push(machineHtml);
   if (exitHtml) headParts.push(exitHtml);
-  headParts.push(copyBtn);
+  headParts.push(copyBtn, saveBtn);
 
   const header = html`<figcaption class="output-head">${headParts}</figcaption>`;
 

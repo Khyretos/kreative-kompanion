@@ -56,6 +56,8 @@ try:
     st, _, b = post({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "blender_render", "arguments": {"code": "bpy.ops.mesh.primitive_monkey_add()", "width": 64, "height": 48}}}, sid=sid)
     c = b["result"]["content"] if b else []
     img = [x for x in c if x.get("type") == "image"]
+    res = [x for x in c if x.get("type") == "resource"]
+    check("render blend", len(res) == 1 and res[0]["resource"]["mimeType"] == "application/x-blender" and res[0]["resource"]["uri"].endswith("scene.blend") and __import__("base64").b64decode(res[0]["resource"]["blob"]) == b"BLENDER-v430")
     check("render image", len(img) == 1 and img[0]["mimeType"] == "image/png" and img[0]["data"].startswith("iVBORw0KGgo"))
     check("render text first", bool(c) and c[0].get("type") == "text")
     st, _, b = post({"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "blender_render", "arguments": {"code": "RAISE"}}}, sid=sid)

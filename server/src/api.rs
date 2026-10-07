@@ -533,6 +533,12 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         s.bus.send(&user_id, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: note, done: false });
     }
 
+    // CHAT-05: after a render the picture is already above the answer; a picture the model adds itself is a broken link.
+    if error.is_none() && all_uses.iter().any(|u| !u.images.is_empty()) {
+        let keep: Vec<String> = all_uses.iter().flat_map(|u| u.images.iter().cloned()).collect();
+        text = crate::chat_media::strip_images(&text, &keep);
+    }
+
     // CHAT-04: the sources under the answer: names are links in the text, the excerpts open from the list.
     if error.is_none() && !text.is_empty() {
         let block = crate::chat_tools::sources_block(&all_uses, &text);

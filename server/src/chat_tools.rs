@@ -9,7 +9,7 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_RESULT: usize = 6000;
 
 #[derive(Debug, Clone)]
-pub struct ToolUse { pub server: String, pub tool: String, pub args: Value, pub result: String, pub images: Vec<String>, pub sources: Vec<Source> }
+pub struct ToolUse { pub server: String, pub tool: String, pub args: Value, pub result: String, pub images: Vec<String>, pub files: Vec<(String, String)>, pub sources: Vec<Source> }
 
 /// CHAT-04: one thing an answer can cite: a web result or a knowledge part, numbered across the whole answer.
 #[derive(Debug, Clone, PartialEq)]
@@ -113,7 +113,9 @@ pub fn use_line(u: &ToolUse) -> String {
         None => format!("*Looked up {}: {}*", u.server, u.tool),
     };
     let pics: String = u.images.iter().map(|url| format!("\n\n![{}: {}]({url})", u.server, u.tool)).collect();
-    format!("{line}{pics}")
+    // CHAT-05: files the tool made (a .blend scene) become download links under the picture.
+    let files: String = u.files.iter().map(|(url, name)| format!("\n\n[{name}]({url})")).collect();
+    format!("{line}{pics}{files}")
 }
 
 pub fn results_note(uses: &[ToolUse]) -> String {
@@ -122,8 +124,8 @@ pub fn results_note(uses: &[ToolUse]) -> String {
         .map(|u| format!("{}: {}{}\n{}", u.server, u.tool, what(u).map(|w| format!(" ({w})")).unwrap_or_default(), u.result))
         .collect();
     // BLD-01: a tool made a picture (a Blender render): the model must not deny it or offer it again.
-    let pics = if uses.iter().any(|u| !u.images.is_empty()) {
-        "Your tools made the picture shown to the user above your answer. Say in a sentence or two what it shows; never say you cannot render or that tools are missing.\n\n"
+    let pics = if uses.iter().any(|u| !u.images.is_empty() || !u.files.is_empty()) {
+        "Your tools made the picture and files shown to the user above your answer, with Download buttons. Say in a sentence or two what the scene shows. Never write markdown images or links to pictures or files yourself, never say you cannot render or that tools are missing.\n\n"
     } else { "" };
     format!("{pics}You looked these up with tools for this answer. Use them, and always cite where each point comes from, right after the point: a web result as a markdown link with the site's name and its URL, like [Reuters](https://...); a knowledge part as [collection / document](src:n) with its number n. Never cite what you did not get here, and do not add a list of sources: the app shows them under your answer.\n\n{}", parts.join("\n\n"))
 }
@@ -209,6 +211,7 @@ pub async fn run(
             let args_str = call["function"]["arguments"].as_str().unwrap_or("{}");
             let args: Value = serde_json::from_str(args_str).unwrap_or_else(|_| json!({}));
             let mut images: Vec<String> = Vec::new();
+            let mut files_made: Vec<(String, String)> = Vec::new();
             let mut sources: Vec<Source> = Vec::new();
             
             let result = match map.get(&name).cloned() {
@@ -234,7 +237,7 @@ pub async fn run(
                 Some((srv, tool)) => match servers.iter().find(|x| x.name == srv) {
                     None => format!("error: there is no tool {name}"),
                     Some(cfg) => match tokio::time::timeout(CALL_TIMEOUT, crate::mcp::call_tool_full(&s.http, cfg, &tool, &args)).await {
-                        Ok(Ok((text, pics))) => {
+                        Ok(Ok((text, pics, made))) => {
                             if let Some((dir, chat)) = files {
                                 for (mime, data) in pics {
                                     match crate::chat_files::save(dir, chat, &mime, &data).await {
@@ -242,8 +245,14 @@ pub async fn run(
                                         Err(e) => tracing::warn!("chat picture not saved: {e}"),
                                     }
                                 }
+                                for (mime, data, name) in made {
+                                    match crate::chat_files::save(dir, chat, &mime, &data).await {
+                                        Ok(file) => files_made.push((format!("/api/chats/{chat}/files/{file}"), name)),
+                                        Err(e) => tracing::warn!("chat file not saved: {e}"),
+                                    }
+                                }
                             }
-                            if images.is_empty() { text } else { format!("{text}\n(Done: the picture is rendered and the user already sees it above your answer. Say in a sentence or two what it shows; do not offer to render it again.)") }
+                            if images.is_empty() { text } else { format!("{text}\n(Done: the picture is rendered and the user already sees it above your answer{}. Say in a sentence or two what it shows; do not offer to render it again and do not write any image markdown.)", if files_made.is_empty() { "" } else { ", with a download for the scene file" }) }
                         }
                         Ok(Err(e)) => format!("error: {e}"),
                         Err(_) => "error: the tool took too long".to_string(),
@@ -256,7 +265,7 @@ pub async fn run(
             msgs.push(json!({"role": "tool", "tool_call_id": call["id"], "content": result}));
             
             if let Some((srv, tool)) = map.get(&name) {
-                let u = ToolUse { server: srv.clone(), tool: tool.clone(), args, result, images, sources };
+                let u = ToolUse { server: srv.clone(), tool: tool.clone(), args, result, images, files: files_made, sources };
                 on_use(&u);
                 uses.push(u);
             }

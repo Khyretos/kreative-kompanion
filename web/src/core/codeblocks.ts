@@ -42,6 +42,25 @@ const langAliases: Record<string, string> = {
   docker: "dockerfile"
 };
 
+// File extension of a downloaded code block, by (alias-resolved) language.
+const extensions: Record<string, string> = {
+  rust: "rs", typescript: "ts", javascript: "js", bash: "sh", json: "json", ini: "toml", yaml: "yml",
+  python: "py", css: "css", xml: "html", sql: "sql", dockerfile: "Dockerfile", diff: "diff"
+};
+export const extFor = (lang: string): string => extensions[lang] ?? "txt";
+
+/** Saves text as a file through a temporary link (CHAT-05). */
+export function saveText(text: string, name: string, type = "text/plain"): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function enhanceCodeBlocks(frag: DocumentFragment): void {
   const preElements = frag.querySelectorAll("pre > code");
   for (const code of preElements) {
@@ -89,9 +108,17 @@ export function enhanceCodeBlocks(frag: DocumentFragment): void {
       copyBtn.setAttribute("data-action", "code-copy");
       copyBtn.textContent = "Copy";
 
+      const downloadBtn = document.createElement("button");
+      downloadBtn.type = "button";
+      downloadBtn.className = "btn small";
+      downloadBtn.setAttribute("data-action", "code-download");
+      downloadBtn.setAttribute("data-ext", extFor(lang));
+      downloadBtn.textContent = "Download";
+
       head.appendChild(langSpan);
       head.appendChild(wrapBtn);
       head.appendChild(copyBtn);
+      head.appendChild(downloadBtn);
 
       // Put the wrapper where the pre is, then move the pre inside it.
       pre.parentNode?.insertBefore(codeblock, pre);
@@ -114,6 +141,10 @@ export function onCodeAction(el: HTMLElement): void {
         el.textContent = "Copy";
       }, 1500);
     }
+  } else if (action === "code-download") {
+    const code = codeblock?.querySelector("code");
+    const ext = el.getAttribute("data-ext") ?? "txt";
+    if (code) saveText(code.textContent ?? "", ext === "Dockerfile" ? ext : `code.${ext}`);
   } else if (action === "code-wrap") {
     if (codeblock) {
       codeblock.classList.toggle("wrap");

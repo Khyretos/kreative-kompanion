@@ -82,9 +82,15 @@ def call(name, args):
                   + "finish(" + repr(out) + ", " + str(w) + ", " + str(h) + ", " + repr(eng) + ")\n")
         ok, log, d = blender(script, d=d)
         png = open(out, "rb").read() if ok and os.path.exists(out) else None
+        blend_path = os.path.splitext(out)[0] + ".blend"
+        blend = open(blend_path, "rb").read() if png and os.path.exists(blend_path) else None
         shutil.rmtree(d, ignore_errors=True)
         if png:
-            return {"content": [{"type": "text", "text": "Rendered " + str(w) + "x" + str(h) + "."}, {"type": "image", "mimeType": "image/png", "data": base64.b64encode(png).decode()}], "isError": False}
+            content = [{"type": "text", "text": "Rendered " + str(w) + "x" + str(h) + "."}, {"type": "image", "mimeType": "image/png", "data": base64.b64encode(png).decode()}]
+            if blend:
+                # CHAT-05: the .blend as an embedded MCP resource; the chat offers it as a download.
+                content.append({"type": "resource", "resource": {"uri": "file:///scene.blend", "mimeType": "application/x-blender", "blob": base64.b64encode(blend).decode()}})
+            return {"content": content, "isError": False}
         return {"content": [{"type": "text", "text": log}], "isError": True}
     return {"content": [{"type": "text", "text": f"unknown tool {name}"}], "isError": True}
 
