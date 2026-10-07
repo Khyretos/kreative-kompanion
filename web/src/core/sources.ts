@@ -4,7 +4,7 @@
 // at that source. Everything is built with textContent: model and web text stays untrusted.
 export interface Source { n: number; name: string; url: string | null; excerpt: string }
 
-const BLOCK = /^:::sources\n([^\n]*)/;
+const BLOCK = /^:::sources[ \t]*\r?\n([^\n]*)/;
 
 /** The answer without its sources block (also while the block is still arriving), and the sources. */
 export function splitSources(text: string): { text: string; sources: Source[] } {
