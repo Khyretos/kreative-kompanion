@@ -7,6 +7,7 @@ export interface AppState {
   userName?: string; // signed-in user
   isAdmin: boolean;
   isAdult: boolean; // STU-01c: the adult-content right (Studio ratings)
+  mcpInfo: Record<string, string>; // UI-02: description per tool server
   mcpServers: string[]; // CHAT-01: tool servers a chat can turn on
   draftMcp?: string[]; // CHAT-01: tools picked before a new chat exists
   toolsMenuOpen?: boolean;
@@ -89,6 +90,7 @@ export const store = new Store<AppState>({
   rightTab: "tasks",
   taskScope: "project",
   studioSent: {},
+  mcpInfo: {},
   mcpServers: [],
   settingsOpen: false,
   pane: "main",

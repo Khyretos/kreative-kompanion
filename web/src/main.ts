@@ -13,7 +13,7 @@ import { onCodeAction } from "./core/codeblocks";
 import { activeProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
-import { composer, effortChip, toolsChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { composer, effortChip, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { renderMachines, REFRESH_STEPS, setGpuView } from "./views/machines";
@@ -141,7 +141,7 @@ async function start(server: Server): Promise<void> {
   ]);
   store.set({
     server: { ...server, name: status.name || server.name }, projects, chats, tasks, providers, roles, machines, today,
-    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], theme: status.theme ?? "system",
+    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system",
     machinesRefresh: status.machinesRefresh ?? 5, gpuPins: status.gpuPins ?? [], cardStyle: status.cardStyle ?? {}, windshift: status.windshift, windshiftWarning: status.windshiftWarning, features: { ...ALL_FEATURES, ...(status.features ?? {}) }, logoVersion: status.logoVersion,
   });
   setStepCardStyle(status.cardStyle ?? {});
@@ -346,7 +346,10 @@ function render(s: AppState, prev: AppState): void {
     else if (hadFocus && !s.effortMenuOpen) document.querySelector<HTMLElement>(".effort-chip")?.focus();
   }
   // CHAT-01: the Tools chip (MCP servers this chat may use).
-  if (firstRender || changed(s, prev, ["chats", "activeChatId", "mcpServers", "draftMcp", "toolsMenuOpen"])) mount($("#tools-slot"), toolsChip(s));
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "mcpServers", "draftMcp", "toolsMenuOpen"])) {
+    mount($("#web-slot"), webChip(s));
+    mount($("#tools-slot"), toolsChip(s));
+  }
   // Machine stats tick every second on "Live": only re-mount the picker and the cards
   // when the list of computers or the cards really changed (a re-mount on every tick
   // closed the dropdown and made the chat jump).
@@ -1201,6 +1204,7 @@ function wire(shell: HTMLElement): void {
   document.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
     if (store.get().effortMenuOpen && !t.closest(".effort")) store.set({ effortMenuOpen: false });
+    if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
   });
   // Rename in place: Enter saves, leaving the field saves too.

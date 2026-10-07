@@ -207,6 +207,7 @@ export interface ServerStatus {
   admin?: boolean;
   adult?: boolean; // STU-01c: may use the questionable and explicit Studio ratings
   mcp?: string[]; // CHAT-01: [[mcp]] tool servers a chat can turn on
+  mcpInfo?: Record<string, string>; // UI-02: their one-line descriptions
   machineName?: string | null; // HOST-01: the server's own computer ([machine_name] in kompanion.toml)
   theme?: ThemeChoice;
   machinesRefresh?: number; // seconds; 1 = live

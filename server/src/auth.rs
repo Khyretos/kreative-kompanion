@@ -179,6 +179,9 @@ pub async fn status(
             .chain((user.is_some() && state.config.search.searxng_url.is_some()).then(|| crate::chat_tools::WEB.to_string()))
             .chain(has_knowledge.then(|| crate::chat_tools::KNOWLEDGE.to_string()))
             .collect::<Vec<_>>(),
+        // UI-02: one-line descriptions for the Tools menu (built-ins are described in the web app).
+        "mcpInfo": state.config.mcp.iter().filter(|m| m.enabled && user.is_some())
+            .filter_map(|m| m.description.clone().map(|d| (m.name.clone(), d))).collect::<std::collections::BTreeMap<_, _>>(),
         "features": {
             "assets": state.config.features.assets,
             "gpus": state.config.features.gpus,
