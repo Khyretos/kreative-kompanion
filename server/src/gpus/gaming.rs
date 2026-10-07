@@ -238,7 +238,8 @@ pub async fn ensure_started(s: &AppState, gpu: &str, app: &str) -> Result<(), St
         .execute(&s.db)
         .await;
     
-    if m.apps_stopped {
+    // KS-02: one flag covers all apps of the machine, so always ask (docker start is a no-op when up).
+    {
         send(s, &m, json!({"tool": "gpu_apps", "action": "start", "app": app})).await;
         tracing::info!(machine = %m.name, app, "GPU-01: starting on {}", m.name);
         s.bus.send_all(Event::Changed { what: "gpus", machine_id: None });
