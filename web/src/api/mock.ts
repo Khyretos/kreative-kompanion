@@ -320,7 +320,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Stack Overflow", "Developer docs"], version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}
@@ -440,11 +440,11 @@ export class MockApi implements KompanionApi {
     return structuredClone(chat);
   }
 
-  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort }) {
+  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[] }) {
     const i = chats.findIndex((c) => c.id === chatId);
     if (i < 0) return;
     if (change.archived) chats.splice(i, 1);
-    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort });
+    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp });
   }
 
   async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }) {

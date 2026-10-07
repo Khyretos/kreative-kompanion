@@ -13,7 +13,7 @@ import { onCodeAction } from "./core/codeblocks";
 import { activeProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
-import { composer, effortChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { composer, effortChip, toolsChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { renderMachines, REFRESH_STEPS, setGpuView } from "./views/machines";
@@ -140,7 +140,7 @@ async function start(server: Server): Promise<void> {
   ]);
   store.set({
     server: { ...server, name: status.name || server.name }, projects, chats, tasks, providers, roles, machines, today,
-    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, theme: status.theme ?? "system",
+    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], theme: status.theme ?? "system",
     machinesRefresh: status.machinesRefresh ?? 5, gpuPins: status.gpuPins ?? [], cardStyle: status.cardStyle ?? {}, windshift: status.windshift, windshiftWarning: status.windshiftWarning, features: { ...ALL_FEATURES, ...(status.features ?? {}) }, logoVersion: status.logoVersion,
   });
   setStepCardStyle(status.cardStyle ?? {});
@@ -344,6 +344,8 @@ function render(s: AppState, prev: AppState): void {
     if (s.effortMenuOpen && !prev.effortMenuOpen) document.querySelector<HTMLElement>('.effort-menu [aria-checked="true"]')?.focus();
     else if (hadFocus && !s.effortMenuOpen) document.querySelector<HTMLElement>(".effort-chip")?.focus();
   }
+  // CHAT-01: the Tools chip (MCP servers this chat may use).
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "mcpServers", "draftMcp", "toolsMenuOpen"])) mount($("#tools-slot"), toolsChip(s));
   // Machine stats tick every second on "Live": only re-mount the picker and the cards
   // when the list of computers or the cards really changed (a re-mount on every tick
   // closed the dropdown and made the chat jump).
@@ -855,6 +857,21 @@ function wire(shell: HTMLElement): void {
       changeChat(el.dataset.id ?? "", { projectId: el.dataset.project ?? "" });
     },
     "effort-menu": () => store.set({ effortMenuOpen: !store.get().effortMenuOpen }),
+    // CHAT-01: the Tools menu: turn an MCP server on or off for this chat (or for the chat about to be made).
+    "tools-menu": () => store.set({ toolsMenuOpen: !store.get().toolsMenuOpen }),
+    "mcp-toggle": (el) => {
+      const name = el.dataset.name ?? "";
+      const s = store.get();
+      const chat = s.chats.find((c) => c.id === s.activeChatId);
+      const now = (chat ? chat.mcp : s.draftMcp) ?? [];
+      const next = now.includes(name) ? now.filter((n) => n !== name) : [...now, name];
+      if (!chat) {
+        store.set({ draftMcp: next });
+        return;
+      }
+      store.set({ chats: s.chats.map((c) => (c.id === chat.id ? { ...c, mcp: next } : c)) });
+      return api.updateChat(chat.id, { mcp: next }).catch(showError);
+    },
     "effort-set": (el) => {
       const effort = el.dataset.effort as Effort;
       const chatId = store.get().activeChatId;
@@ -1132,6 +1149,10 @@ function wire(shell: HTMLElement): void {
       store.set({ effortMenuOpen: false });
       return;
     }
+    if (s.toolsMenuOpen) {
+      store.set({ toolsMenuOpen: false });
+      return;
+    }
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
     else if (s.settingsOpen) settingsModal?.requestClose();
   });
@@ -1349,7 +1370,10 @@ function wire(shell: HTMLElement): void {
       const title = text.length > 40 ? text.slice(0, 38) + "…" : text;
       const chat = await api.createChat(title, store.get().activeProjectId);
       effort = store.get().draftEffort;
-      store.set({ chats: [{ ...chat, effort }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined });
+      // CHAT-01: tools picked before the chat existed.
+      const mcp = store.get().draftMcp;
+      if (mcp?.length) await api.updateChat(chat.id, { mcp }).catch(showError);
+      store.set({ chats: [{ ...chat, effort, mcp }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined });
       chatId = chat.id;
     }
     await api.send(chatId, text, store.get().pcMachineId, effort).catch(showError);

@@ -63,6 +63,14 @@ pub struct Chat {
     /// How hard the models work in this chat (EF-01): auto, low, medium, high.
     #[sqlx(default)]
     pub effort: String,
+    /// CHAT-01: the [[mcp]] tool servers this chat may use (stored as a JSON list).
+    #[sqlx(default)]
+    #[serde(serialize_with = "json_list")]
+    pub mcp: String,
+}
+
+fn json_list<S: serde::Serializer>(v: &str, s: S) -> Result<S::Ok, S::Error> {
+    serde::Serialize::serialize(&serde_json::from_str::<Vec<String>>(v).unwrap_or_default(), s)
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -120,7 +128,7 @@ pub async fn chats(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Chat>>> {
     let rows = sqlx::query_as(
-        "SELECT id, title, project_id, updated_at, pinned, thread, effort FROM chats\n         WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
+        "SELECT id, title, project_id, updated_at, pinned, thread, effort, mcp FROM chats\n         WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -157,6 +165,7 @@ pub async fn create_chat(
         pinned: false,
         thread: false,
         effort: "auto".into(),
+        mcp: "[]".into(),
     };
     sqlx::query(
         "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
@@ -377,6 +386,37 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         content: text,
     }));
 
+    // CHAT-01: the MCP tools this chat turned on: a few tool rounds first, each use shown in the thread.
+    let mcp: String = sqlx::query_scalar("SELECT mcp FROM chats WHERE id = ?")
+        .bind(&chat_id)
+        .fetch_optional(&s.db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "[]".into());
+    let names: Vec<String> = serde_json::from_str(&mcp).unwrap_or_default();
+    let servers: Vec<crate::config::McpServerConfig> = s.config.mcp.iter().filter(|m| m.enabled && names.contains(&m.name)).cloned().collect();
+    let mut used_lines = String::new();
+    if let (false, Some(p)) = (servers.is_empty(), s.config.provider(&role.provider_id)) {
+        let msgs: Vec<Value> = convo.iter().map(|m| json!({"role": m.role, "content": m.content})).collect();
+        let (bus, uid, rid, cid) = (s.bus.clone(), user_id.clone(), reply_id.clone(), chat_id.clone());
+        let show = move |u: &crate::chat_tools::ToolUse| {
+            bus.send(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
+        };
+        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, &show).await;
+        for u in &uses {
+            used_lines.push_str(&crate::chat_tools::use_line(u));
+            used_lines.push_str("\n\n");
+        }
+        if !uses.is_empty() {
+            // Qwen's chat template takes system text only at the start: add the results to the first message.
+            let note = crate::chat_tools::results_note(&uses);
+            if let Some(first) = convo.first_mut() {
+                first.content = format!("{}\n\n{note}", first.content);
+            }
+        }
+    }
+
     let started = Instant::now();
     let mut text = String::new();
     let (mut tokens_in, mut tokens_out) = (None, None);
@@ -512,7 +552,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     )
     .bind(&reply_id)
     .bind(&chat_id)
-    .bind(&text)
+    .bind(format!("{used_lines}{text}"))
     .bind(&at)
     .execute(&s.db)
     .await;
@@ -650,6 +690,8 @@ pub struct ChatChange {
     archived: Option<bool>,
     /// auto, low, medium or high (EF-01).
     effort: Option<String>,
+    /// CHAT-01: the [[mcp]] tool servers this chat may use (names).
+    mcp: Option<Vec<String>>,
 }
 
 /// Rename, pin or archive a chat (the chat menu).
@@ -668,6 +710,17 @@ pub async fn update_chat(
         };
         sqlx::query("UPDATE chats SET effort = ? WHERE id = ?")
             .bind(e.as_str())
+            .bind(&id)
+            .execute(&s.db)
+            .await?;
+    }
+    if let Some(list) = b.mcp {
+        // CHAT-01: only names from [[mcp]] in kompanion.toml.
+        if let Some(bad) = list.iter().find(|n| !s.config.mcp.iter().any(|m| &m.name == *n)) {
+            return Err(ApiError::BadRequest(format!("There is no tool server {bad}.")));
+        }
+        sqlx::query("UPDATE chats SET mcp = ? WHERE id = ?")
+            .bind(serde_json::to_string(&list).unwrap_or_else(|_| "[]".into()))
             .bind(&id)
             .execute(&s.db)
             .await?;

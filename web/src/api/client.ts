@@ -91,7 +91,7 @@ export interface KompanionApi {
   createChat(title: string, projectId?: string): Promise<Chat>;
   /** The project's thread chat (created on first use); returns its chat id. */
   openThread(projectId: string): Promise<string>;
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort }): Promise<void>;
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[] }): Promise<void>;
   deleteChat(chatId: string): Promise<void>;
   createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }): Promise<Task>;
   updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }): Promise<Task>;

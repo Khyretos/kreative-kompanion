@@ -37,7 +37,7 @@
   "tags": []
  },
  {
-  "chars": 23703,
+  "chars": 23971,
   "description": "How to write a job prompt any worker model can carry out, and how to run fix rounds.",
   "file": "orchestrator/prompting-workers",
   "models": [],
@@ -329,7 +329,7 @@
   ]
  },
  {
-  "chars": 6422,
+  "chars": 6652,
   "description": "Writing Rust for the Kompanion server, runner and helpers.",
   "file": "worker/rust/SKILL",
   "models": [],
