@@ -232,6 +232,9 @@ export class MockAssets implements AssetsApi {
       similar: tags.length > 0,
       tags,
       copies: [], 
+      // STU-02b: the first demo file stands in for a song made in the Studio.
+      provenance: a.id === 1 ? { source: "kompanion-studio", workflow: "music", gpu: "rx9070", created: "2026-10-07T03:01:00Z",
+        params: { prompt: "calm lofi piano loop", seed: 7 }, models: [{ file: "HeartMuLa", licence: "Apache-2.0" }] } : null,
       packDocs: docs 
     };
   }

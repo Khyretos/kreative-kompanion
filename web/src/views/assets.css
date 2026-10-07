@@ -993,3 +993,6 @@ p.small {
   }
 }
 .model-tools select, .img-tools select { width: auto; max-width: 22rem; }
+/* STU-02b: where a Studio result came from. */
+.asset-provenance { display: grid; gap: 0.35rem; padding: 0.6rem 0.75rem; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; }
+.asset-provenance p { margin: 0; overflow-wrap: anywhere; }

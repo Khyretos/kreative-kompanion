@@ -800,6 +800,20 @@ export class AssetsView {
       </div></section>`;
   }
 
+  /** STU-02b: where a file made in Kompanion's Studio came from (nothing for library files). */
+  private provenanceBox(d: AssetDetail): SafeHtml {
+    const p = d.provenance;
+    if (!p) return html``;
+    const kind = p.workflow ? p.workflow[0].toUpperCase() + p.workflow.slice(1).replace(/-/g, " ") : "Studio";
+    const seed = typeof p.params?.seed === "number" ? ` · seed ${p.params.seed}` : "";
+    return html`<section class="asset-provenance" aria-label="Made in the Studio">
+      <h3 class="label">Made in the Studio</h3>
+      <p><strong>${kind}</strong> on ${p.gpu}${seed}${p.created ? ` · ${p.created.slice(0, 10)}` : ""}</p>
+      ${p.params?.prompt ? html`<p class="asset-caption">${p.params.prompt}</p>` : ""}
+      ${p.models.length ? html`<p class="hint">Models: ${p.models.map((m) => `${m.file} (${m.licence})`).join(", ")}</p>` : ""}
+    </section>`;
+  }
+
   /** The pack's licence, and for an admin the picker that links one (never guessed). */
   private licenceRow(d: AssetDetail): SafeHtml {
     const l = d.licence;
@@ -881,6 +895,7 @@ export class AssetsView {
         <div class="row"><button class="btn primary" data-action="asset-cat-accept" data-id="${d.id}" data-cat="${d.aiCategory}">Use ${label1(d.aiCategory)}</button>
           <button class="btn" data-action="asset-cat-keep" data-id="${d.id}">Keep ${label1(d.category)}</button></div></div>` : ""}
       ${this.aiBox(d)}
+      ${this.provenanceBox(d)}
       ${d.packDocs.length ? html`
         <h3 class="label">Licence and readme files in this pack</h3>
         <ul class="asset-docs">${d.packDocs.map((x) => html`<li><button class="link" data-action="asset-open" data-id="${x.id}">${x.path}</button></li>`)}</ul>` : ""}

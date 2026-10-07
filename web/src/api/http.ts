@@ -170,6 +170,9 @@ export class HttpApi implements KompanionApi {
     return this.request<{ ids: string[] }>("POST", "/studio/make", { type, prompt, size, count, rating });
   }
   studioMine() { return this.request<import("../views/studio").StudioRun[]>("GET", "/studio/mine"); }
+  studioToAssets(runId: string, project: string, n = 0) {
+    return this.request<{ assetId: number; project: string; name: string }>("POST", `/studio/runs/${encodeURIComponent(runId)}/to-assets`, { project, n });
+  }
   setStudioTarget(target: string) { return this.request<void>("PUT", "/studio/target", { target }); }
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName) { return this.request<void>("PUT", `/gpus/modes/${encodeURIComponent(machine)}`, { mode }); }
   gpuTimeline(hours: 1 | 24) { return this.request<import("../views/gputimeline").TlGpu[]>("GET", `/gpus/timeline?hours=${hours}`); }

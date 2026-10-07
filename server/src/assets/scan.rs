@@ -275,12 +275,13 @@ async fn scan(db: &SqlitePool, bus: &Bus, root: &Path) -> Result<()> {
     // Never mark the whole library missing because its mount went away mid-scan.
     anyhow::ensure!(super::library_online(root), "asset library went offline during the scan");
     let now = util::now();
-    sqlx::query("UPDATE asset SET missing_since = ? WHERE seen_scan < ? AND missing_since IS NULL")
+    // STU-02b: Studio results (absolute paths, pack "@studio") are not in the library: a scan never sees them.
+    sqlx::query("UPDATE asset SET missing_since = ? WHERE seen_scan < ? AND missing_since IS NULL AND path NOT LIKE '/%'")
         .bind(&now)
         .bind(scan_id)
         .execute(db)
         .await?;
-    sqlx::query("UPDATE asset_pack SET missing_since = ? WHERE seen_scan < ? AND missing_since IS NULL")
+    sqlx::query("UPDATE asset_pack SET missing_since = ? WHERE seen_scan < ? AND missing_since IS NULL AND key <> '@studio'")
         .bind(&now)
         .bind(scan_id)
         .execute(db)

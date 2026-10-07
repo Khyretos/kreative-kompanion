@@ -42,6 +42,7 @@ export interface AppState {
   section: "chat" | "assets" | "capabilities" | "studio"; // what the middle of the screen shows
   studioTypes?: import("./views/studio").StudioType[]; // STU-01, loaded when the Studio opens
   studioRuns?: import("./views/studio").StudioRun[];
+  studioSent: Record<string, string[]>; // STU-02b: run id -> project names it was sent to (this session)
   studioForm: import("./views/studio").StudioForm;
   capabilities?: import("./views/capabilities").Capabilities; // loaded when the Capabilities section opens
   gpuTimeline?: import("./views/gputimeline").TlGpu[]; // M6-04, loaded with Capabilities
@@ -80,6 +81,7 @@ export const store = new Store<AppState>({
   machines: [],
   rightTab: "tasks",
   taskScope: "project",
+  studioSent: {},
   settingsOpen: false,
   pane: "main",
   section: "chat",
