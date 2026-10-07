@@ -29,7 +29,11 @@ test("A chosen photo survives a re-render and can be removed", async ({ page }) 
 
 test("Making with a photo starts a run", async ({ page }) => {
   const studio = await open(page);
-  await studio.locator('.studio-types [role="radio"]', { hasText: "OC sheet" }).click();
+  const oc = studio.locator('.studio-types [role="radio"]', { hasText: "OC sheet" });
+  await oc.click();
+  // Wait for the re-render after the type change, or it can replace the filled prompt (flaky under load).
+  await expect(oc).toHaveAttribute("aria-checked", "true");
+  await expect(studio.locator("#studio-face")).toBeVisible();
   await studio.locator("#studio-prompt").fill("a knight with my face");
   await studio.locator("#studio-face").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: Buffer.from("PNG") });
   await studio.locator('.studio-form button[type="submit"]').click();
