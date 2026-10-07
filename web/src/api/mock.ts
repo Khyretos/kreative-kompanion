@@ -563,6 +563,8 @@ export class MockApi implements KompanionApi {
         { name: "edit_file", description: "Replace one exact piece of a file and show the diff.", needs: "write on the folder" },
         { name: "shell", description: "Run a command in a folder.", needs: "shell in the folder" },
         { name: "capabilities", description: "What Kompanion can use right now.", needs: "nothing" },
+        // CAP-02: long names and text, so the overflow test has something to wrap and clamp.
+        { name: "gpu_apps_status_start_stop_unload_ollama_and_free_the_vram", description: "Start, stop or check a GPU app by its container name (ComfyUI, HeartMuLa, the sound effects app) on a computer with the GPU right, and unload Ollama's models first when a job needs the VRAM: /home/kees/.config/comfyui-rocm/compose.override.yml", needs: "gpu on the computer" },
       ],
       mcp: [],
       indexes: [{ id: "assets", name: "Asset search by meaning", items: 41_230, of: 47_012, failed: 12, model: "Embedder (ovms-cpu)", status: "partly" as const }],
@@ -572,6 +574,7 @@ export class MockApi implements KompanionApi {
         { id: "worker/rust", title: "Worker: Rust", lessons: 37, updated: ago(5), layer: "kompanion" as const, file: "worker/rust/SKILL.md" },
         { id: "worker/web", title: "Worker: web app (vanilla TypeScript)", lessons: 25, updated: ago(90), layer: "kompanion" as const, file: "worker/web/SKILL.md" },
         { id: "shared/colour-themes", title: "Colour themes (this setup)", lessons: 3, updated: ago(200), layer: "private" as const, file: "shared/colour-themes.md" },
+        { id: "shared/theming-brand-kreative-kompas-palette-contrast-and-fonts", title: "Theming: the Kreative Kompas palette, contrast ratios and fonts", lessons: 4, updated: ago(300), layer: "private" as const, file: "shared/theming-brand.md" },
       ],
     };
   }

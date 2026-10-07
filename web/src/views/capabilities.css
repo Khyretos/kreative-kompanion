@@ -18,10 +18,25 @@
 
 .caps-cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); }
 
-.cap .task-main { cursor: default; }
-.cap button.task-main { cursor: pointer; }
-.cap .task-step { overflow-wrap: anywhere; }
-.cap code { font-size: 0.85em; }
+.task.cap { display: flex; flex-direction: column; min-width: 0; background: var(--surface); transition: transform 160ms ease; }
+.cap:hover { transform: translateY(-1px); }
+.cap.s-failed { border-left: 3px solid var(--bad); }
+.cap.s-needs_input { border-left: 3px solid var(--attn); }
+.cap .task-main { flex: 1; align-content: start; min-width: 0; cursor: default; }
+.cap button.task-main { cursor: pointer; text-align: left; }
+.cap-head { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.cap-icon { flex: none; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 0.45rem; background: var(--surface-2); color: var(--accent); }
+.cap-icon svg { width: 1rem; height: 1rem; }
+.cap-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cap-head .chip.state { flex: none; margin-left: auto; }
+.cap-sub { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+.cap .task-step, .cap .task-meta { overflow-wrap: anywhere; min-width: 0; }
+.cap code { font-size: 0.85em; overflow-wrap: anywhere; }
+.cap-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cap-clamp:has(+ .cap-more[open]) { display: none; }
+.cap-more summary { cursor: pointer; font-size: 0.75rem; color: var(--link); width: fit-content; }
+.cap-more p { margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--muted); overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .cap { transition: none; } .cap:hover { transform: none; } }
 .cap-err { color: var(--bad); }
 .vram-bar { display: flex; height: 0.45rem; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
 .vram-bar .vb-res { background: var(--accent); }
