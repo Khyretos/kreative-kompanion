@@ -105,7 +105,15 @@ export function card(it: ActivityItem): SafeHtml {
 
 export function renderActivity(items: ActivityItem[], filter: ActivityFilter, weekly?: import("../api/types").WeeklyCosts): SafeHtml {
   const week = weekly && weekly.tasks
-    ? html`<p class="activity-costs">Last 7 days: Coder wrote ${weekly.coderOutput.toLocaleString("en")} tokens, Claude ${weekly.claudeOutput.toLocaleString("en")} (${weekly.tasks} tasks; Coder's share ${Math.round(weekly.coderShare * 100)} %).</p>`
+    ? html`<section class="activity-costs act-week" aria-label="Last 7 days">
+        <h4 class="act-week-head">Last 7 days</h4>
+        <dl class="act-week-stats">
+          <div><dt>Coder</dt><dd>${weekly.coderOutput.toLocaleString("en")} tokens</dd></div>
+          <div><dt>Claude</dt><dd>${weekly.claudeOutput.toLocaleString("en")} tokens</dd></div>
+          <div><dt>Tasks</dt><dd>${weekly.tasks}</dd></div>
+          <div><dt>Coder's share</dt><dd class="act-share">${Math.round(weekly.coderShare * 100)} %</dd></div>
+        </dl>
+      </section>`
     : html``;
   const machines = Array.from(new Set(items.map((i) => i.machine))).sort();
   const chats = Array.from(new Set(items.filter((i) => i.chatId).map((i) => i.chatId))).sort();
