@@ -152,6 +152,7 @@ async fn run(s: AppState, k: AudioKind, gpu: String, url: String, params: Value,
         vram_mib: k.vram_mib,
         ram_mib: 6000,
         tonight: false,
+        run_id: Some(id.clone()),
     };
     
     let result: anyhow::Result<Vec<String>> = async {
