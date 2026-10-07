@@ -21,7 +21,7 @@ fn tool_specs_map_back_to_server_and_tool() {
 
 #[test]
 fn a_use_line_and_the_note_for_the_answer() {
-    let u = ToolUse { server: "Stack Overflow".into(), tool: "search_stackoverflow".into(), args: json!({"query": "rust borrow checker", "limit": 3}), result: "Q1: ...".into(), images: vec![], sources: vec![] };
+    let u = ToolUse { server: "Stack Overflow".into(), tool: "search_stackoverflow".into(), args: json!({"query": "rust borrow checker", "limit": 3}), result: "Q1: ...".into(), images: vec![], files: vec![], sources: vec![] };
     assert_eq!(use_line(&u), "*Looked up Stack Overflow: search_stackoverflow (rust borrow checker)*");
     let none = ToolUse { args: json!({}), ..u.clone() };
     assert_eq!(use_line(&none), "*Looked up Stack Overflow: search_stackoverflow*");
@@ -31,12 +31,19 @@ fn a_use_line_and_the_note_for_the_answer() {
 }
 
 #[test]
+fn a_use_with_a_file_links_it_for_download() {
+    let u = ToolUse { server: "Blender".into(), tool: "blender_scene".into(), args: json!({}), result: String::new(), images: vec!["/api/chats/c1/files/a.png".into()], files: vec![("/api/chats/c1/files/b.blend".into(), "scene.blend".into())], sources: vec![] };
+    assert!(use_line(&u).ends_with("![Blender: blender_scene](/api/chats/c1/files/a.png)\n\n[scene.blend](/api/chats/c1/files/b.blend)"));
+    assert!(results_note(&[u]).contains("Never write markdown images"));
+}
+
+#[test]
 fn a_use_with_a_picture_shows_it() {
-    let u = ToolUse { server: "Blender".into(), tool: "blender_render".into(), args: json!({"code": "bpy.ops.mesh.primitive_monkey_add()"}), result: "Rendered 640x480.".into(), images: vec!["/api/chats/c1/files/a.png".into()], sources: vec![] };
+    let u = ToolUse { server: "Blender".into(), tool: "blender_render".into(), args: json!({"code": "bpy.ops.mesh.primitive_monkey_add()"}), result: "Rendered 640x480.".into(), images: vec!["/api/chats/c1/files/a.png".into()], files: vec![], sources: vec![] };
     assert_eq!(use_line(&u), "*Looked up Blender: blender_render (bpy.ops.mesh.primitive_monkey_add())*\n\n![Blender: blender_render](/api/chats/c1/files/a.png)");
     let code = ToolUse { args: json!({"code": "# a cube\nbpy.ops.mesh.primitive_cube_add()"}), images: vec![], ..u.clone() };
     assert_eq!(use_line(&code), "*Looked up Blender: blender_render (# a cube bpy.ops.mesh.primitive_cube_add())*");
-    assert!(results_note(&[u.clone()]).starts_with("Your tools made the picture shown to the user above your answer."));
+    assert!(results_note(&[u.clone()]).starts_with("Your tools made the picture and files shown to the user above your answer"));
     assert!(results_note(&[code]).starts_with("You looked these up"));
 }
 
@@ -55,7 +62,7 @@ fn sources_show_what_the_answer_cites() {
     let web = Source { n: 1, name: "Reuters".into(), url: Some("https://reuters.com/a".into()), excerpt: "snippet a".into() };
     let other = Source { n: 2, name: "Blog".into(), url: Some("https://blog.example/b".into()), excerpt: "snippet b".into() };
     let kb = Source { n: 3, name: "Godot / timer.md".into(), url: None, excerpt: "Timer counts down".into() };
-    let u = ToolUse { server: "Web".into(), tool: "web_search".into(), args: json!({}), result: String::new(), images: vec![], sources: vec![web, other, kb] };
+    let u = ToolUse { server: "Web".into(), tool: "web_search".into(), args: json!({}), result: String::new(), images: vec![], files: vec![], sources: vec![web, other, kb] };
     let block = sources_block(&[u.clone()], "He is 80 ([Reuters](https://reuters.com/a)) and a Timer counts down [Godot / timer.md](src:3).");
     let json: Value = serde_json::from_str(block.trim().strip_prefix(":::sources\n").unwrap().strip_suffix("\n:::").unwrap()).unwrap();
     assert_eq!(json.as_array().unwrap().iter().map(|x| x["n"].as_u64().unwrap()).collect::<Vec<_>>(), vec![1, 3]);

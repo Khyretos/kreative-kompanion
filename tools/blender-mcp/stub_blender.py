@@ -14,4 +14,5 @@ m = re.search(r"finish\((['\"])(.+?)\1", script)
 if m:
     png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")
     open(m.group(2), "wb").write(png)
+    open(m.group(2).rsplit(".", 1)[0] + ".blend", "wb").write(b"BLENDER-v430")
     print("rendered", m.group(2))

@@ -662,6 +662,11 @@ a { color: var(--link); }
 .codeblock-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem; border-bottom: 1px solid var(--line); background: var(--surface-2); }
 .codeblock-lang { flex: 1; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); text-transform: lowercase; }
 .codeblock pre { margin: 0; padding: 0.7rem 0.85rem; overflow-x: auto; font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; color: var(--code-fg); background: transparent; }
+.msg .body figure.media { margin: 0.6rem 0; display: inline-block; max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+.media-bar, .media.file { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem; background: var(--surface-2); }
+.media-bar { border-top: 1px solid var(--line); }
+.media.file { margin: 0.6rem 0; border: 1px solid var(--line); border-radius: var(--radius); }
+.media-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
 .codeblock.wrap pre { white-space: pre-wrap; word-break: break-word; }
 .codeblock [aria-pressed="true"] { border-color: var(--accent); color: var(--accent-strong); }
 :root { --code-bg: #0c0917; --code-fg: #f4eefc;
@@ -756,6 +761,7 @@ button[aria-busy="true"]::after {
 .output-kind { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .output-title { font-size: 0.78rem; overflow-wrap: anywhere; }
 .output-copy { margin-left: auto; }
+.output-save { text-decoration: none; }
 .output-body { margin: 0; padding: 0.6rem 0.75rem; max-height: 22rem; overflow: auto; font-size: 0.8rem; line-height: 1.45; white-space: pre-wrap; }
 /* Terminal: always a near-black panel with light text, in light and dark mode. */
 .output.terminal { background: #0c0917; border-color: #2c1f3f; }

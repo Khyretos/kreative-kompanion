@@ -5,6 +5,7 @@
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
 import { enhanceCodeBlocks } from "./codeblocks";
+import { enhanceMedia, FILE_HREF } from "./media";
 
 const md = new Marked({ gfm: true, breaks: true, async: false });
 
@@ -30,7 +31,8 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   if (node.tagName === "A") {
     const href = node.getAttribute("href") ?? "";
     // Keep in-app hash links (#task=... or #chat=...) without target/rel; block everything else.
-    if (/^#(task|chat)=[\w-]+$/.test(href) || /^#src-\d+$/.test(href)) {
+    // CHAT-05: a file a chat tool made (a .blend scene) stays a same-site link; enhanceMedia turns it into a download card.
+    if (/^#(task|chat)=[\w-]+$/.test(href) || /^#src-\d+$/.test(href) || FILE_HREF.test(href)) {
       return;
     }
     if (!/^https?:\/\//i.test(href)) node.removeAttribute("href");
@@ -51,5 +53,6 @@ export function renderMarkdown(src: string): DocumentFragment {
   const raw = md.parse(src) as string;
   const frag = DOMPurify.sanitize(raw, config);
   enhanceCodeBlocks(frag);
+  enhanceMedia(frag);
   return frag;
 }

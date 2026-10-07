@@ -83,5 +83,7 @@ def finish(out, width=640, height=480, engine="EEVEE"):
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.filepath = out
+    # CHAT-05: the scene itself, next to the picture, so it can be opened and worked on in Blender.
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.splitext(out)[0] + ".blend", compress=True)
     bpy.ops.render.render(write_still=True)
     print("rendered", out)

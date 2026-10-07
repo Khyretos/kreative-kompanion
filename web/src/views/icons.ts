@@ -29,6 +29,7 @@ const paths: Record<string, string> = {
   diff: "M6 4v16M18 4v16M3 8h6M15 16h6M18 13v6",
   braces: "M9 4c-2 0-3 1-3 3v2c0 1.5-1 3-2.5 3C5 12 6 13.5 6 15v2c0 2 1 3 3 3M15 4c2 0 3 1 3 3v2c0 1.5 1 3 2.5 3-1.5 0-2.5 1.5-2.5 3v2c0 2-1 3-3 3",
   copy: "M9 9h11v11H9zM5 15H4V4h11v1",
+  download: "M12 4v11M7 11l5 5 5-5M5 20h14",
   mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3M9 21h6",
   search: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5",
   alert: "M12 3.5l9 16H3zM12 10v4.5M12 17.2v.3",

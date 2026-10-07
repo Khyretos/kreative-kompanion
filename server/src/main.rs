@@ -28,6 +28,7 @@ mod mailhtml;
 mod mcp;
 mod chat_tools;
 mod chat_files;
+mod chat_media;
 mod web;
 mod knowledge;
 mod knowledge_web;

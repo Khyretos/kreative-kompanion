@@ -84,7 +84,7 @@ async fn lists_and_calls_tools_on_a_stub_server() {
     let tools = list_tools(&http, &cfg).await.unwrap();
     assert_eq!(tools.len(), 1);
     assert_eq!(tools[0]["name"], "search");
-    let (text, pics) = call_tool_full(&http, &cfg, "search", &json!({"q": "rust"})).await.unwrap();
+    let (text, pics, _files) = call_tool_full(&http, &cfg, "search", &json!({"q": "rust"})).await.unwrap();
     assert!(pics.is_empty());
     assert_eq!(text, "found rust");
     let bad = list_tools(&http, &server(&url, None)).await;

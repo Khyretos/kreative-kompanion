@@ -112,7 +112,7 @@ pub async fn list_tools(http: &reqwest::Client, s: &McpServerConfig) -> Result<V
 }
 
 /// tools/call with its text and its images.
-pub async fn call_tool_full(http: &reqwest::Client, s: &McpServerConfig, name: &str, args: &Value) -> Result<(String, Vec<(String, String)>)>
+pub async fn call_tool_full(http: &reqwest::Client, s: &McpServerConfig, name: &str, args: &Value) -> Result<(String, Vec<(String, String)>, Vec<(String, String, String)>)>
 {
     let sid = session(http, s).await?;
     let (res, _) = rpc(http, s, sid.as_deref(), "tools/call", json!({
@@ -124,7 +124,7 @@ pub async fn call_tool_full(http: &reqwest::Client, s: &McpServerConfig, name: &
         bail!("{}", tool_text(&res));
     }
 
-    Ok((tool_text(&res), tool_images(&res)))
+    Ok((tool_text(&res), tool_images(&res), crate::chat_media::tool_files(&res)))
 }
 
 /// list_tools, remembered per server for CACHE_FOR.
