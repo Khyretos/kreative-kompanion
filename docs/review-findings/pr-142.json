@@ -11,7 +11,7 @@
   "fbaf9f6ab0cc": {
     "by": "coder",
     "checked": true,
-    "fixed": "",
+    "fixed": "12aa8ec",
     "path": "tools/qwen/review_findings.py",
     "reason": "no secret in the code, but the API URL was fixed to Kees's Forgejo: now FORGEJO_API (the .env path was already PR_AGENT_ENV)",
     "title": "Hard-coded Secrets",
