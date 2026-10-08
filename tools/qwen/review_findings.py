@@ -9,6 +9,9 @@ docs/review-findings/pr-<n>.json and gates the merge.
   review_findings.py <pr> --jobs j.json  pipeline patch jobs for the checked bugs (Claude adds the checks)
   (after the fix commit Claude sets "fixed": "<sha>" and pushes; PR-Agent reviews the push)
   review_findings.py <pr>                the gate: exit 0 all handled, 1 blocked, 2 review pending
+
+The repo owner can answer on the PR with 'accept' (every proposed verdict), 'accept <id>' or
+'<id> bug' / '<id> false positive'.
 """
 
 import argparse
@@ -23,6 +26,26 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 # Import pipeline only inside the triage function to avoid config needs for tests.
 # pylint: disable=import-outside-toplevel
+
+
+def apply_owner_comments(ledger, comments, owner):
+    """Apply owner's verdicts from comments.
+
+    For each comment in order whose user.login equals owner, parse and record
+    verdicts so the owner's comment counts as checked.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "owner_decision", os.path.join(REPO, "tools", "owner_decision.py")
+    )
+    od = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(od)
+
+    for c in comments:
+        if c.get("user", {}).get("login") != owner:
+            continue
+        verdicts = od.parse_verdicts(c["body"], ledger)
+        if verdicts:
+            od.record_verdicts(ledger, verdicts, owner)
 
 
 JSONFMT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "jsonfmt.py")
@@ -386,6 +409,11 @@ def main():
     if os.path.exists(ledger_path):
         with open(ledger_path, "r", encoding="utf-8") as f:
             ledger = json.load(f)
+
+    # Get repo owner and apply their comments (only in memory)
+    owner_info = get_json(f"{base_url}/repos/{owner}/{repo}", headers)
+    owner_login = owner_info["owner"]["login"]
+    apply_owner_comments(ledger, comments_data, owner_login)
 
     findings = open_findings(state)
 

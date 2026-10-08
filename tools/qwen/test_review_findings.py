@@ -278,5 +278,31 @@ class JobsTest(unittest.TestCase):
         self.assertEqual(rf.role_for("tools/x.py"), "worker")
 
 
+class OwnerCommentTest(unittest.TestCase):
+    """GATE-02: the owner's comment on the PR counts as checked verdicts."""
+
+    LEDGER = {
+        "ae97b8c11446": {"verdict": "false_positive", "checked": False, "fixed": "", "title": "A", "path": "a.py"},
+        "dedbef95465d": {"verdict": "bug", "checked": False, "fixed": "", "title": "B", "path": "b.py"},
+    }
+
+    def test_owner_accept_checks_the_proposed_verdicts(self):
+        ledger = json.loads(json.dumps(self.LEDGER))
+        comments = [
+            {"user": {"login": "mallory"}, "body": "ae97b8 bug"},
+            {"user": {"login": "khyretos"}, "body": "accept"},
+        ]
+        rf.apply_owner_comments(ledger, comments, "khyretos")
+        self.assertEqual(ledger["ae97b8c11446"]["verdict"], "false_positive")
+        self.assertTrue(ledger["ae97b8c11446"]["checked"])
+        self.assertEqual(ledger["ae97b8c11446"]["by"], "khyretos")
+        self.assertTrue(ledger["dedbef95465d"]["checked"])
+
+    def test_other_authors_change_nothing(self):
+        ledger = json.loads(json.dumps(self.LEDGER))
+        rf.apply_owner_comments(ledger, [{"user": {"login": "mallory"}, "body": "accept"}], "khyretos")
+        self.assertEqual(ledger, self.LEDGER)
+
+
 if __name__ == "__main__":
     unittest.main()

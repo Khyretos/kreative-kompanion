@@ -10,7 +10,11 @@
     "options": [
       {
         "name": "Accept until Tauri moves",
-        "tradeoff": "Record this one advisory in .trivyignore.yaml with an expiry date (3 months) and the reason; trivy then fails again on that date so we re-check whether Tauri moved to gtk-rs 0.20+. Every other finding still blocks. Risk: the unsound iterator stays in the Linux desktop build, which never calls it."
+        "tradeoff": "Record this one advisory in .trivyignore with an expiry date (3 months) and the reason; trivy then fails again on that date so we re-check whether Tauri moved to gtk-rs 0.20+. Every other finding still blocks. Risk: the unsound iterator stays in the Linux desktop build, which never calls it.",
+        "apply": {
+          "trivyignore": "GHSA-wrw7-89jp-8q8g",
+          "days": 92
+        }
       },
       {
         "name": "Patch glib ourselves",
@@ -22,7 +26,8 @@
       },
       {
         "name": "Leave it waiting",
-        "tradeoff": "Change nothing: this item stays in the lint report as waiting and does not block other merges. The advisory stays visible until Tauri updates."
+        "tradeoff": "Change nothing: this item stays in the lint report as waiting and does not block other merges. The advisory stays visible until Tauri updates.",
+        "keep_waiting": true
       }
     ],
     "recommended": "Accept until Tauri moves",
