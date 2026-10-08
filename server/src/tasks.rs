@@ -120,7 +120,7 @@ fn clean_title(t: &str) -> ApiResult<String> {
     Ok(t)
 }
 
-fn clean_description(d: &str) -> ApiResult<String> {
+pub(crate) fn clean_description(d: &str) -> ApiResult<String> {
     let d = d.trim();
     if d.len() > 20_000 {
         return Err(ApiError::BadRequest("The description is too long (20,000 characters at most).".into()));

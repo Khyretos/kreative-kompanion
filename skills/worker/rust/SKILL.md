@@ -10,4 +10,4 @@ extends: worker/rust/SKILL
 116. (2026-10-08) Text searches on HTML: work on `&str` with `find`/`rfind` on an
     `to_ascii_lowercase()` copy (same byte offsets) and slice the original; never compare a `&str`
     slice with a byte string (`b"<main "`) or call `is_whitespace` on a `u8` (two KNOW-02 drafts).
-120. (2026-10-08) A handler that calls another handler with a body it builds (`serde_json::from_value(json!(...))`) uses that struct's serde names (`rename_all = "camelCase"`: `projectId`, not `project_id`), behind a small fn with a test that deserializes it. The web mock never runs the server, so live-check every new endpoint once (OVR-01c).
+120. (2026-10-08) A handler that calls another handler with a body it builds (`serde_json::from_value(json!(...))`) uses that struct's serde names (`rename_all = "camelCase"`: `projectId`, not `project_id`), behind a small fn with a test that deserializes it. The web mock never runs the server, so live-check every new endpoint once (OVR-01c). The test also runs the target's validation (here `clean_description`), not only serde: the second live failure was a rejected one-line description (OVR-01d).

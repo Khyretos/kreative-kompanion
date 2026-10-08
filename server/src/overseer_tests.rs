@@ -113,4 +113,11 @@ fn a_proposed_task_becomes_a_valid_new_task_body() {
     // OVR-01c: the live Create button failed with "missing field `projectId`".
     let b = serde_json::from_value::<crate::tasks::NewTask>(task_body("p1", "Write the rules", "One page"));
     assert!(b.is_ok(), "{:?}", b.err());
+    // OVR-01d: and its description passes the task check (a written goal).
+    for (title, d) in [("Write the rules", "One page"), ("Only a title", "")] {
+        let body = task_body("p1", title, d);
+        let text = body["description"].as_str().unwrap();
+        assert!(crate::tasks::clean_description(text).is_ok(), "{text}");
+        assert!(text.starts_with(&format!("**Goal:** {}", if d.is_empty() { title } else { d })));
+    }
 }
