@@ -344,13 +344,39 @@ pub async fn extract(name: &str, bytes: &[u8]) -> Result<String> {
     let ext = match name.rsplit_once('.') { Some((_, e)) => e.to_lowercase(), None => String::new() };
     match ext.as_str() {
         "md" | "markdown" | "txt" | "text" | "rst" | "csv" | "json" | "toml" | "yaml" | "yml" | "gd" | "rs" | "py" | "ts" | "js" => Ok(String::from_utf8_lossy(bytes).into_owned()),
-        "html" | "htm" => Ok(crate::web::html_text(&String::from_utf8_lossy(bytes))),
+        "html" | "htm" => {
+            let page = String::from_utf8_lossy(bytes);
+            Ok(crate::web::html_text(main_content(&page)))
+        }
         "pdf" => pdf_text(bytes).await,
         "" => anyhow::bail!("unsupported file type: the name has no extension"),
         other => anyhow::bail!("unsupported file type: {other}"),
     }
 }
 
+/// KNOW-02: the part of an HTML page that holds its content (`<article role="main">`, else `<main>`),
+/// so a documentation site's menu, header and footer are not indexed with every page; else the whole page.
+pub fn main_content(html: &str) -> &str {
+    // ASCII lowercasing keeps byte offsets, so positions in `lower` slice `html`.
+    let lower = html.to_ascii_lowercase();
+    let find = |open: &str, close: &str, wanted: &dyn Fn(&str) -> bool| -> Option<(usize, usize)> {
+        let mut from = 0;
+        while let Some(i) = lower[from..].find(open).map(|i| i + from) {
+            let tag_end = i + lower[i..].find('>')?;
+            if wanted(&lower[i + open.len()..=tag_end]) {
+                return lower[tag_end..].rfind(close).map(|j| (i, tag_end + j + close.len()));
+            }
+            from = i + open.len();
+        }
+        None
+    };
+    let found = find("<article", "</article>", &|rest| rest.contains("role=\"main\""))
+        .or_else(|| find("<main", "</main>", &|rest| rest.starts_with(|c: char| c == '>' || c.is_ascii_whitespace())));
+    match found {
+        Some((start, end)) => &html[start..end],
+        None => html,
+    }
+}
 /// pdftotext reads the PDF from stdin and writes its text to stdout.
 async fn pdf_text(bytes: &[u8]) -> Result<String> {
     use tokio::io::AsyncWriteExt;

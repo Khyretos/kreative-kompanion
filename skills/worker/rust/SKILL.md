@@ -7,3 +7,6 @@ extends: worker/rust/SKILL
     a file with a ``` inside a string or doc comment comes back cut to a fragment. Use
     `"mode": "patch"` (search/replace blocks) for such files.
 115. (2026-10-08) The prompt must say "do not add a tests module or tests": a job whose file already ends in `#[path = "x_tests.rs"] mod tests;` got a second inline `mod tests` (E0428) and a scanner with `Lines::peek` and an out-of-scope `j`, 3 fix rounds and still red; a string scanner of 30 lines is cheaper for Claude to write after the first failed draft (CHAT-05).
+116. (2026-10-08) Text searches on HTML: work on `&str` with `find`/`rfind` on an
+    `to_ascii_lowercase()` copy (same byte offsets) and slice the original; never compare a `&str`
+    slice with a byte string (`b"<main "`) or call `is_whitespace` on a `u8` (two KNOW-02 drafts).
