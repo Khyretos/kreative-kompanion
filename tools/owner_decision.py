@@ -67,8 +67,14 @@ def owner_comment(api: str, token: str, comment_id: int) -> str | None:
 
 def parse_choice(body: str, options: list, recommended: str) -> int | None:
     """Parse option index or None from comment body."""
-    text = "\n".join(l for l in body.lower().splitlines() if not l.lstrip().startswith(">") and not l.rstrip().endswith("?"))
-    m = re.search(r"\b(?:option|accept|pick|choose|go with)\s+(?:option\s+)?#?(\d+)\b", text)
+    text = "\n".join(
+        line
+        for line in body.lower().splitlines()
+        if not line.lstrip().startswith(">") and not line.rstrip().endswith("?")
+    )
+    m = re.search(
+        r"\b(?:option|accept|pick|choose|go with)\s+(?:option\s+)?#?(\d+)\b", text
+    )
     if m:
         n = int(m.group(1))
         return n - 1 if 1 <= n <= len(options) else None
@@ -82,20 +88,22 @@ def parse_choice(body: str, options: list, recommended: str) -> int | None:
     return None
 
 
-def apply_lint(decision: dict, index: int, who: str, today: str, url: str, root: str) -> list:
+def apply_lint(
+    decision: dict, index: int, who: str, today: str, url: str, root: str
+) -> list:
     """Apply decision, update .trivyignore if needed, return pipeline jobs."""
     option = decision["options"][index]
     decision["decided"] = f"{option['name']} ({who}, {today}, {url})"
     if option.get("keep_waiting"):
         decision["keep_waiting"] = True
-    
+
     jobs = list(option.get("jobs", []))
-    
+
     if "apply" in option and "trivyignore" in option["apply"]:
         ignore_id = option["apply"]["trivyignore"]
         days = option["apply"].get("days", 92)
         expiry = date.fromisoformat(today) + timedelta(days=days)
-        
+
         trivypath = os.path.join(root, ".trivyignore")
         lines = []
         if os.path.exists(trivypath):
@@ -110,7 +118,7 @@ def apply_lint(decision: dict, index: int, who: str, today: str, url: str, root:
         with open(trivypath, "w") as f:
             f.write("\n".join(lines) + "\n")
             f.close()
-    
+
     return jobs
 
 
@@ -118,8 +126,10 @@ def parse_verdicts(body: str, ledger: dict) -> dict:
     """Parse verdicts from comment body into {id: verdict}."""
     verdicts = {}
     named = False
-    lines = [l for l in body.lower().splitlines() if not l.lstrip().startswith(">")]
-    
+    lines = [
+        line for line in body.lower().splitlines() if not line.lstrip().startswith(">")
+    ]
+
     for line in lines:
         if line.lstrip().startswith(">"):
             continue
@@ -129,20 +139,30 @@ def parse_verdicts(body: str, ledger: dict) -> dict:
                 continue
             fid = hits[0]
             named = True
-            after = line[m.end():]
-            before = line[:m.start()]
+            after = line[m.end() :]
+            before = line[: m.start()]
             if re.match(r"\s*:?\s*(false[ _]positive|fp)", after):
                 verdicts[fid] = "false_positive"
             elif re.match(r"\s*:?\s*bug", after):
                 verdicts[fid] = "bug"
-            elif "accept" in before and ledger[fid].get("verdict") in ("bug", "false_positive"):
+            elif "accept" in before and ledger[fid].get("verdict") in (
+                "bug",
+                "false_positive",
+            ):
                 verdicts[fid] = ledger[fid]["verdict"]
-    
-    if not named and re.search(r"\baccept\b", "\n".join(l for l in body.lower().splitlines() if not l.lstrip().startswith(">"))):
+
+    if not named and re.search(
+        r"\baccept\b",
+        "\n".join(
+            line
+            for line in body.lower().splitlines()
+            if not line.lstrip().startswith(">")
+        ),
+    ):
         for fid, e in ledger.items():
             if not e.get("checked") and e.get("verdict") in ("bug", "false_positive"):
                 verdicts[fid] = e["verdict"]
-    
+
     return verdicts
 
 
@@ -152,10 +172,14 @@ def record_verdicts(ledger: dict, verdicts: dict, who: str) -> list:
         ledger[fid]["verdict"] = v
         ledger[fid]["checked"] = True
         ledger[fid]["by"] = who
-    
+
     bugs = []
     for fid, entry in ledger.items():
-        if entry.get("checked") and entry.get("verdict") == "bug" and not entry.get("fixed"):
+        if (
+            entry.get("checked")
+            and entry.get("verdict") == "bug"
+            and not entry.get("fixed")
+        ):
             bugs.append(fid)
     return sorted(bugs)
 
@@ -174,7 +198,7 @@ def check_for(path: str) -> str:
 
 def run_pipeline(jobs: list, log: str) -> None:
     """Write temp kompanion.toml and jobs JSON, then run pipeline.py."""
-    toml_content = '''[[provider]]
+    toml_content = """[[provider]]
 id = "ovms"
 kind = "openai-compatible"
 base_url = "$MODEL_BASE"
@@ -183,19 +207,21 @@ extra_body = { chat_template_kwargs = { enable_thinking = false } }
 
 [roles]
 worker = { provider = "ovms", model = "Coder" }
-'''.replace("$MODEL_BASE", os.environ["MODEL_BASE"])
+""".replace("$MODEL_BASE", os.environ["MODEL_BASE"])
     with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
         f.write(toml_content)
         toml_path = f.name
-    
+
     tmpdir = tempfile.mkdtemp()
     jobs_path = os.path.join(tmpdir, "jobs.json")
     with open(jobs_path, "w") as f:
         json.dump(jobs, f, indent=2)
-    
+
     env = dict(os.environ, KOMPANION_CONFIG=toml_path)
-    subprocess.run([sys.executable, "tools/qwen/pipeline.py", jobs_path, log], env=env, check=True)
-    
+    subprocess.run(
+        [sys.executable, "tools/qwen/pipeline.py", jobs_path, log], env=env, check=True
+    )
+
     os.unlink(toml_path)
     shutil.rmtree(tmpdir)
 
@@ -205,7 +231,16 @@ def comment(api: str, token: str, number: int, text: str) -> dict:
     return call("POST", f"{api}/issues/{number}/comments", token, {"body": text})
 
 
-def lint_flow(api: str, token: str, pr_token: str, issue: dict, body: str, who: str, url: str, today: str) -> int:
+def lint_flow(
+    api: str,
+    token: str,
+    pr_token: str,
+    issue: dict,
+    body: str,
+    who: str,
+    url: str,
+    today: str,
+) -> int:
     """Handle decision issue flow."""
     with open(DECISIONS) as f:
         decisions = json.load(f)
@@ -213,63 +248,83 @@ def lint_flow(api: str, token: str, pr_token: str, issue: dict, body: str, who: 
     if not title.startswith(PREFIX):
         print(f"Ignored: issue title does not start with '{PREFIX}'")
         return 0
-    
-    d_id = title[len(PREFIX):]
+
+    d_id = title[len(PREFIX) :]
     d = next((item for item in decisions if item["id"] == d_id), None)
     if not d:
-        comment(api, token, issue["number"], f"No decision with this id in {DECISIONS}.")
+        comment(
+            api, token, issue["number"], f"No decision with this id in {DECISIONS}."
+        )
         return 0
-    
+
     if d.get("decided") and not d.get("keep_waiting"):
         comment(api, token, issue["number"], f"Already decided: {d['decided']}")
         return 0
-    
+
     index = parse_choice(body, d["options"], d["recommended"])
     if index is None:
-        print(f"Ignored: could not parse choice from comment")
+        print("ignored: no option picked in the comment")
         return 0
-    
+
     jobs = apply_lint(d, index, who, today, url, ".")
-    
+
     with open(DECISIONS, "w") as f:
         json.dump(decisions, f, indent=2)
         f.write("\n")
-    
+
     branch = f"decision/{d['id']}"
     git("checkout", "-q", "-B", branch)
-    
+
     if jobs:
         run_pipeline(jobs, f"docs/qwen-log/{branch.replace('/', '-')}.jsonl")
-    
+
     git("add", "-A")
     name = d["options"][index]["name"]
-    git("commit", "-q", "-m", f"GATE-02: lint decision {d['id']}: {name} (picked by {who})")
+    git(
+        "commit",
+        "-q",
+        "-m",
+        f"GATE-02: lint decision {d['id']}: {name} (picked by {who})",
+    )
     git("push", "-q", "-f", "origin", f"HEAD:refs/heads/{branch}")
-    
-    pr = call("POST", f"{api}/pulls", pr_token, {
-        "head": branch,
-        "base": "main",
-        "title": f"[GATE-02] Lint decision {d['id']}: {name}",
-        "body": f"Picked option {index + 1}: **{name}**.\n\nPicked by @{who} at {url}.\n\nDecision issue: #{issue['number']}."
-    })
-    
+
+    pr = call(
+        "POST",
+        f"{api}/pulls",
+        pr_token,
+        {
+            "head": branch,
+            "base": "main",
+            "title": f"[GATE-02] Lint decision {d['id']}: {name}",
+            "body": f"Picked option {index + 1}: **{name}**.\n\nPicked by @{who} at {url}.\n\nDecision issue: #{issue['number']}.",
+        },
+    )
+
     note = f"Picked option {index + 1}: **{name}** (by @{who}). Pull request #{pr['number']} applies it and records it in {DECISIONS}; merge it once CI is green."
     comment(api, token, issue["number"], note)
-    
+
     call("PATCH", f"{api}/issues/{issue['number']}", token, {"state": "closed"})
     return 0
 
 
-def findings_flow(api: str, token: str, pr_token: str, issue: dict, body: str, who: str, today: str) -> int:
+def findings_flow(
+    api: str, token: str, pr_token: str, issue: dict, body: str, who: str, today: str
+) -> int:
     """Handle PR findings flow."""
     n = issue["number"]
-    spec = importlib.util.spec_from_file_location("review_findings", os.path.join("tools", "qwen", "review_findings.py"))
-    rf = importlib.util.module_from_spec(spec); spec.loader.exec_module(rf)
+    spec = importlib.util.spec_from_file_location(
+        "review_findings", os.path.join("tools", "qwen", "review_findings.py")
+    )
+    rf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rf)
     state = None
     for c in reversed(call("GET", f"{api}/issues/{n}/comments?limit=50", token)):
         state = rf.state_from_body(c.get("body", ""))
-        if state: break
-    if not state: print("ignored: no PR-Agent review on this pull request"); return 0
+        if state:
+            break
+    if not state:
+        print("ignored: no PR-Agent review on this pull request")
+        return 0
     findings = rf.open_findings(state)
     git("fetch", "-q", "origin", f"refs/pull/{n}/head")
     git("checkout", "-q", "-B", f"findings/pr-{n}", "FETCH_HEAD")
@@ -280,29 +335,65 @@ def findings_flow(api: str, token: str, pr_token: str, issue: dict, body: str, w
     else:
         ledger = {}
     for f in findings:
-        ledger.setdefault(f["finding_id"], {"title": rf.title(f), "path": f["path"], "verdict": "", "checked": False, "fixed": ""})
+        ledger.setdefault(
+            f["finding_id"],
+            {
+                "title": rf.title(f),
+                "path": f["path"],
+                "verdict": "",
+                "checked": False,
+                "fixed": "",
+            },
+        )
     verdicts = parse_verdicts(body, ledger)
-    if not verdicts: print("ignored: no verdict in the comment"); return 0
+    if not verdicts:
+        print("ignored: no verdict in the comment")
+        return 0
     bugs = record_verdicts(ledger, verdicts, who)
-    lines = [f"Recorded (by @{who}):"] + [f"- `{fid}` {ledger[fid]['title']}: {v}" for fid, v in sorted(verdicts.items())]
+    lines = [f"Recorded (by @{who}):"] + [
+        f"- `{fid}` {ledger[fid]['title']}: {v}" for fid, v in sorted(verdicts.items())
+    ]
     if bugs:
         jobs = rf.fix_jobs(findings, ledger)
-        for job in jobs: job["check"] = check_for(job["out"])
+        for job in jobs:
+            job["check"] = check_for(job["out"])
         run_pipeline(jobs, os.path.join("docs", "qwen-log", f"findings-pr-{n}.jsonl"))
-        git("add", "-A"); git("commit", "-q", "-m", f"GATE-02: Coder's fixes for review findings of #{n}")
+        git("add", "-A")
+        git("commit", "-q", "-m", f"GATE-02: Coder's fixes for review findings of #{n}")
         sha = git("rev-parse", "HEAD").strip()
-        for fid in bugs: ledger[fid]["fixed"] = sha
-        with open(path, "w") as f: json.dump(ledger, f, indent=2, sort_keys=True); f.write("\n")
-        git("add", "-A"); git("commit", "-q", "-m", f"GATE-02: owner's verdicts for #{n}")
+        for fid in bugs:
+            ledger[fid]["fixed"] = sha
+        with open(path, "w") as f:
+            json.dump(ledger, f, indent=2, sort_keys=True)
+            f.write("\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", f"GATE-02: owner's verdicts for #{n}")
         git("push", "-q", "-f", "origin", f"HEAD:refs/heads/findings/pr-{n}")
-        pr = call("POST", f"{api}/pulls", pr_token, {"head": f"findings/pr-{n}", "base": "main", "title": f"[GATE-02] Review fixes for #{n}", "body": f"Carries #{n}'s commits plus Coder's fixes for the review findings @{who} confirmed as bugs, and the updated ledger {path}. Merging it also merges #{n}."})
-        lines.append(f"Coder's fixes for the bugs: pull request #{pr['number']} (merge it instead of #{n}).")
+        pr = call(
+            "POST",
+            f"{api}/pulls",
+            pr_token,
+            {
+                "head": f"findings/pr-{n}",
+                "base": "main",
+                "title": f"[GATE-02] Review fixes for #{n}",
+                "body": f"Carries #{n}'s commits plus Coder's fixes for the review findings @{who} confirmed as bugs, and the updated ledger {path}. Merging it also merges #{n}.",
+            },
+        )
+        lines.append(
+            f"Coder's fixes for the bugs: pull request #{pr['number']} (merge it instead of #{n})."
+        )
     else:
-        lines.append("No code change needed; the review gate reads these verdicts from this comment.")
+        lines.append(
+            "No code change needed; the review gate reads these verdicts from this comment."
+        )
     still = [(fid, e) for fid, e in sorted(ledger.items()) if not e.get("checked")]
     if still:
         lines.append("Still open:")
-        lines += [f"- `{fid}` {e['title']} ({e['path']}), proposed: {e.get('verdict') or 'none'}; answer '{fid} bug' or '{fid} false positive'" for fid, e in still]
+        lines += [
+            f"- `{fid}` {e['title']} ({e['path']}), proposed: {e.get('verdict') or 'none'}; answer '{fid} bug' or '{fid} false positive'"
+            for fid, e in still
+        ]
     comment(api, token, n, "\n".join(lines))
     return 0
 
@@ -313,23 +404,23 @@ def main() -> int:
     api = os.environ["API"]
     token = os.environ["TOKEN"]
     pr_token = os.environ.get("PR_TOKEN") or token
-    
+
     body = owner_comment(api, token, event["comment"]["id"])
     if body is None:
         print("ignored: the comment is not from the repo owner")
         return 0
-    
+
     who = event["repository"]["owner"]["login"]
     url = event["comment"]["html_url"]
     today = date.today().isoformat()
     issue = event["issue"]
-    
+
     if issue["title"].startswith(PREFIX):
         return lint_flow(api, token, pr_token, issue, body, who, url, today)
-    
+
     if issue.get("pull_request"):
         return findings_flow(api, token, pr_token, issue, body, who, today)
-    
+
     print("ignored: not a decision item")
     return 0
 

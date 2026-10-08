@@ -282,8 +282,20 @@ class OwnerCommentTest(unittest.TestCase):
     """GATE-02: the owner's comment on the PR counts as checked verdicts."""
 
     LEDGER = {
-        "ae97b8c11446": {"verdict": "false_positive", "checked": False, "fixed": "", "title": "A", "path": "a.py"},
-        "dedbef95465d": {"verdict": "bug", "checked": False, "fixed": "", "title": "B", "path": "b.py"},
+        "ae97b8c11446": {
+            "verdict": "false_positive",
+            "checked": False,
+            "fixed": "",
+            "title": "A",
+            "path": "a.py",
+        },
+        "dedbef95465d": {
+            "verdict": "bug",
+            "checked": False,
+            "fixed": "",
+            "title": "B",
+            "path": "b.py",
+        },
     }
 
     def test_owner_accept_checks_the_proposed_verdicts(self):
@@ -300,7 +312,9 @@ class OwnerCommentTest(unittest.TestCase):
 
     def test_other_authors_change_nothing(self):
         ledger = json.loads(json.dumps(self.LEDGER))
-        rf.apply_owner_comments(ledger, [{"user": {"login": "mallory"}, "body": "accept"}], "khyretos")
+        rf.apply_owner_comments(
+            ledger, [{"user": {"login": "mallory"}, "body": "accept"}], "khyretos"
+        )
         self.assertEqual(ledger, self.LEDGER)
 
 

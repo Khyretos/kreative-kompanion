@@ -52,14 +52,25 @@ class ParseChoice(unittest.TestCase):
             self.assertEqual(od.parse_choice(body, OPTIONS, REC), 1, body)
 
     def test_accept_alone_is_the_recommended_option(self):
-        for body in ("accept", "Accept.", "accept the recommended option", "accept recommended"):
+        for body in (
+            "accept",
+            "Accept.",
+            "accept the recommended option",
+            "accept recommended",
+        ):
             self.assertEqual(od.parse_choice(body, OPTIONS, REC), 0, body)
 
     def test_option_name(self):
         self.assertEqual(od.parse_choice("drop the linux desktop app", OPTIONS, REC), 2)
 
     def test_out_of_range_questions_or_nothing(self):
-        for body in ("option 7", "accept 0", "what does option 2 cost?", "hm, not sure yet", ""):
+        for body in (
+            "option 7",
+            "accept 0",
+            "what does option 2 cost?",
+            "hm, not sure yet",
+            "",
+        ):
             self.assertIsNone(od.parse_choice(body, OPTIONS, REC), body)
 
     def test_quoted_lines_are_ignored(self):
@@ -102,24 +113,52 @@ class ApplyLint(unittest.TestCase):
     def test_keep_waiting_option(self):
         d = glib()
         d["options"][3]["keep_waiting"] = True
-        self.assertEqual(od.apply_lint(d, 3, "khyretos", "2026-10-08", "u", self.root), [])
+        self.assertEqual(
+            od.apply_lint(d, 3, "khyretos", "2026-10-08", "u", self.root), []
+        )
         self.assertTrue(d["keep_waiting"])
         self.assertTrue(d["decided"].startswith("Leave it waiting (khyretos"))
         self.assertFalse(os.path.exists(os.path.join(self.root, ".trivyignore")))
 
     def test_jobs_option_returns_its_pipeline_jobs(self):
         d = glib()
-        job = {"name": "drop-desktop", "role": "worker/web", "prompt": "p", "out": "x", "check": "true"}
+        job = {
+            "name": "drop-desktop",
+            "role": "worker/web",
+            "prompt": "p",
+            "out": "x",
+            "check": "true",
+        }
         d["options"][2]["jobs"] = [job]
-        self.assertEqual(od.apply_lint(d, 2, "khyretos", "2026-10-08", "u", self.root), [job])
+        self.assertEqual(
+            od.apply_lint(d, 2, "khyretos", "2026-10-08", "u", self.root), [job]
+        )
         self.assertTrue(d["decided"].startswith("Drop the Linux desktop app"))
 
 
 class Verdicts(unittest.TestCase):
     LEDGER = {
-        "ae97b8c11446": {"verdict": "false_positive", "checked": False, "fixed": "", "title": "A", "path": "a.py"},
-        "dedbef95465d": {"verdict": "bug", "checked": False, "fixed": "", "title": "B", "path": "b.py"},
-        "0123456789ab": {"verdict": "bug", "checked": True, "fixed": "abc", "title": "C", "path": "c.py"},
+        "ae97b8c11446": {
+            "verdict": "false_positive",
+            "checked": False,
+            "fixed": "",
+            "title": "A",
+            "path": "a.py",
+        },
+        "dedbef95465d": {
+            "verdict": "bug",
+            "checked": False,
+            "fixed": "",
+            "title": "B",
+            "path": "b.py",
+        },
+        "0123456789ab": {
+            "verdict": "bug",
+            "checked": True,
+            "fixed": "abc",
+            "title": "C",
+            "path": "c.py",
+        },
     }
 
     def test_accept_alone_takes_every_proposed_verdict(self):
@@ -147,7 +186,9 @@ class Verdicts(unittest.TestCase):
     def test_record_verdicts(self):
         ledger = json.loads(json.dumps(self.LEDGER))
         bugs = od.record_verdicts(
-            ledger, {"ae97b8c11446": "false_positive", "dedbef95465d": "bug"}, "khyretos"
+            ledger,
+            {"ae97b8c11446": "false_positive", "dedbef95465d": "bug"},
+            "khyretos",
         )
         self.assertEqual(bugs, ["dedbef95465d"])
         for fid in ("ae97b8c11446", "dedbef95465d"):
@@ -194,7 +235,9 @@ class LintFlow(unittest.TestCase):
         self.real = (od.call, od.git, os.getcwd())
         os.chdir(self.root)
         od.git = lambda *args: self.gits.append(args) or ""
-        os.environ.update(API="API", TOKEN="job", PR_TOKEN="bot", GITHUB_EVENT_PATH=self.event)
+        os.environ.update(
+            API="API", TOKEN="job", PR_TOKEN="bot", GITHUB_EVENT_PATH=self.event
+        )
 
     def tearDown(self):
         od.call, od.git, cwd = self.real
@@ -204,9 +247,20 @@ class LintFlow(unittest.TestCase):
         with open(self.event, "w") as f:
             json.dump(
                 {
-                    "comment": {"id": 5, "html_url": "https://git/c/5", "body": body, "user": {"login": login}},
-                    "issue": {"number": 146, "title": "Lint decision: trivy-glib-GHSA-wrw7-89jp-8q8g"},
-                    "repository": {"owner": {"login": "khyretos"}, "default_branch": "main"},
+                    "comment": {
+                        "id": 5,
+                        "html_url": "https://git/c/5",
+                        "body": body,
+                        "user": {"login": login},
+                    },
+                    "issue": {
+                        "number": 146,
+                        "title": "Lint decision: trivy-glib-GHSA-wrw7-89jp-8q8g",
+                    },
+                    "repository": {
+                        "owner": {"login": "khyretos"},
+                        "default_branch": "main",
+                    },
                 },
                 f,
             )
@@ -235,17 +289,24 @@ class LintFlow(unittest.TestCase):
         d = json.load(open(od.DECISIONS))[0]
         self.assertTrue(d["decided"].startswith("Accept until Tauri moves (khyretos, "))
         self.assertIn("GHSA-wrw7-89jp-8q8g exp:", open(".trivyignore").read())
-        self.assertIn(("checkout", "-q", "-B", "decision/trivy-glib-GHSA-wrw7-89jp-8q8g"), self.gits)
+        self.assertIn(
+            ("checkout", "-q", "-B", "decision/trivy-glib-GHSA-wrw7-89jp-8q8g"),
+            self.gits,
+        )
         posted = [c for c in self.calls if c[0] == "POST"]
         pr = next(c for c in posted if c[1] == "API/pulls")
         self.assertEqual(pr[2], "bot")
         self.assertEqual(pr[3]["head"], "decision/trivy-glib-GHSA-wrw7-89jp-8q8g")
         self.assertIn("#146", pr[3]["body"])
-        self.assertFalse([c for c in self.calls if "/merge" in c[1]])  # the owner merges it
+        self.assertFalse(
+            [c for c in self.calls if "/merge" in c[1]]
+        )  # the owner merges it
         note = next(c for c in posted if c[1] == "API/issues/146/comments")
         self.assertIn("Accept until Tauri moves", note[3]["body"])
         self.assertIn("#150", note[3]["body"])
-        self.assertIn(("PATCH", "API/issues/146", "job", {"state": "closed"}), self.calls)
+        self.assertIn(
+            ("PATCH", "API/issues/146", "job", {"state": "closed"}), self.calls
+        )
 
     def test_owner_chatter_changes_nothing(self):
         self.assertEqual(self.run_with("khyretos", "what does option 2 cost?"), 0)
@@ -258,9 +319,30 @@ class FindingsFlow(unittest.TestCase):
 
     STATE = {
         "findings": [
-            {"finding_id": "ae97b8c11446", "state": "ACTIVE", "path": "a.py", "line_start": 1, "line_end": 2, "body": "**Hard-coded Secrets**\n\nx"},
-            {"finding_id": "dedbef95465d", "state": "ACTIVE", "path": "b.py", "line_start": 1, "line_end": 2, "body": "**Missing Error Handling**\n\ny"},
-            {"finding_id": "fedcba987654", "state": "ACTIVE", "path": "c.py", "line_start": 1, "line_end": 2, "body": "**Race**\n\nz"},
+            {
+                "finding_id": "ae97b8c11446",
+                "state": "ACTIVE",
+                "path": "a.py",
+                "line_start": 1,
+                "line_end": 2,
+                "body": "**Hard-coded Secrets**\n\nx",
+            },
+            {
+                "finding_id": "dedbef95465d",
+                "state": "ACTIVE",
+                "path": "b.py",
+                "line_start": 1,
+                "line_end": 2,
+                "body": "**Missing Error Handling**\n\ny",
+            },
+            {
+                "finding_id": "fedcba987654",
+                "state": "ACTIVE",
+                "path": "c.py",
+                "line_start": 1,
+                "line_end": 2,
+                "body": "**Race**\n\nz",
+            },
         ]
     }
 
@@ -269,7 +351,12 @@ class FindingsFlow(unittest.TestCase):
         os.makedirs(os.path.join(self.root, "docs", "review-findings"))
         os.makedirs(os.path.join(self.root, "tools", "qwen"))
         src = os.path.join(HERE, "qwen", "review_findings.py")
-        with open(src) as f, open(os.path.join(self.root, "tools", "qwen", "review_findings.py"), "w") as g:
+        with (
+            open(src) as f,
+            open(
+                os.path.join(self.root, "tools", "qwen", "review_findings.py"), "w"
+            ) as g,
+        ):
             g.write(f.read())
         for name in ("a.py", "b.py", "c.py"):
             with open(os.path.join(self.root, name), "w") as f:
@@ -278,8 +365,22 @@ class FindingsFlow(unittest.TestCase):
         with open(os.path.join(self.root, self.ledger), "w") as f:
             json.dump(
                 {
-                    "ae97b8c11446": {"verdict": "false_positive", "checked": False, "fixed": "", "title": "Hard-coded Secrets", "path": "a.py", "reason": "r"},
-                    "dedbef95465d": {"verdict": "bug", "checked": False, "fixed": "", "title": "Missing Error Handling", "path": "b.py", "reason": "r"},
+                    "ae97b8c11446": {
+                        "verdict": "false_positive",
+                        "checked": False,
+                        "fixed": "",
+                        "title": "Hard-coded Secrets",
+                        "path": "a.py",
+                        "reason": "r",
+                    },
+                    "dedbef95465d": {
+                        "verdict": "bug",
+                        "checked": False,
+                        "fixed": "",
+                        "title": "Missing Error Handling",
+                        "path": "b.py",
+                        "reason": "r",
+                    },
                 },
                 f,
             )
@@ -289,7 +390,9 @@ class FindingsFlow(unittest.TestCase):
         os.chdir(self.root)
         od.git = lambda *args: self.gits.append(args) or "abc1234\n"
         od.run_pipeline = lambda jobs, log: self.jobs.extend(jobs)
-        os.environ.update(API="API", TOKEN="job", PR_TOKEN="bot", GITHUB_EVENT_PATH=self.event)
+        os.environ.update(
+            API="API", TOKEN="job", PR_TOKEN="bot", GITHUB_EVENT_PATH=self.event
+        )
 
     def tearDown(self):
         od.call, od.git, od.run_pipeline, cwd = self.real
@@ -299,9 +402,21 @@ class FindingsFlow(unittest.TestCase):
         with open(self.event, "w") as f:
             json.dump(
                 {
-                    "comment": {"id": 8, "html_url": "https://git/c/8", "body": body, "user": {"login": "khyretos"}},
-                    "issue": {"number": 7, "title": "[X] a change", "pull_request": {"merged": False}},
-                    "repository": {"owner": {"login": "khyretos"}, "default_branch": "main"},
+                    "comment": {
+                        "id": 8,
+                        "html_url": "https://git/c/8",
+                        "body": body,
+                        "user": {"login": "khyretos"},
+                    },
+                    "issue": {
+                        "number": 7,
+                        "title": "[X] a change",
+                        "pull_request": {"merged": False},
+                    },
+                    "repository": {
+                        "owner": {"login": "khyretos"},
+                        "default_branch": "main",
+                    },
                 },
                 f,
             )
@@ -323,7 +438,9 @@ class FindingsFlow(unittest.TestCase):
         return od.main()
 
     def note(self):
-        return next(c for c in self.calls if c[0] == "POST" and c[1] == "API/issues/7/comments")[3]["body"]
+        return next(
+            c for c in self.calls if c[0] == "POST" and c[1] == "API/issues/7/comments"
+        )[3]["body"]
 
     def test_false_positive_only_needs_no_commit(self):
         self.assertEqual(self.run_with("ae97b8 false positive"), 0)
@@ -345,8 +462,12 @@ class FindingsFlow(unittest.TestCase):
         self.assertTrue(ledger["dedbef95465d"]["checked"])
         self.assertEqual(ledger["dedbef95465d"]["fixed"], "abc1234")
         self.assertEqual(ledger["ae97b8c11446"]["by"], "khyretos")
-        self.assertNotIn("fedcba987654", {k for k, v in ledger.items() if v.get("checked")})
-        self.assertIn(("push", "-q", "-f", "origin", "HEAD:refs/heads/findings/pr-7"), self.gits)
+        self.assertNotIn(
+            "fedcba987654", {k for k, v in ledger.items() if v.get("checked")}
+        )
+        self.assertIn(
+            ("push", "-q", "-f", "origin", "HEAD:refs/heads/findings/pr-7"), self.gits
+        )
         pr = next(c for c in self.calls if c[1] == "API/pulls")
         self.assertEqual(pr[2], "bot")
         self.assertIn("#7", pr[3]["body"])

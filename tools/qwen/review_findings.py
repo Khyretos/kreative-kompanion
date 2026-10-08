@@ -169,7 +169,7 @@ def excerpt(path: str, start: int, end: int, radius: int = 40, cap: int = 400) -
 
     if start is None and end is None:
         limit = min(cap, len(lines))
-        return "".join(f"{i+1}: {lines[i]}" for i in range(limit))
+        return "".join(f"{i + 1}: {lines[i]}" for i in range(limit))
 
     start_idx = max(0, start - radius - 1)
     end_idx = min(len(lines), end + radius)
@@ -179,7 +179,7 @@ def excerpt(path: str, start: int, end: int, radius: int = 40, cap: int = 400) -
         line_content = lines[i]
         # Strip trailing newline but keep internal newlines if any
         line_content = line_content.rstrip("\n\r")
-        result_lines.append(f"{i+1}: {line_content}")
+        result_lines.append(f"{i + 1}: {line_content}")
 
     return "\n".join(result_lines) + "\n"
 
