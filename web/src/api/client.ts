@@ -153,6 +153,7 @@ export interface KompanionApi {
   /** STU-01: the signed-in user's runs, newest first. */
   studioMine(): Promise<import("../views/studio").StudioRun[]>;
   /** STU-02b: file n of a finished run becomes an asset of the project. */
+  studioDelete(ids: string[], failed?: boolean): Promise<{ deleted: string[]; skipped: string[]; keptFiles: number }>;
   studioToAssets(runId: string, project: string, n?: number): Promise<{ assetId: number; project: string; name: string }>;
   /** M6-04: per GPU, samples, jobs and events of the last 1 or 24 hours. */
   gpuTimeline(hours: 1 | 24): Promise<import("../views/gputimeline").TlGpu[]>;

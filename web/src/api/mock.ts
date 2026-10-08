@@ -39,6 +39,7 @@ const knowledgeCols: import("../views/knowledge").KCollection[] = [
 const demoPic = (hue: number) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="hsl(${hue} 60% 45%)"/><circle cx="48" cy="40" r="18" fill="#f4eefc"/></svg>`);
 const studioRuns: import("../views/studio").StudioRun[] = [
   { id: "sr1", type: "character", gpu: "rx9070", prompt: "a cheerful fox adventurer with a green scarf", size: "tall", state: "done", error: null, files: [demoPic(28)], startedAt: ago(30), endedAt: ago(29) },
+  { id: "sr2", type: "character", gpu: "a770", prompt: "a knight in silver armour", size: "square", state: "failed", error: "ComfyUI stopped answering", files: [], startedAt: ago(40), endedAt: ago(39) },
 ];
 const id = (p: string) => `${p}${++seq}`;
 
@@ -561,6 +562,11 @@ export class MockApi implements KompanionApi {
     return { ids: made.map((m) => m.id) };
   }
   async studioMine() { return structuredClone(studioRuns); }
+  async studioDelete(ids: string[], failed = false) {
+    const gone = studioRuns.filter((r) => r.state !== "running" && (ids.includes(r.id) || (failed && r.state === "failed"))).map((r) => r.id);
+    for (const g of gone) studioRuns.splice(studioRuns.findIndex((r) => r.id === g), 1);
+    return { deleted: gone, skipped: ids.filter((i) => !gone.includes(i)), keptFiles: 0 };
+  }
   async studioToAssets(runId: string, project: string, _n = 0) {
     const r = studioRuns.find((x) => x.id === runId);
     if (!r || r.state !== "done") throw new Error("Only a finished result can go to Assets.");

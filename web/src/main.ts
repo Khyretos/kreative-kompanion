@@ -330,7 +330,7 @@ function render(s: AppState, prev: AppState): void {
         <p class="muted">Describe it, pick a type and a size; Kompanion picks the GPU.</p></div></header>
       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
     if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight));
-    if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent));
+    if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent", "studioPicked", "studioHidden"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent, s.studioPicked, s.studioHidden));
   }
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
@@ -762,6 +762,19 @@ function wire(shell: HTMLElement): void {
       const sent = { ...store.get().studioSent };
       sent[run] = [...new Set([...(sent[run] ?? []), name])];
       store.set({ studioSent: sent });
+    },
+    // STU-D1: delete one, the picked ones, or every failed one; each waits 10 s for Undo.
+    "studio-pick": (el) => {
+      const run = el.dataset.run ?? "";
+      const picked = store.get().studioPicked;
+      store.set({ studioPicked: picked.includes(run) ? picked.filter((x) => x !== run) : [...picked, run] });
+    },
+    "studio-pick-clear": () => store.set({ studioPicked: [] }),
+    "studio-delete": (el) => studioDeleteLater([el.dataset.run ?? ""]),
+    "studio-delete-picked": () => studioDeleteLater(store.get().studioPicked),
+    "studio-clear-failed": () => {
+      const { studioRuns, studioHidden } = store.get();
+      studioDeleteLater((studioRuns ?? []).filter((r) => r.state === "failed" && !studioHidden.includes(r.id)).map((r) => r.id));
     },
     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
     // A finished image, large, in a dialog that closes on Escape or a click.
@@ -1720,6 +1733,52 @@ async function removeChat(id: string): Promise<void> {
     showError(e);
   }
 }
+
+// STU-D1: hide the runs at once, delete them for real after 10 seconds unless Undo is pressed.
+// Leaving the page sends the pending delete right away.
+let studioPending: { ids: string[]; timer: number; toast: HTMLElement } | undefined;
+function studioDeleteLater(ids: string[]): void {
+  ids = ids.filter(Boolean);
+  if (!ids.length) return;
+  studioFlush();
+  store.set({ studioHidden: [...store.get().studioHidden, ...ids], studioPicked: [] });
+  const toast = document.createElement("div");
+  toast.className = "toast studio-undo";
+  toast.setAttribute("role", "status");
+  const text = document.createElement("span");
+  text.textContent = ids.length === 1 ? "Result deleted." : `${ids.length} results deleted.`;
+  const undo = document.createElement("button");
+  undo.type = "button";
+  undo.className = "btn small";
+  undo.textContent = "Undo";
+  undo.addEventListener("click", () => {
+    if (studioPending?.toast !== toast) return;
+    clearTimeout(studioPending.timer);
+    studioPending = undefined;
+    toast.remove();
+    store.set({ studioHidden: store.get().studioHidden.filter((x) => !ids.includes(x)) });
+  });
+  toast.append(text, undo);
+  document.body.append(toast);
+  studioPending = { ids, toast, timer: window.setTimeout(studioFlush, 10_000) };
+}
+function studioFlush(): void {
+  const p = studioPending;
+  if (!p) return;
+  studioPending = undefined;
+  clearTimeout(p.timer);
+  p.toast.remove();
+  api.studioDelete(p.ids)
+    .then(async (r) => {
+      if (r.skipped.length) showError(new Error(r.skipped.length === 1 ? "One result could not be deleted: it is still being made." : `${r.skipped.length} results could not be deleted: they are still being made.`));
+      store.set({ studioRuns: await api.studioMine(), studioHidden: store.get().studioHidden.filter((x) => !p.ids.includes(x)) });
+    })
+    .catch((e) => {
+      store.set({ studioHidden: store.get().studioHidden.filter((x) => !p.ids.includes(x)) });
+      showError(e);
+    });
+}
+window.addEventListener("pagehide", studioFlush);
 
 function showError(e: unknown): void {
   const message = e instanceof Error ? e.message : String(e);
