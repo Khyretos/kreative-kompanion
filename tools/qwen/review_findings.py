@@ -66,12 +66,16 @@ def clean_review(comments: list, head_date: str) -> bool:
     reviews = [c for c in comments if "<!-- pr-agent:review" in c.get("body", "")]
     if not reviews:
         return False
-    newest = max(reviews, key=lambda c: parse(c["created_at"]))
+    # PR-Agent edits its review comment in place for a new head, so updated_at is the review time.
+    def when(c):
+        return parse(c.get("updated_at") or c["created_at"])
+
+    newest = max(reviews, key=when)
     if "<!-- pr-agent-review-state:v1" in newest["body"]:
         return False
     if "No major issues detected" not in newest["body"]:
         return False
-    return parse(newest["created_at"]) >= parse(head_date)
+    return when(newest) >= parse(head_date)
 
 
 def title(finding: dict) -> str:

@@ -301,6 +301,16 @@ class CleanReviewTest(unittest.TestCase):
         ]
         self.assertFalse(rf.clean_review(cs, "2026-10-08T13:00:00Z"))
 
+    def test_review_edited_after_the_head_counts(self):
+        cs = [
+            {
+                "body": CLEAN,
+                "created_at": "2026-10-08T18:58:03+02:00",
+                "updated_at": "2026-10-08T19:01:54+02:00",
+            }
+        ]
+        self.assertTrue(rf.clean_review(cs, "2026-10-08T19:01:49+02:00"))
+
     def test_no_review_comment(self):
         self.assertFalse(
             rf.clean_review(
