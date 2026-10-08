@@ -349,6 +349,11 @@ pub struct NewTaskBody {
     description: String,
 }
 
+/// The body tasks::create takes (camelCase, like the app sends it).
+fn task_body(project_id: &str, title: &str, description: &str) -> Value {
+    json!({ "projectId": project_id, "title": title, "description": description })
+}
+
 /// POST /api/overseer/tasks: creates proposed tasks, and their project when it is new.
 pub async fn create_tasks(
     State(s): State<AppState>,
@@ -384,7 +389,7 @@ pub async fn create_tasks(
     };
     let mut ids = Vec::new();
     for t in b.tasks {
-        let body = serde_json::from_value(json!({ "project_id": project_id, "title": t.title, "description": t.description }))
+        let body = serde_json::from_value(task_body(&project_id, &t.title, &t.description))
             .map_err(|e| ApiError::BadRequest(e.to_string()))?;
         let (_, Json(task)) = crate::tasks::create(State(s.clone()), Extension(u.clone()), Json(body)).await?;
         ids.push(task.get("id").cloned().unwrap_or(Value::Null));

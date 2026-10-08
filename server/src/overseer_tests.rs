@@ -107,3 +107,10 @@ async fn a_project_switch_turns_the_overseer_on_for_its_chats_but_not_its_thread
         assert_eq!(chat_on(&db, chat).await, on, "{chat}");
     }
 }
+
+#[test]
+fn a_proposed_task_becomes_a_valid_new_task_body() {
+    // OVR-01c: the live Create button failed with "missing field `projectId`".
+    let b = serde_json::from_value::<crate::tasks::NewTask>(task_body("p1", "Write the rules", "One page"));
+    assert!(b.is_ok(), "{:?}", b.err());
+}
