@@ -12,6 +12,7 @@ pub mod facetags;
 pub mod import;
 pub mod to_assets;
 pub mod watchdog;
+pub mod remove;
 
 use crate::{
     AppState,
@@ -35,7 +36,9 @@ pub fn routes() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/studio/workflows", get(list))
         .route("/studio/workflows/{name}/run", post(start))
-        .route("/studio/runs/{id}", get(run_get))
+        .route("/studio/runs/{id}", get(run_get).delete(remove::delete_one))
+        // STU-D1: delete finished runs (ids, or every failed one) with their files.
+        .route("/studio/runs/delete", post(remove::delete_many))
         .route("/studio/target", get(target::read).put(target::set))
         // STU-01d: room for a face photo (12 MiB) in the multipart form.
         .route("/studio/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
@@ -50,7 +53,8 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/service/audio", post(audio::make))
         .route("/studio/service/workflows", get(list))
         .route("/studio/service/mine", get(team::mine))
-        .route("/studio/service/runs/{id}", get(run_get))
+        .route("/studio/service/runs/{id}", get(run_get).delete(remove::delete_one))
+        .route("/studio/service/runs/delete", post(remove::delete_many))
         .route("/studio/service/runs/{id}/files/{n}", get(team::file))
         // KS-03: Kreative Studio's own finished jobs join the same library.
         .route("/studio/service/import", post(import::import))

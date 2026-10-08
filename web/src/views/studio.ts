@@ -1,6 +1,7 @@
 // STU-01/02: the Studio section: pick a type, describe it, make it; your images, videos and sounds.
 import { html, type SafeHtml } from "../core/html";
 import { SIZE_LABELS, typeCard, typeDetail } from "./studio-cards";
+import { icon } from "./icons";
 
 export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number }; ratings?: string[]; adultRatings?: string[]; face?: boolean }
 export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; files: string[]; startedAt: string; endedAt: string | null }
@@ -38,19 +39,29 @@ export function renderStudioLibrary(
   types: StudioType[] | undefined,
   runs: StudioRun[] | undefined,
   projects: { id: string; name: string }[],
-  sent: Record<string, string[]>
+  sent: Record<string, string[]>,
+  picked: string[] = [],
+  hidden: string[] = []
 ): SafeHtml {
   const label = (name: string) => types?.find((t) => t.name === name)?.label ?? name;
+  const shown = runs?.filter((r) => !hidden.includes(r.id));
+  const failed = shown?.filter((r) => r.state === "failed").length ?? 0;
+  // STU-D1: a selection bar while runs are picked, else "Clear failed" when there are failed runs.
+  const tools = picked.length
+    ? html`<div class="studio-lib-tools" role="group" aria-label="Selected results"><span class="small" aria-live="polite">${String(picked.length)} selected</span><button type="button" class="btn small danger" data-action="studio-delete-picked">${icon("trash")} Delete ${String(picked.length)}</button><button type="button" class="btn small" data-action="studio-pick-clear">Cancel</button></div>`
+    : failed
+      ? html`<div class="studio-lib-tools"><button type="button" class="btn small" data-action="studio-clear-failed">Clear failed (${String(failed)})</button></div>`
+      : "";
   const list =
-    runs === undefined
+    shown === undefined
       ? html`<p class="muted small">Loading your results…</p>`
-      : runs.length === 0
+      : shown.length === 0
         ? html`<p class="muted small">Nothing yet. What you make appears here as soon as it is ready.</p>`
         : html`<ul class="studio-runs">
-            ${runs.map((r) => runCard(r, label(r.type), projects, sent[r.id] ?? []))}
+            ${shown.map((r) => runCard(r, label(r.type), projects, sent[r.id] ?? [], picked.includes(r.id)))}
           </ul>`;
   return html`<section class="studio-library" aria-labelledby="studio-lib-h">
-    <h2 id="studio-lib-h" class="label">Your results</h2>
+    <div class="studio-lib-head"><h2 id="studio-lib-h" class="label">Your results</h2>${tools}</div>
     ${list}
   </section>`;
 }
@@ -59,7 +70,8 @@ export function runCard(
   r: StudioRun,
   typeLabel: string,
   projects: { id: string; name: string }[],
-  sentTo: string[]
+  sentTo: string[],
+  picked = false
 ): SafeHtml {
   const isAudio = r.type === "music" || r.type === "sfx";
   const what = isAudio ? `${r.seconds ?? "?"} s` : SIZE_LABELS[r.size] ?? r.size;
@@ -79,5 +91,10 @@ export function runCard(
   const menu = r.state === "done" && projects.length > 0
     ? html`<details class="studio-send"><summary>Send to Assets</summary><div class="studio-send-list" role="group" aria-label="Send to which project">${projects.map((p) => html`<button type="button" class="btn small" data-action="studio-send" data-run="${r.id}" data-project="${p.id}">${p.name}</button>`)}</div></details>`
     : "";
-  return html`<li class="studio-run s-${r.state}">${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p>${sent}${menu}</li>`;
+  // STU-D1: finished runs (done or failed) can be picked and deleted; a running one cannot.
+  const finished = r.state === "done" || r.state === "failed";
+  const top = finished
+    ? html`<div class="studio-run-top"><button type="button" class="round-btn" role="checkbox" aria-checked="${picked ? "true" : "false"}" data-action="studio-pick" data-run="${r.id}" aria-label="Select" title="Select">${icon("check")}</button><button type="button" class="round-btn" data-action="studio-delete" data-run="${r.id}" aria-label="Delete" title="Delete">${icon("trash")}</button></div>`
+    : "";
+  return html`<li class="studio-run s-${r.state}${picked ? " picked" : ""}">${top}${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p>${sent}${menu}</li>`;
 }

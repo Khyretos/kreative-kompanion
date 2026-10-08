@@ -212,6 +212,8 @@ export class HttpApi implements KompanionApi {
   studioToAssets(runId: string, project: string, n = 0) {
     return this.request<{ assetId: number; project: string; name: string }>("POST", `/studio/runs/${encodeURIComponent(runId)}/to-assets`, { project, n });
   }
+  // STU-D1: delete finished runs and their files (ids, or every failed one with failed = true).
+  studioDelete(ids: string[], failed = false) { return this.request<{ deleted: string[]; skipped: string[]; keptFiles: number }>("POST", "/studio/runs/delete", { ids, failed }); }
   setStudioTarget(target: string) { return this.request<void>("PUT", "/studio/target", { target }); }
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName) { return this.request<void>("PUT", `/gpus/modes/${encodeURIComponent(machine)}`, { mode }); }
   gpuTimeline(hours: 1 | 24) { return this.request<import("../views/gputimeline").TlGpu[]>("GET", `/gpus/timeline?hours=${hours}`); }

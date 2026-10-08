@@ -26,6 +26,7 @@ const paths: Record<string, string> = {
   pin: "M9 4h6l-1 6 3 3H7l3-3zM12 13v7",
   edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
   archive: "M3 5h18v4H3zM5 9v10h14V9M10 13h4",
+  check: "M5 12l5 5 9-10",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6",
   "chevron-right": "M9 6l6 6-6 6",
   "chevron-down": "M6 9l6 6 6-6",
