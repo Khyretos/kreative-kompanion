@@ -543,7 +543,7 @@ export class MockApi implements KompanionApi {
       { name: "landscape", label: "Landscape", hint: "Wide place, no people", sizes: ["wide", "square", "tall"], order: 3 },
       { name: "sprite", label: "Sprite", hint: "One game object, plain background", sizes: ["square", "tall", "wide"], order: 4 },
       { name: "icon", label: "Icon", hint: "Simple and bold, for menus", sizes: ["square"], order: 5 },
-      { name: "oc-sheet", label: "OC sheet", hint: "Character turnaround", sizes: ["wide"], order: 6, warning: "novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use", ratings: ["general", "sensitive", "questionable", "explicit"], adultRatings: ["questionable", "explicit"], face: true },
+      { name: "oc-sheet", label: "OC sheet", hint: "Character turnaround", sizes: ["wide"], order: 6, warning: "novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use", ratings: ["general", "sensitive", "questionable", "explicit"], adultRatings: ["questionable", "explicit"], face: true, negative: "" },
       { name: "video", label: "Video", hint: "A few seconds, no sound", sizes: ["wide", "tall", "square"], order: 7 },
       ...AUDIO_TYPES,
     ];

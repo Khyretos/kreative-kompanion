@@ -3,11 +3,11 @@ import { html, type SafeHtml } from "../core/html";
 import { SIZE_LABELS, typeCard, typeDetail } from "./studio-cards";
 import { icon } from "./icons";
 
-export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number }; ratings?: string[]; adultRatings?: string[]; face?: boolean }
+export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number }; ratings?: string[]; adultRatings?: string[]; face?: boolean; negative?: string }
 export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; files: string[]; startedAt: string; endedAt: string | null }
 export interface StudioForm { type: string; size: string; count: 1 | 4; busy: boolean; error?: string }
 
-export function renderStudioMake(types: StudioType[] | undefined, form: StudioForm, prompt: string, lyrics: string, seconds: string, rating: string, adult: boolean, faceName: string, faceWeight: string): SafeHtml {
+export function renderStudioMake(types: StudioType[] | undefined, form: StudioForm, prompt: string, lyrics: string, seconds: string, rating: string, adult: boolean, faceName: string, faceWeight: string, negative = ""): SafeHtml {
   if (!types) return html`<p class="muted">Loading the image types…</p>`;
   const chosen = types.find((t) => t.name === form.type) ?? types[0];
   const audio = chosen?.audio;
@@ -23,6 +23,7 @@ export function renderStudioMake(types: StudioType[] | undefined, form: StudioFo
       <textarea id="studio-prompt" name="prompt" rows="3" maxlength="${audio ? 1000 : 500}" placeholder="${audio === "music" ? "calm lofi piano loop for a cozy game menu" : audio === "sfx" ? "a wooden door creaking open slowly" : "a cheerful fox adventurer with a green scarf"}">${prompt}</textarea>
       ${audio === "music" ? html`<label for="studio-lyrics">Lyrics (optional)</label><textarea id="studio-lyrics" name="lyrics" rows="3" maxlength="3000" placeholder="Leave empty for an instrumental">${lyrics}</textarea>` : ""}
       ${chosen?.face ? html`<div class="studio-face"><label for="studio-face">Face photo (optional)</label><input id="studio-face" name="face" type="file" accept="image/jpeg,image/png,image/webp">${faceName ? html`<span class="small">${faceName} <button type="button" class="btn small" data-action="studio-face-clear">Remove</button></span>` : ""}<label for="studio-face-weight">Likeness <input id="studio-face-weight" name="face_weight" type="range" min="0" max="1.2" step="0.05" value="${faceWeight || "0.85"}"></label><p class="muted small">The character takes on this face. The photo is deleted after the run.</p></div>` : ""}
+      ${chosen?.negative !== undefined ? html`<details class="studio-neg" ${negative ? "open" : ""}><summary>Leave out</summary><textarea id="studio-negative" name="negative" rows="2" maxlength="500" aria-label="Leave out (negative prompt)" placeholder="blurry, extra fingers, hats">${negative}</textarea><p class="muted small">Things the picture should not show.${chosen.negative ? ` Already left out: ${chosen.negative}.` : ""}</p></details>` : ""}
       <div class="studio-options">
         ${ratings.length ? html`<label class="studio-rating" for="studio-rating">Rating <select id="studio-rating" name="rating">${ratings.map((r) => html`<option value="${r}" ${r === rating ? "selected" : ""}>${r[0].toUpperCase() + r.slice(1)}</option>`)}</select></label>` : ""}
         ${audio && chosen?.seconds ? html`<label class="studio-length" for="studio-seconds">Length <input id="studio-seconds" name="seconds" type="number" min="${chosen.seconds.min}" max="${chosen.seconds.max}" value="${seconds || String(chosen.seconds.default)}"> s</label>` : ""}
