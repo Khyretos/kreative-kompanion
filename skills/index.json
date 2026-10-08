@@ -30,7 +30,7 @@
     "tags": []
   },
   {
-    "chars": 27848,
+    "chars": 28675,
     "description": "How to write a job prompt any worker model can carry out, and how to run fix rounds.",
     "file": "orchestrator/prompting-workers",
     "models": [],
@@ -108,7 +108,7 @@
     "tags": []
   },
   {
-    "chars": 2733,
+    "chars": 3387,
     "description": "The Kompanion Android app (plain Java WebView app with UnifiedPush) and its build container.",
     "file": "worker/android",
     "models": [],
