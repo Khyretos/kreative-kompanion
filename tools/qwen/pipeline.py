@@ -298,17 +298,17 @@ BLOCK = re.compile(r"<<<<<<< SEARCH\n(.*?)\n?=======\n(.*?)\n?>>>>>>> REPLACE", 
 def find(text, search):
     """(start, end) of the one run of whole lines equal to `search`, comparing lines
     without indentation and trailing spaces. None when missing or not unique."""
-    want = [l.strip() for l in search.strip("\n").split("\n")]
+    want = [row.strip() for row in search.strip("\n").split("\n")]
     lines = text.split("\n")
     hits = [
         i
         for i in range(len(lines) - len(want) + 1)
-        if [l.strip() for l in lines[i : i + len(want)]] == want
+        if [row.strip() for row in lines[i : i + len(want)]] == want
     ]
     if len(hits) != 1:
         return None
-    start = sum(len(l) + 1 for l in lines[: hits[0]])
-    end = start + sum(len(l) + 1 for l in lines[hits[0] : hits[0] + len(want)]) - 1
+    start = sum(len(row) + 1 for row in lines[: hits[0]])
+    end = start + sum(len(row) + 1 for row in lines[hits[0] : hits[0] + len(want)]) - 1
     return start, end
 
 
@@ -322,7 +322,7 @@ def apply_patch(text, answer):
         for line in replace.splitlines():
             stripped = line.strip()
             if stripped in ("// ...", "# ..."):
-                if stripped not in [l.strip() for l in search.splitlines()]:
+                if stripped not in [row.strip() for row in search.splitlines()]:
                     return (
                         text,
                         "the REPLACE text contains a `// ...` placeholder line; write out the real code instead of skipping lines",
@@ -368,8 +368,8 @@ def patch_job(job, log):
                 rx = re.compile(pat)
             except re.error:
                 rx = re.compile(re.escape(pat))
-            for i, l in enumerate(lines):
-                if rx.search(l):
+            for i, row in enumerate(lines):
+                if rx.search(row):
                     keep.update(range(max(0, i - 6), min(len(lines), i + 25)))
         out_lines, last = [], -2
         for i in sorted(keep):
@@ -530,7 +530,7 @@ def own_errors(errors, out):
             cur.append(line)
     if cur:
         blocks.append(cur)
-    return "\n\n".join("\n".join(b) for b in blocks if any(name in l for l in b))
+    return "\n\n".join("\n".join(b) for b in blocks if any(name in row for row in b))
 
 
 def check_loop(job, log):

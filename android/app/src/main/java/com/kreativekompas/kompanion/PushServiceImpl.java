@@ -15,8 +15,8 @@ public class PushServiceImpl extends PushService {
 
     @Override
     public void onNewEndpoint(PushEndpoint endpoint, String instance) {
-        Push.save(this, endpoint.getUrl());
-        Push.sendIfNeeded(this);
+        PushRegistration.save(this, endpoint.getUrl());
+        PushRegistration.sendIfNeeded(this);
     }
 
     @Override
@@ -45,7 +45,7 @@ public class PushServiceImpl extends PushService {
 
     @Override
     public void onUnregistered(String instance) {
-        Push.clear(this);
+        PushRegistration.clear(this);
         getSharedPreferences("push", MODE_PRIVATE).edit().remove("mode").apply();
         LiveService.startIfWanted(this);
     }

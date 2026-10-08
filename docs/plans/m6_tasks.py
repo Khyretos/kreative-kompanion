@@ -7,7 +7,7 @@ One source for both files next to it:
 Run: python3 docs/plans/m6_tasks.py
 """
 
-import json
+import importlib.util
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -383,12 +383,14 @@ def main():
             for t in T
         ],
     }
-    json.dump(
-        {"projects": [project]},
-        open(os.path.join(HERE, "m6-tasks.json"), "w"),
-        indent=1,
-        ensure_ascii=False,
+    # Prettier's layout (tools/jsonfmt.py), so the lint job's check passes.
+    spec = importlib.util.spec_from_file_location(
+        "jsonfmt", os.path.join(HERE, "..", "..", "tools", "jsonfmt.py")
     )
+    jsonfmt = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jsonfmt)
+    with open(os.path.join(HERE, "m6-tasks.json"), "w", encoding="utf-8") as f:
+        f.write(jsonfmt.dumps({"projects": [project]}))
     print(f"{len(T)} tasks written")
 
 

@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView v, String url) {
                 if (url.startsWith(server)) {
                     CookieManager.getInstance().flush();
-                    Push.sendIfNeeded(MainActivity.this);
+                    PushRegistration.sendIfNeeded(MainActivity.this);
                     LiveService.startIfWanted(MainActivity.this); // reconnects at once after a sign-in
                 }
             }

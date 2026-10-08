@@ -12,6 +12,7 @@ docs/review-findings/pr-<n>.json and gates the merge.
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -22,6 +23,17 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 # Import pipeline only inside the triage function to avoid config needs for tests.
 # pylint: disable=import-outside-toplevel
+
+
+JSONFMT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "jsonfmt.py")
+
+
+def prettier_json(data):
+    """JSON text in Prettier's layout (tools/jsonfmt.py), so the lint job's check passes."""
+    spec = importlib.util.spec_from_file_location("jsonfmt", JSONFMT)
+    jsonfmt = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jsonfmt)
+    return jsonfmt.dumps(json.loads(json.dumps(data, sort_keys=True)))
 
 
 def state_from_body(body: str):
@@ -381,7 +393,7 @@ def main():
         triage({"number": pr_num}, findings, ledger, repo_root)
         os.makedirs(os.path.dirname(ledger_path), exist_ok=True)
         with open(ledger_path, "w", encoding="utf-8") as f:
-            json.dump(ledger, f, indent=2, sort_keys=True)
+            f.write(prettier_json(ledger))
 
     if args.jobs:
         jobs = fix_jobs(findings, ledger)

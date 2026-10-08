@@ -36,11 +36,18 @@ def split(text):
 
 def plan(core, cards, text):
     head, intro, lessons = split(text)
-    strip = lambda l: l.split(". ", 1)[1]
+
+    def strip_line(line):
+        return line.split(". ", 1)[1]
+
     moved = {}
     for card in cards:
         for prefix in cards[card]["lessons"]:
-            hits = [i for i, l in enumerate(lessons) if strip(l).startswith(prefix)]
+            hits = [
+                i
+                for i, lesson in enumerate(lessons)
+                if strip_line(lesson).startswith(prefix)
+            ]
             if len(hits) != 1:
                 sys.exit(
                     core + ": " + str(len(hits)) + " lessons start with " + repr(prefix)
@@ -77,7 +84,7 @@ def plan(core, cards, text):
             + "\n\n"
             + body
         )
-    kept = "".join(l for i, l in enumerate(lessons) if i not in moved)
+    kept = "".join(lesson for i, lesson in enumerate(lessons) if i not in moved)
     names = ", ".join(card[:-3].split("/")[-1] for card in cards)
     out[core] = (
         head
@@ -88,11 +95,11 @@ def plan(core, cards, text):
         + kept.rstrip()
         + "\n"
     )
-    before = Counter(l for l in text.splitlines() if l.strip())
+    before = Counter(row for row in text.splitlines() if row.strip())
     after_lines = []
     for v in out.values():
         after_lines.extend(v.splitlines())
-    after = Counter(l for l in after_lines if l.strip())
+    after = Counter(row for row in after_lines if row.strip())
     missing = before - after
     if missing:
         sys.exit(core + ": lines lost: " + repr(list(missing)[:5]))

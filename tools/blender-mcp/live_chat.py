@@ -12,11 +12,11 @@ import urllib.request
 BASE = os.environ.get("KOMPANION_URL", "http://127.0.0.1:8095")
 JAR = os.path.expanduser("~/.cache/kompanion-test-session.txt")
 cookie = "; ".join(
-    f"{l.split()[5]}={l.split()[6]}"
-    for l in open(JAR)
-    if l.strip()
-    and (not l.startswith("#") or l.startswith("#HttpOnly_"))
-    and len(l.split()) >= 7
+    f"{line.split()[5]}={line.split()[6]}"
+    for line in open(JAR)
+    if line.strip()
+    and (not line.startswith("#") or line.startswith("#HttpOnly_"))
+    and len(line.split()) >= 7
 )
 
 
@@ -41,21 +41,21 @@ tool = sys.argv[3] if len(sys.argv) > 3 else "Blender"
 chat = api("POST", "/api/chats", {"title": "BLD-03 " + prompt[:30]})
 api("PATCH", f"/api/chats/{chat['id']}", {"mcp": [tool]})
 api("POST", f"/api/chats/{chat['id']}/messages", {"text": prompt})
-last, stable = None, 0
+last_text, stable_count = None, 0
 for _ in range(240):
     time.sleep(3)
     msgs = [
-        m
-        for m in api("GET", f"/api/chats/{chat['id']}/messages")
-        if m["author"] != "user"
+        msg
+        for msg in api("GET", f"/api/chats/{chat['id']}/messages")
+        if msg["author"] != "user"
     ]
     cur = msgs[-1]["text"] if msgs else ""
-    stable = stable + 1 if cur and cur == last else 0
-    last = cur
-    if stable >= 4:
+    stable_count = stable_count + 1 if cur and cur == last_text else 0
+    last_text = cur
+    if stable_count >= 4:
         break
-print(last)
-m = re.search(r"\(/api/chats/[^)]+\.png\)", last or "")
-if m:
-    open(out, "wb").write(api("GET", m.group(0)[1:-1], raw=True))
+print(last_text)
+match = re.search(r"\(/api/chats/[^)]+\.png\)", last_text or "")
+if match:
+    open(out, "wb").write(api("GET", match.group(0)[1:-1], raw=True))
     print("[saved]", out)

@@ -158,7 +158,9 @@ def write_env(path: str, values: dict):
         existing_lines.append(line)
 
     for key, val in values.items():
-        if key not in [l.split("=")[0].strip() for l in existing_lines if "=" in l]:
+        if key not in [
+            line.split("=")[0].strip() for line in existing_lines if "=" in line
+        ]:
             existing_lines.append(f"{key}={val}")
 
     with open(path, "w") as f:

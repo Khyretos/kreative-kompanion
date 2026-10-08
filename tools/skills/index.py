@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
 """Writes skills/index.json (one entry per skill file: name, description, roles, tags, paths, models, chars) for loaders and the Capabilities page. With --check it only checks and exits 1 on problems (for CI)."""
 
+import importlib.util
 import json
 import os
 import sys
 
 # Run as a script, so this folder (with load.py) is first on sys.path.
 from load import SKILLS, merged_cards
+
+JSONFMT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "jsonfmt.py")
+
+
+def prettier_json(data):
+    """JSON text in Prettier's layout (tools/jsonfmt.py), so the lint job's check passes."""
+    spec = importlib.util.spec_from_file_location("jsonfmt", JSONFMT)
+    jsonfmt = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jsonfmt)
+    return jsonfmt.dumps(json.loads(json.dumps(data, sort_keys=True)))
 
 
 def main():
@@ -74,7 +85,7 @@ def main():
     if "--check" not in sys.argv:
         output_path = os.path.join(SKILLS, "index.json")
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(entries, f, indent=1, sort_keys=True)
+            f.write(prettier_json(entries))
         print(f"wrote {len(entries)} entries")
 
     # Print problems
