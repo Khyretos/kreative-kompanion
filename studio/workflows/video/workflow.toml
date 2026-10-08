@@ -1,5 +1,6 @@
 # STU-02: a short clip from a description (Wan 2.2 TI2V-5B, Q8 GGUF), as in Kreative Studio.
 # Small VAE tiles: the Wan 2.2 VAE needs 9 GB for a plain 1280x704x73 decode.
+# STU-V1: text encoder on the CPU (on the card it starved the model: OOM or noise), euler, temporal tiles 32/8.
 title = "Video"
 description = "A few seconds of moving picture, no sound."
 graph = "graph.json"
