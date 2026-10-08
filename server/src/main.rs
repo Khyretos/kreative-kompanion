@@ -28,6 +28,8 @@ mod mailhtml;
 mod mcp;
 mod chat_tools;
 mod chat_files;
+mod chat_attach;
+mod chat_attach_web;
 mod chat_media;
 mod web;
 mod knowledge;
@@ -294,6 +296,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/chats/{id}", patch(api::update_chat).delete(api::delete_chat))
         .route("/chats/{id}/messages", get(api::messages).post(api::send))
         .route("/chats/{id}/files/{name}", get(chat_files::file))
+        .route("/chats/{id}/attachments", post(chat_attach_web::upload).layer(axum::extract::DefaultBodyLimit::max(25 * 1024 * 1024)))
         .route("/providers", get(api::providers))
         .route("/roles", get(api::roles).put(api::set_role))
         .route("/calls", get(api::calls))

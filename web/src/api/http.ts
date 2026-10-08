@@ -132,8 +132,11 @@ export class HttpApi implements KompanionApi {
     return this.request<void>("PATCH", `/projects/${encodeURIComponent(projectId)}`, { kind: "internal" });
   }
   deleteChat(chatId: string) { return this.request<void>("DELETE", `/chats/${encodeURIComponent(chatId)}`); }
-  send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort) {
-    return this.request<void>("POST", `/chats/${encodeURIComponent(chatId)}/messages`, { text, machine_id: machineId ?? null, effort });
+  send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort, attachments?: import("../core/attachments").Attached[]) {
+    return this.request<void>("POST", `/chats/${encodeURIComponent(chatId)}/messages`, { text, machine_id: machineId ?? null, effort, attachments: attachments ?? [] });
+  }
+  attach(chatId: string, file: File) {
+    return this.request<import("../core/attachments").Attached>("POST", `/chats/${encodeURIComponent(chatId)}/attachments?name=${encodeURIComponent(file.name)}`, file);
   }
   listActions(chatId: string) { return this.request<import("./client").PcAction[]>("GET", `/chats/${encodeURIComponent(chatId)}/actions`); }
   listLessons(chatId: string) { return this.request<import("./client").Lesson[]>("GET", `/chats/${encodeURIComponent(chatId)}/lessons`); }

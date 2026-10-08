@@ -374,6 +374,21 @@ li.task.dragging { opacity: 0.5; }
   background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0.5rem;
 }
 .composer:focus-within { border-color: var(--accent); }
+/* CHAT-08: attached files. Compact chips (5px corners, not pills); the composer row sits above the field. */
+.attach-row { width: min(46rem, 100%); margin: 0 auto 0.4rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.attach-row:empty { display: none; }
+.attach-chip { color: var(--fg); border: 1px solid var(--line); max-width: 16rem; text-decoration: none; }
+.attach-chip .icon { width: 0.9rem; height: 0.9rem; flex: none; }
+.attach-name { overflow: hidden; text-overflow: ellipsis; }
+.attach-size { color: var(--muted); font-weight: 400; }
+.attach-thumb { width: 1.1rem; height: 1.1rem; border-radius: 3px; object-fit: cover; flex: none; }
+.attach-x { display: inline-grid; place-items: center; width: 1.1rem; height: 1.1rem; border-radius: 3px; color: var(--muted); }
+.attach-x:hover, .attach-x:focus-visible { background: var(--surface); color: var(--fg); }
+.attach-x .icon { width: 0.75rem; height: 0.75rem; }
+a.attach-chip:hover { border-color: var(--accent); }
+.attach-sent { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+.composer .attach { width: 2.5rem; padding: 0; flex: none; }
+.composer-wrap.drop-target .composer { border-color: var(--accent); border-style: dashed; }
 .composer textarea { border: 0; background: none; resize: none; max-height: 12.5rem; padding: 0.45rem 0.5rem; }
 .composer textarea:focus { border: 0; }
 /* CHAT-07: live markdown. The mirror paints the text; the textarea on top is transparent but keeps the caret.

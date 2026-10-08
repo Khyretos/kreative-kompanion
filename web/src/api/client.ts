@@ -100,7 +100,9 @@ export interface KompanionApi {
   makeProjectInternal(projectId: string): Promise<void>;
   /** Sends a message; the reply streams back through `onEvent`. */
   /** With `machineId`, the answer may use that computer's tools (each step needs approval). */
-  send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort): Promise<void>;
+  send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort, attachments?: import("../core/attachments").Attached[]): Promise<void>;
+  /** CHAT-08: uploads one file to a chat; the server keeps the picture, or the text of the document. */
+  attach(chatId: string, file: File): Promise<import("../core/attachments").Attached>;
   listActions(chatId: string): Promise<PcAction[]>;
   /** The lessons proposed in a chat (the project thread), oldest first. */
   listLessons(chatId: string): Promise<Lesson[]>;
