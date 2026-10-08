@@ -1,0 +1,31 @@
+[
+  {
+    "id": "trivy-glib-GHSA-wrw7-89jp-8q8g",
+    "linter": "REPOSITORY_TRIVY",
+    "file": "desktop/src-tauri/Cargo.lock",
+    "line": 1283,
+    "match": "GHSA-wrw7-89jp-8q8g",
+    "message": "glib 0.18.5: unsoundness in Iterator and DoubleEndedIterator impls for glib::VariantStrIter (MEDIUM), fixed in glib 0.20.0",
+    "why": "The desktop app gets glib through Tauri (tauri 2.12.1 -> tao 0.37 / wry -> gtk 0.18 -> glib 0.18). Even the newest Tauri and tao still require gtk ^0.18, which pins glib 0.18, so cargo update cannot reach 0.20. Kompanion's own code never touches glib. A fix by us is not possible without leaving Tauri or forking gtk-rs.",
+    "options": [
+      {
+        "name": "Accept until Tauri moves",
+        "tradeoff": "Record this one advisory in .trivyignore.yaml with an expiry date (3 months) and the reason; trivy then fails again on that date so we re-check whether Tauri moved to gtk-rs 0.20+. Every other finding still blocks. Risk: the unsound iterator stays in the Linux desktop build, which never calls it."
+      },
+      {
+        "name": "Patch glib ourselves",
+        "tradeoff": "Vendor glib 0.18 with the upstream fix through [patch.crates-io]. Removes the bug for real, but trivy still reads version 0.18.x and keeps reporting it, so it needs the same ignore entry anyway, plus a fork to maintain."
+      },
+      {
+        "name": "Drop the Linux desktop app",
+        "tradeoff": "Remove the Tauri desktop wrapper until Tauri supports gtk4; the web app and the Android app stay. Clears the advisory, but Linux users lose the tray app and native notifications."
+      },
+      {
+        "name": "Leave it waiting",
+        "tradeoff": "Change nothing: this item stays in the lint report as waiting and does not block other merges. The advisory stays visible until Tauri updates."
+      }
+    ],
+    "recommended": "Accept until Tauri moves",
+    "decided": null
+  }
+]

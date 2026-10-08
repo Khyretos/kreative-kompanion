@@ -41,7 +41,7 @@
             android:foregroundServiceType="remoteMessaging" />
 
         <receiver
-            android:name=".LiveService$Boot"
+            android:name=".BootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

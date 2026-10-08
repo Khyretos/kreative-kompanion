@@ -5,6 +5,7 @@
 **Depends on:** "Skills: smart loading within a size budget per model" (the loader merges the layers).
 
 **Steps**
+
 1. Create new public repo `kompas-skills` on Forgejo (mirrored to GitHub like the others) with licence CC BY-SA 4.0 containing only general knowledge: `work-habits.md`, prompting workers and fix rounds, shell, git, Python, colour themes, and `_model-notes/<family>/` for model quirks.
 2. Include `kompas-skills` in the Kompanion repo as a git subtree at `skills/general/`. The Open WebUI Kompas pipe reads the same `kompas-skills` files (valve `GENERAL_DIR`, the cards whose `roles:` include `orchestrator`, mounted from the Kompanion checkout), so `~/Docker/Services/ai/ai-skills` keeps only its task skills and stops being a second copy. Done in part 4b (2026-10-06).
 3. Keep Kompanion's own coding lessons (templates, sqlx rules, drafting pipeline) in the Kompanion repo `skills/`.

@@ -11,6 +11,7 @@ python3 tools/provision_test_user.py --login-only # fresh session from the .env 
 ```
 
 What it does:
+
 1. Gets an admin token with the `claude-admin` client of the master realm (`~/.config/kk-keycloak-admin`, see Services/keycloak/README.md).
 2. Creates the user with a random 24-character password and the required action CONFIGURE_TOTP
    (importing an `otp` credential did not validate in Keycloak 26.7).

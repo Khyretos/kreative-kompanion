@@ -23,30 +23,21 @@
   "4": {
     "class_type": "ModelSamplingAuraFlow",
     "inputs": {
-      "model": [
-        "1",
-        0
-      ],
+      "model": ["1", 0],
       "shift": 3.0
     }
   },
   "5": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "clip": [
-        "2",
-        0
-      ],
+      "clip": ["2", 0],
       "text": "a cute orange fox character for a 2D platformer game, full body, side view, clean cel shading, purple night forest background, game concept art"
     }
   },
   "6": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "clip": [
-        "2",
-        0
-      ],
+      "clip": ["2", 0],
       "text": "blurry, low quality, text, watermark"
     }
   },
@@ -61,22 +52,10 @@
   "8": {
     "class_type": "KSampler",
     "inputs": {
-      "model": [
-        "4",
-        0
-      ],
-      "positive": [
-        "5",
-        0
-      ],
-      "negative": [
-        "6",
-        0
-      ],
-      "latent_image": [
-        "7",
-        0
-      ],
+      "model": ["4", 0],
+      "positive": ["5", 0],
+      "negative": ["6", 0],
+      "latent_image": ["7", 0],
       "seed": 42,
       "control_after_generate": "fixed",
       "steps": 8,
@@ -89,23 +68,14 @@
   "9": {
     "class_type": "VAEDecode",
     "inputs": {
-      "samples": [
-        "8",
-        0
-      ],
-      "vae": [
-        "3",
-        0
-      ]
+      "samples": ["8", 0],
+      "vae": ["3", 0]
     }
   },
   "10": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": [
-        "9",
-        0
-      ],
+      "images": ["9", 0],
       "filename_prefix": "kompanion/z-image-turbo"
     }
   }

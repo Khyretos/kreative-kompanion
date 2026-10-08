@@ -5,6 +5,7 @@
 **Depends on:** nothing.
 
 **Steps**
+
 1. Convention: a PR title or branch carries the task id, for example `[M6-05]` in the title or `m6-05-...` as the branch; the id matches the task's id or its title prefix.
 2. Add a new endpoint `POST /api/forge/webhook` in `server/src/forge.rs` that only accepts Forgejo's signed requests (HMAC SHA-256 with a secret from `.env`, `FORGE_WEBHOOK_SECRET`) and refuses everything else; no other open endpoint is added.
 3. Implement logic for `pull_request` events: if opened, set task to `in_review` with the PR link; if merged, set to `done`; if closed without merge, set back to `queued`. Each change emits a task event over the live stream so open pages update without a reload.

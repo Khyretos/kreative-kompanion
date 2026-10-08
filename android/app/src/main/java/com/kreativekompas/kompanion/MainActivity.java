@@ -2,150 +2,156 @@ package com.kreativekompas.kompanion;
 
 import android.Manifest;
 import android.app.Activity;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.os.Build;
+import android.os.Build.VERSION;
 import android.os.Bundle;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.window.OnBackInvokedDispatcher;
-import java.util.Arrays;
-import org.unifiedpush.android.connector.UnifiedPush;
-import kotlin.Unit;
 
-public class MainActivity extends Activity {
+/**
+ * The app: the Kompanion web app in a web view, plus notifications.
+ */
+public final class MainActivity extends Activity {
+    /** Android 13 (API 33): notification permission and back callbacks. */
+    private static final int TIRAMISU = 33;
+    /** Request code of the notification permission. */
+    private static final int ASK_NOTIFICATIONS = 1;
+    /** Asks the page to handle back; it answers true when it did. */
+    private static final String PAGE_BACK =
+        "window.kompanionBack ? window.kompanionBack() : false";
+
+    /** The web view with the web app. */
     private WebView web;
+    /** The server URL from the app's strings. */
     private String server;
 
+    /** Created by Android. */
+    public MainActivity() {
+        super();
+    }
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    protected void onCreate(final Bundle state) {
+        super.onCreate(state);
         setContentView(R.layout.activity_main);
-        // BUG-05: with targetSdk 36 Android 16 no longer calls onBackPressed (predictive back),
-        // so back is registered here as well.
-        if (Build.VERSION.SDK_INT >= 33) {
+        // BUG-05: with targetSdk 36 Android 16 no longer calls onBackPressed
+        // (predictive back), so back is registered here as well.
+        if (VERSION.SDK_INT >= TIRAMISU) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
         }
         server = getString(R.string.server_url);
         web = findViewById(R.id.web);
-
-        WebSettings s = web.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
-
-        web.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-                String host = r.getUrl().getHost();
-                if (Arrays.asList(getResources().getStringArray(R.array.inside_hosts)).contains(host)) {
-                    return false;
-                } else {
-                    try {
-                        startActivity(new Intent(Intent.ACTION_VIEW, r.getUrl()));
-                    } catch (ActivityNotFoundException e) {
-                        // ignore
-                    }
-                    return true;
-                }
-            }
-
-            @Override
-            public void onPageFinished(WebView v, String url) {
-                if (url.startsWith(server)) {
-                    CookieManager.getInstance().flush();
-                    Push.sendIfNeeded(MainActivity.this);
-                    LiveService.startIfWanted(MainActivity.this); // reconnects at once after a sign-in
-                }
-            }
-        });
-
-        web.setWebChromeClient(new WebChromeClient());
-
-        if (savedInstanceState != null) {
-            web.restoreState(savedInstanceState);
-        } else {
+        setUpWebView();
+        if (state == null) {
             web.loadUrl(startUrl(getIntent()));
+        } else {
+            web.restoreState(state);
         }
-
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 1);
-        }
+        askForNotifications();
         SettingsActivity.showOnceForMaker(this);
-
-        UnifiedPush.tryUseCurrentOrDefaultDistributor(this, ok -> {
-            if (ok) {
-                registerPush();
-            } else {
-                runOnUiThread(this::pickInstalledDistributor);
-            }
-            return kotlin.Unit.INSTANCE;
-        });
+        Distributors.choose(this);
     }
 
-    private void registerPush() {
-        getSharedPreferences("push", MODE_PRIVATE).edit().putString("mode", "push").apply();
-        LiveService.stop(this);
-        UnifiedPush.register(this, "default", getString(R.string.app_name), null);
+    /** Settings, cookies and clients of the web view. */
+    private void setUpWebView() {
+        final WebSettings settings = web.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        final CookieManager cookies = CookieManager.getInstance();
+        cookies.setAcceptCookie(true);
+        cookies.setAcceptThirdPartyCookies(web, false);
+        web.setWebViewClient(new WebClient(this, server));
+        web.setWebChromeClient(new WebChromeClient());
     }
 
-    /** No default distributor answered: use the first installed one that is not this app (usually ntfy),
-     *  else the app's own live connection (no setup needed). */
-    private void pickInstalledDistributor() {
-        for (String d : UnifiedPush.getDistributors(this)) {
-            if (!d.equals(getPackageName())) {
-                UnifiedPush.saveDistributor(this, d);
-                registerPush();
-                return;
-            }
-        }
-        getSharedPreferences("push", MODE_PRIVATE).edit().remove("mode").apply();
-        LiveService.startIfWanted(this);
-    }
-
-    private String startUrl(Intent i) {
-        String u = i == null ? null : i.getStringExtra("url");
-        return (u != null && u.startsWith(server + "/")) ? u : server + "/";
-    }
-
-    @Override
-    protected void onNewIntent(Intent i) {
-        super.onNewIntent(i);
-        setIntent(i);
-        String u = i.getStringExtra("url");
-        if (u != null && u.startsWith(server + "/")) {
-            web.loadUrl(u);
+    /** Android 13 and later: ask once for the notification permission. */
+    private void askForNotifications() {
+        if (VERSION.SDK_INT >= TIRAMISU
+            && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                new String[] {Manifest.permission.POST_NOTIFICATIONS},
+                ASK_NOTIFICATIONS);
         }
     }
 
-    @Override
-    protected void onSaveInstanceState(Bundle b) {
-        super.onSaveInstanceState(b);
-        web.saveState(b);
+    /**
+     * The page a notification asked for, else the server's start page.
+     *
+     * @param intent the intent that started the activity, or null
+     * @return a URL on the server
+     */
+    private String startUrl(final Intent intent) {
+        final String asked = askedUrl(intent);
+        final String url;
+        if (asked == null) {
+            url = server + "/";
+        } else {
+            url = asked;
+        }
+        return url;
     }
 
+    /**
+     * The URL in a notification's intent, when it is on the server.
+     *
+     * @param intent an intent, or null
+     * @return the URL, or null
+     */
+    private String askedUrl(final Intent intent) {
+        String url = null;
+        if (intent != null) {
+            url = intent.getStringExtra("url");
+        }
+        if (url != null && !url.startsWith(server + "/")) {
+            url = null;
+        }
+        return url;
+    }
+
+    @Override
+    protected void onNewIntent(final Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        final String url = askedUrl(intent);
+        if (url != null) {
+            web.loadUrl(url);
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(final Bundle state) {
+        super.onSaveInstanceState(state);
+        web.saveState(state);
+    }
+
+    /** Android 12 and older call this; newer ones use the callback above. */
     @SuppressWarnings("deprecation")
     @Override
     public void onBackPressed() {
         back();
     }
 
-    /** BUG-05: back asks the page first (it closes a menu or panel, or goes from Studio, Assets or
-     *  Capabilities to the chat); only on the chat does the app go to the background. */
+    /**
+     * BUG-05: back asks the page first (it closes a menu or panel, or goes
+     * from Studio, Assets or Capabilities to the chat); only on the chat does
+     * the app go to the background.
+     */
     private void back() {
-        web.evaluateJavascript("window.kompanionBack ? window.kompanionBack() : false", r -> {
-            if ("true".equals(r)) return;
-            if (web.canGoBack()) web.goBack();
-            else moveTaskToBack(true);
+        web.evaluateJavascript(PAGE_BACK, handled -> {
+            if (!"true".equals(handled)) {
+                if (web.canGoBack()) {
+                    web.goBack();
+                } else {
+                    moveTaskToBack(true);
+                }
+            }
         });
     }
 

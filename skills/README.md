@@ -28,7 +28,8 @@ These files grow with every review, so models get only what a job needs, and eve
   topic that has a card go into that card, not the core (SK-01b split the web, rust and
   localization cores). A card in `worker/<area>/` is only given to that area's jobs.
 - `<role>/<topic>.md` is a card: one topic, with a header for the loader:
-  ```
+
+  ```markdown
   ---
   name: shared/colour-themes
   description: One line: when this card helps.
@@ -39,6 +40,7 @@ These files grow with every review, so models get only what a job needs, and eve
   models: [qwen3]            # only for _model-notes; leave out for general cards
   ---
   ```
+
 - `_model-notes/<family>/SKILL.md` holds only quirks of that model family (settings, speed, typical
   slips). A general rule never lives only there.
 - `work-habits.md` goes to every job.
@@ -67,6 +69,7 @@ These files grow with every review, so models get only what a job needs, and eve
 ## Layers (SK-03, 2026-10-06)
 
 `tools/skills/load.py` merges three layers, later ones win:
+
 1. general: `skills/general/` (the public `kompas-skills` library, no setup facts);
 2. Kompanion: the rest of `skills/` (Kompanion's own coding lessons);
 3. private: `$KOMPANION_SKILLS_LOCAL` (default `/skills-local`, read-only mount of the setup's own repo).

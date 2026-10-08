@@ -17,16 +17,19 @@ Every document is split into parts of about 1,500 characters. A question is sear
 ## Open WebUI collections
 
 One-off: `kompanion-server knowledge-import-openwebui <webui.db> [user name]`. Kept in step: mount Open WebUI's data folder read-only and set
+
 ```toml
 [knowledge]
 openwebui_db = "/openwebui/webui.db"
 openwebui_user = "kees"   # empty: the first admin
 ```
+
 with a compose volume like `- /path/to/open-webui-data:/openwebui:ro`. Every 10 minutes Kompanion checks whether webui.db (or webui.db-wal) changed, reads a copy, and adds new files, replaces changed ones and removes deleted ones. Those collections show "Open WebUI" on their card and take no uploads (add files in Open WebUI). A collection deleted in Open WebUI stays in Kompanion until you delete it there.
 
 ## Folders of documents (KNOW-01)
 
 A folder of Markdown, text, HTML or PDF files (subfolders too) becomes a collection that is kept in step with the folder:
+
 ```toml
 [knowledge]
 folder_user = "kees"   # empty: openwebui_user, else the first admin
@@ -34,6 +37,7 @@ folder_user = "kees"   # empty: openwebui_user, else the first admin
 name = "Game design: theory and practice"
 path = "/knowledge-docs/game-design-theory-and-practice"
 ```
+
 with a compose volume like `- /path/to/docs:/knowledge-docs:ro`. Every 10 minutes new files are added, changed ones replaced and removed ones deleted. The card says "folder" and takes no uploads.
 
 ## Reading documents

@@ -7,7 +7,7 @@ screenshots, mouse and keyboard). FOSS only, and every OS is covered.
 
 ## The three pieces
 
-```
+```text
  phone / tablet / any PC                kireserver                     each PC
 ┌────────────────────┐   HTTPS    ┌──────────────────────┐   WSS    ┌──────────────┐
 │ Web app (PWA)      │◄──────────►│ Kompanion server     │◄────────►│ Runner       │
@@ -196,7 +196,7 @@ may live inside, or depend on, one model or provider.
   frontmatter in the open Agent Skills (`SKILL.md`) format, kept in its own git
   repo on Forgejo so it is readable, diffable and portable to other agents:
 
-  ```
+  ```text
   skills/
     orchestrator/   planning, splitting work, when to ask you
     worker/         docker-compose/, keycloak/, rust/, kk-engine/ ...
@@ -330,7 +330,7 @@ gaps, and every output is checked by something cheaper than the strong model.
 
 ## Repository layout (one repo, Forgejo main, mirrored to GitHub like your others)
 
-```
+```text
 kreative-kompanion/
   server/      Rust: axum API, task engine, providers, SQLite migrations
   runner/      Rust: WebSocket client, tools, per-OS capture/input

@@ -13,7 +13,8 @@ import unittest
 
 # Ensure we can import privacy_check from the local directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from privacy_check import load_deny_list, findings as find
+from privacy_check import findings as find
+from privacy_check import load_deny_list
 
 
 class TestFindFindings(unittest.TestCase):
@@ -24,8 +25,8 @@ class TestFindFindings(unittest.TestCase):
         text = "ssh to 192.168.1.20"
         findings = find(text, set())
         self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0][1], 'ip')
-        self.assertEqual(findings[0][2], '192.168.1.20')
+        self.assertEqual(findings[0][1], "ip")
+        self.assertEqual(findings[0][2], "192.168.1.20")
 
     def test_loopback_ip_ignored(self):
         """'127.0.0.1' gives nothing."""
@@ -38,14 +39,14 @@ class TestFindFindings(unittest.TestCase):
         text = "/home/kees/x"
         findings = find(text, set())
         self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0][1], 'home path')
+        self.assertEqual(findings[0][1], "home path")
 
     def test_home_path_tilde(self):
         """'~/Docker' gives one finding of kind 'home path'."""
         text = "~/Docker"
         results = find(text, set())
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0][1], 'home path')
+        self.assertEqual(results[0][1], "home path")
 
     def test_clean_text(self):
         """A clean text 'Use git rebase, never force-push.' gives []."""
@@ -58,28 +59,28 @@ class TestFindFindings(unittest.TestCase):
         text = "mail me@example.com"
         findings = find(text, set())
         self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0][1], 'email')
-        self.assertEqual(findings[0][2], 'me@example.com')
+        self.assertEqual(findings[0][1], "email")
+        self.assertEqual(findings[0][2], "me@example.com")
 
     def test_deny_host_soucouyant(self):
         """With deny ['soucouyant'], 'run on Soucouyant now' gives 'host'."""
-        deny_hosts = {'soucouyant'}
+        deny_hosts = {"soucouyant"}
         text = "run on Soucouyant now"
         findings = find(text, deny_hosts)
         self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0][1], 'host')
-        self.assertEqual(findings[0][2], 'soucouyant')
+        self.assertEqual(findings[0][1], "host")
+        self.assertEqual(findings[0][2], "soucouyant")
 
     def test_deny_host_not_found(self):
         """'soucouyants' (plural) gives nothing with deny ['soucouyant']."""
-        deny_hosts = {'soucouyant'}
+        deny_hosts = {"soucouyant"}
         text = "soucouyants are here"
         findings = find(text, deny_hosts)
         self.assertEqual(len(findings), 0)
 
     def test_missing_path_fails(self):
         """Running on a missing path with --deny pointing to an empty temp file exits with code 2."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             pass  # Create empty deny file
         try:
             script_path = os.path.join(os.path.dirname(__file__), "privacy_check.py")
@@ -90,17 +91,11 @@ class TestFindFindings(unittest.TestCase):
                 [sys.executable, script_path, "/nonexistent/path", "--deny", f.name],
                 capture_output=True,
                 text=True,
-                env=env
+                env=env,
             )
             self.assertEqual(result.returncode, 2)
         finally:
             os.unlink(f.name)
-
-    def test_clean_text(self):
-        """A clean text 'Use git rebase, never force-push.' gives []."""
-        text = "Use git rebase, never force-push."
-        results = find(text, set())
-        self.assertEqual(results, [])
 
 
 class TestLoadDenyList(unittest.TestCase):
@@ -108,7 +103,7 @@ class TestLoadDenyList(unittest.TestCase):
 
     def test_empty_file(self):
         """An empty file returns an empty set."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             pass  # Create empty file
         try:
             result = load_deny_list(f.name)
@@ -118,7 +113,7 @@ class TestLoadDenyList(unittest.TestCase):
 
     def test_comment_lines(self):
         """Comment lines and blank lines are ignored."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             f.write("# This is a comment\n")
             f.write("\n")
             f.write("host1\n")
@@ -126,18 +121,18 @@ class TestLoadDenyList(unittest.TestCase):
             f.write("host2\n")
         try:
             result = load_deny_list(f.name)
-            self.assertEqual(result, {'host1', 'host2'})
+            self.assertEqual(result, {"host1", "host2"})
         finally:
             os.unlink(f.name)
 
     def test_case_insensitive(self):
         """Hostnames are stored in lowercase."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             f.write("HOST1\n")
             f.write("Host2\n")
         try:
             result = load_deny_list(f.name)
-            self.assertEqual(result, {'host1', 'host2'})
+            self.assertEqual(result, {"host1", "host2"})
         finally:
             os.unlink(f.name)
 
@@ -150,12 +145,12 @@ class TestMainSubprocess(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a.md with an IP address
             a_md_path = os.path.join(tmpdir, "a.md")
-            with open(a_md_path, 'w', encoding='utf-8') as f:
+            with open(a_md_path, "w", encoding="utf-8") as f:
                 f.write("Connect to 192.168.1.50\n")
 
             # Create an empty deny list file
             deny_file = os.path.join(tmpdir, "deny.txt")
-            with open(deny_file, 'w', encoding='utf-8') as f:
+            with open(deny_file, "w", encoding="utf-8") as f:
                 pass
 
             # Run the script
@@ -168,7 +163,7 @@ class TestMainSubprocess(unittest.TestCase):
                 [sys.executable, script_path, tmpdir, "--deny", deny_file],
                 capture_output=True,
                 text=True,
-                env=env
+                env=env,
             )
 
             self.assertEqual(result.returncode, 1)
@@ -179,12 +174,12 @@ class TestMainSubprocess(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a clean b.md
             b_md_path = os.path.join(tmpdir, "b.md")
-            with open(b_md_path, 'w', encoding='utf-8') as f:
+            with open(b_md_path, "w", encoding="utf-8") as f:
                 f.write("Use git rebase, never force-push.\n")
 
             # Create an empty deny list file
             deny_file = os.path.join(tmpdir, "deny.txt")
-            with open(deny_file, 'w', encoding='utf-8') as f:
+            with open(deny_file, "w", encoding="utf-8") as f:
                 pass
 
             # Run the script
@@ -196,7 +191,7 @@ class TestMainSubprocess(unittest.TestCase):
                 [sys.executable, script_path, tmpdir, "--deny", deny_file],
                 capture_output=True,
                 text=True,
-                env=env
+                env=env,
             )
 
             self.assertEqual(result.returncode, 0)

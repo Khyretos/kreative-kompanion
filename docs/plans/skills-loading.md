@@ -5,6 +5,7 @@
 **Depends on:** the card format in `skills/README.md` (2026-10-05).
 
 **Steps**
+
 1. Give every `<role>/SKILL.md` the same front matter the cards have (name, description, roles, tags, paths).
 2. Create a small Python module `tools/skills/load.py` with one function `select(role, task_text, paths, model, budget_tokens)`: always include `skills/work-habits.md` and the role core; then cards whose `paths` globs match the files the job touches; then cards whose `tags` or `description` share words with the task text, best match first; then `_model-notes/<family>/SKILL.md` for the model's family only; stop before the budget is used up (count about 4 characters per token). It returns the chosen file list and the text with front matter removed.
 3. Add budgets per model in `kompanion.toml` under `[skills]` (for example `budget_tokens = { "Coder" = 2500 }`, default 4000), so a bigger model gets more.

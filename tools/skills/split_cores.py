@@ -13,7 +13,13 @@ MAP = "tools/skills/split_cores.json"
 
 
 def header(name, desc, tags, paths):
-    h = ["---", "name: " + name, "description: " + desc, "roles: [worker, reviewer]", "tags: [" + ", ".join(tags) + "]"]
+    h = [
+        "---",
+        "name: " + name,
+        "description: " + desc,
+        "roles: [worker, reviewer]",
+        "tags: [" + ", ".join(tags) + "]",
+    ]
     if paths:
         h.append("paths: [" + ", ".join('"' + p + '"' for p in paths) + "]")
     return "\n".join(h + ["---", ""])
@@ -30,13 +36,22 @@ def split(text):
 
 def plan(core, cards, text):
     head, intro, lessons = split(text)
-    strip = lambda l: l.split(". ", 1)[1]
+
+    def strip_line(line):
+        return line.split(". ", 1)[1]
+
     moved = {}
     for card in cards:
         for prefix in cards[card]["lessons"]:
-            hits = [i for i, l in enumerate(lessons) if strip(l).startswith(prefix)]
+            hits = [
+                i
+                for i, lesson in enumerate(lessons)
+                if strip_line(lesson).startswith(prefix)
+            ]
             if len(hits) != 1:
-                sys.exit(core + ": " + str(len(hits)) + " lessons start with " + repr(prefix))
+                sys.exit(
+                    core + ": " + str(len(hits)) + " lessons start with " + repr(prefix)
+                )
             if hits[0] in moved:
                 sys.exit(core + ": lesson " + str(hits[0]) + " reused by " + card)
             moved[hits[0]] = card
@@ -51,16 +66,40 @@ def plan(core, cards, text):
     for card in cards:
         name = card[:-3]
         base = name.split("/")[-1]
-        body = "".join(lessons[i] for i in sorted(moved) if moved[i] == card).rstrip() + "\n"
-        out[card] = header(name, cards[card]["description"], cards[card]["tags"], cards[card]["paths"]) + "# " + title + ": " + base.replace("-", " ") + "\n\n" + body
-    kept = "".join(l for i, l in enumerate(lessons) if i not in moved)
+        body = (
+            "".join(lessons[i] for i in sorted(moved) if moved[i] == card).rstrip()
+            + "\n"
+        )
+        out[card] = (
+            header(
+                name,
+                cards[card]["description"],
+                cards[card]["tags"],
+                cards[card]["paths"],
+            )
+            + "# "
+            + title
+            + ": "
+            + base.replace("-", " ")
+            + "\n\n"
+            + body
+        )
+    kept = "".join(lesson for i, lesson in enumerate(lessons) if i not in moved)
     names = ", ".join(card[:-3].split("/")[-1] for card in cards)
-    out[core] = head + intro.rstrip() + "\n\nTopic lessons moved into cards (" + names + "), loaded when a job needs them. Add new lessons to the card they belong to.\n\n" + kept.rstrip() + "\n"
-    before = Counter(l for l in text.splitlines() if l.strip())
+    out[core] = (
+        head
+        + intro.rstrip()
+        + "\n\nTopic lessons moved into cards ("
+        + names
+        + "), loaded when a job needs them. Add new lessons to the card they belong to.\n\n"
+        + kept.rstrip()
+        + "\n"
+    )
+    before = Counter(row for row in text.splitlines() if row.strip())
     after_lines = []
     for v in out.values():
         after_lines.extend(v.splitlines())
-    after = Counter(l for l in after_lines if l.strip())
+    after = Counter(row for row in after_lines if row.strip())
     missing = before - after
     if missing:
         sys.exit(core + ": lines lost: " + repr(list(missing)[:5]))

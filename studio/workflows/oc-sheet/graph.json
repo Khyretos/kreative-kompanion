@@ -8,30 +8,21 @@
   "3": {
     "class_type": "CLIPSetLastLayer",
     "inputs": {
-      "clip": [
-        "41",
-        1
-      ],
+      "clip": ["41", 1],
       "stop_at_clip_layer": -2
     }
   },
   "4": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "clip": [
-        "3",
-        0
-      ],
+      "clip": ["3", 0],
       "text": "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, general, adult, mature, character sheet, character design sheet, full body, multiple views, front view, side view, back view, standing, simple background, white background"
     }
   },
   "5": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "clip": [
-        "3",
-        0
-      ],
+      "clip": ["3", 0],
       "text": "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, nsfw, nude, explicit"
     }
   },
@@ -46,22 +37,10 @@
   "7": {
     "class_type": "KSampler",
     "inputs": {
-      "model": [
-        "41",
-        0
-      ],
-      "positive": [
-        "4",
-        0
-      ],
-      "negative": [
-        "5",
-        0
-      ],
-      "latent_image": [
-        "6",
-        0
-      ],
+      "model": ["41", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0],
       "seed": 42,
       "steps": 28,
       "cfg": 5.5,
@@ -73,14 +52,8 @@
   "8": {
     "class_type": "VAEEncodeTiled",
     "inputs": {
-      "pixels": [
-        "53",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
+      "pixels": ["53", 0],
+      "vae": ["1", 2],
       "tile_size": 512,
       "overlap": 64,
       "temporal_size": 64,
@@ -90,22 +63,10 @@
   "9": {
     "class_type": "KSampler",
     "inputs": {
-      "model": [
-        "41",
-        0
-      ],
-      "positive": [
-        "4",
-        0
-      ],
-      "negative": [
-        "5",
-        0
-      ],
-      "latent_image": [
-        "8",
-        0
-      ],
+      "model": ["41", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["8", 0],
       "seed": 43,
       "steps": 18,
       "cfg": 5.5,
@@ -117,14 +78,8 @@
   "10": {
     "class_type": "VAEDecodeTiled",
     "inputs": {
-      "samples": [
-        "9",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
+      "samples": ["9", 0],
+      "vae": ["1", 2],
       "tile_size": 512,
       "overlap": 64,
       "temporal_size": 64,
@@ -147,26 +102,11 @@
   "13": {
     "class_type": "FaceDetailer",
     "inputs": {
-      "model": [
-        "41",
-        0
-      ],
-      "clip": [
-        "3",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
-      "positive": [
-        "4",
-        0
-      ],
-      "negative": [
-        "5",
-        0
-      ],
+      "model": ["41", 0],
+      "clip": ["3", 0],
+      "vae": ["1", 2],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
       "guide_size": 512,
       "guide_size_for": true,
       "max_size": 1024,
@@ -189,18 +129,9 @@
       "drop_size": 10,
       "wildcard": "",
       "cycle": 1,
-      "sam_model_opt": [
-        "12",
-        0
-      ],
-      "image": [
-        "10",
-        0
-      ],
-      "bbox_detector": [
-        "11",
-        0
-      ],
+      "sam_model_opt": ["12", 0],
+      "image": ["10", 0],
+      "bbox_detector": ["11", 0],
       "seed": 44,
       "denoise": 0.4
     }
@@ -214,26 +145,11 @@
   "15": {
     "class_type": "FaceDetailer",
     "inputs": {
-      "model": [
-        "41",
-        0
-      ],
-      "clip": [
-        "3",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
-      "positive": [
-        "4",
-        0
-      ],
-      "negative": [
-        "5",
-        0
-      ],
+      "model": ["41", 0],
+      "clip": ["3", 0],
+      "vae": ["1", 2],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
       "guide_size": 512,
       "guide_size_for": true,
       "max_size": 1024,
@@ -256,18 +172,9 @@
       "drop_size": 10,
       "wildcard": "",
       "cycle": 1,
-      "sam_model_opt": [
-        "12",
-        0
-      ],
-      "image": [
-        "13",
-        0
-      ],
-      "bbox_detector": [
-        "14",
-        0
-      ],
+      "sam_model_opt": ["12", 0],
+      "image": ["13", 0],
+      "bbox_detector": ["14", 0],
       "seed": 45,
       "denoise": 0.35
     }
@@ -275,24 +182,15 @@
   "20": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": [
-        "15",
-        0
-      ],
+      "images": ["15", 0],
       "filename_prefix": "kompanion/oc-sheet"
     }
   },
   "40": {
     "class_type": "LoraLoader",
     "inputs": {
-      "model": [
-        "1",
-        0
-      ],
-      "clip": [
-        "1",
-        1
-      ],
+      "model": ["1", 0],
+      "clip": ["1", 1],
       "lora_name": "character_Sheet_XL.safetensors",
       "strength_model": 0.6,
       "strength_clip": 0.6
@@ -301,14 +199,8 @@
   "41": {
     "class_type": "LoraLoader",
     "inputs": {
-      "model": [
-        "40",
-        0
-      ],
-      "clip": [
-        "40",
-        1
-      ],
+      "model": ["40", 0],
+      "clip": ["40", 1],
       "lora_name": "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors",
       "strength_model": 0.8,
       "strength_clip": 0.8
@@ -317,14 +209,8 @@
   "50": {
     "class_type": "VAEDecodeTiled",
     "inputs": {
-      "samples": [
-        "7",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
+      "samples": ["7", 0],
+      "vae": ["1", 2],
       "tile_size": 512,
       "overlap": 64,
       "temporal_size": 64,
@@ -334,10 +220,7 @@
   "53": {
     "class_type": "ImageScaleBy",
     "inputs": {
-      "image": [
-        "50",
-        0
-      ],
+      "image": ["50", 0],
       "upscale_method": "lanczos",
       "scale_by": 1.5
     }

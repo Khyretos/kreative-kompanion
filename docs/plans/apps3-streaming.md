@@ -4,6 +4,7 @@ Research for Kompanion task "Apps 3 (B)" (2026-10-05). Nothing is installed unti
 picks; installing on soucouyant goes through the soucouyant thread, the phone is his hands.
 
 ## soucouyant in short
+
 CachyOS, **Hyprland** (wlroots-family Wayland compositor), AMD RX 9070 XT (RDNA4: VAAPI
 HEVC/AV1 encode), gaming and development desktop. Kees's rule: FOSS only.
 
@@ -27,12 +28,14 @@ Android adds 1-3 frames of display latency on any client; the decoder fix in Art
 matters most on MediaTek phones.
 
 ## Recommendation
+
 **Sunshine on soucouyant + Artemis on the phone**, with a Hyprland headless output as the
 virtual display (phone resolution, monitors untouched, removed when the stream ends).
 Revisit Apollo when its Linux virtual display ships, and Vibepollo when it leaves beta,
 supports wlroots/Hyprland and states a licence.
 
 ## Setup plan (after Kees picks)
+
 1. soucouyant (soucouyant thread): install `sunshine` from the CachyOS/Arch repo; capture
    method wlr (Hyprland) with KMS as fallback; encoder VAAPI (HEVC, AV1 if the phone decodes
    it); firewall: Sunshine ports only from the LAN and WireGuard; web UI behind localhost.

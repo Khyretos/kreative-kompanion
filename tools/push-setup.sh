@@ -18,7 +18,7 @@ if [ -z "$f" ]; then
 fi
 
 if ! grep -q '^\[push\]$' "$f"; then
-    printf '\n[push]\nservers = ["%s"]\n' "$URL" >> "$f"
+    printf '\n[push]\nservers = ["%s"]\n' "$URL" >>"$f"
     echo "push-setup: added [push] servers"
     exit 0
 fi
@@ -32,7 +32,7 @@ in_push && /^servers *= *\[ *\] *$/ {
     next
 }
 { print }
-' "$f" > /tmp/push-setup-$$
+' "$f" >/tmp/push-setup-$$
 
 if cmp -s "$f" /tmp/push-setup-$$; then
     rm -f /tmp/push-setup-$$
@@ -40,6 +40,6 @@ if cmp -s "$f" /tmp/push-setup-$$; then
     exit 0
 fi
 
-cat /tmp/push-setup-$$ > "$f"
+cat /tmp/push-setup-$$ >"$f"
 rm -f /tmp/push-setup-$$
 echo "push-setup: updated [push] servers"

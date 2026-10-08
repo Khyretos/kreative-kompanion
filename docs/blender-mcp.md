@@ -32,7 +32,7 @@ sh tools/blender-mcp/install.sh --bind 192.168.1.20:9876
 
 ### In a container
 
-tools/blender-mcp/Dockerfile builds an image with the official Blender (CPU only, no GPU). On kireserver it is Services/blender-mcp (compose, network nginx-reverse-proxy_default, url http://blender-mcp:8000/mcp). Renders of the container are about 7 s for a 960x540 scene.
+tools/blender-mcp/Dockerfile builds an image with the official Blender (CPU only, no GPU). On kireserver it is Services/blender-mcp (compose, network nginx-reverse-proxy_default, url <http://blender-mcp:8000/mcp>). Renders of the container are about 7 s for a 960x540 scene.
 
 ## Connect Kompanion
 

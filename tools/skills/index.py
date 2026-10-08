@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
 """Writes skills/index.json (one entry per skill file: name, description, roles, tags, paths, models, chars) for loaders and the Capabilities page. With --check it only checks and exits 1 on problems (for CI)."""
 
+import importlib.util
 import json
 import os
 import sys
 
-# Ensure we can import from tools/skills/load.py relative to this script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, script_dir)
+# Run as a script, so this folder (with load.py) is first on sys.path.
+from load import SKILLS, merged_cards
 
-from load import merged_cards, SKILLS
+JSONFMT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "jsonfmt.py")
+
+
+def prettier_json(data):
+    """JSON text in Prettier's layout (tools/jsonfmt.py), so the lint job's check passes."""
+    spec = importlib.util.spec_from_file_location("jsonfmt", JSONFMT)
+    jsonfmt = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(jsonfmt)
+    return jsonfmt.dumps(json.loads(json.dumps(data, sort_keys=True)))
 
 
 def main():
@@ -19,7 +27,7 @@ def main():
     for c in merged_cards(SKILLS, local="").values():
         rel = c["rel"]
         meta = c.get("meta", {})
-        
+
         # Extract fields with defaults
         name = meta.get("name", rel)
         description = meta.get("description", "")
@@ -37,7 +45,7 @@ def main():
             "tags": tags,
             "paths": paths,
             "models": models,
-            "chars": chars
+            "chars": chars,
         }
         entries.append(entry)
 
@@ -49,19 +57,19 @@ def main():
         else:
             is_model_note = rel.startswith("_model-notes/")
             has_models = bool(models)
-            
+
             if is_model_note and not has_models:
                 # List missing models? The spec says "models: belongs only in _model-notes" but implies a check.
                 # Actually, re-reading: "a file under _model-notes/ without models -> 'model notes need models: [...]'"
-                # It asks for a list [...]. Since we don't know what *should* be there without external context, 
-                # we might just report the fact or try to infer. However, the prompt says "models: belongs only in _model-notes" 
+                # It asks for a list [...]. Since we don't know what *should* be there without external context,
+                # we might just report the fact or try to infer. However, the prompt says "models: belongs only in _model-notes"
                 # for the other case. Let's look closely at the requirement:
                 # "a file under _model-notes/ without models -> 'model notes need models: [...]'"
-                # This implies listing something. But we don't have a schema of required models. 
+                # This implies listing something. But we don't have a schema of required models.
                 # Perhaps it means listing the models that *are* present? No, it says "without".
-                # Maybe it's a placeholder or I should list empty? 
-                # Let's assume the error message format is fixed string if no specific list can be generated, 
-                # OR maybe it expects the list of files that are missing models? 
+                # Maybe it's a placeholder or I should list empty?
+                # Let's assume the error message format is fixed string if no specific list can be generated,
+                # OR maybe it expects the list of files that are missing models?
                 # Re-reading carefully: "model notes need models: [...]" suggests a list of model names.
                 # If we can't determine them, we might just print the error without the list or with an empty list.
                 # Given the strictness, let's output the error as requested. If no models are present, the list is empty.
@@ -69,7 +77,7 @@ def main():
                 # Let's interpret "..." as a placeholder in the instruction, meaning "list the models".
                 # If models is empty, the list is [].
                 problems.append(f"skills/{rel}: model notes need models: []")
-            
+
             elif not is_model_note and has_models:
                 problems.append(f"skills/{rel}: models: belongs only in _model-notes")
 
@@ -77,7 +85,7 @@ def main():
     if "--check" not in sys.argv:
         output_path = os.path.join(SKILLS, "index.json")
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(entries, f, indent=1, sort_keys=True)
+            f.write(prettier_json(entries))
         print(f"wrote {len(entries)} entries")
 
     # Print problems

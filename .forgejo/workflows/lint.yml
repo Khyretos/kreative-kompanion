@@ -7,6 +7,9 @@
 # full logs in the job. Scripts: public repo khyretos/kompas-ci (lint_summary.py).
 # Shared settings and rule files: mega-linter.base.yml and linters/ in kompas-ci.
 # Fine-tune per repo with a .mega-linter.yml (its DISABLE_LINTERS adds to the shared list).
+# LINT-01: lint blocks the merge. The last step (tools/lint_gate.py) fails on any problem
+# except the ones waiting for Kees's decision in .forgejo/lint-decisions.json; each of
+# those gets its own issue, mailed to him by Forgejo as "Kompas Linter".
 name: lint
 enable-email-notifications: true
 on:
@@ -16,7 +19,7 @@ on:
 
 jobs:
   megalinter:
-    runs-on: soucouyant   # MegaLinter's 10.9 GB image is cached there
+    runs-on: soucouyant # MegaLinter's 10.9 GB image is cached there
     container:
       image: oxsecurity/megalinter-cupcake:v9
     steps:
@@ -31,10 +34,10 @@ jobs:
           EXTENDS: ${{ github.server_url }}/khyretos/kompas-ci/raw/branch/main/mega-linter.base.yml
           CONFIG_PROPERTIES_TO_APPEND: DISABLE_LINTERS
           APPLY_FIXES: none
-          DISABLE_ERRORS: "true"    # report only; set to "false" to fail the check on errors
+          DISABLE_ERRORS: "true" # MegaLinter only reports; the merge gate step below fails the check
           SHOW_ELAPSED_TIME: "true"
           FILEIO_REPORTER: "false"
-          JSON_REPORTER: "true"          # read by the summary step
+          JSON_REPORTER: "true" # read by the summary step
           MARKDOWN_SUMMARY_REPORTER: "false"
         # Without GITHUB_STEP_SUMMARY: MegaLinter writes its markdown summary there even with
         # MARKDOWN_SUMMARY_REPORTER off, and Forgejo (15) discards job summaries with a warning.
@@ -46,6 +49,7 @@ jobs:
           TOKEN: ${{ github.token }}
           API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          DISABLE_ERRORS: "false" # wording only: the merge gate step below fails the check
         run: |
           curl -sf "${{ github.server_url }}/khyretos/kompas-ci/raw/branch/main/lint_summary.py" -o /tmp/lint_summary.py
           python3 /tmp/lint_summary.py > /tmp/summary.md || echo "MegaLinter produced no report; see the Actions log." > /tmp/summary.md
@@ -60,3 +64,9 @@ jobs:
           else:
               call("POST", f"{api}/issues/{os.environ['PR']}/comments", {"body": body})
           PY
+      - name: Merge gate (fails on any problem not waiting for a decision)
+        if: always()
+        env:
+          TOKEN: ${{ github.token }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+        run: python3 tools/lint_gate.py

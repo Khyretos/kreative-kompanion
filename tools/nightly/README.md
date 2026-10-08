@@ -8,6 +8,7 @@
 - Runs only between 03:00 and 05:00, and skips when a studio app (ComfyUI, HeartMuLa, MOSS) is running. By hand: `sh tools/nightly/w2.sh --now`; keep the temp folder and the server's data volume (its database) with `KEEP=1`; test without touching the live board with `LIVE=none`.
 
 Install the timer (systemd user units):
+
 ```sh
 install -Dm644 tools/nightly/kompanion-nightly.service tools/nightly/kompanion-nightly.timer -t ~/.config/systemd/user/
 systemctl --user daemon-reload && systemctl --user enable --now kompanion-nightly.timer
