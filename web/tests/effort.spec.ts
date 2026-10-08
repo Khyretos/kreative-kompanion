@@ -43,7 +43,7 @@ test.describe("Effort chip", () => {
     await expect(chip).toHaveText(/High ▾$/);
   });
 
-  test("Escape closes the menu and the chip keeps 44px on phones", async ({ page }) => {
+  test("Escape closes the menu and the chip stays compact on phones", async ({ page }) => {
     const chip = page.locator("button.effort-chip");
     await chip.click();
 
@@ -55,7 +55,8 @@ test.describe("Effort chip", () => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.waitForTimeout(100);
     const box = await chip.boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
+    // UI-04: chips are compact (26px) on phones too; only icon-only buttons keep the big touch target.
+    expect(box?.height).toBeLessThanOrEqual(28);
   });
 
   test("the chip text reaches 7:1 contrast in dark and light", async ({ page }) => {
