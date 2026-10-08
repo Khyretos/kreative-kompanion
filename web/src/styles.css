@@ -985,3 +985,6 @@ button[aria-busy="true"]::after {
 .overseer-box .ov-interject p { margin: 0; flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
 .overseer-box .ov-interject .btn { border-radius: 5px; }
 .overseer-settings .field { margin: 0.4rem 0; }
+.overseer-chip.locked { cursor: default; }
+.project-overseer { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; font-size: 0.875rem; cursor: pointer; }
+.project-overseer .icon { width: 14px; height: 14px; color: var(--accent); }

@@ -37,6 +37,8 @@ pub struct SettingsBody {
     ptype: Option<String>,
     repo_folder: Option<String>,
     repo_machine_id: Option<String>,
+    /// OVR-01b: the Overseer answers every chat of this project.
+    overseer: Option<bool>,
 }
 
 /// PATCH /projects/{id}/settings: the type, and for programming projects the repo.
@@ -69,6 +71,9 @@ pub async fn settings(
             }
         }
         sqlx::query("UPDATE projects SET repo_machine_id = NULLIF(?, '') WHERE id = ?").bind(m).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(on) = b.overseer {
+        sqlx::query("UPDATE projects SET overseer = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
     }
     s.bus.send(&u.id, Event::Changed { what: "projects", machine_id: None });
     Ok(StatusCode::NO_CONTENT)
@@ -186,7 +191,7 @@ mod tests {
         let db = db().await;
         let s = state(db.clone());
         let body = |t: Option<&str>, f: Option<&str>, m: Option<&str>| {
-            Json(SettingsBody { ptype: t.map(Into::into), repo_folder: f.map(Into::into), repo_machine_id: m.map(Into::into) })
+            Json(SettingsBody { ptype: t.map(Into::into), repo_folder: f.map(Into::into), repo_machine_id: m.map(Into::into), overseer: None })
         };
         settings(State(s.clone()), Extension(user("u1")), Path("p1".into()), body(Some("programming"), Some("/home/k/app/"), Some("m1")))
             .await

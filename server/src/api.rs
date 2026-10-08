@@ -45,6 +45,9 @@ pub struct Project {
     pub repo_folder: Option<String>,
     #[sqlx(default)]
     pub repo_machine_id: Option<String>,
+    /// OVR-01b: the Overseer answers every chat of this project.
+    #[sqlx(default)]
+    pub overseer: bool,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -120,7 +123,7 @@ pub async fn projects(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Project>>> {
     let rows = sqlx::query_as(
-        "SELECT id, name, description, updated_at, kind, ptype, repo_folder, repo_machine_id FROM projects
+        "SELECT id, name, description, updated_at, kind, ptype, repo_folder, repo_machine_id, overseer FROM projects
          WHERE user_id = ? ORDER BY updated_at DESC",
     )
     .bind(&u.id)
@@ -266,7 +269,7 @@ pub async fn send(
     }
 
     // OVR-01: an Overseer chat is answered by the overseer role.
-    let overseer: bool = sqlx::query_scalar("SELECT overseer FROM chats WHERE id = ?").bind(&chat_id).fetch_one(&s.db).await?;
+    let overseer = crate::overseer::chat_on(&s.db, &chat_id).await;
     let wanted = if overseer { "overseer" } else { "orchestrator" };
     let role = user_roles(&s, &u.id)
         .await?
@@ -376,7 +379,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         .max(1);
     let history = history[history.len().saturating_sub(keep)..].to_vec();
     // OVR-01: the Overseer gets its own prompt with a fresh scan of all the user's projects.
-    let overseer_on: bool = sqlx::query_scalar("SELECT overseer FROM chats WHERE id = ?").bind(&chat_id).fetch_one(&s.db).await.unwrap_or(false);
+    let overseer_on = crate::overseer::chat_on(&s.db, &chat_id).await;
     let overseer = if overseer_on {
         let (name, interject) = crate::overseer::prefs(&s, &user_id).await;
         let scan = crate::overseer::scan(&s.db, &user_id, 10_000).await;

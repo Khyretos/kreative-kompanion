@@ -55,6 +55,19 @@ pub struct Proposal {
     pub interjections: Vec<Interjection>,
 }
 
+/// Whether the Overseer answers this chat: its own switch, or its project's (OVR-01b; not the project thread).
+pub async fn chat_on(db: &SqlitePool, chat_id: &str) -> bool {
+    sqlx::query_scalar(
+        "SELECT c.overseer OR (c.thread = 0 AND COALESCE(p.overseer, 0)) FROM chats c LEFT JOIN projects p ON p.id = c.project_id WHERE c.id = ?",
+    )
+    .bind(chat_id)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or(false)
+}
+
 /// The user's Overseer settings: their own choice, else the server's `[overseer]` default.
 pub async fn prefs(s: &AppState, user_id: &str) -> (String, bool) {
     let row: Option<(Option<String>, Option<bool>)> = sqlx::query_as("SELECT overseer_name, overseer_interject FROM users WHERE id = ?")
@@ -183,7 +196,8 @@ then what is next. Short lines, the task titles in bold, no task references like
 When the user plans a project or a feature with you: ask at most one question when something vital is missing, \
 then propose small, self-contained tasks, one per line, exactly like this (the user creates them with one click):\n\
 TASK: <project name> | <task title> | <what to do, and when it is done>\n\
-Use an existing project's exact name, or a short new name for a new project.\n\n\
+For example: TASK: Medabots | Write the battle rules | Turns, parts and damage on one page; done when two bots can fight on paper.\n\
+Every task line starts with TASK: (no bold, no bullet). Use an existing project's exact name, or a short new name for a new project.\n\n\
 When a running task clearly lacks context the user gave you, add one line:\n\
 INTERJECT: T<n> | <the context in one or two sentences>\n\
 {send} Only for running tasks, only with facts from the user or the scan, never to repeat its description.\n\n\
@@ -200,30 +214,55 @@ pub fn parse(text: &str, scan: &Scan) -> Proposal {
         let line = raw.trim();
         let line = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")).unwrap_or(line).trim();
         let line = line.strip_prefix("**").unwrap_or(line);
-        let Some((kind, rest)) = line.split_once(':') else { continue };
-        let rest = rest.strip_prefix("**").unwrap_or(rest).trim();
-        if kind.eq_ignore_ascii_case("TASK") && p.tasks.len() < 30 {
-            let parts: Vec<&str> = rest.splitn(3, '|').map(|x| x.trim()).collect();
-            if parts.len() < 2 || parts[0].is_empty() || parts[1].is_empty() {
+        let keyword = line.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("TASK") || k.eq_ignore_ascii_case("INTERJECT"));
+        if let Some((kind, rest)) = keyword {
+            let rest = rest.strip_prefix("**").unwrap_or(rest).trim();
+            if kind.eq_ignore_ascii_case("TASK") && p.tasks.len() < 30 {
+                let parts: Vec<&str> = rest.splitn(3, '|').map(|x| x.trim()).collect();
+                if parts.len() < 2 || parts[0].is_empty() || parts[1].is_empty() {
+                    continue;
+                }
+                let known = scan.projects.iter().find(|(_, n)| n.eq_ignore_ascii_case(parts[0]));
+                p.tasks.push(Proposed {
+                    project: known.map_or(parts[0], |(_, n)| n.as_str()).to_string(),
+                    project_id: known.map(|(id, _)| id.clone()),
+                    title: parts[1].chars().take(200).collect(),
+                    description: parts.get(2).map_or(String::new(), |d| d.chars().take(4000).collect()),
+                });
+            } else if kind.eq_ignore_ascii_case("INTERJECT") && p.interjections.len() < 5 {
+                let Some((r, t)) = rest.split_once('|') else { continue };
+                let r = r.trim().trim_start_matches('[').trim_end_matches(']');
+                let Ok(n) = r.trim_start_matches(['T', 't']).parse::<usize>() else { continue };
+                let text: String = t.trim().chars().take(1000).collect();
+                if let Some(task) = scan.tasks.iter().find(|x| x.n == n && x.state == "running")
+                    && !text.is_empty()
+                {
+                    p.interjections.push(Interjection { task_id: task.id.clone(), title: task.title.clone(), text, sent: false });
+                }
+            }
+        } else {
+            // Rule: a line WITHOUT the keyword is still a task line when all hold.
+            if line.starts_with('|') || p.tasks.len() >= 30 {
                 continue;
             }
-            let known = scan.projects.iter().find(|(_, n)| n.eq_ignore_ascii_case(parts[0]));
-            p.tasks.push(Proposed {
-                project: known.map_or(parts[0], |(_, n)| n.as_str()).to_string(),
-                project_id: known.map(|(id, _)| id.clone()),
-                title: parts[1].chars().take(200).collect(),
-                description: parts.get(2).map_or(String::new(), |d| d.chars().take(4000).collect()),
-            });
-        } else if kind.eq_ignore_ascii_case("INTERJECT") && p.interjections.len() < 5 {
-            let Some((r, t)) = rest.split_once('|') else { continue };
-            let r = r.trim().trim_start_matches('[').trim_end_matches(']');
-            let Ok(n) = r.trim_start_matches(['T', 't']).parse::<usize>() else { continue };
-            let text: String = t.trim().chars().take(1000).collect();
-            if let Some(task) = scan.tasks.iter().find(|x| x.n == n && x.state == "running")
-                && !text.is_empty()
-            {
-                p.interjections.push(Interjection { task_id: task.id.clone(), title: task.title.clone(), text, sent: false });
+            let parts: Vec<&str> = line.splitn(3, '|').collect();
+            if parts.len() != 3 {
+                continue;
             }
+            let proj_raw = parts[0].replace('*', "").trim().to_string();
+            if proj_raw.len() < 1 || proj_raw.len() > 60 {
+                continue;
+            }
+            if parts[1].trim().is_empty() {
+                continue;
+            }
+            let known = scan.projects.iter().find(|(_, n)| n.eq_ignore_ascii_case(&proj_raw));
+            p.tasks.push(Proposed {
+                project: known.map_or(proj_raw.to_string(), |(_, n)| n.clone()),
+                project_id: known.map(|(id, _)| id.clone()),
+                title: parts[1].trim().chars().take(200).collect(),
+                description: parts[2].trim().chars().take(4000).collect(),
+            });
         }
     }
     p

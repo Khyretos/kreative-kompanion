@@ -98,6 +98,9 @@ export function renderProjectPanel(p: Project, o: PanelOptions): SafeHtml {
           ${TYPES.map(([value, label]) => html`<option value="${value}" ${value === type ? "selected" : ""}>${label}</option>`)}
         </select>
       </div>
+      <label class="project-overseer" title="Every chat in this project is answered by the Overseer, which sees all your projects and tasks. The project thread stays as it is.">
+        <input type="checkbox" id="project-overseer" data-id="${p.id}" ${p.overseer ? "checked" : ""}>${icon("eye")}<span>Overseer always on in this project</span>
+      </label>
       ${type === "programming" ? repoForm(p, o) : type === "game" ? gameAssets(p, o) : ""}
     </section>`;
 }

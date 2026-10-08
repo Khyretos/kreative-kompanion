@@ -40,6 +40,7 @@ export interface Project {
   type?: "chat" | "game" | "programming";
   repoFolder?: string | null;
   repoMachineId?: string | null;
+  overseer?: boolean; // OVR-01b: the Overseer answers every chat of this project
 }
 
 export interface Chat {

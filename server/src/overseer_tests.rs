@@ -82,3 +82,28 @@ async fn the_scan_lists_what_matters_and_numbers_it() {
     assert_eq!(s.tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(), vec!["a", "b", "d", "e", "f"]);
     assert_eq!(scan(&db, "nobody", 8000).await.text, "No projects yet.");
 }
+
+#[test]
+fn task_lines_without_the_keyword_still_count() {
+    // The 9B sometimes drops "TASK:" and bolds the project (OVR-01 live check).
+    let text = "**Medabots** | Define core robot personalities | Character profiles and combat rules.\n- Kompanion | Polish chip | Make it 26px\n| Name | State | Note |\n|---|---|---|\nA sentence with one | pipe stays text.\n";
+    let p = parse(text, &sample());
+    assert_eq!(p.tasks.len(), 2, "{:?}", p.tasks);
+    assert_eq!(p.tasks[0], Proposed { project: "Medabots".into(), project_id: Some("p2".into()), title: "Define core robot personalities".into(), description: "Character profiles and combat rules.".into() });
+    assert_eq!(p.tasks[1].project_id.as_deref(), Some("p1"));
+    assert_eq!(p.tasks[1].title, "Polish chip");
+}
+
+#[tokio::test]
+async fn a_project_switch_turns_the_overseer_on_for_its_chats_but_not_its_thread() {
+    let db = SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+    sqlx::migrate!().run(&db).await.unwrap();
+    sqlx::query("INSERT INTO users (id, name, password_hash, created_at) VALUES ('u1', 'kees', 'x', '2026')").execute(&db).await.unwrap();
+    sqlx::query("INSERT INTO projects (id, name, updated_at, user_id, overseer) VALUES ('p1', 'Game', '2026', 'u1', 1), ('p2', 'Other', '2026', 'u1', 0)").execute(&db).await.unwrap();
+    sqlx::query("INSERT INTO chats (id, project_id, title, updated_at, user_id, thread, overseer) VALUES
+        ('c1', 'p1', 'a', '2026', 'u1', 0, 0), ('c2', 'p1', 'thread', '2026', 'u1', 1, 0), ('c3', 'p2', 'b', '2026', 'u1', 0, 0),
+        ('c4', 'p2', 'c', '2026', 'u1', 0, 1), ('c5', NULL, 'loose', '2026', 'u1', 0, 0)").execute(&db).await.unwrap();
+    for (chat, on) in [("c1", true), ("c2", false), ("c3", false), ("c4", true), ("c5", false), ("missing", false)] {
+        assert_eq!(chat_on(&db, chat).await, on, "{chat}");
+    }
+}

@@ -17,3 +17,4 @@ extends: worker/web/playwright
 61. (2026-10-06) Run the Playwright container without `--network host`: its own network keeps the
     webServer's port 5173 free even when a leftover dev server on the host holds it ("address
     already in use"), and the fix rounds don't start editing a test that never ran.
+119. (2026-10-08) In the demo, `#left .new-chat` starts a loose chat (it clears the project); a chat in a project is `[data-action="new-chat"][data-project="<id>"]`. A button with `aria-disabled="true"` counts as disabled for Playwright: `click()` waits until the timeout, so check a locked control with `click({ force: true })` (OVR-01b).

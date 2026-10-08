@@ -17,7 +17,7 @@ import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
-import { composer, effortChip, overseerChip, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { renderMachines, REFRESH_STEPS, setGpuView } from "./views/machines";
@@ -344,13 +344,12 @@ function render(s: AppState, prev: AppState): void {
   if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks"])) {
     mount($("#conv-head"), renderHeader(s));
   }
-  if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer"])) {
-    // OVR-01: the Overseer chip, and its name on the answers of an Overseer chat.
-    const chat = s.chats.find((c) => c.id === s.activeChatId);
-    setAssistantName(chat?.overseer ? s.overseer.name : "Kompanion");
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer", "projects", "activeProjectId"])) {
+    // OVR-01: the Overseer chip, and its name on the answers of an Overseer chat (its own switch or its project's).
+    setAssistantName(overseerOn(s) ? s.overseer.name : "Kompanion");
     mount($("#overseer-slot"), overseerChip(s));
   }
-  if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "effortMenuOpen", "draftEffort", "draftOverseer"])) {
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "effortMenuOpen", "draftEffort", "draftOverseer", "projects", "activeProjectId"])) {
     // A re-mount (or closing the menu) drops focus inside the chip: give it back.
     const hadFocus = !!document.activeElement?.closest(".effort") || (prev.effortMenuOpen && !s.effortMenuOpen && document.activeElement === document.body);
     mount($("#effort-slot"), effortChip(s));
@@ -1162,6 +1161,15 @@ function wire(shell: HTMLElement): void {
     if (fid === "voice-voice" || fid === "voice-lang") {
       const v = (ev.target as HTMLSelectElement).value;
       setVoicePrefs(fid === "voice-voice" ? { voice: v } : { lang: v as VoicePrefs["lang"] });
+      return;
+    }
+    // OVR-01b: the Overseer answers every chat of this project.
+    if (fid === "project-overseer") {
+      const box = ev.target as HTMLInputElement;
+      const id = box.dataset.id ?? "", overseer = box.checked;
+      const before = store.get().projects;
+      store.set({ projects: before.map((p) => (p.id === id ? { ...p, overseer } : p)) });
+      api.setProjectSettings(id, { overseer }).catch((e) => { store.set({ projects: before }); showError(e); });
       return;
     }
     if (fid === "project-type") {
