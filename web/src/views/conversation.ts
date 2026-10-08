@@ -216,7 +216,8 @@ export function webChip(s: AppState): SafeHtml {
   const chat = activeChat(s);
   const on = ((chat ? chat.mcp : s.draftMcp) ?? []).includes(WEB);
   return html`<button class="chip web-chip" type="button" data-action="mcp-toggle" data-name="${WEB}" aria-pressed="${on ? "true" : "false"}"
-    title="Search the web and read pages before answering; answers cite their sources">Web ${on ? "on" : "off"}</button>`;
+    aria-label="Web search ${on ? "on" : "off"}"
+    title="Web search is ${on ? "on" : "off"}: click to turn it ${on ? "off" : "on"}. When on, I search the web and read pages before answering and cite my sources.">${icon("globe")}<span class="sr-only">Web search ${on ? "on" : "off"}</span></button>`;
 }
 
 /** CHAT-01: the Tools chip and its menu (MCP servers this chat may use, each with a short description; Web has its own chip). */
@@ -225,9 +226,9 @@ export function toolsChip(s: AppState): SafeHtml {
   if (names.length === 0) return html``;
   const chat = activeChat(s);
   const on = ((chat ? chat.mcp : s.draftMcp) ?? []).filter((n) => n !== WEB);
-  const label = on.length ? `Tools: ${on.length}` : "Tools off";
+  const tip = on.length ? `${on.length} tool${on.length === 1 ? "" : "s"} on for this chat: click to choose` : "No tools on for this chat: click to choose";
   return html`<span class="tools">
-    <button class="chip tools-chip" type="button" data-action="tools-menu" aria-haspopup="menu" aria-expanded="${s.toolsMenuOpen ? "true" : "false"}">${label} ▾</button>
+    <button class="chip tools-chip${on.length ? " has-tools" : ""}" type="button" data-action="tools-menu" aria-haspopup="menu" aria-expanded="${s.toolsMenuOpen ? "true" : "false"}" aria-label="${tip}" title="${tip}">${icon("wrench")}<span class="tools-count">${on.length}</span></button>
     ${s.toolsMenuOpen ? html`<div class="menu tools-menu" role="menu" aria-label="Tools for this chat">
       ${names.map((name) => {
         const hint = TOOL_HINTS[name] ?? s.mcpInfo[name] ?? `Tools from the ${name} server, added to this chat.`;

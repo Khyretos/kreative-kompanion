@@ -2,6 +2,7 @@
 // Drafted by qwen3:14b on soucouyant, reviewed.
 import { html, type SafeHtml } from "../core/html";
 import type { AdminSettings } from "../api/types";
+import { CODE_THEMES, getCodeTheme } from "../core/codeblocks";
 
 export function renderAdmin(a: AdminSettings, smtpPasswordSet: boolean, theme: "system" | "light" | "dark", isAdmin: boolean): SafeHtml {
   return html`
@@ -22,6 +23,11 @@ export function renderAdmin(a: AdminSettings, smtpPasswordSet: boolean, theme: "
           Dark
         </label>
       </fieldset>
+      <label class="theme-pick-code">Code colours
+        <select id="code-theme" title="Colours of code blocks in chat">
+          ${Object.entries(CODE_THEMES).map(([k, v]) => html`<option value="${k}" ${getCodeTheme() === k ? "selected" : ""}>${v}</option>`)}
+        </select>
+      </label>
       ${isAdmin ? html`
         <form id="admin-form" class="admin-form">
           <h3 class="label">General</h3>

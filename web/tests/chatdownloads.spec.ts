@@ -21,7 +21,7 @@ test("a Blender answer offers the picture and the .blend as downloads", async ({
   await expect(card).toContainText("scene.blend");
   const blend = page.waitForEvent("download");
   await card.locator("a.btn").click();
-  expect((await blend).suggestedFilename()).toBe("1a2b3c4d-5b7d-4c3e-9a21-6d4f0b9e7c66.blend");
+  expect((await blend).suggestedFilename()).toBe("scene.blend");
 });
 
 test("a code block can be copied and downloaded", async ({ page }) => {

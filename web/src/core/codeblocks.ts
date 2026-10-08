@@ -153,3 +153,28 @@ export function onCodeAction(el: HTMLElement): void {
   }
 }
 
+
+/** CHAT-06: code colour themes. "kompas" is the default (follows light/dark); the rest are fixed palettes in styles.css. */
+export const CODE_THEMES: Record<string, string> = {
+  kompas: "Kreative Kompas (default)",
+  dracula: "Dracula",
+  "solarized-dark": "Solarized dark",
+  "github-light": "GitHub light",
+  "high-contrast": "High contrast",
+};
+const CODE_THEME_KEY = "kompanion-code-theme";
+
+export function getCodeTheme(): string {
+  try { const v = localStorage.getItem(CODE_THEME_KEY) ?? ""; return v in CODE_THEMES ? v : "kompas"; } catch { return "kompas"; }
+}
+
+export function setCodeTheme(name: string): void {
+  const theme = name in CODE_THEMES ? name : "kompas";
+  try { localStorage.setItem(CODE_THEME_KEY, theme); } catch { /* private mode: applies for this page only */ }
+  applyCodeTheme(theme);
+}
+
+export function applyCodeTheme(name = getCodeTheme()): void {
+  if (name === "kompas") delete document.documentElement.dataset.codeTheme;
+  else document.documentElement.dataset.codeTheme = name;
+}

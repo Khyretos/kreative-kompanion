@@ -10,7 +10,7 @@ import type { AdminSettings, Effort, Project, Role, Server, TaskState, ThemeChoi
 import { openSearch } from "./views/search";
 import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
-import { saveText, onCodeAction } from "./core/codeblocks";
+import { saveText, onCodeAction, setCodeTheme, applyCodeTheme } from "./core/codeblocks";
 import { onMediaAction } from "./core/media";
 import { activeProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
@@ -148,6 +148,7 @@ async function start(server: Server): Promise<void> {
   });
   setStepCardStyle(status.cardStyle ?? {});
   applyTheme(status.theme ?? "system");
+  applyCodeTheme();
   api.voiceInfo().then((voice) => store.set({ voice }), () => store.set({ voice: { enabled: false, voices: [] } }));
   wire(shellRoot);
   await openChat(chats[0]?.id);
@@ -1054,6 +1055,7 @@ function wire(shell: HTMLElement): void {
   });
   shell.addEventListener("change", async (ev) => {
     const fid = (ev.target as HTMLElement).id;
+    if (fid === "code-theme") { setCodeTheme((ev.target as HTMLSelectElement).value); return; }
     if (fid === "desk-notify") {
       const box = ev.target as HTMLInputElement;
       const r = await deskNotify.enable(box.checked);
