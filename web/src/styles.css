@@ -213,6 +213,7 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
   position: absolute; top: 100%; right: 0; z-index: 20; min-width: 10rem; display: grid; padding: 0.3rem;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
 }
+.menu.up { top: auto; bottom: 100%; } /* BUG-05: opens upward near the sidebar footer */
 .menu button { display: flex; align-items: center; gap: 0.55rem; padding: 0.45rem 0.6rem; border-radius: 6px; font-size: 0.88rem; text-align: left; }
 .menu button:hover, .menu button:focus-visible { background: var(--surface-2); }
 .menu .danger { color: var(--bad); }

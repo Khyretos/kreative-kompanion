@@ -13,6 +13,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.window.OnBackInvokedDispatcher;
 import java.util.Arrays;
 import org.unifiedpush.android.connector.UnifiedPush;
 import kotlin.Unit;
@@ -25,6 +26,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        // BUG-05: with targetSdk 36 Android 16 no longer calls onBackPressed (predictive back),
+        // so back is registered here as well.
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
+        }
         server = getString(R.string.server_url);
         web = findViewById(R.id.web);
 
@@ -129,11 +136,17 @@ public class MainActivity extends Activity {
     @SuppressWarnings("deprecation")
     @Override
     public void onBackPressed() {
-        if (web.canGoBack()) {
-            web.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        back();
+    }
+
+    /** BUG-05: back asks the page first (it closes a menu or panel, or goes from Studio, Assets or
+     *  Capabilities to the chat); only on the chat does the app go to the background. */
+    private void back() {
+        web.evaluateJavascript("window.kompanionBack ? window.kompanionBack() : false", r -> {
+            if ("true".equals(r)) return;
+            if (web.canGoBack()) web.goBack();
+            else moveTaskToBack(true);
+        });
     }
 
     @Override

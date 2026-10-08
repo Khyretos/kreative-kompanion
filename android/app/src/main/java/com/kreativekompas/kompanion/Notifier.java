@@ -101,7 +101,7 @@ public final class Notifier {
                 .setSmallIcon(R.drawable.ic_stat)
                 .setContentTitle(title)
                 .setContentText(label)
-                .setColor(0xFFF3941F)
+                .setColor(0xFF5C398E)
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent);
 
