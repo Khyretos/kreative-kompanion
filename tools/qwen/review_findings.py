@@ -57,6 +57,28 @@ def open_findings(state: dict):
     return [f for f in state.get("findings", []) if f.get("state") == "ACTIVE"]
 
 
+def clean_review(comments: list, head_date: str) -> bool:
+    import datetime
+
+    def parse(x: str) -> datetime.datetime:
+        return datetime.datetime.fromisoformat(x.replace("Z", "+00:00"))
+
+    reviews = [c for c in comments if "<!-- pr-agent:review" in c.get("body", "")]
+    if not reviews:
+        return False
+
+    # PR-Agent edits its review comment in place for a new head, so updated_at is the review time.
+    def when(c):
+        return parse(c.get("updated_at") or c["created_at"])
+
+    newest = max(reviews, key=when)
+    if "<!-- pr-agent-review-state:v1" in newest["body"]:
+        return False
+    if "No major issues detected" not in newest["body"]:
+        return False
+    return when(newest) >= parse(head_date)
+
+
 def title(finding: dict) -> str:
     """Extract the title from a finding's body.
 
@@ -146,7 +168,7 @@ def excerpt(path: str, start: int, end: int, radius: int = 40, cap: int = 400) -
 
     if start is None and end is None:
         limit = min(cap, len(lines))
-        return "".join(f"{i+1}: {lines[i]}" for i in range(limit))
+        return "".join(f"{i + 1}: {lines[i]}" for i in range(limit))
 
     start_idx = max(0, start - radius - 1)
     end_idx = min(len(lines), end + radius)
@@ -156,7 +178,7 @@ def excerpt(path: str, start: int, end: int, radius: int = 40, cap: int = 400) -
         line_content = lines[i]
         # Strip trailing newline but keep internal newlines if any
         line_content = line_content.rstrip("\n\r")
-        result_lines.append(f"{i+1}: {line_content}")
+        result_lines.append(f"{i + 1}: {line_content}")
 
     return "\n".join(result_lines) + "\n"
 
@@ -363,6 +385,13 @@ def main():
                 break
 
     if not state:
+        # A review without findings carries no state block, only "No major issues detected".
+        head = get_json(
+            f"{base_url}/repos/{owner}/{repo}/git/commits/{head_sha}", headers
+        )
+        if clean_review(comments_data, head["commit"]["committer"]["date"]):
+            print("review findings: PR-Agent found no issues for the head")
+            sys.exit(0)
         print("review pending: no PR-Agent review yet")
         sys.exit(2)
 

@@ -278,5 +278,47 @@ class JobsTest(unittest.TestCase):
         self.assertEqual(rf.role_for("tools/x.py"), "worker")
 
 
+CLEAN = "## PR Reviewer Guide\n\n<!-- pr-agent:review:full -->\n<td>No major issues detected</td>"
+FOUND = "## PR Reviewer Guide\n\n<!-- pr-agent:review:full -->\n<td>Recommended focus areas</td>"
+
+
+class CleanReviewTest(unittest.TestCase):
+    def test_clean_review_after_the_head_counts(self):
+        cs = [
+            {"body": "lint", "created_at": "2026-10-08T17:01:00+02:00"},
+            {"body": CLEAN, "created_at": "2026-10-08T17:00:36+02:00"},
+        ]
+        self.assertTrue(rf.clean_review(cs, "2026-10-08T14:50:00Z"))
+
+    def test_clean_review_before_the_head_is_stale(self):
+        cs = [{"body": CLEAN, "created_at": "2026-10-08T17:00:36+02:00"}]
+        self.assertFalse(rf.clean_review(cs, "2026-10-08T15:10:00Z"))
+
+    def test_newest_review_with_findings_wins(self):
+        cs = [
+            {"body": CLEAN, "created_at": "2026-10-08T16:00:00+02:00"},
+            {"body": FOUND, "created_at": "2026-10-08T17:00:00+02:00"},
+        ]
+        self.assertFalse(rf.clean_review(cs, "2026-10-08T13:00:00Z"))
+
+    def test_review_edited_after_the_head_counts(self):
+        cs = [
+            {
+                "body": CLEAN,
+                "created_at": "2026-10-08T18:58:03+02:00",
+                "updated_at": "2026-10-08T19:01:54+02:00",
+            }
+        ]
+        self.assertTrue(rf.clean_review(cs, "2026-10-08T19:01:49+02:00"))
+
+    def test_no_review_comment(self):
+        self.assertFalse(
+            rf.clean_review(
+                [{"body": "hi", "created_at": "2026-10-08T17:00:00Z"}],
+                "2026-10-08T13:00:00Z",
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

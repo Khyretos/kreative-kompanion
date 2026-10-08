@@ -143,6 +143,21 @@ async fn begin(s: &AppState, b: Make, user_id: &str) -> ApiResult<(String, impl 
     Ok((id, job))
 }
 
+/// STU-A1: the runner starts a stopped audio app with docker start, which takes seconds to listen;
+/// a job sent at once failed with "connection refused". Waits until GET {url}/health answers at all.
+pub async fn wait_up(http: &reqwest::Client, url: &str, within: Duration) -> anyhow::Result<()> {
+    let start = std::time::Instant::now();
+    loop {
+        if http.get(format!("{url}/health")).timeout(Duration::from_secs(5)).send().await.is_ok() {
+            return Ok(());
+        }
+        if start.elapsed() >= within {
+            anyhow::bail!("{url} did not start within {} s", within.as_secs());
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
 /// BUG-02: POST the job to the audio app and wait for its answer; fails when its /health has not
 /// shown it busy for `stall` (polled every stall / 9), or when it answers with an error.
 pub async fn request(http: &reqwest::Client, url: &str, k: AudioKind, body: &Value, stall: Duration) -> anyhow::Result<Map<String, Value>> {
@@ -183,6 +198,10 @@ async fn run(s: AppState, k: AudioKind, gpu: String, url: String, params: Value,
     let result: anyhow::Result<Vec<String>> = async {
         super::make_room(&s, &gpu, k.vram_mib, k.app).await;
         let lease = jobs::acquire(&s, spec, Duration::from_secs(900)).await?;
+        if let Err(e) = wait_up(&s.http, &url, Duration::from_secs(120)).await {
+            lease.fail(e.to_string());
+            return Err(e);
+        }
         
         let body = request_body(
             k,
@@ -297,6 +316,29 @@ mod tests {
         assert_eq!(audio_target(&gpus, "a770", "heartmula"), Some(("kireserver".to_string(), "http://heartmula:8190".to_string())));
         assert_eq!(audio_target(&gpus, "a770", "moss-sfx"), None);
         assert_eq!(audio_target(&gpus, "a580", "heartmula"), None);
+    }
+
+    /// STU-A1: the runner starts a stopped app with `docker start`; it takes seconds to listen.
+    #[tokio::test]
+    async fn waits_for_an_app_that_starts_late() {
+        use axum::{Router, routing::get};
+        let addr = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            let app = Router::new().route("/health", get(|| async { Json(json!({"loaded": false, "busy": false})) }));
+            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+            axum::serve(listener, app).await.unwrap();
+        });
+        wait_up(&reqwest::Client::new(), &format!("http://{addr}"), Duration::from_secs(10)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn gives_up_on_an_app_that_never_starts() {
+        let addr = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let t = std::time::Instant::now();
+        let e = wait_up(&reqwest::Client::new(), &format!("http://{addr}"), Duration::from_millis(1500)).await.unwrap_err().to_string();
+        assert!(e.contains("did not start within 1 s"), "{e}");
+        assert!(t.elapsed() < Duration::from_secs(5));
     }
 
     /// BUG-02: a fake audio app: /sfx answers after `wait_ms` with `status`, /health says `busy`.
