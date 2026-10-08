@@ -57,6 +57,23 @@ def open_findings(state: dict):
     return [f for f in state.get("findings", []) if f.get("state") == "ACTIVE"]
 
 
+def clean_review(comments: list, head_date: str) -> bool:
+    import datetime
+
+    def parse(x: str) -> datetime.datetime:
+        return datetime.datetime.fromisoformat(x.replace('Z', '+00:00'))
+
+    reviews = [c for c in comments if '<!-- pr-agent:review' in c.get('body', '')]
+    if not reviews:
+        return False
+    newest = max(reviews, key=lambda c: parse(c['created_at']))
+    if '<!-- pr-agent-review-state:v1' in newest['body']:
+        return False
+    if 'No major issues detected' not in newest['body']:
+        return False
+    return parse(newest['created_at']) >= parse(head_date)
+
+
 def title(finding: dict) -> str:
     """Extract the title from a finding's body.
 
@@ -363,6 +380,11 @@ def main():
                 break
 
     if not state:
+        # A review without findings carries no state block, only "No major issues detected".
+        head = get_json(f"{base_url}/repos/{owner}/{repo}/git/commits/{head_sha}", headers)
+        if clean_review(comments_data, head["commit"]["committer"]["date"]):
+            print("review findings: PR-Agent found no issues for the head")
+            sys.exit(0)
         print("review pending: no PR-Agent review yet")
         sys.exit(2)
 
