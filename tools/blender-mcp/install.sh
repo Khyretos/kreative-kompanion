@@ -26,7 +26,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# server.py and scene.py use only the Python standard library: nothing to pip install.
+# server.py, scene.py, errors.py and vision.py use only the Python standard library: nothing to pip install.
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' || { echo "python3 3.8 or newer is required" >&2; exit 1; }
 
@@ -49,7 +49,7 @@ if [ -z "$BLENDER" ]; then
 fi
 
 mkdir -p "$D"
-cp "$HERE/server.py" "$HERE/scene.py" "$D/"
+cp "$HERE/server.py" "$HERE/scene.py" "$HERE/errors.py" "$HERE/vision.py" "$D/"
 
 mkdir -p "$(dirname "$ENVF")"
 TOKEN=$(sed -n 's/^BLENDER_MCP_TOKEN=//p' "$ENVF" 2>/dev/null || true)

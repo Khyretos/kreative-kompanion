@@ -9,7 +9,7 @@ fail=0
 err() { echo "error: $F: $1"; fail=1; }
 OUT=$(HOME=$T/home PATH=$T/bin:$PATH sh $F --no-check --bind 10.0.0.5:9999 --blender "flatpak run org.blender.Blender" 2>&1) || err "exit code $? ($OUT)"
 D=$T/home/.local/share/kompanion/blender-mcp
-test -f $D/server.py && test -f $D/scene.py || err "server.py and scene.py not copied to ~/.local/share/kompanion/blender-mcp"
+test -f $D/server.py && test -f $D/scene.py && test -f $D/errors.py && test -f $D/vision.py || err "server.py and scene.py not copied to ~/.local/share/kompanion/blender-mcp"
 E=$T/home/.config/kompanion/blender-mcp.env
 test -f $E || err "no ~/.config/kompanion/blender-mcp.env"
 [ "$(stat -c %a $E 2>/dev/null)" = 600 ] || err "env file mode is not 600"

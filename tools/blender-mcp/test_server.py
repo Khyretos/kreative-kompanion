@@ -47,7 +47,7 @@ try:
     if b and len(b["result"]["tools"]) == 3:
         r = b["result"]["tools"][2]["inputSchema"]
         sc = b["result"]["tools"][0]["inputSchema"]
-        check("scene schema", sc["required"] == ["objects"] and sc["properties"]["objects"]["type"] == "array" and sc["properties"]["objects"]["items"]["properties"]["shape"]["enum"] == ["cube", "sphere", "plane", "cylinder", "cone", "torus", "monkey"])
+        check("scene schema", sc["properties"]["objects"]["type"] == "array" and sc["properties"]["template"]["enum"] == ["snowman", "character", "table"] and sc["properties"]["objects"]["items"]["properties"]["shape"]["enum"] == ["cube", "sphere", "plane", "cylinder", "cone", "torus", "monkey"])
         check("render schema", r["required"] == ["code"] and set(r["properties"]) >= {"code", "width", "height", "engine"})
     st, _, b = post({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "blender_run", "arguments": {"code": "print(1)"}}}, sid=sid)
     check("run ok", b and b["id"] == 3 and b["result"].get("isError") is False and "stub blender" in b["result"]["content"][0]["text"])
@@ -64,39 +64,38 @@ try:
     check("render error has no image", b and b["result"].get("isError") is True and all(x["type"] == "text" for x in b["result"]["content"]))
     st, _, b = post({"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "blender_run", "arguments": {"code": "SLEEP"}}}, sid=sid)
     check("timeout is an error", b and b["result"].get("isError") is True and "timed out" in b["result"]["content"][0]["text"])
-    st, _, b = post({"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "blender_scene", "arguments": {"objects": [{"shape": "plane", "size": 8}, {"shape": "cube", "location": [0, 0, 1], "color": [1, 0, 0]}]}}}, sid=sid)
+    st, _, b = post({"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "blender_scene", "arguments": {"objects": [{"name": "box", "shape": "cube", "color": "red"}]}}}, sid=sid)
     c = b["result"]["content"] if b else []
     check("scene renders", b and b["result"].get("isError") is False and any(x.get("type") == "image" for x in c))
+    t = c[0]["text"] if c else ""
+    check("scene text carries the measured facts", "Measured from the scene" in t and "- box:" in t)
+    check("scene text never invents a picture description", "no picture check available" in t and "Do not add details" in t)
     st, _, b = post({"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "blender_scene", "arguments": {"objects": [{"shape": "teapot"}]}}}, sid=sid)
     check("unknown shape", b and b["result"].get("isError") is True and "unknown shape teapot" in b["result"]["content"][0]["text"])
     st, _, b = post({"jsonrpc": "2.0", "id": 8, "method": "nope"}, sid=sid)
     check("unknown method", b and b["error"]["code"] == -32601)
     st, _, b = post({"jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "nope", "arguments": {}}}, sid=sid)
     check("unknown tool", b and ("error" in b or b["result"].get("isError") is True))
-    # scene_code: the shapes become bpy lines (server.py imported directly)
+    # scene_code: a plan becomes one build() call (server.py imported directly)
     sys.path.insert(0, HERE)
     try:
         import server
     except Exception as e:
         check("import server: " + repr(e), False); raise SystemExit(1)
-    if not hasattr(server, "scene_code"):
-        check("no function scene_code(objects)", False); raise SystemExit(1)
-    code = server.scene_code([{"shape": "plane", "size": 8}, {"shape": "cube", "location": [0, 0, 1], "color": [1, 0, 0], "rotation": [0, 0, 45]},
-                              {"shape": "sphere", "size": 1}, {"shape": "cylinder"}, {"shape": "cone"}, {"shape": "torus"}, {"shape": "monkey"}])
-    want = ["bpy.ops.mesh.primitive_plane_add(size=8.0, location=(0.0, 0.0, 0.0))",
-            "bpy.ops.mesh.primitive_cube_add(size=2.0, location=(0.0, 0.0, 1.0))",
-            "color(bpy.context.active_object, (1.0, 0.0, 0.0))",
-            "bpy.context.active_object.rotation_euler = (math.radians(0.0), math.radians(0.0), math.radians(45.0))",
-            "bpy.ops.mesh.primitive_uv_sphere_add(radius=0.5, location=(0.0, 0.0, 0.0))",
-            "bpy.ops.mesh.primitive_cylinder_add(radius=1.0, depth=2.0, location=(0.0, 0.0, 0.0))",
-            "bpy.ops.mesh.primitive_cone_add(radius1=1.0, depth=2.0, location=(0.0, 0.0, 0.0))",
-            "bpy.ops.mesh.primitive_torus_add(major_radius=1.0, minor_radius=0.25, location=(0.0, 0.0, 0.0))",
-            "bpy.ops.mesh.primitive_monkey_add(size=2.0, location=(0.0, 0.0, 0.0))"]
-    check("scene_code lines " + repr(code.splitlines()), code.splitlines() == want)
-    try:
-        server.scene_code([{"shape": "teapot"}]); check("scene_code raises ValueError on an unknown shape", False)
-    except ValueError as e:
-        check("scene_code error text", str(e).startswith("unknown shape teapot; use one of cube, sphere, plane"))
+    code = server.scene_code({"objects": [{"name": "body", "shape": "sphere", "size": 2}, {"name": "head", "shape": "sphere", "on": "body"}]})
+    check("scene_code is a build call " + code, code.startswith("build(") and "'on': 'body'" in code)
+    check("scene_code template", server.scene_code({"template": "snowman"}).startswith("build("))
+    check("scene_code old list shape", server.scene_code([{"shape": "cube"}]).startswith("build("))
+    for bad, msg in [({"objects": [{"shape": "teapot"}]}, "unknown shape teapot; use one of cube, sphere, plane"),
+                     ({"objects": [{"shape": "sphere", "on": "body"}]}, "on 'body' is not an object listed before it"),
+                     ({"objects": [{"shape": "sphere", "attached_to": "x", "side": "up"}]}, "is not an object listed before it"),
+                     ({"template": "castle"}, "unknown template castle"), ({}, "give a template")]:
+        try:
+            server.scene_code(bad); check("scene_code accepted " + repr(bad), False)
+        except ValueError as e:
+            check("scene_code error " + str(e), msg in str(e))
+    ex = server.failure("noise", "x")
+    check("failure never raises", isinstance(ex, str))
 finally:
     srv.kill()
 print("ALL PASS" if not fails else f"{len(fails)} failed")
