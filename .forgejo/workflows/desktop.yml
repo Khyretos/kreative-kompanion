@@ -9,7 +9,7 @@ on:
     paths: ["desktop/**", ".forgejo/workflows/desktop.yml"]
 
 env:
-  CARGO_BUILD_JOBS: "4"   # the kireserver runner is capped at 4 cores
+  CARGO_BUILD_JOBS: "4" # the kireserver runner is capped at 4 cores
 
 jobs:
   linux:

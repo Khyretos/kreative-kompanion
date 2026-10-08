@@ -5,6 +5,7 @@
 **Depends on:** TEN-04 (the nightly test that found it).
 
 **Steps**
+
 1. When a run starts, record which files the check command depends on: by default every file matching `test_*.py`, `*_test.go`, `*.spec.ts`, `tests/**` and the check command itself; a task can list more in a "protected" field.
 2. Every write step the worker makes on a protected file is refused unless the task description says tests may change (a checkbox "this task may change tests", off by default), with the reason shown in the step card.
 3. Before the reviewer step, the server lists the changed files; a changed protected file is a review finding the reviewer must answer, and the run cannot end done while it stands.

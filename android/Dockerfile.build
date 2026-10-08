@@ -35,3 +35,7 @@ RUN set -eu; \
 
 RUN chmod -R a+rX "$ANDROID_HOME" /opt/gradle
 WORKDIR /src
+# build.sh runs it as the caller's uid anyway; never as root.
+USER 1000:1000
+# A build runs to completion and exits: there is no service to check.
+HEALTHCHECK NONE

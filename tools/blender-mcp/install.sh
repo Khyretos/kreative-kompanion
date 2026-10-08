@@ -18,17 +18,38 @@ NOCHECK=0
 
 while [ $# -gt 0 ]; do
     case $1 in
-        --bind) BIND="$2"; shift 2 ;;
-        --blender) BLENDER="$2"; shift 2 ;;
-        --on-demand) ONDEMAND=1; shift ;;
-        --no-check) NOCHECK=1; shift ;;
-        *) echo "unknown option $1" >&2; exit 1 ;;
+    --bind)
+        BIND="$2"
+        shift 2
+        ;;
+    --blender)
+        BLENDER="$2"
+        shift 2
+        ;;
+    --on-demand)
+        ONDEMAND=1
+        shift
+        ;;
+    --no-check)
+        NOCHECK=1
+        shift
+        ;;
+    *)
+        echo "unknown option $1" >&2
+        exit 1
+        ;;
     esac
 done
 
 # server.py, scene.py, errors.py and vision.py use only the Python standard library: nothing to pip install.
-command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 1; }
-python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' || { echo "python3 3.8 or newer is required" >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || {
+    echo "python3 is required" >&2
+    exit 1
+}
+python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' || {
+    echo "python3 3.8 or newer is required" >&2
+    exit 1
+}
 
 # Always the latest Blender: the Flathub build is installed, or updated when it is already there.
 if [ -z "$BLENDER" ]; then
@@ -36,7 +57,10 @@ if [ -z "$BLENDER" ]; then
         if flatpak info org.blender.Blender >/dev/null 2>&1; then
             flatpak update -y --noninteractive org.blender.Blender || echo "warning: could not update Blender, using the installed one" >&2
         else
-            flatpak install -y --noninteractive flathub org.blender.Blender || { echo "error: could not install Blender from Flathub" >&2; exit 1; }
+            flatpak install -y --noninteractive flathub org.blender.Blender || {
+                echo "error: could not install Blender from Flathub" >&2
+                exit 1
+            }
         fi
         BLENDER="flatpak run --filesystem=/tmp org.blender.Blender"
     elif command -v blender >/dev/null 2>&1; then
@@ -63,12 +87,12 @@ fi
         "BLENDER_MCP_TOKEN=$TOKEN" \
         "BLENDER_MCP_BIND=$BIND" \
         "BLENDER_CMD=\"$BLENDER\"" \
-    > "$ENVF"
+        >"$ENVF"
 )
 
 mkdir -p "$(dirname "$UNIT")"
 if [ "$ONDEMAND" = "1" ]; then
-    cat > "$UNIT" <<EOF
+    cat >"$UNIT" <<EOF
 [Unit]
 Description=Kompanion Blender MCP (BLD-01)
 [Service]
@@ -79,7 +103,7 @@ Environment=BLENDER_IDLE_EXIT=300
 EOF
 
     mkdir -p "$(dirname "$SOCKET")"
-    cat > "$SOCKET" <<EOF
+    cat >"$SOCKET" <<EOF
 [Unit]
 Description=Kompanion Blender MCP socket
 [Socket]
@@ -88,7 +112,7 @@ ListenStream=$BIND
 WantedBy=sockets.target
 EOF
 else
-    cat > "$UNIT" <<EOF
+    cat >"$UNIT" <<EOF
 [Unit]
 Description=Kompanion Blender MCP (BLD-01)
 [Service]
@@ -107,21 +131,22 @@ else
     systemctl --user enable --now kompanion-blender-mcp.service
 fi
 
-HOST="${BIND%:*}"; PORT="${BIND##*:}"
+HOST="${BIND%:*}"
+PORT="${BIND##*:}"
 case "$HOST" in
-    127.*|localhost) ;;
-    *)
-        # A LAN bind needs the firewall open for the local network (BUG-04: ufw dropped port 9876).
-        SUBNET="${HOST%.*}.0/24"
-        if [ "$(systemctl is-active ufw 2>/dev/null)" = active ]; then
-            sudo -n ufw allow proto tcp from "$SUBNET" to any port "$PORT" >/dev/null 2>&1 \
-                || echo "WARNING: ufw is active and blocks port $PORT. Run: sudo ufw allow proto tcp from $SUBNET to any port $PORT" >&2
-        fi
-        if [ "$(systemctl is-active firewalld 2>/dev/null)" = active ]; then
-            { sudo -n firewall-cmd --permanent --add-port="$PORT/tcp" && sudo -n firewall-cmd --reload; } >/dev/null 2>&1 \
-                || echo "WARNING: firewalld is active and blocks port $PORT. Run: sudo firewall-cmd --permanent --add-port=$PORT/tcp && sudo firewall-cmd --reload" >&2
-        fi
-        ;;
+127.* | localhost) ;;
+*)
+    # A LAN bind needs the firewall open for the local network (BUG-04: ufw dropped port 9876).
+    SUBNET="${HOST%.*}.0/24"
+    if [ "$(systemctl is-active ufw 2>/dev/null)" = active ]; then
+        sudo -n ufw allow proto tcp from "$SUBNET" to any port "$PORT" >/dev/null 2>&1 ||
+            echo "WARNING: ufw is active and blocks port $PORT. Run: sudo ufw allow proto tcp from $SUBNET to any port $PORT" >&2
+    fi
+    if [ "$(systemctl is-active firewalld 2>/dev/null)" = active ]; then
+        { sudo -n firewall-cmd --permanent --add-port="$PORT/tcp" && sudo -n firewall-cmd --reload; } >/dev/null 2>&1 ||
+            echo "WARNING: firewalld is active and blocks port $PORT. Run: sudo firewall-cmd --permanent --add-port=$PORT/tcp && sudo firewall-cmd --reload" >&2
+    fi
+    ;;
 esac
 
 if [ "$NOCHECK" = 0 ]; then

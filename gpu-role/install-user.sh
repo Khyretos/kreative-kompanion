@@ -18,12 +18,15 @@ install -Dm644 kompanion-gpu-role.service "$HOME/.config/systemd/user/kompanion-
 mkdir -p "$HOME/.local/run/kompanion-gpu-role"
 chmod 0750 "$HOME/.local/run/kompanion-gpu-role"
 mkdir -p "$HOME/.config/kompanion-gpu-role"
-printf 'KOMPANION_GPU_MODE=%s\nKOMPANION_OVMS_CONTAINER=%s\n' "$GPU_MODE" "$OVMS" > "$HOME/.config/kompanion-gpu-role/env"
+printf 'KOMPANION_GPU_MODE=%s\nKOMPANION_OVMS_CONTAINER=%s\n' "$GPU_MODE" "$OVMS" >"$HOME/.config/kompanion-gpu-role/env"
 chmod 600 "$HOME/.config/kompanion-gpu-role/env"
 systemctl --user daemon-reload
 systemctl --user enable --now kompanion-gpu-role.service
 systemctl --user restart kompanion-gpu-role.service
 # Self-test: the helper answers "status" with JSON.
 i=0
-while [ ! -S "$HOME/.local/run/kompanion-gpu-role/role.sock" ] && [ $i -lt 20 ]; do sleep 0.5; i=$((i + 1)); done
+while [ ! -S "$HOME/.local/run/kompanion-gpu-role/role.sock" ] && [ $i -lt 20 ]; do
+    sleep 0.5
+    i=$((i + 1))
+done
 printf 'status\n' | python3 -c 'import socket,sys,json; s=socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); s.sendall(b"status\n"); d=b"".join(iter(lambda: s.recv(65536), b"")); v=json.loads(d); print("self-test:", "ok" if v["ok"] else "failed"); print(v["output"][-400:])' "$HOME/.local/run/kompanion-gpu-role/role.sock"

@@ -31,6 +31,7 @@ LLM01 prompt injection, LLM02 sensitive data disclosure, LLM05 improper output h
 |---|---|---|---|
 | dompurify | 11.6 KB | MPL-2.0 / Apache-2.0 | sanitising rendered markdown |
 | marked | 13.5 KB | MIT | markdown to HTML |
+
 Considered: alien-signals / @preact/signals-core (1.7 KB, MIT) if fine-grained reactivity is needed later; lit-html (3.2 KB) only if templating gets painful. TC39 Signals is still Stage 1.
 
 ## UI ideas to copy

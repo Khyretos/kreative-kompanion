@@ -1,12 +1,20 @@
 #!/bin/sh
 # BLD-01: install.sh in a fake HOME with a fake systemctl. Run: sh tools/blender-mcp/test_install.sh
 F=tools/blender-mcp/install.sh
-test -s $F || { echo "error: $F: not written"; exit 1; }
+test -s $F || {
+    echo "error: $F: not written"
+    exit 1
+}
 sh -n $F 2>&1 | sed "s|^|error: $F: |"
-T=$(mktemp -d); mkdir -p $T/bin $T/home
-printf '#!/bin/sh\necho "$@" >> %s/systemctl.log\n' "$T" > $T/bin/systemctl; chmod +x $T/bin/systemctl
+T=$(mktemp -d)
+mkdir -p $T/bin $T/home
+printf '#!/bin/sh\necho "$@" >> %s/systemctl.log\n' "$T" >$T/bin/systemctl
+chmod +x $T/bin/systemctl
 fail=0
-err() { echo "error: $F: $1"; fail=1; }
+err() {
+    echo "error: $F: $1"
+    fail=1
+}
 OUT=$(HOME=$T/home PATH=$T/bin:$PATH sh $F --no-check --bind 10.0.0.5:9999 --blender "flatpak run org.blender.Blender" 2>&1) || err "exit code $? ($OUT)"
 D=$T/home/.local/share/kompanion/blender-mcp
 test -f $D/server.py && test -f $D/scene.py && test -f $D/errors.py && test -f $D/vision.py || err "server.py and scene.py not copied to ~/.local/share/kompanion/blender-mcp"

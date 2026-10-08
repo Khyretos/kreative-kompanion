@@ -16,7 +16,7 @@ on:
 
 jobs:
   megalinter:
-    runs-on: soucouyant   # MegaLinter's 10.9 GB image is cached there
+    runs-on: soucouyant # MegaLinter's 10.9 GB image is cached there
     container:
       image: oxsecurity/megalinter-cupcake:v9
     steps:
@@ -31,10 +31,10 @@ jobs:
           EXTENDS: ${{ github.server_url }}/khyretos/kompas-ci/raw/branch/main/mega-linter.base.yml
           CONFIG_PROPERTIES_TO_APPEND: DISABLE_LINTERS
           APPLY_FIXES: none
-          DISABLE_ERRORS: "true"    # report only; set to "false" to fail the check on errors
+          DISABLE_ERRORS: "true" # report only; set to "false" to fail the check on errors
           SHOW_ELAPSED_TIME: "true"
           FILEIO_REPORTER: "false"
-          JSON_REPORTER: "true"          # read by the summary step
+          JSON_REPORTER: "true" # read by the summary step
           MARKDOWN_SUMMARY_REPORTER: "false"
         # Without GITHUB_STEP_SUMMARY: MegaLinter writes its markdown summary there even with
         # MARKDOWN_SUMMARY_REPORTER off, and Forgejo (15) discards job summaries with a warning.

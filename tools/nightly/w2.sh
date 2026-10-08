@@ -27,8 +27,11 @@ if [ $# -eq 0 ]; then
 fi
 
 case "$1" in
-    --now) ;;
-    *) echo "Usage: $0 [--now]" >&2; exit 2 ;;
+--now) ;;
+*)
+    echo "Usage: $0 [--now]" >&2
+    exit 2
+    ;;
 esac
 
 # 2. Check for GPU usage by studio apps
@@ -59,7 +62,7 @@ trap cleanup EXIT
 git clone -q "$FIXTURE" "$T/fixture" && git -C "$T/fixture" checkout -q "$FIXTURE_REV"
 
 # 5. Config for the throwaway server
-cat > "$T/kompanion.toml" <<EOF
+cat >"$T/kompanion.toml" <<EOF
 bind = "0.0.0.0:8080"
 database = "/data/kompanion.db"
 web_dir = "/app/web"
@@ -100,7 +103,13 @@ docker run -d \
     "$IMAGE" >/dev/null
 
 # 7. Wait for server to be ready
-i=0; while ! curl -sf "http://127.0.0.1:$PORT/api/status" >/dev/null; do i=$((i + 1)); [ $i -lt 60 ] || break; sleep 1; done; [ $i -lt 60 ] || {
+i=0
+while ! curl -sf "http://127.0.0.1:$PORT/api/status" >/dev/null; do
+    i=$((i + 1))
+    [ $i -lt 60 ] || break
+    sleep 1
+done
+[ $i -lt 60 ] || {
     docker logs "$N" 2>&1 | tail -20 >&2
     exit 1
 }
@@ -121,10 +130,10 @@ api -d "{\"code\":\"$CODE\",\"name\":\"nightly\",\"password\":\"$PW\"}" "http://
 PAIR=$(api -d '{"name":"nightly"}' "http://127.0.0.1:$PORT/api/machines/pair-code" | python3 -c 'import json,sys;print(json.load(sys.stdin)["code"])')
 OUT=$(api -d "{\"code\":\"$PAIR\",\"hostname\":\"nightly\"}" "http://127.0.0.1:$PORT/api/pair")
 MID=$(echo "$OUT" | python3 -c 'import json,sys;print(json.load(sys.stdin)["machineId"])')
-echo "$OUT" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])' > "$T/token"
+echo "$OUT" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])' >"$T/token"
 chmod 600 "$T/token"
 
-cat > "$T/runner.toml" <<EOF
+cat >"$T/runner.toml" <<EOF
 server = "http://127.0.0.1:$PORT"
 machine_id = "$MID"
 token_file = "$T/token"
@@ -132,15 +141,15 @@ grants_file = "$T/grants.json"
 EOF
 
 BIN=$(ls -1 "$MAIN"/dist/kompanion-runner-*-x86_64-linux-musl | sort -V | tail -1)
-"$BIN" "$T/runner.toml" > "$T/runner.log" 2>&1 &
+"$BIN" "$T/runner.toml" >"$T/runner.log" 2>&1 &
 RUNNER=$!
 
 # 10. Grant access
 api -d "{\"target\":\"$T/fixture\",\"rights\":[\"read\",\"write\",\"shell\"],\"expires_hours\":1}" "http://127.0.0.1:$PORT/api/machines/$MID/grants" >/dev/null
 
 # 11. Task definition
-printf '%s\n' '{"projects":[{"id":"nightly","name":"Nightly","tasks":[{"id":"nightly-w2","title":"Make the initials test pass","description":"Add initials(name) to names.py so that python3 -m unittest passes. Done when: python3 -m unittest passes and nothing else changed.","state":"queued"}]}]}' > "$T/task.json"
-docker exec -i "$N" sh -c 'cat > /tmp/task.json && kompanion-server import /tmp/task.json nightly' < "$T/task.json" >/dev/null
+printf '%s\n' '{"projects":[{"id":"nightly","name":"Nightly","tasks":[{"id":"nightly-w2","title":"Make the initials test pass","description":"Add initials(name) to names.py so that python3 -m unittest passes. Done when: python3 -m unittest passes and nothing else changed.","state":"queued"}]}]}' >"$T/task.json"
+docker exec -i "$N" sh -c 'cat > /tmp/task.json && kompanion-server import /tmp/task.json nightly' <"$T/task.json" >/dev/null
 
 # 12. Start task
 START=$(date +%s)
@@ -150,13 +159,13 @@ api -d "{\"machine_id\":\"$MID\",\"folder\":\"$T/fixture\",\"check\":\"python3 -
 for i in $(seq 1 45); do
     STATE=$(api "http://127.0.0.1:$PORT/api/tasks" | python3 -c 'import json,sys;v=json.load(sys.stdin);t=v if isinstance(v,list) else v.get("tasks",[]);print(next((x["state"] for x in t if x["id"]=="nightly-w2"),"?"))')
     case "$STATE" in
-        done|failed|needs_input) break ;;
+    done | failed | needs_input) break ;;
     esac
     sleep 20
 done
 
 # 14. Result analysis
-SECS=$(( $(date +%s) - START ))
+SECS=$(($(date +%s) - START))
 TEST=ok
 (cd "$T/fixture" && python3 -m unittest -q >/dev/null 2>&1) || TEST=failed
 
@@ -166,7 +175,7 @@ if ! git -C "$T/fixture" diff --quiet "$FIXTURE_REV" -- 'test_*.py'; then TEST=t
 CALLS=$(api "http://127.0.0.1:$PORT/api/calls" | python3 -c 'import json,sys;v=json.load(sys.stdin);c=v if isinstance(v,list) else v.get("calls",[]);print(len(c))')
 
 mkdir -p "$RESULTS"
-printf '%s\n' "{\"date\":\"$DATE\",\"state\":\"$STATE\",\"test\":\"$TEST\",\"seconds\":$SECS,\"model_calls\":$CALLS,\"model\":\"Coder\"}" > "$RESULTS/$DATE.json"
+printf '%s\n' "{\"date\":\"$DATE\",\"state\":\"$STATE\",\"test\":\"$TEST\",\"seconds\":$SECS,\"model_calls\":$CALLS,\"model\":\"Coder\"}" >"$RESULTS/$DATE.json"
 cat "$RESULTS/$DATE.json"
 
 # 15. Pass check
@@ -181,7 +190,7 @@ tail -30 "$T/runner.log" >&2
 echo "=== docker logs ===" >&2
 docker logs "$N" 2>&1 | tail -30 >&2
 
-printf '%s\n' "{\"projects\":[{\"id\":\"nightly-failures\",\"name\":\"Nightly checks\",\"tasks\":[{\"id\":\"nightly-w2-$DATE\",\"title\":\"Nightly W2 failed $DATE\",\"description\":\"The nightly real-model test ended $STATE (test: $TEST) after $SECS s. Numbers: $RESULTS/\$DATE.json. Rerun by hand: tools/nightly/w2.sh --now\",\"state\":\"needs_input\"}]}]}" | \
+printf '%s\n' "{\"projects\":[{\"id\":\"nightly-failures\",\"name\":\"Nightly checks\",\"tasks\":[{\"id\":\"nightly-w2-$DATE\",\"title\":\"Nightly W2 failed $DATE\",\"description\":\"The nightly real-model test ended $STATE (test: $TEST) after $SECS s. Numbers: $RESULTS/\$DATE.json. Rerun by hand: tools/nightly/w2.sh --now\",\"state\":\"needs_input\"}]}]}" |
     docker exec -i "$LIVE" sh -c "cat > /tmp/f.json && kompanion-server import /tmp/f.json $OWNER; rm /tmp/f.json"
 
 exit 1

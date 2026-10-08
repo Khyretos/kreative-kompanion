@@ -7,18 +7,18 @@ on:
     paths:
       - Dockerfile
       - docker-compose.yml
-      - 'server/**'
-      - 'web/**'
-      - '.forgejo/workflows/fresh-install.yml'
+      - "server/**"
+      - "web/**"
+      - ".forgejo/workflows/fresh-install.yml"
   pull_request:
     branches:
       - main
     paths:
       - Dockerfile
       - docker-compose.yml
-      - 'server/**'
-      - 'web/**'
-      - '.forgejo/workflows/fresh-install.yml'
+      - "server/**"
+      - "web/**"
+      - ".forgejo/workflows/fresh-install.yml"
 
 jobs:
   fresh-install:

@@ -7,9 +7,8 @@ import json
 import os
 import secrets
 import struct
-import sys
 import time
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
@@ -26,8 +25,8 @@ def totp(secret_b32: str, at: float | None = None) -> str:
     padded = secret_b32.upper() + "=" * (-len(secret_b32.upper()) % 8)
     secret_bytes = base64.b32decode(padded)
     h = hmac.new(secret_bytes, counter, hashlib.sha1).digest()
-    o = h[-1] & 0x0f
-    code = struct.unpack(">I", h[o:o+4])[0] & 0x7fffffff
+    o = h[-1] & 0x0F
+    code = struct.unpack(">I", h[o : o + 4])[0] & 0x7FFFFFFF
     return f"{code % 10**6:06d}"
 
 
@@ -48,7 +47,12 @@ def admin_token(base: str) -> str:
         "client_id": client_id,
         "client_secret": client_secret,
     }
-    req = Request(url, method="POST", data=urlencode(data).encode("utf-8"), headers={"Content-Type": "application/x-www-form-urlencoded"})
+    req = Request(
+        url,
+        method="POST",
+        data=urlencode(data).encode("utf-8"),
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
     try:
         resp = urlopen(req, timeout=10)
         body = json.loads(resp.read().decode("utf-8"))
@@ -57,7 +61,9 @@ def admin_token(base: str) -> str:
         raise SystemExit(f"Failed to get admin token: {e.code} {e.reason}")
 
 
-def kc(base: str, realm: str, token: str, method: str, path: str, body=None) -> tuple[int, dict | None]:
+def kc(
+    base: str, realm: str, token: str, method: str, path: str, body=None
+) -> tuple[int, dict | None]:
     """urllib request to {base}/admin/realms/{realm}{path} with Bearer token, JSON body; return HTTPError status instead of raising."""
     url = f"{base}/admin/realms/{realm}{path}"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -81,7 +87,9 @@ def make_password() -> str:
 
 def user_id(base: str, realm: str, token: str, name: str) -> str | None:
     """GET /users?username=<name>&exact=true."""
-    status, data = kc(base, realm, token, "GET", f"/users?username={quote(name)}&exact=true")
+    status, data = kc(
+        base, realm, token, "GET", f"/users?username={quote(name)}&exact=true"
+    )
     if status == 200 and isinstance(data, list):
         for u in data:
             if u.get("username") == name:

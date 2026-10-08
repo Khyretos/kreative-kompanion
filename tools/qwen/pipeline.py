@@ -14,18 +14,19 @@ the pipeline retries up to 3 times with a patch job fixing the errors.
 Each check is tried once before any job runs; jobs whose check already fails
 are skipped as a spec error ("precheck": false turns that off).
 """
+
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
+import threading
 import time
 import tomllib
 import urllib.error
-import urllib.request
 import urllib.parse
-import socket
-import threading
+import urllib.request
 
 # Only quirks of one model family live in skills/_model-notes/<NOTES>; every general rule is in
 # the role skills and work-habits.md, so a bigger model loaded later (MODEL_NOTES=gemma4, ...)
@@ -33,6 +34,7 @@ import threading
 NOTES = os.environ.get("MODEL_NOTES", "qwen3")
 
 LANE = threading.local()  # .model: the model the last call used
+
 
 def config_path():
     """KOMPANION_CONFIG, else kompanion.toml at the repo root, else the main checkout's
@@ -43,8 +45,13 @@ def config_path():
     here = os.path.join(repo, "kompanion.toml")
     if os.path.exists(here):
         return here
-    common = os.popen(f"git -C {repo} rev-parse --path-format=absolute --git-common-dir").read().strip()
+    common = (
+        os.popen(f"git -C {repo} rev-parse --path-format=absolute --git-common-dir")
+        .read()
+        .strip()
+    )
     return os.path.join(os.path.dirname(common), "kompanion.toml") if common else here
+
 
 def dotenv(path):
     """KEY=value lines of a .env file ({} when missing)."""
@@ -57,6 +64,7 @@ def dotenv(path):
                 out[k.strip()] = v.strip().strip('"')
     return out
 
+
 def reachable(url):
     """The URL itself when its host resolves here, else the same URL on the Docker container's IP."""
     u = urllib.parse.urlsplit(url)
@@ -64,23 +72,49 @@ def reachable(url):
         socket.gethostbyname(u.hostname)
         return url
     except OSError:
-        ip = os.popen(f"docker inspect {u.hostname} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}} {{{{end}}}}'").read().split()
-        return urllib.parse.urlunsplit(u._replace(netloc=f"{ip[0]}:{u.port}")) if ip else url
+        ip = (
+            os.popen(
+                f"docker inspect {u.hostname} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}} {{{{end}}}}'"
+            )
+            .read()
+            .split()
+        )
+        return (
+            urllib.parse.urlunsplit(u._replace(netloc=f"{ip[0]}:{u.port}"))
+            if ip
+            else url
+        )
+
 
 def backend():
     """(chat completions URL, model, extra body, API key) of the worker role's provider."""
     path = config_path()
     cfg = tomllib.load(open(path, "rb"))
     role = cfg.get("roles", {}).get("worker") or {}
-    prov = next((p for p in cfg.get("provider", []) if p.get("id") == role.get("provider")), None)
+    prov = next(
+        (p for p in cfg.get("provider", []) if p.get("id") == role.get("provider")),
+        None,
+    )
     if not prov:
         raise RuntimeError(f"no worker role provider in {path}")
     key_env = prov.get("api_key_env", "")
-    key = os.environ.get(key_env) or dotenv(os.path.join(os.path.dirname(path), ".env")).get(key_env, "") if key_env else ""
+    key = (
+        os.environ.get(key_env)
+        or dotenv(os.path.join(os.path.dirname(path), ".env")).get(key_env, "")
+        if key_env
+        else ""
+    )
     url = reachable(prov["base_url"].rstrip("/")) + "/chat/completions"
-    return (url, os.environ.get("WORKER_MODEL") or role.get("model"), prov.get("extra_body", {}), key)
+    return (
+        url,
+        os.environ.get("WORKER_MODEL") or role.get("model"),
+        prov.get("extra_body", {}),
+        key,
+    )
+
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 def card(rel):
     """A skill card without its front matter (the header is for the loader, not the model)."""
@@ -88,28 +122,42 @@ def card(rel):
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         if end != -1:
-            text = text[end + 5:]
+            text = text[end + 5 :]
     return text.strip()
+
 
 def skill_budget():
     """[skills] budget_tokens in kompanion.toml: a number, or a table per model name
-    ({ "Coder" = 1500 }); default 1500 tokens for the cards picked on top of the cores."""
+    ({ "Coder" = 1500 }); default 1500 tokens for the cards picked on top of the cores.
+    """
     try:
-        b = tomllib.load(open(config_path(), "rb")).get("skills", {}).get("budget_tokens", 1500)
+        b = (
+            tomllib.load(open(config_path(), "rb"))
+            .get("skills", {})
+            .get("budget_tokens", 1500)
+        )
     except OSError:
         return 1500
     if isinstance(b, dict):
-        return int(b.get(os.environ.get("WORKER_MODEL", "Coder"), b.get("default", 1500)))
+        return int(
+            b.get(os.environ.get("WORKER_MODEL", "Coder"), b.get("default", 1500))
+        )
     return int(b)
+
 
 def skills_local():
     """The private skill layer: $KOMPANION_SKILLS_LOCAL, else [skills] local in kompanion.toml, else /skills-local."""
     if os.environ.get("KOMPANION_SKILLS_LOCAL"):
         return os.environ["KOMPANION_SKILLS_LOCAL"]
     try:
-        return tomllib.load(open(config_path(), "rb")).get("skills", {}).get("local", "/skills-local")
+        return (
+            tomllib.load(open(config_path(), "rb"))
+            .get("skills", {})
+            .get("local", "/skills-local")
+        )
     except OSError:
         return "/skills-local"
+
 
 def skills(role, extra=(), task="", paths=()):
     """The job's lessons from tools/skills/load.py: work habits, shared and role cores, the cards
@@ -117,18 +165,32 @@ def skills(role, extra=(), task="", paths=()):
     The chosen files are logged per job (LANE.skills)."""
     sys.path.insert(0, os.path.join(REPO, "tools", "skills"))
     import load
+
     try:
-        names, text = load.select(role, task, list(paths), notes=NOTES, budget_tokens=skill_budget(), extra=list(extra), local=skills_local())
+        names, text = load.select(
+            role,
+            task,
+            list(paths),
+            notes=NOTES,
+            budget_tokens=skill_budget(),
+            extra=list(extra),
+            local=skills_local(),
+        )
     except ValueError as e:
         raise RuntimeError(str(e))
     LANE.skills = names
     return text
 
+
 # GPU-02 (drafted by Coder, spliced in by Claude).
-def open_paused(req, opener=urllib.request.urlopen, sleep=time.sleep, wait=30, limit=1800):
+def open_paused(
+    req, opener=urllib.request.urlopen, sleep=time.sleep, wait=30, limit=1800
+):
     """Open req; while Coder is paused for the studio (404, 503 or no connection), wait and retry up to `limit` seconds."""
     slept = 0
-    errors500 = 0  # a 500 while Coder reloads after the switch back (GPU-03): retried 3 times
+    errors500 = (
+        0  # a 500 while Coder reloads after the switch back (GPU-03): retried 3 times
+    )
     while True:
         try:
             return opener(req, timeout=1200)
@@ -137,7 +199,11 @@ def open_paused(req, opener=urllib.request.urlopen, sleep=time.sleep, wait=30, l
             if e.code in (404, 503) or (e.code == 500 and errors500 <= 3):
                 if slept + wait > limit:
                     raise
-                print(f"Coder is paused for the studio; retrying in {wait} s", file=sys.stderr, flush=True)
+                print(
+                    f"Coder is paused for the studio; retrying in {wait} s",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 slept += wait
                 sleep(wait)
             else:
@@ -146,17 +212,32 @@ def open_paused(req, opener=urllib.request.urlopen, sleep=time.sleep, wait=30, l
             if not isinstance(e, urllib.error.HTTPError):
                 if slept + wait > limit:
                     raise
-                print(f"Coder is paused for the studio; retrying in {wait} s", file=sys.stderr, flush=True)
+                print(
+                    f"Coder is paused for the studio; retrying in {wait} s",
+                    file=sys.stderr,
+                    flush=True,
+                )
                 slept += wait
                 sleep(wait)
             else:
                 raise
 
+
 def ask(system, user, max_tokens):
     url, model, extra, key = backend()
     LANE.model = model
-    body = json.dumps({"model": model, "max_tokens": max_tokens, "temperature": 0.2,
-                       "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}], **extra}).encode()
+    body = json.dumps(
+        {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": 0.2,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            **extra,
+        }
+    ).encode()
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = "Bearer " + key
@@ -168,9 +249,18 @@ def ask(system, user, max_tokens):
     choice = v["choices"][0]
     if choice.get("finish_reason") == "length":
         # Never write a cut-off answer over a file.
-        raise RuntimeError(f"answer cut off at the context limit ({v.get('usage', {})})")
-    LANE.prompt = getattr(LANE, "prompt", 0) + v.get("usage", {}).get("prompt_tokens", 0)
-    return choice["message"]["content"], time.time() - t, v.get("usage", {}).get("completion_tokens", 0)
+        raise RuntimeError(
+            f"answer cut off at the context limit ({v.get('usage', {})})"
+        )
+    LANE.prompt = getattr(LANE, "prompt", 0) + v.get("usage", {}).get(
+        "prompt_tokens", 0
+    )
+    return (
+        choice["message"]["content"],
+        time.time() - t,
+        v.get("usage", {}).get("completion_tokens", 0),
+    )
+
 
 def strip(text, out=""):
     """The code from an answer: from the first opening fence to the LAST closing
@@ -185,11 +275,12 @@ def strip(text, out=""):
     m = re.search(r"^```[a-zA-Z0-9_+-]*[ \t]*\n", text, re.M)
     if not m:
         return text + "\n"
-    body = text[m.end():]
+    body = text[m.end() :]
     end = body.rfind("\n```")
     if end != -1:
         body = body[:end]
     return body.strip() + "\n"
+
 
 PATCH_RULES = """Answer ONLY with edit blocks for the file, no whole file and no prose. Each block:
 <<<<<<< SEARCH
@@ -203,18 +294,23 @@ and never copy the `// ...` marker of an excerpt into a SEARCH."""
 
 BLOCK = re.compile(r"<<<<<<< SEARCH\n(.*?)\n?=======\n(.*?)\n?>>>>>>> REPLACE", re.S)
 
+
 def find(text, search):
     """(start, end) of the one run of whole lines equal to `search`, comparing lines
     without indentation and trailing spaces. None when missing or not unique."""
     want = [l.strip() for l in search.strip("\n").split("\n")]
     lines = text.split("\n")
-    hits = [i for i in range(len(lines) - len(want) + 1)
-            if [l.strip() for l in lines[i:i + len(want)]] == want]
+    hits = [
+        i
+        for i in range(len(lines) - len(want) + 1)
+        if [l.strip() for l in lines[i : i + len(want)]] == want
+    ]
     if len(hits) != 1:
         return None
-    start = sum(len(l) + 1 for l in lines[:hits[0]])
-    end = start + sum(len(l) + 1 for l in lines[hits[0]:hits[0] + len(want)]) - 1
+    start = sum(len(l) + 1 for l in lines[: hits[0]])
+    end = start + sum(len(l) + 1 for l in lines[hits[0] : hits[0] + len(want)]) - 1
     return start, end
+
 
 def apply_patch(text, answer):
     """Applies the edit blocks; returns (new text, error or None)."""
@@ -227,20 +323,40 @@ def apply_patch(text, answer):
             stripped = line.strip()
             if stripped in ("// ...", "# ..."):
                 if stripped not in [l.strip() for l in search.splitlines()]:
-                    return text, "the REPLACE text contains a `// ...` placeholder line; write out the real code instead of skipping lines"
+                    return (
+                        text,
+                        "the REPLACE text contains a `// ...` placeholder line; write out the real code instead of skipping lines",
+                    )
         where = find(text, search)
         if where is None:
-            return text, "this SEARCH text is missing from the file or not unique:\n" + search[:600]
-        text = text[:where[0]] + replace + text[where[1]:]
+            return (
+                text,
+                "this SEARCH text is missing from the file or not unique:\n"
+                + search[:600],
+            )
+        text = text[: where[0]] + replace + text[where[1] :]
     return text, None
+
 
 def patch_job(job, log):
     """mode "patch": the model answers with search/replace blocks for job["out"];
     a block that doesn't apply goes back to the model once with the error."""
     out = os.path.join(REPO, job["out"])
     text = open(out).read()
-    system = "You edit code in this repository with exact, compiling changes. Follow these rules strictly:\n\n" + skills(job["role"], job.get("skills", ()), job["prompt"], [job["out"]] + job.get("context", []))
-    ctx = "".join(f"\n--- {c} ---\n{open(os.path.join(REPO, c)).read()}" for c in job.get("context", []) if c != job["out"])
+    system = (
+        "You edit code in this repository with exact, compiling changes. Follow these rules strictly:\n\n"
+        + skills(
+            job["role"],
+            job.get("skills", ()),
+            job["prompt"],
+            [job["out"]] + job.get("context", []),
+        )
+    )
+    ctx = "".join(
+        f"\n--- {c} ---\n{open(os.path.join(REPO, c)).read()}"
+        for c in job.get("context", [])
+        if c != job["out"]
+    )
     shown = text
     if job.get("focus"):
         # Big files: show only the lines around these regexes (OVMS Coder cuts prompts at ~8k tokens).
@@ -259,14 +375,28 @@ def patch_job(job, log):
         for i in sorted(keep):
             if i != last + 1:
                 out_lines.append("// ...")
-            out_lines.append(lines[i]); last = i
+            out_lines.append(lines[i])
+            last = i
         shown = "\n".join(out_lines) + "\n// ...\n"
-    prompt = job["prompt"] + "\n\n" + PATCH_RULES + (("\n\nOther files, for reference only:" + ctx) if ctx else "") + f"\n\nThe file to edit, `{job['out']}`" + (" (excerpts; `// ...` marks skipped lines, never copy it)" if job.get("focus") else "") + f":\n```\n{shown}```"
+    prompt = (
+        job["prompt"]
+        + "\n\n"
+        + PATCH_RULES
+        + (("\n\nOther files, for reference only:" + ctx) if ctx else "")
+        + f"\n\nThe file to edit, `{job['out']}`"
+        + (
+            " (excerpts; `// ...` marks skipped lines, never copy it)"
+            if job.get("focus")
+            else ""
+        )
+        + f":\n```\n{shown}```"
+    )
     secs = toks = 0
     LANE.prompt = 0
     for attempt in range(2):
         answer, s, t = ask(system, prompt, job.get("max_tokens", 3000))
-        secs += s; toks += t
+        secs += s
+        toks += t
         new, err = apply_patch(text, answer)
         if not err:
             break
@@ -274,52 +404,117 @@ def patch_job(job, log):
     if err:
         raise RuntimeError(f"patch failed twice: {err[:300]}")
     open(out, "w").write(new)
-    rec = {"name": job["name"], "out": job["out"], "mode": "patch", "gpu_seconds": round(secs, 1), "tokens": toks, "prompt_tokens": getattr(LANE, "prompt", 0), "skills": getattr(LANE, "skills", []),
-           "lines": len(BLOCK.findall(answer)), "attempts": attempt + 1, "model": getattr(LANE, "model", ""), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-    log.write(json.dumps(rec) + "\n"); log.flush(); print(json.dumps(rec), flush=True)
+    rec = {
+        "name": job["name"],
+        "out": job["out"],
+        "mode": "patch",
+        "gpu_seconds": round(secs, 1),
+        "tokens": toks,
+        "prompt_tokens": getattr(LANE, "prompt", 0),
+        "skills": getattr(LANE, "skills", []),
+        "lines": len(BLOCK.findall(answer)),
+        "attempts": attempt + 1,
+        "model": getattr(LANE, "model", ""),
+        "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    log.write(json.dumps(rec) + "\n")
+    log.flush()
+    print(json.dumps(rec), flush=True)
+
 
 def run_job(job, log):
     try:
-      if job.get("mode") == "patch":
-          patch_job(job, log)
-          return
-      LANE.prompt = 0
-      rules = skills(job["role"], job.get("skills", ()), job["prompt"], [job["out"]] + job.get("context", []))
-      ctx = "".join(f"\n--- {c} ---\n{open(os.path.join(REPO, c)).read()}" for c in job.get("context", []))
-      system = "You write exact, compiling code for this repository. Follow these rules strictly:\n\n" + rules
-      draft, s1, t1 = ask(system, job["prompt"] + ("\n\nRelevant files:" + ctx if ctx else ""), job.get("max_tokens", 4000))
-      # The self-review needs the draft in the prompt; skip it when that
-      # wouldn't leave room for a full answer in the 16k context (~4 chars/token).
-      if (len(system) + len(job["prompt"]) + 2 * len(draft)) / 4 > 13000 or not job.get("review", True):
-          out = os.path.join(REPO, job["out"])
-          os.makedirs(os.path.dirname(out), exist_ok=True)
-          open(out, "w").write(with_footer(drop_path_line(strip(draft, job["out"]), job["out"]), job))
-          rec = {"name": job["name"], "out": job["out"], "gpu_seconds": round(s1, 1), "tokens": t1, "prompt_tokens": getattr(LANE, "prompt", 0), "skills": getattr(LANE, "skills", []),
-                 "lines": strip(draft, job["out"]).count("\n"), "review": "skipped", "model": getattr(LANE, "model", ""), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-          log.write(json.dumps(rec) + "\n"); log.flush(); print(json.dumps(rec), flush=True)
-          return
-      review_prompt = ("Review the code below against every rule above and the task. Fix every problem you find. "
-                       "Output ONLY the corrected complete file, nothing else.\n\nTask:\n" + job["prompt"] + "\n\nCode:\n" + strip(draft, job["out"]))
-      final, s2, t2 = ask(system, review_prompt, job.get("max_tokens", 4000))
-      out = os.path.join(REPO, job["out"])
-      os.makedirs(os.path.dirname(out), exist_ok=True)
-      open(out, "w").write(with_footer(drop_path_line(strip(final, job["out"]), job["out"]), job))
-      rec = {"name": job["name"], "out": job["out"], "gpu_seconds": round(s1 + s2, 1), "tokens": t1 + t2, "prompt_tokens": getattr(LANE, "prompt", 0), "skills": getattr(LANE, "skills", []),
-             "lines": strip(final, job["out"]).count("\n"), "model": getattr(LANE, "model", ""), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-      log.write(json.dumps(rec) + "\n"); log.flush()
-      print(json.dumps(rec), flush=True)
+        if job.get("mode") == "patch":
+            patch_job(job, log)
+            return
+        LANE.prompt = 0
+        rules = skills(
+            job["role"],
+            job.get("skills", ()),
+            job["prompt"],
+            [job["out"]] + job.get("context", []),
+        )
+        ctx = "".join(
+            f"\n--- {c} ---\n{open(os.path.join(REPO, c)).read()}"
+            for c in job.get("context", [])
+        )
+        system = (
+            "You write exact, compiling code for this repository. Follow these rules strictly:\n\n"
+            + rules
+        )
+        draft, s1, t1 = ask(
+            system,
+            job["prompt"] + ("\n\nRelevant files:" + ctx if ctx else ""),
+            job.get("max_tokens", 4000),
+        )
+        # The self-review needs the draft in the prompt; skip it when that
+        # wouldn't leave room for a full answer in the 16k context (~4 chars/token).
+        if (
+            len(system) + len(job["prompt"]) + 2 * len(draft)
+        ) / 4 > 13000 or not job.get("review", True):
+            out = os.path.join(REPO, job["out"])
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            open(out, "w").write(
+                with_footer(drop_path_line(strip(draft, job["out"]), job["out"]), job)
+            )
+            rec = {
+                "name": job["name"],
+                "out": job["out"],
+                "gpu_seconds": round(s1, 1),
+                "tokens": t1,
+                "prompt_tokens": getattr(LANE, "prompt", 0),
+                "skills": getattr(LANE, "skills", []),
+                "lines": strip(draft, job["out"]).count("\n"),
+                "review": "skipped",
+                "model": getattr(LANE, "model", ""),
+                "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+            log.write(json.dumps(rec) + "\n")
+            log.flush()
+            print(json.dumps(rec), flush=True)
+            return
+        review_prompt = "Review the code below against every rule above and the task. Fix every problem you find. " "Output ONLY the corrected complete file, nothing else.\n\nTask:\n" + job[
+            "prompt"
+        ] + "\n\nCode:\n" + strip(
+            draft, job["out"]
+        )
+        final, s2, t2 = ask(system, review_prompt, job.get("max_tokens", 4000))
+        out = os.path.join(REPO, job["out"])
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        open(out, "w").write(
+            with_footer(drop_path_line(strip(final, job["out"]), job["out"]), job)
+        )
+        rec = {
+            "name": job["name"],
+            "out": job["out"],
+            "gpu_seconds": round(s1 + s2, 1),
+            "tokens": t1 + t2,
+            "prompt_tokens": getattr(LANE, "prompt", 0),
+            "skills": getattr(LANE, "skills", []),
+            "lines": strip(final, job["out"]).count("\n"),
+            "model": getattr(LANE, "model", ""),
+            "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        log.write(json.dumps(rec) + "\n")
+        log.flush()
+        print(json.dumps(rec), flush=True)
     except RuntimeError as e:
-      print(json.dumps({"name": job["name"], "error": str(e)}), flush=True)
+        print(json.dumps({"name": job["name"], "error": str(e)}), flush=True)
+
 
 def run_check(cmd):
     """Returns (passed, last 60 lines of output)."""
     try:
-        p = subprocess.run(cmd, shell=True, cwd=REPO, capture_output=True, text=True, timeout=900)
+        p = subprocess.run(
+            cmd, shell=True, cwd=REPO, capture_output=True, text=True, timeout=900
+        )
     except subprocess.TimeoutExpired as e:
         return False, f"timed out: {e}"
     return p.returncode == 0, "\n".join((p.stdout + p.stderr).splitlines()[-60:])
 
+
 HEADER = re.compile(r"(error|warning)\b|\S+\(\d+,\d+\): error")
+
 
 def own_errors(errors, out):
     """A fix round only sees the check errors that name its own file: errors from other jobs' files sent Coder editing the wrong code (RUN-01, 2026-10-06)."""
@@ -328,12 +523,15 @@ def own_errors(errors, out):
     for line in errors.splitlines():
         # A block ends at a blank line or where the next error starts (rustc, tsc, eslint start errors at column 0).
         if not line.strip() or HEADER.match(line):
-            if cur: blocks.append(cur)
+            if cur:
+                blocks.append(cur)
             cur = [line] if line.strip() else []
         else:
             cur.append(line)
-    if cur: blocks.append(cur)
+    if cur:
+        blocks.append(cur)
     return "\n\n".join("\n".join(b) for b in blocks if any(name in l for l in b))
+
 
 def check_loop(job, log):
     """job["check"]: a build command run after the job; on failure the errors go back to
@@ -349,17 +547,31 @@ def check_loop(job, log):
         if not mine:
             break
         fix = {k: v for k, v in job.items() if k not in ("check", "focus", "context")}
-        fix.update(name=f"{job['name']}#fix{n}", mode="patch", prompt=f"The check `{cmd}` fails after your change to {out}. Fix these errors in {out}; change nothing else.\n\n{mine}")
+        fix.update(
+            name=f"{job['name']}#fix{n}",
+            mode="patch",
+            prompt=f"The check `{cmd}` fails after your change to {out}. Fix these errors in {out}; change nothing else.\n\n{mine}",
+        )
         try:
             patch_job(fix, log)
         except RuntimeError as e:
             print(json.dumps({"name": fix["name"], "error": str(e)}), flush=True)
         passed, errors = run_check(cmd)
         runs += 1
-    rec = {"name": job["name"], "out": out, "check": cmd, "check_attempts": runs, "check_passed": passed, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    rec = {
+        "name": job["name"],
+        "out": out,
+        "check": cmd,
+        "check_attempts": runs,
+        "check_passed": passed,
+        "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
     if not passed:
         rec["check_errors"] = errors
-    log.write(json.dumps(rec) + "\n"); log.flush(); print(json.dumps(rec), flush=True)
+    log.write(json.dumps(rec) + "\n")
+    log.flush()
+    print(json.dumps(rec), flush=True)
+
 
 def with_footer(text, job):
     """Fixed boilerplate (a sign-off line, a licence header) is appended in code: models
@@ -369,10 +581,12 @@ def with_footer(text, job):
         return text
     return text.rstrip("\n") + "\n\n" + footer.strip() + "\n"
 
+
 def drop_path_line(code, path):
     """The model sometimes puts the file's path on the first line; drop it."""
     first, _, rest = code.partition("\n")
     return rest if first.strip().strip("`/# ") in (path, path.split("/")[-1]) else code
+
 
 def main():
     """One lane on Coder: OVMS serves 2 sequences at once and Kompanion or PR-Agent
@@ -386,14 +600,21 @@ def main():
         if not passed:
             bad[cmd] = errors
     for cmd, errors in bad.items():
-        rec = {"spec_error": cmd, "errors": errors[-1500:], "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-        log.write(json.dumps(rec) + "\n"); log.flush(); print(json.dumps(rec), flush=True)
+        rec = {
+            "spec_error": cmd,
+            "errors": errors[-1500:],
+            "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+        log.write(json.dumps(rec) + "\n")
+        log.flush()
+        print(json.dumps(rec), flush=True)
     jobs = [j for j in jobs if j.get("check") not in bad or not j.get("precheck", True)]
     groups = {}
     for job in jobs:
         groups.setdefault(job["out"], []).append(job)
     queue = list(groups.values())
     lock = threading.Lock()
+
     def lane():
         while True:
             with lock:
@@ -404,9 +625,13 @@ def main():
                 run_job(job, log)
                 if job.get("check"):
                     check_loop(job, log)
+
     lanes = [threading.Thread(target=lane)]
-    for t in lanes: t.start()
-    for t in lanes: t.join()
+    for t in lanes:
+        t.start()
+    for t in lanes:
+        t.join()
+
 
 if __name__ == "__main__":
     main()

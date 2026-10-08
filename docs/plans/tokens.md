@@ -5,6 +5,7 @@
 **Depends on:** nothing.
 
 **Steps**
+
 1. In `pipeline.py`, log per job the prompt tokens sent (from the response `usage`) and the prompt's character count.
 2. Create a small script `tools/qwen/claude-usage.py` that reads Claude Code's session transcript (`~/.claude/projects/<project>/<session>.jsonl`, the `usage` field of each assistant message) and sums input, cached input and output tokens per hour; Claude writes the task id into the drafting log entry so both can be matched by time and task.
 3. Per task: Coder output tokens, Claude output tokens, Claude input tokens (cached and not), lines by Coder versus lines Claude changed, review rounds; written to `docs/qwen-log/<branch>.jsonl` as one summary line.

@@ -84,7 +84,7 @@
 }
 .asset-detail[hidden] { display: none; }
 .detail-head { display: flex; align-items: flex-start; gap: 0.5rem; }
-.detail-head h2 { flex: 1; font-size: 1rem; word-break: break-word; }
+.detail-head h2 { flex: 1; font-size: 1rem; overflow-wrap: anywhere; }
 .detail-head h2:focus { outline: none; }
 .asset-preview {
   height: 10rem; border-radius: var(--radius); display: grid; place-items: center; align-content: center; gap: 0.4rem;
@@ -119,10 +119,10 @@
 .asset-thumb.is-image {
   background: conic-gradient(var(--surface-2) 25%, var(--surface) 0 50%, var(--surface-2) 0 75%, var(--surface) 0);
   background-size: 16px 16px;
+  overflow: hidden;
 }
 
 /* Absolute, so a big picture can't stretch the grid cell past the thumbnail's height. */
-.asset-thumb.is-image { overflow: hidden; }
 .asset-thumb.is-image img {
   position: absolute;
   inset: 0;
@@ -439,12 +439,10 @@
 .game-profile label {
   display: grid;
   gap: 0.25rem;
-}
-
-.game-profile label {
   font-size: 0.8rem;
   color: var(--muted);
 }
+
 
 .game-profile input:not([type="checkbox"]) {
   font-size: 0.95rem;
@@ -469,14 +467,12 @@
 .game-profile .asset-check {
   color: var(--fg);
   font-size: 0.9rem;
-}
-
-.game-profile .asset-check {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
+
 
 .game-profile .row {
   grid-column: 1 / -1;
@@ -677,18 +673,7 @@ p.small {
 }
 
 /* 16. Needs Head */
-.needs-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin: 1.25rem 0 0.5rem;
-}
 
-.needs-head h3 {
-  margin: 0;
-  font-size: 1rem;
-}
 
 /* 17. Game Head */
 .game-head {

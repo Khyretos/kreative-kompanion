@@ -18,9 +18,9 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$KEYS":/keys eclipse-temurin:21-jdk-n
     -keyalg RSA -keysize 4096 -validity 10000 -storepass "$PASS" -keypass "$PASS" \
     -dname "CN=Kreative Kompanion, O=Kreative Kompas"
 
-printf 'KK_KEYSTORE_PASS=%s\n' "$PASS" > "$KEYS/keystore.env"
-printf 'KK_KEY_ALIAS=%s\n' "kompanion" >> "$KEYS/keystore.env"
-printf 'KK_KEY_PASS=%s\n' "$PASS" >> "$KEYS/keystore.env"
+printf 'KK_KEYSTORE_PASS=%s\n' "$PASS" >"$KEYS/keystore.env"
+printf 'KK_KEY_ALIAS=%s\n' "kompanion" >>"$KEYS/keystore.env"
+printf 'KK_KEY_PASS=%s\n' "$PASS" >>"$KEYS/keystore.env"
 
 chmod 600 "$KEYS/release.jks" "$KEYS/keystore.env"
 

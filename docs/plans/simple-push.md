@@ -5,6 +5,7 @@
 **Depends on:** Apps 2 part 1 (the app and UnifiedPush push, live on Kees's phone since 2026-10-05).
 
 **Steps**
+
 1. Implement `UnifiedPush.getDistributors()` check in the Android app: if a distributor exists, use today's path; otherwise, establish an own connection.
 2. Create a foreground service with `foregroundServiceType="dataSync"` that displays one quiet permanent notification "Kompanion is connected", keeps the server's existing live stream `/api/events` open using the WebView session cookie, reconnects with backoff after network changes, and converts task events "needs you", "failed" and "done" into notifications identical to the push path.
 3. Add a toggle in the app's settings to switch the foreground service off.

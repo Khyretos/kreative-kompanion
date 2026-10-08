@@ -30,4 +30,6 @@ USER kompanion
 ENV KOMPANION_CONFIG=/config/kompanion.toml
 VOLUME /data
 EXPOSE 8080
+# Busybox wget; the check assumes the default bind (0.0.0.0:8080).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/status"]
 ENTRYPOINT ["/usr/local/bin/kompanion-server"]

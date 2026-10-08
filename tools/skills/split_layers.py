@@ -14,8 +14,8 @@ Usage:
 
 import glob
 import os
-import sys
 import re
+import sys
 
 
 def split_card(text: str):
@@ -42,8 +42,8 @@ def split_card(text: str):
         # Malformed front matter, treat as no front matter
         return "", [text.splitlines(keepends=True)] if text else []
 
-    header = text[:end + 5]
-    body = text[end + 5:]
+    header = text[: end + 5]
+    body = text[end + 5 :]
 
     if not body:
         return header, [header] if header else []
@@ -55,13 +55,13 @@ def split_card(text: str):
 
     for line in body.splitlines(keepends=True):
         stripped = line.lstrip()
-        
+
         # Check if entering/exiting code fence
         if stripped.startswith("```"):
             in_code_fence = not in_code_fence
             current_block.append(line)
             continue
-        
+
         if in_code_fence:
             current_block.append(line)
             continue
@@ -71,14 +71,14 @@ def split_card(text: str):
         # - starts with "#"
         # - matches "^(- |\* |\d+\. )" at column 0
         is_first_line = len(current_block) == 0
-        
+
         should_start_new = False
         if not is_first_line:
             if stripped.startswith("#"):
                 should_start_new = True
             elif re.match(r"^(- |\* |\d+\. )", stripped):
                 should_start_new = True
-        
+
         if should_start_new:
             if current_block:
                 blocks.append(current_block)
@@ -115,7 +115,10 @@ def is_title_block(block_lines):
     return block_lines[0].lstrip().startswith("# ")
 
 
-SKILLS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "skills")
+SKILLS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "skills",
+)
 LAYERS = ("general", "kompanion", "private")
 
 
@@ -172,8 +175,13 @@ def plan(header, blocks, tags, rel):
             lines[l].append(blocks[s][0])
             added[l].add(s)
         lines[l].extend(block)
-    return {l: (header if l == base else f"---\nextends: {rel}\n---\n") + "".join(lines[l]).rstrip("\n") + "\n"
-            for l in LAYERS if lines[l]}
+    return {
+        l: (header if l == base else f"---\nextends: {rel}\n---\n")
+        + "".join(lines[l]).rstrip("\n")
+        + "\n"
+        for l in LAYERS
+        if lines[l]
+    }
 
 
 def apply(tags_dir, private_dir, root):
@@ -182,8 +190,12 @@ def apply(tags_dir, private_dir, root):
     for path in sorted(glob.glob(os.path.join(root, "**", "*.md"), recursive=True)):
         rel = os.path.relpath(path, root)[:-3].replace(os.sep, "/")
         tags_path = os.path.join(tags_dir, rel + ".txt")
-        if (os.path.basename(rel) == "README" or rel.startswith("general/")
-                or os.path.exists(os.path.join(root, "general", rel + ".md")) or not os.path.exists(tags_path)):
+        if (
+            os.path.basename(rel) == "README"
+            or rel.startswith("general/")
+            or os.path.exists(os.path.join(root, "general", rel + ".md"))
+            or not os.path.exists(tags_path)
+        ):
             continue
         header, blocks = split_card(open(path, encoding="utf-8").read())
         if any(l.startswith(("extends:", "overrides:")) for l in header.splitlines()):
@@ -200,8 +212,11 @@ def apply(tags_dir, private_dir, root):
         if all(l == "kompanion" for l in layer):
             continue
         texts = plan(header, blocks, tags, rel)
-        targets = {"general": os.path.join(root, "general", rel + ".md"), "kompanion": path,
-                   "private": os.path.join(private_dir, rel + ".md")}
+        targets = {
+            "general": os.path.join(root, "general", rel + ".md"),
+            "kompanion": path,
+            "private": os.path.join(private_dir, rel + ".md"),
+        }
         for l, text in texts.items():
             os.makedirs(os.path.dirname(targets[l]), exist_ok=True)
             open(targets[l], "w", encoding="utf-8").write(text)
@@ -214,20 +229,22 @@ def main():
     # argv: "list <card.md>": print f"{n}\t{first line stripped, max 120 chars}" per block (n from 1).
     # "apply <tags_dir> <private_dir> [--root DIR]" (DIR default SKILLS). Else print usage, exit 2.
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Split markdown cards into layers.")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
-    
+
     list_parser = subparsers.add_parser("list", help="List blocks in a card")
     list_parser.add_argument("card", help="Path to the card file")
-    
+
     apply_parser = subparsers.add_parser("apply", help="Apply tags and split cards")
     apply_parser.add_argument("tags_dir", help="Directory containing .txt tag files")
     apply_parser.add_argument("private_dir", help="Directory for private cards")
-    apply_parser.add_argument("--root", default=SKILLS, help="Root directory for cards (default: SKILLS)")
-    
+    apply_parser.add_argument(
+        "--root", default=SKILLS, help="Root directory for cards (default: SKILLS)"
+    )
+
     args = parser.parse_args()
-    
+
     if args.command == "list":
         with open(args.card, "r", encoding="utf-8") as f:
             content = f.read()
@@ -245,5 +262,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

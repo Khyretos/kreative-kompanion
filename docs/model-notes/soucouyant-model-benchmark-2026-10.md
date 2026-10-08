@@ -118,7 +118,7 @@ Measured on the qwen3:14b runner that had been serving kk-localize
 | Model file in the page cache | up to 9.3 GB, counted as "buff/cache" | The kernel keeps the file cached after loading; that is why a reload takes 1-4 s. It is freed as soon as anything else needs the memory, so it is not really in use. |
 
 A freshly loaded runner uses about 0.5 GB of RAM (qwen3:14b: 0.06 GB anonymous
-+ 0.49 GB mapped). During this benchmark the anonymous part grew to 3-5 GB per
+plus 0.49 GB mapped). During this benchmark the anonymous part grew to 3-5 GB per
 model within about 20 requests, which is the prompt cache filling up.
 
 The KV cache for the context itself is on the GPU (part of the ~12 GB of VRAM).
@@ -128,7 +128,7 @@ pushed out under memory pressure.
 To cap it, add one line to `/etc/systemd/system/ollama.service.d/override.conf`
 and restart Ollama (needs sudo):
 
-```
+```ini
 Environment="LLAMA_ARG_CACHE_RAM=2048"
 ```
 
