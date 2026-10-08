@@ -1,0 +1,146 @@
+{
+  "11392bca32fd": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/owner-decision.yml",
+    "reason": "The finding describes a lack of explicit exit code checking in the workflow, but this is not a bug because the `run` action inherently fails the entire job if the script exits with a non-zero status, providing clear failure indicators in the CI logs.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "20819838df33": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/owner-decision.yml",
+    "reason": "The finding is a false positive because the code review scope is limited to the provided YAML snippet, which only shows the workflow trigger and environment setup, while the actual execution logic and error handling (or lack thereof) reside in the external Python script `tools/owner_decision.py`.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "260419550e83": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "tests test_out_of_range_questions_or_nothing and test_owner_chatter_changes_nothing show out-of-range numbers and chatter give None",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "33deb0409ccd": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "test_accept_alone_is_the_recommended_option shows 'accept' and 'Accept.' give the recommended option",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "38c373170ede": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "The finding misinterprets the code as a bug, but manually adding a newline after `json.dump` is a common and intentional practice to ensure consistent file formatting across different Python implementations or JSON library versions.",
+    "title": "Unnecessary File Write",
+    "verdict": "false_positive"
+  },
+  "5263a9c0e39c": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "The hardcoded path is intentional for a tool script located in a fixed directory relative to the project root, and using dynamic path resolution would likely break the intended execution context or require unnecessary complexity.",
+    "title": "Hardcoded Path",
+    "verdict": "false_positive"
+  },
+  "68fba746e7d5": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/owner-decision.yml",
+    "reason": "The code correctly uses the built-in `github.token` secret provided by the platform rather than hardcoding or exposing a sensitive value in plain text, and this token is scoped to the repository context where it is expected to be used.",
+    "title": "Security Risk: Token Exposure",
+    "verdict": "false_positive"
+  },
+  "8a6a6ac2c4da": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/owner-decision.yml",
+    "reason": "The finding is a false positive because the code explicitly uses a secret for the required API key, indicating that sensitive credentials are already handled securely while the hardcoded IP represents a fixed internal service endpoint.",
+    "title": "Hardcoded IP Address",
+    "verdict": "false_positive"
+  },
+  "8fbc3bcaf1cf": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "test_trivyignore_option_writes_dated_entry and the LintFlow tests show the glib option writes its dated entry and records the decision",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "982c2744d384": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_owner_decision.py",
+    "reason": "test-only reads in short-lived temp dirs; no defect a test could show",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "9cb6527b61dc": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "The code explicitly closes the file handle immediately after reading, preventing any resource leak in this specific instance, and the finding incorrectly labels this explicit cleanup as an anti-pattern rather than a defect.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "c2f6d2001562": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/owner-decision.yml",
+    "reason": "The code correctly uses the built-in `github.token` and secret references which are standard, secure practices for GitHub Actions and Forgejo workflows, rather than exposing hardcoded tokens or misconfigured scopes.",
+    "title": "Security Risk: Token Exposure",
+    "verdict": "false_positive"
+  },
+  "d7e5303d37db": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "an API error should fail the job loudly; the Actions log shows the traceback, and a half-applied decision must not be reported as done",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e9dd72895fd6": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/owner-decision.yml",
+    "reason": "The finding is a false positive because the code explicitly uses an environment variable for the model relay URL, allowing it to be configured externally rather than being hardcoded directly in the workflow file.",
+    "title": "Hardcoded IP Address",
+    "verdict": "false_positive"
+  },
+  "eee7f51273b5": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "The code already uses a context manager (`with open(...) as f:`) to safely handle the file resource, making the explicit `f.close()` call redundant but not indicative of a leak or anti-pattern.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "f3eb3a50b85b": {
+    "by": "coder; approved by Kees in the project thread 2026-10-08",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "the workflow runs the script from the checkout root by design, as every other tools/ script in CI",
+    "title": "Hardcoded Path",
+    "verdict": "false_positive"
+  }
+}
