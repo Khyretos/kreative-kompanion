@@ -48,10 +48,13 @@ pub struct Upload { name: String }
 /// Upload a document to a collection.
 pub async fn upload(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>, Query(q): Query<Upload>, body: Bytes) -> ApiResult<(StatusCode, Json<Value>)> {
     if !owns(&s, &id, &u).await? { return Err(ApiError::NotFound); }
-    // A re-import replaces what is in Open WebUI's collections, so uploads go into the app's own.
+    // A re-import replaces what is in Open WebUI's and a folder's collections, so uploads go into the app's own.
     let (source,): (String,) = sqlx::query_as("SELECT source FROM knowledge_collection WHERE id = ?").bind(&id).fetch_one(&s.db).await?;
     if source == "openwebui" {
         return Err(ApiError::BadRequest("This collection is kept in step with Open WebUI. Add the file there, or to a collection made here.".into()));
+    }
+    if source == "folder" {
+        return Err(ApiError::BadRequest("This collection is kept in step with a folder on the server. Add the file to that folder, or to a collection made here.".into()));
     }
     let name: String = q.name.trim().rsplit(['/', '\\']).next().unwrap_or("").chars().take(200).collect();
     if name.is_empty() { return Err(ApiError::BadRequest("The file needs a name.".into())); }
@@ -69,4 +72,19 @@ pub async fn upload(State(s): State<AppState>, Extension(u): Extension<User>, Pa
 /// Delete a document.
 pub async fn delete_doc(State(s): State<AppState>, Extension(u): Extension<User>, Path((_collection, doc)): Path<(String, i64)>) -> ApiResult<StatusCode> {
     if knowledge::delete_doc(&s.db, &u.id, doc).await? { Ok(StatusCode::NO_CONTENT) } else { Err(ApiError::NotFound) }
+}
+
+#[derive(Deserialize)]
+pub struct DocsQuery { #[serde(default)] q: String, #[serde(default)] offset: i64 }
+
+/// One page of a collection's documents (50), optionally only those whose name contains `q`.
+pub async fn docs(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>, Query(q): Query<DocsQuery>) -> ApiResult<Json<Value>> {
+    let (documents, total) = knowledge::docs_page(&s.db, &u.id, &id, q.q.trim(), q.offset).await?.ok_or(ApiError::NotFound)?;
+    Ok(Json(json!({"documents": documents, "total": total})))
+}
+
+/// A document's text, to read it in the app.
+pub async fn doc(State(s): State<AppState>, Extension(u): Extension<User>, Path((_collection, doc)): Path<(String, i64)>) -> ApiResult<Json<Value>> {
+    let (name, text) = knowledge::doc_text(&s.db, &u.id, doc).await?.ok_or(ApiError::NotFound)?;
+    Ok(Json(json!({"id": doc, "name": name, "text": text})))
 }

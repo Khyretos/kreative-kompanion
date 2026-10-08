@@ -5,7 +5,7 @@ import { capHead } from "./cap-card";
 import { icon } from "./icons";
 
 export interface KDoc { id: number; name: string; chars: number; addedAt: string }
-export interface KCollection { id: string; name: string; source: "app" | "openwebui"; docs: number; chunks: number; vectors: number; projects: string[]; documents: KDoc[] }
+export interface KCollection { id: string; name: string; source: "app" | "openwebui" | "folder"; docs: number; chunks: number; vectors: number; projects: string[]; documents: KDoc[] }
 /** A file being uploaded (pct 0-100), or one the server refused (error). */
 export interface KUpload { name: string; pct: number; error?: string }
 
@@ -34,15 +34,16 @@ export function renderKnowledge(cols: KCollection[] | undefined, projects: { id:
     const ups = uploads[c.id] ?? [];
     return html`<li class="task cap kn-card">
     <div class="task-main">
-      ${capHead("folder", c.name, c.source === "openwebui" ? "Open WebUI" : "uploaded")}
+      ${capHead("folder", c.name, c.source === "openwebui" ? "Open WebUI" : c.source === "folder" ? "folder" : "uploaded")}
       <span class="task-step">${c.docs} documents · ${c.chunks} parts${meaning(c)}</span>
       ${names.length > 0 ? html`<span class="kn-projects">${names.map((n) => html`<span class="chip">${n}</span>`)}</span>` : ""}
       ${ups.length > 0 ? html`<ul class="kn-uploads">${ups.map((u) => html`<li class="kn-up ${u.error ? "failed" : ""}"><span class="kn-up-name">${u.name}</span>${u.error ? html`<span class="kn-err" role="alert">${u.error}</span>` : html`<progress max="100" value="${u.pct}">${u.pct}%</progress>`}</li>`)}</ul>` : ""}
       <details class="kn-more" data-keep="kn|${c.id}" ${openKeys.has(`kn|${c.id}`) ? "open" : ""}>
         <summary>Details</summary>
+        ${c.docs > 0 ? html`<button type="button" class="btn small" data-action="kn-browse" data-id="${c.id}" data-name="${c.name}">${icon("folder")} Read documents</button>` : ""}
         ${c.source === "app"
           ? html`<label class="btn small kn-add">${icon("plus")} Add files<input type="file" class="kn-file sr-only" data-id="${c.id}" multiple accept=".md,.markdown,.txt,.text,.html,.htm,.pdf,.rst,.csv,.json"></label>`
-          : html`<p class="muted small kn-synced">Kept in step with Open WebUI: add files there.</p>`
+          : html`<p class="muted small kn-synced">${c.source === "folder" ? "Kept in step with a folder on the server: add files there." : "Kept in step with Open WebUI: add files there."}</p>`
         }
         <fieldset class="kn-link"><legend>Use in projects</legend>
           ${projects.length ? projects.map((p) => html`<label class="kn-check"><input type="checkbox" class="kn-project" data-id="${c.id}" value="${p.id}" ${c.projects.includes(p.id) ? "checked" : ""}> ${p.name}</label>`) : html`<p class="muted small">No projects yet.</p>`}

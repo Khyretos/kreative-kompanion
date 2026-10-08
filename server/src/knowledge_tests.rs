@@ -214,3 +214,50 @@ async fn open_webui_is_synced_only_when_its_file_changed() {
     assert!(sync_openwebui(&db, dir.join("missing.db").to_str().unwrap(), "kees", &mut stamp).await.is_err());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[tokio::test]
+async fn a_folder_of_documents_is_imported_once_and_kept_in_step() {
+    let db = db().await;
+    let dir = std::env::temp_dir().join(format!("kk-folder-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("sub")).unwrap();
+    std::fs::write(dir.join("a.md"), "Core loop\n\nA game loop repeats.").unwrap();
+    std::fs::write(dir.join("sub/b.txt"), "Pacing matters.").unwrap();
+    std::fs::write(dir.join("empty.md"), "  ").unwrap();
+    std::fs::write(dir.join("image.png"), "not text").unwrap();
+    let path = dir.to_str().unwrap();
+    assert_eq!(import_folder(&db, "kees", "Game design", path).await.unwrap(), "Game design: 2 added, 0 updated, 0 removed, 1 skipped");
+    assert_eq!(import_folder(&db, "kees", "Game design", path).await.unwrap(), "Game design: 0 added, 0 updated, 0 removed, 3 skipped");
+    let cols = collections(&db, "u1").await.unwrap();
+    assert_eq!(cols.len(), 1);
+    let (source,): (String,) = sqlx::query_as("SELECT source FROM knowledge_collection WHERE user_id = 'u1'").fetch_one(&db).await.unwrap();
+    assert_eq!(source, "folder");
+    let names: Vec<(String,)> = sqlx::query_as("SELECT name FROM knowledge_doc ORDER BY name").fetch_all(&db).await.unwrap();
+    assert_eq!(names, vec![("a.md".to_string(),), ("sub/b.txt".to_string(),)]);
+    std::fs::write(dir.join("a.md"), "Core loop\n\nA changed loop.").unwrap();
+    std::fs::remove_file(dir.join("sub/b.txt")).unwrap();
+    assert_eq!(import_folder(&db, "kees", "Game design", path).await.unwrap(), "Game design: 0 added, 1 updated, 1 removed, 1 skipped");
+    assert!(import_folder(&db, "nobody", "Game design", path).await.is_err());
+    assert!(import_folder(&db, "kees", "Game design", "/nonexistent-kk").await.is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn a_document_can_be_read_back_and_listed_in_pages() {
+    let db = db().await;
+    let c = ensure_collection(&db, "u1", "Notes", "app").await.unwrap();
+    let text = format!("First\n\n{}\n\n{}\n\nLast", "x".repeat(1000), "y".repeat(1000));
+    let id = add_doc(&db, &c, "long.md", &text).await.unwrap();
+    for i in 0..60 { add_doc(&db, &c, &format!("doc{i:02}.md"), "text").await.unwrap(); }
+    let (name, read) = doc_text(&db, "u1", id).await.unwrap().unwrap();
+    assert_eq!(name, "long.md");
+    assert_eq!(read, text);
+    assert!(doc_text(&db, "other", id).await.unwrap().is_none());
+    let (page, total) = docs_page(&db, "u1", &c, "", 0).await.unwrap().unwrap();
+    assert_eq!((page.len(), total), (50, 61));
+    let (rest, _) = docs_page(&db, "u1", &c, "", 50).await.unwrap().unwrap();
+    assert_eq!(rest.len(), 11);
+    let (found, total) = docs_page(&db, "u1", &c, "doc07", 0).await.unwrap().unwrap();
+    assert_eq!((found.len(), total), (1, 1));
+    assert!(docs_page(&db, "other", &c, "", 0).await.unwrap().is_none());
+}

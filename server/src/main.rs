@@ -263,7 +263,9 @@ async fn main() -> anyhow::Result<()> {
     }
     if state.config.features.gpus { gpus::spawn(state.clone()); }
     // CHAT-03b: vectors for knowledge chunks, and the Open WebUI re-import when [knowledge] names its database.
-    knowledge::spawn(state.db.clone(), state.http.clone(), state.config.knowledge.openwebui_db.clone().map(|p| (p, state.config.knowledge.openwebui_user.clone().unwrap_or_default())));
+    knowledge::spawn(state.db.clone(), state.http.clone(), state.config.knowledge.openwebui_db.clone().map(|p| (p, state.config.knowledge.openwebui_user.clone().unwrap_or_default())),
+        state.config.knowledge.folders.iter().map(|f| (f.name.clone(), f.path.clone())).collect(),
+        state.config.knowledge.folder_user.clone().or_else(|| state.config.knowledge.openwebui_user.clone()).unwrap_or_default());
     if let Some(ws) = windshift.filter(|_| state.config.features.windshift) {
         tracing::info!("Windshift sync on");
         windshift::spawn(state.db.clone(), ws);
@@ -339,8 +341,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/knowledge", get(knowledge_web::list).post(knowledge_web::create))
         .route("/knowledge/{id}", axum::routing::delete(knowledge_web::delete))
         .route("/knowledge/{id}/projects", axum::routing::put(knowledge_web::set_projects))
-        .route("/knowledge/{id}/docs", post(knowledge_web::upload).layer(axum::extract::DefaultBodyLimit::max(25 * 1024 * 1024)))
-        .route("/knowledge/{id}/docs/{doc}", axum::routing::delete(knowledge_web::delete_doc))
+        .route("/knowledge/{id}/docs", get(knowledge_web::docs).post(knowledge_web::upload).layer(axum::extract::DefaultBodyLimit::max(25 * 1024 * 1024)))
+        .route("/knowledge/{id}/docs/{doc}", get(knowledge_web::doc).delete(knowledge_web::delete_doc))
         .route("/capabilities/skill", get(capabilities::skill).put(capabilities::save_skill))
         .route("/capabilities/skill/history", get(capabilities::skill_history))
         .route("/capabilities/skill/move", post(capabilities::move_lesson))

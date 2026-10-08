@@ -84,3 +84,20 @@ for (const width of [375, 1280]) {
     expect(wide).toEqual([]);
   });
 }
+
+// KNOW-01 (Kees, 2026-10-08): the documents in a collection can be opened and read, not only listed.
+test("a collection's documents open in a reader with a name filter", async ({ page }) => {
+  await openCaps(page);
+  const c = card(page, "Game notes");
+  await c.locator("details.kn-more > summary").click();
+  await c.getByRole("button", { name: "Read documents" }).click();
+  const reader = page.locator("dialog.kn-reader");
+  await expect(reader.locator(".kn-reader-doc")).toHaveText(["combat-design.md", "level-ideas.pdf"]);
+  await reader.locator(".kn-reader-search").fill("level");
+  await expect(reader.locator(".kn-reader-doc")).toHaveText(["level-ideas.pdf"]);
+  await reader.locator(".kn-reader-doc").click();
+  await expect(reader.locator(".kn-reader-name")).toHaveText("level-ideas.pdf");
+  await expect(reader.locator(".kn-reader-text")).toContainText("The text of this document");
+  await page.keyboard.press("Escape");
+  await expect(reader).toHaveCount(0);
+});

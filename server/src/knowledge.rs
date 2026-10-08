@@ -275,6 +275,57 @@ pub async fn import_openwebui(db: &SqlitePool, webui: &str, user_name: &str) -> 
     Ok(counts.iter().map(|(n, a, u, r, s)| format!("{n}: {a} added, {u} updated, {r} removed, {s} skipped")).collect::<Vec<_>>().join("\n"))
 }
 
+/// KNOW-01: a folder of documents (md, markdown, txt, html, htm, pdf; subfolders too) as the collection `name`
+/// (source "folder") of the user called `user_name`: new files added, changed ones replaced, vanished ones removed.
+pub async fn import_folder(db: &SqlitePool, user_name: &str, name: &str, dir: &str) -> Result<String> {
+    let user: Option<(String,)> = sqlx::query_as("SELECT id FROM users WHERE name = ?").bind(user_name).fetch_optional(db).await?;
+    let Some((user_id,)) = user else { anyhow::bail!("no user {user_name}") };
+    anyhow::ensure!(std::fs::metadata(dir)?.is_dir(), "{dir} is not a folder");
+    let mut files: Vec<(String, std::path::PathBuf)> = Vec::new();
+    let mut todo = vec![std::path::PathBuf::from(dir)];
+    while let Some(d) = todo.pop() {
+        for entry in std::fs::read_dir(&d)?.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                todo.push(path);
+            } else if let Some(ext) = path.extension().and_then(|e| e.to_str()).map(str::to_lowercase) && ["md", "markdown", "txt", "html", "htm", "pdf"].contains(&ext.as_str()) {
+                let rel = path.strip_prefix(dir).unwrap_or(&path).components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/");
+                files.push((rel, path));
+            }
+        }
+    }
+    files.sort();
+    let cid = ensure_collection(db, &user_id, name, "folder").await?;
+    let (mut added, mut updated, mut removed, mut skipped) = (0, 0, 0, 0);
+    let mut seen: Vec<String> = Vec::new();
+    for (rel, path) in files {
+        seen.push(rel.clone());
+        let text = match std::fs::read(&path) {
+            Ok(bytes) => extract(&rel, &bytes).await.unwrap_or_default(),
+            Err(_) => String::new(),
+        };
+        if text.trim().is_empty() {
+            skipped += 1;
+            continue;
+        }
+        let hash = util::sha256_hex(&text);
+        let old: Option<(i64, String)> = sqlx::query_as("SELECT id, hash FROM knowledge_doc WHERE collection_id = ? AND name = ?").bind(&cid).bind(&rel).fetch_optional(db).await?;
+        match old {
+            None => { add_doc(db, &cid, &rel, &text).await?; added += 1; }
+            Some((_, h)) if h == hash => skipped += 1,
+            Some((id, _)) => { delete_doc(db, &user_id, id).await?; add_doc(db, &cid, &rel, &text).await?; updated += 1; }
+        }
+    }
+    let docs: Vec<(i64, String)> = sqlx::query_as("SELECT id, name FROM knowledge_doc WHERE collection_id = ?").bind(&cid).fetch_all(db).await?;
+    for (id, file) in docs {
+        if !seen.contains(&file) {
+            delete_doc(db, &user_id, id).await?;
+            removed += 1;
+        }
+    }
+    Ok(format!("{name}: {added} added, {updated} updated, {removed} removed, {skipped} skipped"))
+}
+
 /// Reciprocal rank fusion (k = 60): ids from several ranked lists, best first; ties keep first-seen order.
 pub fn rrf(lists: &[Vec<i64>]) -> Vec<i64> {
     let mut scores: Vec<(i64, f64)> = Vec::new(); // first-seen order
@@ -426,6 +477,27 @@ pub async fn list(db: &SqlitePool, user_id: &str) -> Result<Value> {
     Ok(Value::Array(out))
 }
 
+/// A document's name and text for reading: its chunks joined by blank lines. None when it is not the user's.
+pub async fn doc_text(db: &SqlitePool, user_id: &str, doc_id: i64) -> Result<Option<(String, String)>> {
+    let doc: Option<(String,)> = sqlx::query_as("SELECT d.name FROM knowledge_doc d JOIN knowledge_collection c ON c.id = d.collection_id WHERE d.id = ? AND c.user_id = ?")
+        .bind(doc_id).bind(user_id).fetch_optional(db).await?;
+    let Some((name,)) = doc else { return Ok(None) };
+    let parts: Vec<String> = sqlx::query_scalar("SELECT text FROM knowledge_chunk WHERE doc_id = ? ORDER BY n").bind(doc_id).fetch_all(db).await?;
+    Ok(Some((name, parts.join("\n\n"))))
+}
+
+/// One page (50) of a collection's documents by name, only those whose name contains `q`, and how many
+/// match in all. None when the collection is not the user's.
+pub async fn docs_page(db: &SqlitePool, user_id: &str, collection_id: &str, q: &str, offset: i64) -> Result<Option<(Vec<Value>, i64)>> {
+    let mine: Option<(String,)> = sqlx::query_as("SELECT id FROM knowledge_collection WHERE id = ? AND user_id = ?").bind(collection_id).bind(user_id).fetch_optional(db).await?;
+    if mine.is_none() { return Ok(None); }
+    let like = format!("%{}%", q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM knowledge_doc WHERE collection_id = ? AND name LIKE ? ESCAPE '\\'").bind(collection_id).bind(&like).fetch_one(db).await?;
+    let rows: Vec<(i64, String, i64, String)> = sqlx::query_as("SELECT id, name, chars, added_at FROM knowledge_doc WHERE collection_id = ? AND name LIKE ? ESCAPE '\\' ORDER BY name LIMIT 50 OFFSET ?")
+        .bind(collection_id).bind(&like).bind(offset.max(0)).fetch_all(db).await?;
+    Ok(Some((rows.into_iter().map(|(id, name, chars, at)| json!({"id": id, "name": name, "chars": chars, "addedAt": at})).collect(), total)))
+}
+
 /// Deletes one of the user's documents with its chunks and vectors; false when it is not theirs.
 pub async fn delete_doc(db: &SqlitePool, user_id: &str, doc_id: i64) -> Result<bool> {
     let mine: Option<(i64,)> = sqlx::query_as("SELECT d.id FROM knowledge_doc d JOIN knowledge_collection c ON c.id = d.collection_id WHERE d.id = ? AND c.user_id = ?")
@@ -449,11 +521,12 @@ pub async fn delete_collection(db: &SqlitePool, user_id: &str, collection_id: &s
 
 /// CHAT-03b: background work: vectors for new chunks (32 at a time), and the Open WebUI
 /// re-import (path, user name) when its database changed, checked every 10 minutes.
-pub fn spawn(db: SqlitePool, http: reqwest::Client, openwebui: Option<(String, String)>) {
+pub fn spawn(db: SqlitePool, http: reqwest::Client, openwebui: Option<(String, String)>, folders: Vec<(String, String)>, folder_user: String) {
     tokio::spawn(async move {
         let ai = Ai::from_env(http);
         let mut stamp: Option<std::time::SystemTime> = None;
         let mut next_sync = std::time::Instant::now();
+        let mut next_folders = std::time::Instant::now();
         let mut last_error = String::new();
         loop {
             if let Some((path, user)) = &openwebui && std::time::Instant::now() >= next_sync {
@@ -468,6 +541,21 @@ pub fn spawn(db: SqlitePool, http: reqwest::Client, openwebui: Option<(String, S
                     Ok(Some(summary)) => tracing::info!("knowledge: Open WebUI re-imported:\n{summary}"),
                     Ok(None) => {}
                     Err(e) => tracing::warn!("knowledge: Open WebUI re-import failed: {e}"),
+                }
+            }
+            if !folders.is_empty() && std::time::Instant::now() >= next_folders {
+                next_folders = std::time::Instant::now() + std::time::Duration::from_secs(600);
+                let user: String = if folder_user.is_empty() {
+                    sqlx::query_scalar("SELECT name FROM users WHERE is_admin = 1 ORDER BY created_at LIMIT 1").fetch_optional(&db).await.ok().flatten().unwrap_or_default()
+                } else {
+                    folder_user.clone()
+                };
+                for (name, path) in &folders {
+                    match import_folder(&db, &user, name, path).await {
+                        Ok(summary) if !summary.contains(": 0 added, 0 updated, 0 removed") => tracing::info!("knowledge: folder re-imported: {summary}"),
+                        Ok(_) => {}
+                        Err(e) => tracing::warn!("knowledge: folder {name} failed: {e}"),
+                    }
                 }
             }
             let wait = match embed_pending(&db, &ai, 32).await {
