@@ -1,0 +1,83 @@
+{
+  "ae97b8c11446": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "the .env path is only a default (PR_AGENT_ENV) and the token is never printed or logged",
+    "title": "Hard-coded Secrets",
+    "verdict": "false_positive"
+  },
+  "d64f32c7572d": {
+    "by": "repeat of dedbef95465d",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "json.loads on a str raises only JSONDecodeError; an unparsed model answer is recorded as an unchecked bug on purpose so Claude decides",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "d7e47de86a18": {
+    "by": "repeat of d64f32c7572d",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "json.loads on a str raises only JSONDecodeError; an unparsed model answer is recorded as an unchecked bug on purpose so Claude decides",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "dedbef95465d": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "json.loads on a str raises only JSONDecodeError; an unparsed model answer is recorded as an unchecked bug on purpose so Claude decides",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e0c598aa1b20": {
+    "by": "repeat of dedbef95465d",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "json.loads on a str raises only JSONDecodeError; an unparsed model answer is recorded as an unchecked bug on purpose so Claude decides",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "eeb6798a3d9b": {
+    "by": "repeat of ae97b8c11446",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "the .env path is only a default (PR_AGENT_ENV) and the token is never printed or logged",
+    "title": "Hard-coded Secrets",
+    "verdict": "false_positive"
+  },
+  "f99073f05bcd": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "agreed: an unreadable .env ends with a traceback, which is fine for this CLI",
+    "title": "Unhandled Exceptions",
+    "verdict": "false_positive"
+  },
+  "fbaf9f6ab0cc": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "12aa8ec",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "no secret in the code, but the API URL was fixed to Kees's Forgejo: now FORGEJO_API (the .env path was already PR_AGENT_ENV)",
+    "title": "Hard-coded Secrets",
+    "verdict": "bug"
+  },
+  "fe4ca9c360d4": {
+    "by": "repeat of ae97b8c11446",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "the .env path is only a default (PR_AGENT_ENV) and the token is never printed or logged",
+    "title": "Hard-coded Secrets",
+    "verdict": "false_positive"
+  }
+}
