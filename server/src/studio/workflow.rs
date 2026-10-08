@@ -129,6 +129,10 @@ pub struct Workflow {
     pub models: Vec<Model>,
     #[serde(default)]
     pub face: Option<Face>,
+    /// STU-C1: images shipped in the workflow's folder (LoadImage node -> file name), uploaded to
+    /// ComfyUI's input before each run, e.g. the OC sheet's pose and depth templates.
+    #[serde(default)]
+    pub images: BTreeMap<String, String>,
     #[serde(default, skip_serializing)]
     pub dir: PathBuf,
 }
@@ -691,6 +695,23 @@ licence = "CreativeML OpenRAIL-M"
 
         assert_eq!(get("vn-portrait").face_graph("x.png", 0.85).unwrap()["34"]["inputs"]["model"], json!(["1", 0]));
         assert!(get("character").face_graph("x.png", 0.8).unwrap_err().contains("takes no face photo"));
+    }
+
+    #[test]
+    fn oc_sheet_ships_its_pose_images() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let get = |n: &str| all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap();
+        let w = get("oc-sheet");
+        assert_eq!(w.images.keys().cloned().collect::<Vec<_>>(), vec!["60".to_string(), "64".to_string()]);
+        for (node, file) in &w.images {
+            assert!(w.dir.join(file).is_file(), "{file} missing");
+            for g in [w.graph_for("rx9070").unwrap(), w.face_graph("x.png", 0.7).unwrap()] {
+                assert_eq!(g[node.as_str()]["class_type"], json!("LoadImage"), "node {node}");
+            }
+        }
+        assert!(get("oc-sheet-classic").images.is_empty());
+        assert_eq!(get("oc-sheet-classic").title, "OC sheet (classic)");
     }
 
     fn rated() -> Workflow {

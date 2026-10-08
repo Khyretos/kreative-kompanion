@@ -391,6 +391,24 @@ async fn execute(
                 },
                 _ => Ok(()),
             };
+            // STU-C1: images shipped with the workflow (the OC sheet's pose and depth sheets).
+            let up = match up {
+                Err(e) => Err(e),
+                Ok(()) => async {
+                    for (node, file) in &w.images {
+                        let path = w.dir.join(file);
+                        let bytes = tokio::fs::read(&path).await;
+                        let name = match bytes {
+                            Ok(b) => {
+                                comfy::upload(&s.http, &url, b, &format!("{}-{file}", w.name)).await?
+                            }
+                            Err(e) => return Err(anyhow::anyhow!("{file}: {e}")),
+                        };
+                        graph[node.as_str()]["inputs"]["image"] = json!(name);
+                    }
+                    Ok(())
+                }.await,
+            };
             let r = match up {
                 Err(e) => Err(e),
                 Ok(()) => watchdog::guard(&watch, watchdog::limit("comfyui"), comfy::run(
