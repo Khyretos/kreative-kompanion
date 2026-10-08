@@ -213,3 +213,7 @@ Columns: **Who** = who made the mistake (Coder, Claude, tool). **Rule** = what t
 | LINT-01 ruff check | Claude | The check's `grep \| sed && st=1` always failed, so correct drafts (kc_admin, live_chat) ran 3 empty fix rounds and Coder added a junk helper to pipeline.py | lesson 122: try every check on a clean and a dirty file first | `general/orchestrator/prompting-workers` 122 |
 | LINT-01 autofix | tool | markdownlint `--fix` made a wrapped "+ 0.49 GB" line a list item; generators rewrote fixed files in the old layout | lesson 123: review autofix prose, rerun generators | `general/orchestrator/prompting-workers` 123 |
 | LINT-01 Java | Claude | sun_checks and PMD rules (LawOfDemeter on `Build.VERSION`, other classes' constants, TooManyMethods) needed several rounds to learn | lesson 124: the Java lint rules for Android | `skills/worker/android.md` |
+
+| GATE-02 glue | Coder | Untested glue: `curl` with bytes and `text=True`, errors swallowed, `"$MODEL_BASE"` never expanded, broken findings flow | lesson 125: test the glue with fakes, lint in the check | `general/orchestrator/prompting-workers` 125 |
+| GATE-02 patch | Coder | A docstring sentence closed the docstring early; `lines += [...]` moved into the loop | lesson 126: exact old and new text for small patches | `general/orchestrator/prompting-workers` 126 |
+| GATE-02 spec | Claude | "Return the bug ids" let Coder return unchecked bugs too | lesson 127: name the set a returned list draws from | `general/orchestrator/prompting-workers` 127 |
