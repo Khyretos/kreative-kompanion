@@ -123,7 +123,10 @@ def oidc_login(kompanion, name, password, secret, jar_path, save=lambda secret: 
     step = form_of(page or "", "username")
     if not step:
         raise SystemExit("login failed at the Keycloak sign-in page")
-    callback = lambda u: "/api/auth/oidc/callback?" in u
+
+    def callback(u):
+        return "/api/auth/oidc/callback?" in u
+
     status, headers, page = sso.fetch(
         step[0], {**step[1], "username": name, "password": password, "credentialId": ""}
     )

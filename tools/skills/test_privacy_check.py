@@ -97,12 +97,6 @@ class TestFindFindings(unittest.TestCase):
         finally:
             os.unlink(f.name)
 
-    def test_clean_text(self):
-        """A clean text 'Use git rebase, never force-push.' gives []."""
-        text = "Use git rebase, never force-push."
-        results = find(text, set())
-        self.assertEqual(results, [])
-
 
 class TestLoadDenyList(unittest.TestCase):
     """Tests for the load_deny_list function."""

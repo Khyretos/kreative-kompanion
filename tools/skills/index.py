@@ -5,10 +5,7 @@ import json
 import os
 import sys
 
-# Ensure we can import from tools/skills/load.py relative to this script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, script_dir)
-
+# Run as a script, so this folder (with load.py) is first on sys.path.
 from load import SKILLS, merged_cards
 
 

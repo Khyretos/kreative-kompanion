@@ -140,7 +140,7 @@ token_file = "$T/token"
 grants_file = "$T/grants.json"
 EOF
 
-BIN=$(ls -1 "$MAIN"/dist/kompanion-runner-*-x86_64-linux-musl | sort -V | tail -1)
+BIN=$(find "$MAIN/dist" -maxdepth 1 -name 'kompanion-runner-*-x86_64-linux-musl' | sort -V | tail -1)
 "$BIN" "$T/runner.toml" >"$T/runner.log" 2>&1 &
 RUNNER=$!
 
@@ -193,4 +193,7 @@ docker logs "$N" 2>&1 | tail -30 >&2
 printf '%s\n' "{\"projects\":[{\"id\":\"nightly-failures\",\"name\":\"Nightly checks\",\"tasks\":[{\"id\":\"nightly-w2-$DATE\",\"title\":\"Nightly W2 failed $DATE\",\"description\":\"The nightly real-model test ended $STATE (test: $TEST) after $SECS s. Numbers: $RESULTS/\$DATE.json. Rerun by hand: tools/nightly/w2.sh --now\",\"state\":\"needs_input\"}]}]}" |
     docker exec -i "$LIVE" sh -c "cat > /tmp/f.json && kompanion-server import /tmp/f.json $OWNER; rm /tmp/f.json"
 
+# Clean up here (the EXIT trap covers the earlier exits).
+trap - EXIT
+cleanup
 exit 1
