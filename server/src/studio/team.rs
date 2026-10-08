@@ -41,6 +41,9 @@ pub struct Make {
     /// KS-01: video frames (the workflow's "length" parameter).
     #[serde(default)]
     length: Option<i64>,
+    /// STU-N1: words to leave out, added after the type's own negative.
+    #[serde(default)]
+    negative: Option<String>,
 }
 
 pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(Make, Option<(Vec<u8>, &'static str)>, f64)> {
@@ -63,6 +66,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
 
     let (mut kind, mut prompt, mut size, mut count, mut rating, mut seed, mut length, mut face, mut weight) = (String::new(), String::new(), String::new(), 1u32, None::<String>, None::<i64>, None::<i64>, None::<(Vec<u8>, &'static str)>, 0.85f64);
 
+    let mut negative = None::<String>;
     while let Some(field) = form.next_field().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))? {
         let name = field.name().unwrap_or("").to_string();
 
@@ -96,6 +100,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
                     }
                     "seed" => seed = text.trim().parse().ok(),
                     "length" => length = text.trim().parse().ok(),
+                    "negative" => negative = Some(text),
                     "face_weight" => {
                         weight = text.parse().map_err(|_| crate::error::ApiError::BadRequest("The face weight must be a number.".into()))?;
                     }
@@ -105,7 +110,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
         }
     }
 
-    Ok((Make { kind, prompt, size, count, rating, seed, length }, face, weight))
+    Ok((Make { kind, prompt, size, count, rating, seed, length, negative }, face, weight))
 }
 
 /// POST /api/studio/make: generate images based on a workflow.
@@ -146,6 +151,14 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         .or_else(|| size_px(&b.size))
         .ok_or_else(|| ApiError::BadRequest("Pick square, wide or tall.".into()))?;
 
+    // STU-N1: the Leave out words follow the type's own negative default (its locked tags stay in the template).
+    let neg_default = workflows
+        .iter()
+        .find_map(|(n, r)| r.as_ref().ok().filter(|_| *n == b.kind))
+        .and_then(|w| w.params.iter().find(|p| p.name == "negative"))
+        .map(|p| p.default.as_str().unwrap_or("").to_string());
+    let negative = super::negative::negative_param(b.negative.as_deref(), &studio.label, neg_default.as_deref()).map_err(ApiError::BadRequest)?;
+
     // STU-01d: only types with a face graph take a photo.
     if face.is_some() && !workflows.iter().any(|(n, r)| *n == b.kind && r.as_ref().is_ok_and(|w| w.face.is_some())) {
         return Err(ApiError::BadRequest(format!("{} takes no face photo.", studio.label)));
@@ -181,6 +194,9 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         }
         if let Some(r) = &b.rating {
             params.insert("rating".into(), json!(r));
+        }
+        if let Some(n) = &negative {
+            params.insert("negative".into(), json!(n));
         }
         if let Some((bytes, ext)) = &face {
             let dir = s.config.studio.output_dir.join("users").join(&u.id).join("faces");
