@@ -66,6 +66,7 @@ def clean_review(comments: list, head_date: str) -> bool:
     reviews = [c for c in comments if "<!-- pr-agent:review" in c.get("body", "")]
     if not reviews:
         return False
+
     # PR-Agent edits its review comment in place for a new head, so updated_at is the review time.
     def when(c):
         return parse(c.get("updated_at") or c["created_at"])
