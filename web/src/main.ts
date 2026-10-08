@@ -17,7 +17,7 @@ import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
-import { composer, effortChip, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { composer, effortChip, overseerChip, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { renderMachines, REFRESH_STEPS, setGpuView } from "./views/machines";
@@ -58,6 +58,7 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
 import { renderSettings } from "./views/settings";
+import { doneChip as overseerDoneChip, markDone as markOverseerDone } from "./core/overseer";
 import { openSkillSheet } from "./views/skillsheet";
 
 
@@ -145,7 +146,7 @@ async function start(server: Server): Promise<void> {
   ]);
   store.set({
     server: { ...server, name: status.name || server.name }, projects, chats, tasks, providers, roles, machines, today,
-    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system",
+    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system", overseer: status.overseer ?? { name: "Overseer", interject: false },
     machinesRefresh: status.machinesRefresh ?? 5, gpuPins: status.gpuPins ?? [], cardStyle: status.cardStyle ?? {}, windshift: status.windshift, windshiftWarning: status.windshiftWarning, features: { ...ALL_FEATURES, ...(status.features ?? {}) }, logoVersion: status.logoVersion,
   });
   setStepCardStyle(status.cardStyle ?? {});
@@ -343,7 +344,13 @@ function render(s: AppState, prev: AppState): void {
   if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks"])) {
     mount($("#conv-head"), renderHeader(s));
   }
-  if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "effortMenuOpen", "draftEffort"])) {
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer"])) {
+    // OVR-01: the Overseer chip, and its name on the answers of an Overseer chat.
+    const chat = s.chats.find((c) => c.id === s.activeChatId);
+    setAssistantName(chat?.overseer ? s.overseer.name : "Kompanion");
+    mount($("#overseer-slot"), overseerChip(s));
+  }
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "effortMenuOpen", "draftEffort", "draftOverseer"])) {
     // A re-mount (or closing the menu) drops focus inside the chip: give it back.
     const hadFocus = !!document.activeElement?.closest(".effort") || (prev.effortMenuOpen && !s.effortMenuOpen && document.activeElement === document.body);
     mount($("#effort-slot"), effortChip(s));
@@ -434,7 +441,7 @@ function render(s: AppState, prev: AppState): void {
   }
   const settings = $("#settings");
   settings.hidden = !s.settingsOpen;
-  if (s.settingsOpen && changed(s, prev, ["settingsOpen", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle"])) {
+  if (s.settingsOpen && changed(s, prev, ["settingsOpen", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer"])) {
     remount(settings, renderSettings(s));
   }
   firstRender = false;
@@ -891,6 +898,40 @@ function wire(shell: HTMLElement): void {
       store.set({ chats: s.chats.map((c) => (c.id === chat.id ? { ...c, mcp: next } : c)) });
       return api.updateChat(chat.id, { mcp: next }).catch(showError);
     },
+    // OVR-01: the Overseer answers this chat (or the chat about to be made).
+    "overseer-toggle": () => {
+      const s = store.get();
+      const chat = s.chats.find((c) => c.id === s.activeChatId);
+      if (!chat) {
+        store.set({ draftOverseer: !s.draftOverseer });
+        return;
+      }
+      const overseer = !chat.overseer;
+      store.set({ chats: s.chats.map((c) => (c.id === chat.id ? { ...c, overseer } : c)) });
+      return api.updateChat(chat.id, { overseer }).catch(showError);
+    },
+    "overseer-create": async (el) => {
+      try {
+        await api.overseerTasks(JSON.parse(el.dataset.json ?? "{}"));
+      } catch (e) {
+        showError(e);
+        return;
+      }
+      markOverseerDone(el.dataset.key ?? "");
+      el.replaceWith(overseerDoneChip("Created"));
+      const [projects, tasks] = await Promise.all([api.listProjects(), api.listTasks()]);
+      store.set({ projects, tasks });
+    },
+    "overseer-interject": async (el) => {
+      try {
+        await api.interject(el.dataset.task ?? "", el.dataset.text ?? "");
+      } catch (e) {
+        showError(e);
+        return;
+      }
+      markOverseerDone(el.dataset.key ?? "");
+      el.replaceWith(overseerDoneChip("Added to the task"));
+    },
     "effort-set": (el) => {
       const effort = el.dataset.effort as Effort;
       const chatId = store.get().activeChatId;
@@ -1138,6 +1179,13 @@ function wire(shell: HTMLElement): void {
     if (fid === "activity-machine" || fid === "activity-chat") {
       const v = (ev.target as HTMLSelectElement).value || undefined;
       store.set({ activityFilter: { ...store.get().activityFilter, [fid === "activity-machine" ? "machine" : "chat"]: v } });
+      return;
+    }
+    // OVR-01: the Overseer's name and permission (Settings).
+    if (fid === "overseer-name" || fid === "overseer-interject") {
+      const input = ev.target as HTMLInputElement;
+      const change = fid === "overseer-name" ? { overseerName: input.value } : { overseerInterject: input.checked };
+      api.setOverseer(change).then(() => api.status()).then((st) => { if (st.overseer) store.set({ overseer: st.overseer }); }, showError);
       return;
     }
     if ((ev.target as HTMLElement).id === "pc-machine") {
@@ -1452,7 +1500,10 @@ function wire(shell: HTMLElement): void {
       // CHAT-01: tools picked before the chat existed.
       const mcp = store.get().draftMcp;
       if (mcp?.length) await api.updateChat(chat.id, { mcp }).catch(showError);
-      store.set({ chats: [{ ...chat, effort, mcp }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined });
+      // OVR-01: the Overseer picked before the chat existed.
+      const overseer = !!store.get().draftOverseer;
+      if (overseer) await api.updateChat(chat.id, { overseer }).catch(showError);
+      store.set({ chats: [{ ...chat, effort, mcp, overseer }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined, draftOverseer: undefined });
       chatId = chat.id;
     }
     let attached: Attached[] = [];

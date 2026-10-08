@@ -293,6 +293,10 @@ pub struct Prefs {
     gpu_pins: Option<Vec<String>>,
     /// Card colours and labels per action type (item 7): {"read": {"label": "Read", "color": "#5c398e"}, ...}.
     card_style: Option<serde_json::Value>,
+    /// OVR-01: the Overseer's name for this user ("" = the server default).
+    overseer_name: Option<String>,
+    /// OVR-01: may the Overseer add context to running tasks without asking.
+    overseer_interject: Option<bool>,
 }
 
 /// A valid card style: an object whose keys are action kinds, each {label: 1-30 chars, color: "#rrggbb"}.
@@ -338,6 +342,16 @@ pub async fn set_prefs(
             return Err(ApiError::BadRequest("Card colours need a label (up to 30 characters) and a colour like #5c398e per kind.".into()));
         }
         sqlx::query("UPDATE users SET card_style = ? WHERE id = ?").bind(style.to_string()).bind(&u.id).execute(&s.db).await?;
+    }
+    if let Some(name) = b.overseer_name {
+        let name = name.trim().to_string();
+        if name.chars().count() > 40 || name.contains(['\n', '*', '`', '[', ']']) {
+            return Err(ApiError::BadRequest("The Overseer's name is up to 40 characters on one line.".into()));
+        }
+        sqlx::query("UPDATE users SET overseer_name = ? WHERE id = ?").bind((!name.is_empty()).then_some(name)).bind(&u.id).execute(&s.db).await?;
+    }
+    if let Some(on) = b.overseer_interject {
+        sqlx::query("UPDATE users SET overseer_interject = ? WHERE id = ?").bind(on).bind(&u.id).execute(&s.db).await?;
     }
     Ok(StatusCode::NO_CONTENT)
 }

@@ -2,6 +2,7 @@
 import { html, type SafeHtml } from "../core/html";
 import { renderMarkdown } from "../core/markdown";
 import { linkSources, renderSources, splitSources } from "../core/sources";
+import { renderOverseer, splitOverseer } from "../core/overseer";
 import { splitFiles } from "../core/attachments";
 import { renderSent } from "./attach";
 import { clock } from "../core/time";
@@ -148,7 +149,7 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
   return html`
     <article class="msg ${m.author}${m.id === flashId ? " search-hit" : ""}" id="msg-${m.id}">
       <header>
-        <span class="who">${m.author === "user" ? "You" : "Kompanion"}</span>
+        <span class="who">${m.author === "user" ? "You" : assistantName}</span>
         <time datetime="${m.at}">${clock(m.at)}</time>
       </header>
       <div class="body"></div>
@@ -166,9 +167,11 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
 /** Fills the message body with sanitised markdown (never via the template). */
 export function fillMessage(el: HTMLElement, { m }: MessageView): void {
   const body = el.querySelector(".body")!;
-  const { text, sources } = splitSources(splitFiles(m.text).text);
+  const split = splitSources(splitFiles(m.text).text);
+  const { text, proposal } = splitOverseer(split.text);
   body.append(renderMarkdown(linkSources(text)));
-  if (sources.length) body.append(renderSources(sources));
+  if (proposal && !m.streaming) body.append(renderOverseer(proposal, m.id));
+  if (split.sources.length) body.append(renderSources(split.sources));
   if (m.streaming) {
     const caret = document.createElement("span");
     caret.className = "caret";
@@ -196,7 +199,9 @@ const EFFORTS: { id: Effort; label: string; hint: string }[] = [
 /** The composer's "<model> · <effort> ▾" chip and its menu (EF-01). */
 export function effortChip(s: AppState): SafeHtml {
   const level: Effort = activeChat(s)?.effort ?? s.draftEffort ?? "auto";
-  const model = s.roles.find((r) => r.role === "orchestrator")?.modelId ?? "";
+  const chat = activeChat(s);
+  const role = (chat ? chat.overseer : s.draftOverseer) ? "overseer" : "orchestrator";
+  const model = s.roles.find((r) => r.role === role)?.modelId ?? "";
   const label = EFFORTS.find((e) => e.id === level)?.label ?? "Auto";
   return html`<span class="effort">
     <button class="chip effort-chip" type="button" data-action="effort-menu" aria-haspopup="menu"
@@ -207,6 +212,23 @@ export function effortChip(s: AppState): SafeHtml {
     </div>` : ""}
   </span>`;
 }
+
+/** OVR-01: the Overseer chip: this chat is answered by the Overseer, who sees all projects and tasks. */
+export function overseerChip(s: AppState): SafeHtml {
+  const chat = activeChat(s);
+  if (chat?.thread) return html``;
+  const on = !!(chat ? chat.overseer : s.draftOverseer);
+  const name = s.overseer.name;
+  const tip = on
+    ? `${name} is on: answers here see all your projects and running tasks, can plan tasks${s.overseer.interject ? " and add context to running tasks" : ""}. Click to turn off.`
+    : `Turn on ${name}: sees all your projects and running tasks, gives you the status and plans new tasks with you.`;
+  return html`<button class="chip overseer-chip" type="button" data-action="overseer-toggle" aria-pressed="${on ? "true" : "false"}"
+    aria-label="${name} ${on ? "on" : "off"}" title="${tip}">${icon("eye")}<span class="ov-label">${on ? name : ""}</span><span class="sr-only">${on ? "" : `${name} off`}</span></button>`;
+}
+
+/** OVR-01: who wrote a message: the Overseer's name in an Overseer chat. */
+let assistantName = "Kompanion";
+export function setAssistantName(name: string): void { assistantName = name; }
 
 const WEB = "Web";
 const TOOL_HINTS: Record<string, string> = {
@@ -256,6 +278,7 @@ export function composer(): SafeHtml {
     <p class="composer-hint"><span class="hint-text">Enter sends, Shift+Enter adds a line.</span>
       <span id="voice-status" role="status"></span>
       <button class="btn small" type="button" id="voice-stop" data-action="voice-stop" hidden>Stop reading</button>
+      <span class="overseer-slot" id="overseer-slot"></span>
       <span class="web-slot" id="web-slot"></span>
       <span class="tools-slot" id="tools-slot"></span>
       <span class="effort-slot" id="effort-slot"></span></p>`;

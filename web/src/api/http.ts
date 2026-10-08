@@ -65,6 +65,9 @@ export class HttpApi implements KompanionApi {
   getNotifications() { return this.request<NotificationPrefs>("GET", "/me/notifications"); }
   setNotifications(p: NotificationPrefs) { return this.request<void>("PUT", "/me/notifications", p); }
   setGpuPins(pins: string[]) { return this.request<void>("PUT", "/me/prefs", { gpuPins: pins }); }
+  setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) { return this.request<void>("PUT", "/me/prefs", change); }
+  overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }) { return this.request<{ projectId: string }>("POST", "/overseer/tasks", b); }
+  interject(taskId: string, text: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(taskId)}/interject`, { text }); }
   setCardStyle(style: import("../core/cardtypes").CardStyle) { return this.request<void>("PUT", "/me/prefs", { cardStyle: style }); }
   setMachinesRefresh(seconds: number) { return this.request<void>("PUT", "/me/prefs", { machinesRefresh: seconds }); }
   pairMachine(name: string) { return this.request<{ id: string; name: string; token: string }>("POST", "/machines", { name }); }
@@ -117,7 +120,7 @@ export class HttpApi implements KompanionApi {
 
   createChat(title: string, projectId?: string) { return this.request<Chat>("POST", "/chats", { title, projectId }); }
   openThread(projectId: string) { return this.request<{ chatId: string }>("POST", `/projects/${encodeURIComponent(projectId)}/thread`).then((r) => r.chatId); }
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[] }) {
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean }) {
     return this.request<void>("PATCH", `/chats/${encodeURIComponent(chatId)}`, change);
   }
   createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }) {

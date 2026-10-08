@@ -19,6 +19,28 @@ static STOPPED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<S
 /// Tasks the user paused from the project thread: the run waits before its next step.
 static PAUSED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> = std::sync::LazyLock::new(Default::default);
 
+/// OVR-01: context the Overseer (or the user) added to a running task; the run reads it before its next step.
+static NOTES: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>> = std::sync::LazyLock::new(Default::default);
+
+/// Adds context to a running task (OVR-01); it is given to the worker before the next step.
+pub fn interject(task_id: &str, text: &str) {
+    NOTES.lock().unwrap().entry(task_id.to_string()).or_default().push(text.to_string());
+}
+
+/// The context added since the last step, oldest first (empties the list).
+pub fn take_notes(task_id: &str) -> Vec<String> {
+    NOTES.lock().unwrap().remove(task_id).unwrap_or_default()
+}
+
+/// A step instruction with the context added since the last step (OVR-01).
+pub(crate) fn with_notes(instruction: String, notes: &[String]) -> String {
+    if notes.is_empty() {
+        return instruction;
+    }
+    let list = notes.iter().map(|n| format!("- {n}")).collect::<Vec<_>>().join("\n");
+    format!("{instruction}\n\nContext added while this task runs (use it where it applies):\n{list}")
+}
+
 pub fn is_stopped(task_id: &str) -> bool {
     STOPPED.lock().unwrap().contains(task_id)
 }
@@ -588,7 +610,12 @@ async fn run(s: AppState, mut r: Run) {
             return;
         }
         progress(&s, &r, i as f64 / n as f64 * 0.8, &format!("Step {}/{n}: {}", i + 1, step.what)).await;
-        match work_with(&s, &r, r.effort_for(&r.worker).tool_rounds() * 2, step_instruction(&r.description, i, n, step, &plan_list), &crate::skills::text_with(&skills_root, &lessons_dir, &picked[i])).await {
+        let added = take_notes(&r.task_id);
+        if !added.is_empty() {
+            note(&s, &r, &format!("Context added: {}", added.join(" / "))).await;
+        }
+        let instruction = with_notes(step_instruction(&r.description, i, n, step, &plan_list), &added);
+        match work_with(&s, &r, r.effort_for(&r.worker).tool_rounds() * 2, instruction, &crate::skills::text_with(&skills_root, &lessons_dir, &picked[i])).await {
             Ok(line) => {
                 note(&s, &r, &format!("Step {}: {line}", i + 1)).await;
                 crate::thread::post_run(&s, &r.run_id, &format!("**{}**, step {}/{n} done: {line}", r.title, i + 1)).await;
@@ -731,6 +758,19 @@ mod tests {
         };
         let p = worker_prompt(&r);
         assert!(p.contains("/home/k/app") && p.contains("soucouyant"));
+    }
+
+    #[test]
+    fn added_context_goes_into_the_next_step_once() {
+        interject("t-ovr", "The API key lives in .env");
+        interject("t-ovr", "Use port 8095");
+        let notes = take_notes("t-ovr");
+        assert_eq!(notes, vec!["The API key lives in .env".to_string(), "Use port 8095".to_string()]);
+        assert!(take_notes("t-ovr").is_empty());
+        let s = with_notes("Do step 1.".into(), &notes);
+        assert!(s.starts_with("Do step 1.\n\nContext added while this task runs"));
+        assert!(s.contains("- Use port 8095"));
+        assert_eq!(with_notes("Do step 1.".into(), &[]), "Do step 1.");
     }
 
     #[test]

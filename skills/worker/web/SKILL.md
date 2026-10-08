@@ -34,4 +34,5 @@ extends: worker/web/SKILL
 46. (2026-10-04) Boolean attributes in `html` templates: `${x ? "selected" : ""}`, never `${String(x)}`.
 113. (2026-10-07) Arrays of `html` pieces go into a template as they are: never `.join("")` (the string is escaped and shows as markup). Values per item are computed inside the `map` callback, not as functions used like arrays (CHAT-03b).
 114. (2026-10-07) A `<details>` that must stay open across `mount()` re-renders: read the DOM's open state when rendering; the toggle event is async and lost when the element is replaced first (CHAT-03b).
+118. (2026-10-08) A handler run by `onAction` that returns a Promise must not set `disabled` itself: the busy marker re-enables the button when the Promise settles. Show the result by replacing the button (a chip such as "Created"). A new composer slot must be added to the phone rule `.composer-hint > :not(...)` or it is hidden below 760px (OVR-01).
     Use only icon names that exist in `views/icons.ts`. One small function per template branch.

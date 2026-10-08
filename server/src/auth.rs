@@ -170,6 +170,11 @@ pub async fn status(
         "gpuPins": serde_json::from_str::<serde_json::Value>(&pins).unwrap_or(serde_json::json!([])),
         "cardStyle": serde_json::from_str::<serde_json::Value>(&cards).unwrap_or(serde_json::json!({})),
         "version": env!("CARGO_PKG_VERSION"),
+        // OVR-01: the Overseer's name and whether it may add context to running tasks.
+        "overseer": match &user {
+            Some(u) => { let (name, interject) = crate::overseer::prefs(&state, &u.id).await; json!({ "name": name, "interject": interject }) }
+            None => serde_json::Value::Null,
+        },
         // HOST-01: the server's own computer, offered as "This server's computer" when pairing.
         // Only for a signed-in user: the setup and sign-in screens need neither (HOST-01, CHAT-01).
         "machineName": if user.is_some() { state.config.machine_name.clone() } else { None },

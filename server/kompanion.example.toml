@@ -47,12 +47,32 @@ local = true
 # kind = "anthropic"
 # base_url = "https://api.anthropic.com"
 # api_key_env = "ANTHROPIC_API_KEY"
+# [[provider]]
+# id = "openai"
+# name = "OpenAI"
+# kind = "openai-compatible"
+# base_url = "https://api.openai.com/v1"
+# api_key_env = "OPENAI_API_KEY"
+# [[provider]]
+# id = "openrouter"
+# name = "OpenRouter (many models)"
+# kind = "openai-compatible"
+# base_url = "https://openrouter.ai/api/v1"
+# api_key_env = "OPENROUTER_API_KEY"
 
-# Starting roles; change them later in the app (Settings > Roles). One local model can fill all three.
+# Starting roles; change them later in the app (Settings > Roles). One local model can fill all of them.
+# The Overseer (OVR-01: the eye chip in the composer) uses the orchestrator's model until you set one.
 [roles]
 orchestrator = { provider = "ollama", model = "qwen3.5:9b" }
 worker = { provider = "ollama", model = "qwen3.5:9b" }
 reviewer = { provider = "ollama", model = "qwen3.5:9b" }
+# overseer = { provider = "anthropic", model = "claude-sonnet-5-5" }
+
+# OVR-01: the Overseer's default name, and whether it may add context to running tasks without
+# asking (off: it suggests, the user sends it). Each user can change both in Settings.
+# [overseer]
+# name = "Overseer"
+# interject = false
 
 # The asset library's AI (tags, captions, search). Without this section it uses the worker role's model.
 # [assets]

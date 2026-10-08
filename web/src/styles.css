@@ -554,7 +554,7 @@ a.attach-chip:hover { border-color: var(--accent); }
   .messages { padding: 1rem; }
   .composer-wrap { padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
   /* Phones: only the effort chip stays on the hint line (EF-01). */
-  .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot) { display: none; }
+  .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot):not(.overseer-slot) { display: none; }
   .tools-chip, .tools-menu button { min-height: 44px; }
   .role { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
 }
@@ -916,7 +916,7 @@ button[aria-busy="true"]::after {
 .theme-pick-code { white-space: nowrap; }
 
 /* UI-04: every composer chip is one compact size (26px, 5px corners), also on phones. */
-.web-chip, .tools-chip, .effort-chip {
+.web-chip, .tools-chip, .effort-chip, .overseer-chip {
   min-height: 26px;
   height: 26px;
   padding: 0 0.5rem;
@@ -946,21 +946,42 @@ button[aria-busy="true"]::after {
   margin-left: 0;
 }
 
-.effort-chip .icon, .tools-chip .icon, .web-chip .icon, .attach-chip .icon {
+.effort-chip .icon, .tools-chip .icon, .web-chip .icon, .attach-chip .icon, .overseer-chip .icon {
   width: 14px;
   height: 14px;
 }
 
 @media (max-width: 760px) {
-  .effort-chip, .web-chip, .tools-chip {
+  .effort-chip, .web-chip, .tools-chip, .overseer-chip {
     min-height: 26px;
     height: 26px;
   }
 }
 
 @media (pointer: coarse) {
-  .effort-chip, .web-chip, .tools-chip {
+  .effort-chip, .web-chip, .tools-chip, .overseer-chip {
     min-height: 26px;
     height: 26px;
   }
 }
+
+/* OVR-01: the Overseer chip (eye + its name when on) and its proposals under an answer. */
+.overseer-slot { margin-left: auto; }
+.overseer-slot + .web-slot { margin-left: 0; }
+.overseer-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
+.overseer-chip:hover { border-color: var(--accent); }
+.overseer-chip[aria-pressed="true"] { box-shadow: inset 3px 0 0 var(--accent); }
+.overseer-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.overseer-chip .ov-label:empty { display: none; }
+.msg .body .overseer-box { border: 1px solid var(--line); border-radius: 5px; background: var(--surface); margin-top: 0.6rem; padding: 0.5rem 0.6rem; display: grid; gap: 0.5rem; }
+.overseer-box .ov-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.overseer-box .ov-head .btn { margin-left: auto; border-radius: 5px; }
+.overseer-box .ov-new { font-size: 0.75rem; }
+.overseer-box .ov-tasks { margin: 0.3rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.2rem; }
+.overseer-box .ov-tasks summary { cursor: pointer; }
+.overseer-box .ov-tasks p { margin: 0.2rem 0 0.3rem; }
+.overseer-box .ov-interject { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 0.45rem; }
+.overseer-box .ov-interject p { margin: 0; flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.overseer-box .ov-interject .btn { border-radius: 5px; }
+.overseer-settings .field { margin: 0.4rem 0; }
