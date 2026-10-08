@@ -94,7 +94,7 @@ export class HttpApi implements KompanionApi {
   testMail(to: string) { return this.request<void>("POST", "/admin/test-mail", { to }); }
 
   listProjects() { return this.request<Project[]>("GET", "/projects"); }
-  setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string }) {
+  setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }) {
     return this.request<void>("PATCH", `/projects/${encodeURIComponent(projectId)}/settings`, change);
   }
   projectAssets(projectId: string) {

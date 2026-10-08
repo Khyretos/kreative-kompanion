@@ -199,8 +199,7 @@ const EFFORTS: { id: Effort; label: string; hint: string }[] = [
 /** The composer's "<model> · <effort> ▾" chip and its menu (EF-01). */
 export function effortChip(s: AppState): SafeHtml {
   const level: Effort = activeChat(s)?.effort ?? s.draftEffort ?? "auto";
-  const chat = activeChat(s);
-  const role = (chat ? chat.overseer : s.draftOverseer) ? "overseer" : "orchestrator";
+  const role = overseerOn(s) ? "overseer" : "orchestrator";
   const model = s.roles.find((r) => r.role === role)?.modelId ?? "";
   const label = EFFORTS.find((e) => e.id === level)?.label ?? "Auto";
   return html`<span class="effort">
@@ -213,12 +212,30 @@ export function effortChip(s: AppState): SafeHtml {
   </span>`;
 }
 
+/** OVR-01b: the project of this chat (or of the chat about to be made) keeps the Overseer on; not its thread. */
+function projectOverseer(s: AppState): boolean {
+  const chat = activeChat(s);
+  if (chat?.thread) return false;
+  const pid = chat ? chat.projectId : s.activeProjectId;
+  return !!s.projects.find((p) => p.id === pid)?.overseer;
+}
+
+/** Whether the Overseer answers this chat: its own switch or its project's. */
+export function overseerOn(s: AppState): boolean {
+  const chat = activeChat(s);
+  return projectOverseer(s) || !!(chat ? chat.overseer : s.draftOverseer);
+}
+
 /** OVR-01: the Overseer chip: this chat is answered by the Overseer, who sees all projects and tasks. */
 export function overseerChip(s: AppState): SafeHtml {
   const chat = activeChat(s);
   if (chat?.thread) return html``;
-  const on = !!(chat ? chat.overseer : s.draftOverseer);
   const name = s.overseer.name;
+  if (projectOverseer(s)) {
+    return html`<button class="chip overseer-chip locked" type="button" aria-pressed="true" aria-disabled="true"
+      aria-label="${name} on for this whole project" title="${name} is always on in this project: switch it off in the project's panel (Tasks tab).">${icon("eye")}<span class="ov-label">${name}</span></button>`;
+  }
+  const on = !!(chat ? chat.overseer : s.draftOverseer);
   const tip = on
     ? `${name} is on: answers here see all your projects and running tasks, can plan tasks${s.overseer.interject ? " and add context to running tasks" : ""}. Click to turn off.`
     : `Turn on ${name}: sees all your projects and running tasks, gives you the status and plans new tasks with you.`;

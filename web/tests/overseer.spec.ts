@@ -62,4 +62,24 @@ test.describe("Overseer (OVR-01)", () => {
     await chip.click();
     await expect(chip).not.toHaveAttribute("title", /add context/);
   });
+
+  test("a project switch keeps it on for every chat of that project (OVR-01b)", async ({ page }) => {
+    await page.goto("/?demo");
+    await page.click("button.found-server");
+    await page.click('[data-action="project"][data-id="p-kk"]');
+    const box = page.locator("#project-overseer");
+    await expect(box).not.toBeChecked();
+    await box.check();
+    await page.click('[data-action="new-chat"][data-project="p-kk"]');
+    const chip = page.locator("#overseer-slot .overseer-chip");
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
+    await expect(chip).toHaveAttribute("aria-disabled", "true");
+    await expect(chip).toHaveAttribute("title", /always on in this project/);
+    await expect(page.locator(".effort-chip")).toContainText("qwen3.5-9b");
+    await chip.click({ force: true }); // locked: nothing changes
+    await expect(chip).toHaveAttribute("aria-pressed", "true");
+    // Another project's new chat starts with it off.
+    await page.click("#left .new-chat"); // a loose chat
+    await expect(page.locator("#overseer-slot .overseer-chip")).toHaveAttribute("aria-pressed", "false");
+  });
 });
