@@ -7,7 +7,9 @@ graph = "graph.json"
 outputs = ["20"]
 # soucouyant only until measured on the A770 (its XPU crashed with an fp8 text encoder, GPU-02).
 machines = ["soucouyant"]
-vram_mb = 13000
+# STU-V1: with the text encoder on the CPU the 1280x704 clip peaks at about 8 GB in torch (10 GB on the
+# card with the desktop); 13000 plus the 9070's 2 GB headroom was never free, so video waited for ever.
+vram_mb = 10000
 ram_mb = 10000
 
 [studio]
