@@ -16,7 +16,7 @@ function button(label: string, action: string, extra: Record<string, string> = {
 
 /** A real file name (scene.blend) for the download, not the uuid in the URL. */
 export function downloadName(text: string, ext: string): string {
-  const base = text.replace(/[^\w. -]+/g, "_").replace(/^[. ]+/, "").slice(0, 80);
+  const base = text.replace(/^download\s+/i, "").replace(/[^\w. -]+/g, "_").replace(/^[. ]+/, "").slice(0, 80);
   if (!base) return `file.${ext}`;
   return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`;
 }
