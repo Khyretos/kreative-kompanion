@@ -225,6 +225,14 @@ def triage(pr: dict, findings: list, ledger: dict, repo_root: str):
     
     for f in new_findings:
         fid = f["finding_id"]
+        # Every push reviews again and the model words the same point anew (new id): a
+        # repeat of a checked false positive on the same file keeps that verdict.
+        same = next((k for k, e in ledger.items() if e.get("checked") and e.get("verdict") == "false_positive"
+                     and e.get("title") == title(f) and e.get("path") == f["path"]), None)
+        if same:
+            ledger[fid] = dict(ledger[same], by=f"repeat of {same}")
+            print(f"{fid} false_positive: {title(f)} ({f['path']}) - repeat of {same}")
+            continue
         path = f["path"]
         line_start = f.get("line_start")
         line_end = f.get("line_end")

@@ -1,6 +1,24 @@
 {
+  "ae97b8c11446": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "the .env path is only a default (PR_AGENT_ENV) and the token is never printed or logged",
+    "title": "Hard-coded Secrets",
+    "verdict": "false_positive"
+  },
   "dedbef95465d": {
     "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "json.loads on a str raises only JSONDecodeError; an unparsed model answer is recorded as an unchecked bug on purpose so Claude decides",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e0c598aa1b20": {
+    "by": "repeat of dedbef95465d",
     "checked": true,
     "fixed": "",
     "path": "tools/qwen/review_findings.py",

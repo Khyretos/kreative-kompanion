@@ -129,6 +129,23 @@ class TriageTest(unittest.TestCase):
         self.assertEqual(ledger["bbb"]["checked"], False)
 
 
+class RepeatTest(unittest.TestCase):
+    def test_repeat_of_checked_false_positive_keeps_verdict_without_the_model(self):
+        import types
+        sys.modules["pipeline"] = types.SimpleNamespace(ask=lambda *a, **k: self.fail("model called"))
+        try:
+            ledger = {"old": {"title": "Missing Error Handling", "path": "web/src/main.ts", "verdict": "false_positive",
+                              "reason": "caught in caller", "by": "coder", "checked": True, "fixed": ""},
+                      "aaa": {"title": "Unhandled Panic", "path": "server/src/api.rs", "verdict": "bug",
+                              "reason": "real", "by": "coder", "checked": True, "fixed": "deadbee"}}
+            rf.triage({"number": 1}, rf.open_findings(STATE), ledger, "/nonexistent")
+        finally:
+            del sys.modules["pipeline"]
+        self.assertEqual(ledger["bbb"]["by"], "repeat of old")
+        self.assertTrue(ledger["bbb"]["checked"])
+        self.assertEqual(rf.blocking(rf.open_findings(STATE), ledger), [])
+
+
 class JobsTest(unittest.TestCase):
     def test_fix_jobs_only_checked_unfixed_bugs(self):
         ledger = {
