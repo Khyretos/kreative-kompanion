@@ -14,6 +14,13 @@ function button(label: string, action: string, extra: Record<string, string> = {
   return b;
 }
 
+/** A real file name (scene.blend) for the download, not the uuid in the URL. */
+export function downloadName(text: string, ext: string): string {
+  const base = text.replace(/[^\w. -]+/g, "_").replace(/^[. ]+/, "").slice(0, 80);
+  if (!base) return `file.${ext}`;
+  return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`;
+}
+
 /** Wraps every picture in a figure with Copy and Download, and turns file links into download cards. */
 export function enhanceMedia(frag: DocumentFragment): void {
   for (const img of Array.from(frag.querySelectorAll("img"))) {
@@ -44,7 +51,7 @@ export function enhanceMedia(frag: DocumentFragment): void {
     const dl = document.createElement("a");
     dl.className = "btn small";
     dl.href = href;
-    dl.setAttribute("download", "");
+    dl.setAttribute("download", downloadName(label.textContent ?? "", ext));
     dl.textContent = "Download";
     card.append(label, dl);
     (a.parentElement?.childNodes.length === 1 ? a.parentElement : a).replaceWith(card);
