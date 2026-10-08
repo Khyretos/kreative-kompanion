@@ -93,6 +93,27 @@ async fn uploaded_files_become_text() {
     assert!(extract("song.mp3", b"ID3").await.unwrap_err().to_string().contains("mp3"));
 }
 
+#[test]
+fn html_pages_keep_only_their_main_content() {
+    let furo = "<html><head><title>Subsurf</title></head><body><nav>Menu Modeling Sculpting</nav><div><article role=\"main\" id=\"furo-main-content\"><h1>Subdivision Surface</h1><p>Splits faces.</p></article></div><footer>Previous Next</footer></body></html>";
+    assert_eq!(main_content(furo), "<article role=\"main\" id=\"furo-main-content\"><h1>Subdivision Surface</h1><p>Splits faces.</p></article>");
+    let plain = "<body><header>Site menu</header><MAIN class=\"x\"><p>Body text</p></MAIN><aside>Links</aside></body>";
+    assert_eq!(main_content(plain), "<MAIN class=\"x\"><p>Body text</p></MAIN>");
+    let whole = "<body><h1>Timer</h1></body>";
+    assert_eq!(main_content(whole), whole);
+    // An opening tag without its closing tag keeps the whole page.
+    assert_eq!(main_content("<nav>a</nav><main><p>cut"), "<nav>a</nav><main><p>cut");
+    // "<mainframe>" is not "<main>".
+    assert_eq!(main_content("<mainframe>x</mainframe>"), "<mainframe>x</mainframe>");
+}
+
+#[tokio::test]
+async fn html_files_are_indexed_without_their_menus() {
+    let page = b"<html><body><nav>Menu Modeling Sculpting</nav><article role=\"main\"><h1>Subdivision Surface</h1></article><footer>Previous Next</footer></body></html>";
+    let text = extract("modifiers/subsurf.html", page).await.unwrap();
+    assert!(text.contains("Subdivision Surface") && !text.contains("Menu") && !text.contains("Previous"));
+}
+
 fn unit(i: usize) -> Vec<f32> {
     let mut v = vec![0.0f32; crate::assets::ai::DIMS];
     v[i] = 1.0;
