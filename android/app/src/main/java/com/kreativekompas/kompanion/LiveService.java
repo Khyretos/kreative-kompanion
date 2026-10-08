@@ -251,7 +251,7 @@ public class LiveService extends Service {
                 .setSmallIcon(R.drawable.ic_stat)
                 .setContentTitle(getString(textRes))
                 .setOngoing(true)
-                .setColor(0xFFF3941F)
+                .setColor(0xFF5C398E)
                 .setContentIntent(PendingIntent.getActivity(this, 1, new Intent(this, SettingsActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         return builder.build();
     }

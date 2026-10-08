@@ -15,6 +15,7 @@ import { onMediaAction } from "./core/media";
 import { activeProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
+import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
 import { composer, effortChip, overseerChip, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
@@ -335,6 +336,8 @@ function render(s: AppState, prev: AppState): void {
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
     "chatMenuId", "movingChatId", "renamingChatId", "server", "userName", "logoVersion", "section", "allTasksShown", "openTaskId"])) {
     remount($("#left"), renderSidebar(s));
+    const menu = document.querySelector<HTMLElement>(".chat-row.menu-open .menu");
+    if (menu) placeMenu(menu);
   }
   if (s.renamingChatId && s.renamingChatId !== prev.renamingChatId) {
     const input = document.querySelector<HTMLInputElement>("form.rename input");
@@ -446,6 +449,18 @@ function render(s: AppState, prev: AppState): void {
   }
   firstRender = false;
   restoreBusy(shell);
+}
+
+/** BUG-05: a chat's options menu near the bottom of the sidebar opens upward, and the list scrolls
+ *  so the whole menu shows above the Assets/Studio/Settings footer. */
+function placeMenu(menu: HTMLElement): void {
+  const nav = menu.closest<HTMLElement>(".nav");
+  const row = menu.parentElement;
+  if (!nav || !row) return;
+  const box = nav.getBoundingClientRect();
+  const m = menu.getBoundingClientRect();
+  if (m.bottom > box.bottom && row.getBoundingClientRect().top - box.top >= m.height) menu.classList.add("up");
+  menu.scrollIntoView({ block: "nearest" });
 }
 
 function applyEvent(ev: ServerEvent): void {
@@ -690,6 +705,15 @@ function wire(shell: HTMLElement): void {
   setAssetThumbs((a) => assets.previewUrl(a, "t"));
   assetsView = new AssetsView($("#assets"), assetsApi, () => store.get().isAdmin);
   settingsModal = modal($("#settings"), () => store.set({ settingsOpen: false }));
+  // BUG-05: the Android app asks the page first when back is pressed (MainActivity.onBackPressed):
+  // close a menu or panel, then go back to the chat, and only then may the app close.
+  (window as { kompanionBack?: () => boolean }).kompanionBack = () => {
+    const step = backStep(store.get());
+    if (!step) return false;
+    if (step.settingsOpen === false) settingsModal?.requestClose();
+    else store.set(step);
+    return true;
+  };
   store.subscribe(render);
   store.flush();
   api.onEvent(applyEvent);
