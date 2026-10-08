@@ -59,7 +59,9 @@ class DrawPose(unittest.TestCase):
             src, out = os.path.join(d, "k.json"), os.path.join(d, "pose.png")
             with open(src, "w") as f:
                 json.dump(DATA, f)
-            r = subprocess.run([sys.executable, PATH, src, out], capture_output=True, text=True)
+            r = subprocess.run(
+                [sys.executable, PATH, src, out], capture_output=True, text=True
+            )
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(Image.open(out).size, (200, 160))
 
