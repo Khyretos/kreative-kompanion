@@ -1,0 +1,20 @@
+{
+  "dedbef95465d": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "json.loads on a str raises only JSONDecodeError; an unparsed model answer is recorded as an unchecked bug on purpose so Claude decides",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "fbaf9f6ab0cc": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "no secret in the code, but the API URL was fixed to Kees's Forgejo: now FORGEJO_API (the .env path was already PR_AGENT_ENV)",
+    "title": "Hard-coded Secrets",
+    "verdict": "bug"
+  }
+}

@@ -273,7 +273,8 @@ def main():
                         help="Use the last review even when it is for an older commit (a push review that failed)")
     args = parser.parse_args()
     
-    base_url = "https://git.kreative-kompas.com/api/v1"
+    # Kees's Forgejo by default; FORGEJO_API and PR_AGENT_ENV point it at another setup.
+    base_url = os.environ.get("FORGEJO_API", "https://git.kreative-kompas.com/api/v1").rstrip("/")
     env_file = os.environ.get("PR_AGENT_ENV", "/home/khyretos/Docker/Services/pr-agent/.env")
     
     # Read token
