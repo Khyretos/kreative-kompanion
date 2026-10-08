@@ -29,8 +29,8 @@ def filter_graph(labels, w, h):
     """Build ffmpeg filter graph for side-by-side videos with labels."""
     lab = ":x=8:y=8:fontsize=18:fontcolor=white:box=1:boxcolor=black@0.6"
     parts = [
-        f"[{i}:v]scale={w}:{h},setsar=1,drawtext=text='{clean_label(l)}'{lab}[v{i}]"
-        for i, l in enumerate(labels)
+        f"[{i}:v]scale={w}:{h},setsar=1,drawtext=text='{clean_label(label)}'{lab}[v{i}]"
+        for i, label in enumerate(labels)
     ]
     return (
         ";".join(parts)

@@ -7,7 +7,8 @@
 # between -6 and -1 dB (the STU-A1 target).
 set -eu
 [ $# -gt 0 ] || {
-    echo "usage: $0 FILE... | DIR" >&2; exit 2
+    echo "usage: $0 FILE... | DIR" >&2
+    exit 2
 }
 if [ $# -eq 1 ] && [ -d "$1" ]; then
     d=$1
