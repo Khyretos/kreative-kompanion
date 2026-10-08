@@ -320,7 +320,7 @@ def main():
         sys.exit(2)
     
     last_run = state.get("last_run", {})
-    if last_run.get("head_sha") != head_sha and not args.allow_stale:
+    if last_run.get("head_sha") != head_sha and not args.allow_stale and not ledger_only(last_run.get("head_sha", ""), head_sha):
         old_sha = last_run.get("head_sha", "")[:7]
         new_sha = head_sha[:7]
         print(f"review pending: last review is for {old_sha}, head is {new_sha}")
@@ -357,6 +357,15 @@ def main():
     
     print(f"review findings: all {len(findings)} open findings handled")
     sys.exit(0)
+
+
+def ledger_only(reviewed: str, head: str) -> bool:
+    """True when the commits after the reviewed one only touch the ledger or the drafting log:
+    such a push needs no new review (otherwise every ledger commit waits for one more)."""
+    import subprocess
+    r = subprocess.run(["git", "-C", REPO, "diff", "--name-only", reviewed, head], capture_output=True, text=True)
+    files = r.stdout.split()
+    return r.returncode == 0 and bool(files) and all(f.startswith(("docs/review-findings/", "docs/qwen-log/")) for f in files)
 
 
 def get_json(url: str, headers: dict):
