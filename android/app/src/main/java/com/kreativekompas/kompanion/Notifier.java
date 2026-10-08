@@ -3,116 +3,145 @@ package com.kreativekompas.kompanion;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Bundle;
-import android.app.PendingIntent;
 
+/**
+ * Notification channels and task notifications.
+ */
 public final class Notifier {
+    /** Channel of task notifications. */
+    private static final String TASKS = "tasks";
+    /** Channel of the live connection's silent notification. */
+    private static final String LIVE = "live";
+    /** Kompas violet, the notification's accent colour. */
+    private static final int VIOLET = 0xFF5C398E;
+    /** Flags of every pending intent we make. */
+    private static final int INTENT_FLAGS =
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
 
     private Notifier() {
-        // Private constructor to prevent instantiation
+        // Only static helpers.
     }
 
     /**
      * Ensures notification channels exist for tasks and live updates.
+     *
+     * @param context any context of the app
      */
-    public static void ensureChannels(Context c) {
-        NotificationManager manager = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
-
-        // Channel "tasks": IMPORTANCE_HIGH
-        if (manager.getNotificationChannel("tasks") == null) {
-            NotificationChannel channelTasks = new NotificationChannel(
-                    "tasks",
-                    c.getString(R.string.channel_tasks),
-                    NotificationManager.IMPORTANCE_HIGH
-            );
-            manager.createNotificationChannel(channelTasks);
+    public static void ensureChannels(final Context context) {
+        final NotificationManager manager =
+            context.getSystemService(NotificationManager.class);
+        if (manager.getNotificationChannel(TASKS) == null) {
+            manager.createNotificationChannel(new NotificationChannel(TASKS,
+                context.getString(R.string.channel_tasks),
+                NotificationManager.IMPORTANCE_HIGH));
         }
-
-        // Channel "live": IMPORTANCE_MIN, setShowBadge(false)
-        if (manager.getNotificationChannel("live") == null) {
-            NotificationChannel channelLive = new NotificationChannel(
-                    "live",
-                    c.getString(R.string.channel_live),
-                    NotificationManager.IMPORTANCE_MIN
-            );
-            channelLive.setShowBadge(false);
-            manager.createNotificationChannel(channelLive);
+        if (manager.getNotificationChannel(LIVE) == null) {
+            final NotificationChannel live = new NotificationChannel(LIVE,
+                context.getString(R.string.channel_live),
+                NotificationManager.IMPORTANCE_MIN);
+            live.setShowBadge(false);
+            manager.createNotificationChannel(live);
         }
     }
 
     /**
      * Shows a notification based on task state.
      *
-     * @param c Context
-     * @param title Title of the notification (null becomes "Kompanion")
-     * @param state State string ("needs you", "failed", "done", or raw text)
+     * @param context any context of the app
+     * @param title title of the notification (null becomes "Kompanion")
+     * @param state "needs you", "failed", "done", or raw text
      * @param url URL to open (null becomes "")
      */
-    public static void show(Context c, String title, String state, String url) {
-        // Normalize inputs
-        if (title == null || title.isEmpty()) {
-            title = "Kompanion";
-        }
-        if (url == null || url.isEmpty()) {
-            url = "";
-        }
+    public static void show(final Context context, final String title,
+            final String state, final String url) {
+        final String link = orEmpty(url);
+        ensureChannels(context);
+        final Intent intent = new Intent(context, MainActivity.class);
+        intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.putExtra("url", link);
+        final Notification.Builder builder =
+            new Notification.Builder(context, TASKS)
+                .setSmallIcon(R.drawable.ic_stat)
+                .setContentTitle(orApp(title))
+                .setContentText(label(context, state))
+                .setColor(VIOLET)
+                .setAutoCancel(true)
+                .setContentIntent(PendingIntent.getActivity(context,
+                    link.hashCode(), intent, INTENT_FLAGS));
+        context.getSystemService(NotificationManager.class)
+            .notify(notificationId(link), builder.build());
+    }
 
-        // Map state to resource ID or keep raw string
-        int resId;
+    /**
+     * The text for a task state.
+     *
+     * @param context any context of the app
+     * @param state the state sent by the server
+     * @return the translated label, or the state itself
+     */
+    private static String label(final Context context, final String state) {
+        final String label;
         if ("needs you".equals(state)) {
-            resId = R.string.state_needs_you;
+            label = context.getString(R.string.state_needs_you);
         } else if ("failed".equals(state)) {
-            resId = R.string.state_failed;
+            label = context.getString(R.string.state_failed);
         } else if ("done".equals(state)) {
-            resId = R.string.state_done;
-        } else {
-            // Fallback: use the state string itself as content text
-            resId = 0; // Sentinel value indicating we should use the raw string
-        }
-
-        String label;
-        if (resId != 0) {
-            label = c.getString(resId);
+            label = context.getString(R.string.state_done);
         } else {
             label = state;
         }
+        return label;
+    }
 
-        ensureChannels(c);
-
-        Intent intent = new Intent(c, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-
-        Bundle extras = new Bundle();
-        extras.putString("url", url);
-        intent.putExtras(extras);
-
-        PendingIntent pendingIntent;
-        if (url.isEmpty()) {
-            pendingIntent = PendingIntent.getActivity(c, 0, intent, 
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        } else {
-            pendingIntent = PendingIntent.getActivity(c, url.hashCode(), intent, 
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        }
-
-        Notification.Builder builder = new Notification.Builder(c, "tasks")
-                .setSmallIcon(R.drawable.ic_stat)
-                .setContentTitle(title)
-                .setContentText(label)
-                .setColor(0xFF5C398E)
-                .setAutoCancel(true)
-                .setContentIntent(pendingIntent);
-
-        int notificationId;
-        if (url.isEmpty()) {
+    /**
+     * One notification per link; links-less ones never replace each other.
+     *
+     * @param link the URL the notification opens, or ""
+     * @return the notification id
+     */
+    private static int notificationId(final String link) {
+        final int notificationId;
+        if (link.isEmpty()) {
             notificationId = (int) System.currentTimeMillis();
         } else {
-            notificationId = url.hashCode();
+            notificationId = link.hashCode();
         }
+        return notificationId;
+    }
 
-        NotificationManager notificationManager = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.notify(notificationId, builder.build());
+    /**
+     * Null-safe text.
+     *
+     * @param text any text or null
+     * @return the text, or "" for null
+     */
+    private static String orEmpty(final String text) {
+        final String safe;
+        if (text == null) {
+            safe = "";
+        } else {
+            safe = text;
+        }
+        return safe;
+    }
+
+    /**
+     * The title, or the app's name when there is none.
+     *
+     * @param title any title or null
+     * @return a title that is never empty
+     */
+    private static String orApp(final String title) {
+        final String safe;
+        if (title == null || title.isEmpty()) {
+            safe = "Kompanion";
+        } else {
+            safe = title;
+        }
+        return safe;
     }
 }

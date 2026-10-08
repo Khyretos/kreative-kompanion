@@ -333,7 +333,7 @@ def description(t):
     steps = "\n".join(f"{i}. {s}" for i, s in enumerate(t["steps"], 1))
     return (
         f"**Goal:** {t['goal']}\n\n**Machine / role:** {t['machine']}\n\n**Depends on:** {deps}\n\n"
-        f"**Steps**\n{steps}\n\n**Done when:** {t['done']}\n\n_M6 two-brain game studio, phase {t['phase']}. Planning only: not started._"
+        f"**Steps**\n\n{steps}\n\n**Done when:** {t['done']}\n\n_M6 two-brain game studio, phase {t['phase']}. Planning only: not started._"
     )
 
 
