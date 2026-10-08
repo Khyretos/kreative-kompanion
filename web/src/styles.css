@@ -914,3 +914,53 @@ button[aria-busy="true"]::after {
 .theme-pick-code select { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: 5px; padding: 0.3rem 0.5rem; }
 .msg .body .codeblock pre { background: transparent; border: 0; border-radius: 0; }
 .theme-pick-code { white-space: nowrap; }
+
+/* UI-04: every composer chip is one compact size (26px, 5px corners), also on phones. */
+.web-chip, .tools-chip, .effort-chip {
+  min-height: 26px;
+  height: 26px;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+  line-height: 1;
+  font-size: 0.75rem;
+  border-radius: 5px;
+  gap: 0.3rem;
+}
+
+.attach-row .attach-chip {
+  min-height: 26px;
+  height: 26px;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+  line-height: 1;
+  font-size: 0.75rem;
+  border-radius: 5px;
+  gap: 0.3rem;
+}
+
+.composer-hint {
+  gap: 0.35rem;
+}
+
+.web-slot + .tools-slot, .tools-slot + .effort-slot, .web-slot + .effort-slot {
+  margin-left: 0;
+}
+
+.effort-chip .icon, .tools-chip .icon, .web-chip .icon, .attach-chip .icon {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 760px) {
+  .effort-chip, .web-chip, .tools-chip {
+    min-height: 26px;
+    height: 26px;
+  }
+}
+
+@media (pointer: coarse) {
+  .effort-chip, .web-chip, .tools-chip {
+    min-height: 26px;
+    height: 26px;
+  }
+}
