@@ -15,6 +15,8 @@ import { onMediaAction } from "./core/media";
 import { activeProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
+import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
+import type { Attached } from "./core/attachments";
 import { composer, effortChip, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
@@ -1422,15 +1424,28 @@ function wire(shell: HTMLElement): void {
 
   const form = $("#composer");
   const prompt = $("#prompt") as HTMLTextAreaElement;
+  // CHAT-08: files chosen for the next message (kept in memory until Send, then uploaded to the chat).
+  let pending: Pending[] = [];
+  const drawPending = () => mount($("#attach-row"), renderPending(pending));
+  const addPicked = (files: File[]) => {
+    const { added, refused } = acceptFiles(pending, files);
+    pending = [...pending, ...added];
+    drawPending();
+    if (refused.length) showError(new Error(refused.join("\n")));
+  };
   const submit = async () => {
     const text = prompt.value.trim();
-    if (!text) return;
+    if (!text && pending.length === 0) return;
+    const files = pending;
     prompt.value = "";
+    pending = [];
+    drawPending();
     autosize();
     let chatId = store.get().activeChatId;
     let effort: Effort | undefined;
     if (!chatId) {
-      const title = text.length > 40 ? text.slice(0, 38) + "…" : text;
+      const label = text || files[0].file.name;
+      const title = label.length > 40 ? label.slice(0, 38) + "…" : label;
       const chat = await api.createChat(title, store.get().activeProjectId);
       effort = store.get().draftEffort;
       // CHAT-01: tools picked before the chat existed.
@@ -1439,7 +1454,20 @@ function wire(shell: HTMLElement): void {
       store.set({ chats: [{ ...chat, effort, mcp }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined });
       chatId = chat.id;
     }
-    await api.send(chatId, text, store.get().pcMachineId, effort).catch(showError);
+    let attached: Attached[] = [];
+    try {
+      for (const p of files) attached.push(await api.attach(chatId, p.file));
+    } catch (e) {
+      // Give the files and the text back: nothing was sent.
+      pending = files;
+      prompt.value = text;
+      drawPending();
+      autosize();
+      showError(e);
+      return;
+    }
+    releaseFiles(files);
+    await api.send(chatId, text, store.get().pcMachineId, effort, attached).catch(showError);
   };
   const autosize = () => {
     prompt.style.height = "auto";
@@ -1451,6 +1479,37 @@ function wire(shell: HTMLElement): void {
   prompt.addEventListener("input", autosize);
   prompt.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); submit(); }
+  });
+  // CHAT-08: the paperclip, pasted files and files dropped on the composer.
+  const input = $("#attach-input") as HTMLInputElement;
+  $("#composer").querySelector('[data-action="attach-pick"]')?.addEventListener("click", () => input.click());
+  input.addEventListener("change", () => { addPicked([...(input.files ?? [])]); input.value = ""; });
+  $("#attach-row").addEventListener("click", (ev) => {
+    const x = (ev.target as HTMLElement).closest<HTMLElement>('[data-action="attach-remove"]');
+    if (!x) return;
+    const [gone] = pending.splice(Number(x.dataset.idx), 1);
+    if (gone) releaseFiles([gone]);
+    drawPending();
+    prompt.focus();
+  });
+  prompt.addEventListener("paste", (ev) => {
+    const files = [...(ev.clipboardData?.files ?? [])];
+    if (files.length === 0) return; // plain text pastes as usual
+    ev.preventDefault();
+    addPicked(files);
+  });
+  const wrap = $(".composer-wrap");
+  const hasFiles = (ev: DragEvent) => !!ev.dataTransfer && [...ev.dataTransfer.types].includes("Files");
+  let dragDepth = 0;
+  wrap.addEventListener("dragenter", (ev) => { if (hasFiles(ev)) { dragDepth++; wrap.classList.add("drop-target"); } });
+  wrap.addEventListener("dragover", (ev) => { if (hasFiles(ev)) ev.preventDefault(); });
+  wrap.addEventListener("dragleave", (ev) => { if (hasFiles(ev) && --dragDepth <= 0) { dragDepth = 0; wrap.classList.remove("drop-target"); } });
+  wrap.addEventListener("drop", (ev) => {
+    if (!hasFiles(ev)) return;
+    ev.preventDefault();
+    dragDepth = 0;
+    wrap.classList.remove("drop-target");
+    addPicked([...(ev.dataTransfer?.files ?? [])]);
   });
 }
 

@@ -801,7 +801,12 @@ export class MockApi implements KompanionApi {
     step("running", null, 300);
     step("done", "resolving dependencies...\ninstalling htop...\nexit: 0", 600);
   }
-  async send(chatId: string, text: string, machineId?: string) {
+  async attach(_chatId: string, file: File) {
+    const kind = /\.(png|jpe?g|webp)$/i.test(file.name) ? "image" : "text";
+    return { name: file.name, file: `${id("f")}.${kind === "image" ? "png" : "txt"}`, kind } as import("../core/attachments").Attached;
+  }
+  async send(chatId: string, text: string, machineId?: string, _effort?: unknown, attachments: import("../core/attachments").Attached[] = []) {
+    if (attachments.length) text += "\n\n:::files\n" + JSON.stringify(attachments);
     if (machineId && /long step/i.test(text)) {
       // Demo of a long command (20 s) that can be stopped.
       const a = { id: id("a"), chatId, machineId, summary: "Run `cargo build` in /home/kees/projects/kk-engine", tool: { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "cargo build" },

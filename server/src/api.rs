@@ -209,6 +209,9 @@ pub struct SendBody {
     /// The chat's effort for this and later messages (EF-01); stored on the chat.
     #[serde(default)]
     effort: Option<String>,
+    /// CHAT-08: files uploaded to this chat with POST /chats/{id}/attachments.
+    #[serde(default)]
+    attachments: Vec<crate::chat_attach::Attached>,
 }
 
 /// Stores the user's message, then streams the orchestrator's answer as
@@ -220,7 +223,7 @@ pub async fn send(
     Json(b): Json<SendBody>,
 ) -> ApiResult<StatusCode> {
     let text = b.text.trim().to_string();
-    if text.is_empty() || text.len() > 100_000 {
+    if (text.is_empty() && b.attachments.is_empty()) || text.len() > 100_000 {
         return Err(ApiError::BadRequest(
             "Messages must be 1 to 100,000 characters.".into(),
         ));
@@ -236,7 +239,11 @@ pub async fn send(
             .execute(&s.db)
             .await?;
     }
-    let user_msg = insert_message(&s, &chat_id, "user", &text).await?;
+    if !crate::chat_attach_web::valid(&crate::chat_files::dir_for(&s.config.database), &chat_id, &b.attachments) {
+        return Err(ApiError::BadRequest("Those files cannot be attached to this message.".into()));
+    }
+    // The files travel with the message as a `:::files` block, like the sources under an answer.
+    let user_msg = insert_message(&s, &chat_id, "user", &format!("{text}{}", crate::chat_attach::block(&b.attachments))).await?;
     s.bus.send(&u.id, Event::Message { message: user_msg });
 
     // In a project thread, "pause" and "go on" steer the project's running tasks (SK-02);
@@ -361,10 +368,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         .count()
         .max(1);
     let history = history[history.len().saturating_sub(keep)..].to_vec();
-    let mut convo = vec![ChatMessage {
-        role: "system".into(),
-        content: ORCHESTRATOR_PROMPT.into(),
-    }];
+    let mut convo = vec![ChatMessage::text("system", ORCHESTRATOR_PROMPT.into())];
     // A project chat knows its project: description, tasks with states and steps.
     let project: Option<(Option<String>,)> = sqlx::query_as("SELECT project_id FROM chats WHERE id = ?")
         .bind(&chat_id)
@@ -379,14 +383,26 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
             convo[0].content.push_str(&format!("\n\nThis chat belongs to a project. What you know about it:\n\n{ctx}"));
         }
     }
-    convo.extend(history.into_iter().map(|(author, text)| ChatMessage {
-        role: if author == "user" {
-            "user".into()
+    // CHAT-08: attached files. Documents go in as text and pictures to a model that can see them: the newest
+    // messages first, within a budget; the pictures only of the newest message that has any.
+    let files_dir = crate::chat_files::dir_for(&s.config.database);
+    let mut pictures_left = true;
+    let mut turns: Vec<ChatMessage> = Vec::new();
+    for (author, text) in history.into_iter().rev() {
+        let (text, files) = crate::chat_attach::split(&text);
+        let text = text.split("\n\n:::sources\n").next().unwrap_or("").to_string();
+        let user = author == "user";
+        let (note, images) = if user && !files.is_empty() {
+            let r = crate::chat_attach_web::for_model(&files_dir, &chat_id, &files, &role.model_id, pictures_left).await;
+            if !r.1.is_empty() { pictures_left = false }
+            r
         } else {
-            "assistant".into()
-        },
-        content: text.split("\n\n:::sources\n").next().unwrap_or("").to_string(),
-    }));
+            (String::new(), Vec::new())
+        };
+        turns.push(ChatMessage { role: if user { "user".into() } else { "assistant".into() }, content: format!("{text}{note}"), images });
+    }
+    turns.reverse();
+    convo.extend(turns);
 
     // CHAT-01: the MCP tools this chat turned on: a few tool rounds first, each use shown in the thread.
     let mcp: String = sqlx::query_scalar("SELECT mcp FROM chats WHERE id = ?")
@@ -410,12 +426,11 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     let mut used_lines = String::new();
     let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
     if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none(), s.config.provider(&role.provider_id)) {
-        let msgs: Vec<Value> = convo.iter().map(|m| json!({"role": m.role, "content": m.content})).collect();
+        let msgs: Vec<Value> = convo.iter().map(|m| m.wire(false)).collect();
         let (bus, uid, rid, cid) = (s.bus.clone(), user_id.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let files_dir = crate::chat_files::dir_for(&s.config.database);
         let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));

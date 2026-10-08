@@ -14,6 +14,31 @@ use crate::config::{ProviderConfig, ProviderKind};
 pub struct ChatMessage {
     pub role: String, // "system" | "user" | "assistant"
     pub content: String,
+    /// CHAT-08: pictures the user attached, as data URLs (only for a model that can see them).
+    #[serde(skip)]
+    pub images: Vec<String>,
+}
+
+impl ChatMessage {
+    pub fn text(role: &str, content: String) -> Self {
+        Self { role: role.into(), content, images: Vec::new() }
+    }
+
+    /// The message as a provider wants it: plain text, or text plus pictures as content parts.
+    pub fn wire(&self, anthropic: bool) -> Value {
+        if self.images.is_empty() {
+            return json!({"role": self.role, "content": self.content});
+        }
+        let mut parts: Vec<Value> = self.images.iter().filter_map(|url| {
+            if !anthropic {
+                return Some(json!({"type": "image_url", "image_url": {"url": url}}));
+            }
+            let (head, data) = url.strip_prefix("data:")?.split_once(";base64,")?;
+            Some(json!({"type": "image", "source": {"type": "base64", "media_type": head, "data": data}}))
+        }).collect();
+        parts.push(json!({"type": "text", "text": self.content}));
+        json!({"role": self.role, "content": parts})
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -132,7 +157,7 @@ pub async fn stream_chat(
             join(&p.base_url, "chat/completions"),
             json!({
                 "model": model,
-                "messages": messages,
+                "messages": messages.iter().map(|m| m.wire(false)).collect::<Vec<_>>(),
                 "stream": true,
                 "stream_options": { "include_usage": true },
             }),
@@ -143,7 +168,7 @@ pub async fn stream_chat(
                 .filter(|m| m.role == "system")
                 .map(|m| m.content.as_str())
                 .collect();
-            let rest: Vec<&ChatMessage> = messages.iter().filter(|m| m.role != "system").collect();
+            let rest: Vec<Value> = messages.iter().filter(|m| m.role != "system").map(|m| m.wire(true)).collect();
             (
                 join(&p.base_url, "v1/messages"),
                 json!({

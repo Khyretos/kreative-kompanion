@@ -2,6 +2,8 @@
 import { html, type SafeHtml } from "../core/html";
 import { renderMarkdown } from "../core/markdown";
 import { linkSources, renderSources, splitSources } from "../core/sources";
+import { splitFiles } from "../core/attachments";
+import { renderSent } from "./attach";
 import { clock } from "../core/time";
 import { activeChat, activeProject, type AppState } from "../state";
 import type { Effort, Message, Task } from "../api/types";
@@ -150,6 +152,7 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
         <time datetime="${m.at}">${clock(m.at)}</time>
       </header>
       <div class="body"></div>
+      ${renderSent(m.chatId, splitFiles(m.text).files)}
       ${renderSteps(steps, machines)}
       ${tasks.length ? html`
         <ul class="msg-tasks">${tasks.map((t) => html`
@@ -163,7 +166,7 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
 /** Fills the message body with sanitised markdown (never via the template). */
 export function fillMessage(el: HTMLElement, { m }: MessageView): void {
   const body = el.querySelector(".body")!;
-  const { text, sources } = splitSources(m.text);
+  const { text, sources } = splitSources(splitFiles(m.text).text);
   body.append(renderMarkdown(linkSources(text)));
   if (sources.length) body.append(renderSources(sources));
   if (m.streaming) {
@@ -241,7 +244,10 @@ export function toolsChip(s: AppState): SafeHtml {
 
 export function composer(): SafeHtml {
   return html`
+    <div class="attach-row" id="attach-row" aria-live="polite"></div>
     <form class="composer" id="composer">
+      <input type="file" id="attach-input" multiple hidden accept="image/png,image/jpeg,image/webp,.pdf,.txt,.md,.markdown,.csv,.json,.toml,.yaml,.yml,.xml,.html,.htm,.log,.ini,.cfg,.sql,.sh,.css,.rs,.py,.ts,.tsx,.js,.jsx,.gd,.c,.h,.cpp,.hpp,.java,.go,.rb,.kt,.cs">
+      <button class="btn attach" type="button" data-action="attach-pick" aria-label="Attach files">${icon("paperclip")}</button>
       <label class="sr-only" for="prompt">Message</label>
       <div class="prompt-box"><textarea id="prompt" rows="1" placeholder="Ask, plan, or hand over a task…"></textarea></div>
       <button class="btn mic" type="button" id="voice-mic" data-action="voice-mic" aria-label="Speak" aria-pressed="false" hidden>${icon("mic")}</button>

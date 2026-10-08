@@ -59,11 +59,17 @@ pub async fn save(dir: &Path, chat_id: &str, mime: &str, data_b64: &str) -> anyh
         other => file_ext(other).ok_or_else(|| anyhow::anyhow!("unsupported file type {other}"))?,
     };
     let bytes = base64::engine::general_purpose::STANDARD.decode(data_b64.trim())?;
+    save_bytes(dir, chat_id, ext, &bytes).await
+}
+
+/// Writes bytes under the chat as <uuid v4>.<ext>; returns the file name.
+pub async fn save_bytes(dir: &Path, chat_id: &str, ext: &str, bytes: &[u8]) -> anyhow::Result<String> {
+    if !safe_id(chat_id) { anyhow::bail!("bad chat id") }
     if bytes.len() > MAX_BYTES { anyhow::bail!("picture too large") }
     let folder = dir.join(chat_id);
     tokio::fs::create_dir_all(&folder).await?;
     let name = format!("{}.{ext}", uuid::Uuid::new_v4());
-    tokio::fs::write(folder.join(&name), &bytes).await?;
+    tokio::fs::write(folder.join(&name), bytes).await?;
     Ok(name)
 }
 
