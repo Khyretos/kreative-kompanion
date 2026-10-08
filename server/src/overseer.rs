@@ -349,8 +349,11 @@ pub struct NewTaskBody {
     description: String,
 }
 
-/// The body tasks::create takes (camelCase, like the app sends it).
+/// The body tasks::create takes (camelCase, like the app sends it). A task needs a written goal, so
+/// the Overseer's one-line description becomes the goal (the title when it gave none).
 fn task_body(project_id: &str, title: &str, description: &str) -> Value {
+    let goal = if description.trim().is_empty() { title.trim() } else { description.trim() };
+    let description = format!("**Goal:** {goal}\n\n_Planned with the Overseer: add steps and a \"done when\" before starting if it needs more._");
     json!({ "projectId": project_id, "title": title, "description": description })
 }
 
@@ -362,6 +365,13 @@ pub async fn create_tasks(
 ) -> ApiResult<(StatusCode, Json<Value>)> {
     if b.tasks.is_empty() || b.tasks.len() > 30 {
         return Err(ApiError::BadRequest("Propose 1 to 30 tasks.".into()));
+    }
+    // Check every task before a new project is made, so a bad task leaves nothing behind.
+    for t in &b.tasks {
+        if t.title.trim().is_empty() {
+            return Err(ApiError::BadRequest("Every task needs a title.".into()));
+        }
+        crate::tasks::clean_description(task_body("", &t.title, &t.description)["description"].as_str().unwrap_or(""))?;
     }
     let name: String = b.project.trim().chars().take(80).collect();
     let existing: Option<String> = match &b.project_id {
