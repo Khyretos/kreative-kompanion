@@ -1,6 +1,17 @@
 #!/usr/bin/env python3
 """BLD-01: a small MCP server (streamable HTTP, JSON answers) that runs Blender headless. Opt-in: run it only on a machine where chats may run Python inside Blender. Env: BLENDER_MCP_TOKEN (required), BLENDER_MCP_BIND (default 127.0.0.1:9876), BLENDER_CMD (default "blender"; e.g. "flatpak run --filesystem=/tmp org.blender.Blender"), BLENDER_TIMEOUT seconds (default 120), BLENDER_ENGINE (CYCLES, CPU with denoising; or EEVEE), BLENDER_SAMPLES (Cycles samples, default 128). Env: LISTEN_FDS=1 enables socket activation (binds fd 3); BLENDER_IDLE_EXIT=N exits after N seconds of inactivity."""
-import base64, http.server, json, os, shutil, subprocess, sys, tempfile, uuid, time, socket, threading
+import base64
+import http.server
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import uuid
+import time
+import socket
+import threading
 
 TOKEN = os.environ.get("BLENDER_MCP_TOKEN", "")
 HOST, _, PORT = os.environ.get("BLENDER_MCP_BIND", "127.0.0.1:9876").rpartition(":")

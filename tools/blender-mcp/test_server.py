@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """BLD-01: server.py against a fake Blender. Run: python3 tools/blender-mcp/test_server.py"""
-import json, os, socket, subprocess, sys, time, urllib.request, urllib.error
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+import urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 s = socket.socket(); s.bind(("127.0.0.1", 0)); PORT = s.getsockname()[1]; s.close()

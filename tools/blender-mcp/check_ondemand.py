@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """BLD-02: server.py started by systemd socket activation (LISTEN_FDS) exits by itself when idle.
 Run: python3 tools/blender-mcp/check_ondemand.py"""
-import json, os, socket, subprocess, sys, time, urllib.request
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ls = socket.socket(); ls.bind(("127.0.0.1", 0)); ls.listen(5); PORT = ls.getsockname()[1]

@@ -1,4 +1,7 @@
-import os, re, fnmatch, glob
+import os
+import re
+import fnmatch
+import glob
 
 SKILLS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "skills")
 LOCAL = os.environ.get("KOMPANION_SKILLS_LOCAL", "/skills-local")
