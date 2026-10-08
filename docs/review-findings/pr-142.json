@@ -17,6 +17,15 @@
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
+  "d7e47de86a18": {
+    "by": "repeat of d64f32c7572d",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "json.loads on a str raises only JSONDecodeError; an unparsed model answer is recorded as an unchecked bug on purpose so Claude decides",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "dedbef95465d": {
     "by": "coder",
     "checked": true,
@@ -61,5 +70,14 @@
     "reason": "no secret in the code, but the API URL was fixed to Kees's Forgejo: now FORGEJO_API (the .env path was already PR_AGENT_ENV)",
     "title": "Hard-coded Secrets",
     "verdict": "bug"
+  },
+  "fe4ca9c360d4": {
+    "by": "repeat of ae97b8c11446",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "the .env path is only a default (PR_AGENT_ENV) and the token is never printed or logged",
+    "title": "Hard-coded Secrets",
+    "verdict": "false_positive"
   }
 }
