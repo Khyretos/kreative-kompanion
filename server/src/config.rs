@@ -89,6 +89,19 @@ pub struct KnowledgeConfig {
     pub openwebui_db: Option<String>,
     #[serde(default)]
     pub openwebui_user: Option<String>,
+    /// KNOW-01: folders of documents (Markdown, text, HTML, PDF; mounted read-only) kept as collections
+    /// of `folder_user` (default `openwebui_user`, else the first admin), re-read every 10 minutes.
+    #[serde(default)]
+    pub folders: Vec<KnowledgeFolder>,
+    #[serde(default)]
+    pub folder_user: Option<String>,
+}
+
+/// KNOW-01: one `[[knowledge.folders]]`: the collection's name and the folder to read.
+#[derive(Debug, Clone, Deserialize)]
+pub struct KnowledgeFolder {
+    pub name: String,
+    pub path: String,
 }
 
 /// CHAT-01: one MCP tool server. `token_env` names an environment variable (.env) with its

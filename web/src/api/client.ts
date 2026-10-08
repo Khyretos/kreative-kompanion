@@ -131,6 +131,9 @@ export interface KompanionApi {
   /** Sends one file; onProgress gets 0-100 while it goes up. */
   uploadKnowledge(id: string, file: File, onProgress: (pct: number) => void): Promise<{ id: number; name: string; chunks: number }>;
   deleteKnowledgeDoc(id: string, doc: number): Promise<void>;
+  /** KNOW-01: a page (50) of a collection's documents, optionally filtered by name, and one document's text. */
+  knowledgeDocs(id: string, q: string, offset: number): Promise<{ documents: import("../views/knowledge").KDoc[]; total: number }>;
+  knowledgeDoc(id: string, doc: number): Promise<{ id: number; name: string; text: string }>;
   /** GPU-01: Studio, Gaming or Auto for a computer with studio apps (admins). */
   setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName): Promise<void>;
   /** GPU-03: where the studio runs: "auto", a GPU id or "off" (admins). */

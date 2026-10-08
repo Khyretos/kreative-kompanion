@@ -24,6 +24,22 @@ openwebui_user = "kees"   # empty: the first admin
 ```
 with a compose volume like `- /path/to/open-webui-data:/openwebui:ro`. Every 10 minutes Kompanion checks whether webui.db (or webui.db-wal) changed, reads a copy, and adds new files, replaces changed ones and removes deleted ones. Those collections show "Open WebUI" on their card and take no uploads (add files in Open WebUI). A collection deleted in Open WebUI stays in Kompanion until you delete it there.
 
+## Folders of documents (KNOW-01)
+
+A folder of Markdown, text, HTML or PDF files (subfolders too) becomes a collection that is kept in step with the folder:
+```toml
+[knowledge]
+folder_user = "kees"   # empty: openwebui_user, else the first admin
+[[knowledge.folders]]
+name = "Game design: theory and practice"
+path = "/knowledge-docs/game-design-theory-and-practice"
+```
+with a compose volume like `- /path/to/docs:/knowledge-docs:ro`. Every 10 minutes new files are added, changed ones replaced and removed ones deleted. The card says "folder" and takes no uploads.
+
+## Reading documents
+
+The card's Details has **Read documents**: a dialog with a name filter, the list in pages of 50 and the chosen document's text (Markdown rendered, anything else as plain text). A collection with thousands of documents is fully browsable this way, not just its 50 newest.
+
 ## API
 
 | Method | Endpoint | Description |
@@ -33,6 +49,8 @@ with a compose volume like `- /path/to/open-webui-data:/openwebui:ro`. Every 10 
 | DELETE | /api/knowledge/{id} | Delete a collection and all its documents |
 | PUT | /api/knowledge/{id}/projects | Update projects {projects: [ids]} |
 | POST | /api/knowledge/{id}/docs?name=<file name> | Upload file (body, up to 25 MB) |
+| GET | /api/knowledge/{id}/docs?q=&offset= | A page (50) of the documents, by name, filtered by `q`; `total` counts all matches |
+| GET | /api/knowledge/{id}/docs/{doc} | One document's text {id, name, text} |
 | DELETE | /api/knowledge/{id}/docs/{doc} | Delete a document |
 
 Writes need the X-Kompanion: 1 header like every other write.

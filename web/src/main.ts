@@ -1000,6 +1000,7 @@ function wire(shell: HTMLElement): void {
       if (!confirm(`Delete the collection ${el.dataset.name ?? ""}? Its documents are removed from Kompanion.`)) return;
       return api.deleteKnowledge(el.dataset.id ?? "").then(loadKnowledge, showError);
     },
+    "kn-browse": (el) => void import("./views/knowledge-reader").then((m) => m.openKnowledgeReader(api, el.dataset.id ?? "", el.dataset.name ?? "", showError)),
     "kn-doc-delete": (el) => api.deleteKnowledgeDoc(el.dataset.id ?? "", Number(el.dataset.doc)).then(loadKnowledge, showError),
     "grant-renew": async (el) => {
       const machineId = el.dataset.machine ?? "";

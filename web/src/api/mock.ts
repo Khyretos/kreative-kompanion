@@ -601,6 +601,15 @@ export class MockApi implements KompanionApi {
     c.chunks += 1;
     return { id: doc.id, name: doc.name, chunks: 1 };
   }
+  async knowledgeDocs(id: string, q: string, offset: number) {
+    const all = (knowledgeCols.find((k) => k.id === id)?.documents ?? []).filter((d) => d.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
+    return { documents: all.slice(offset, offset + 50), total: all.length };
+  }
+  async knowledgeDoc(id: string, doc: number) {
+    const d = knowledgeCols.find((k) => k.id === id)?.documents.find((x) => x.id === doc);
+    if (!d) throw new Error("Not found.");
+    return { id: d.id, name: d.name, text: `# ${d.name}\n\nThe text of this document, as the app stored it.` };
+  }
   async deleteKnowledgeDoc(id: string, doc: number) {
     const c = knowledgeCols.find((k) => k.id === id);
     if (c) {
