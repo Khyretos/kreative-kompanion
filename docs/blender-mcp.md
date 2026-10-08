@@ -4,7 +4,17 @@ Kompanion can build and render simple 3D scenes from a chat with a headless Blen
 
 ## What it is
 
-tools/blender-mcp/server.py is a small MCP server (streamable HTTP, Python standard library only) that starts a fresh `blender -b --factory-startup` for every call, so nothing stays open and no window is needed. Two tools: `blender_run` (runs Python with bpy, returns what it prints) and `blender_render` (builds a scene from an empty one; adds a camera aimed at the objects and a sun light when the code adds none; returns a PNG that Kompanion stores with the chat and shows under the tool line, plus the scene as a `.blend` resource that the chat offers as a download so it can be opened and worked on in Blender). tools/blender-mcp/scene.py holds that camera and light logic. Renders use Cycles on the CPU with denoising (OpenImageDenoise) by default, 128 samples (BLENDER_ENGINE=EEVEE for fast drafts, BLENDER_SAMPLES to change); quality over speed. Calls time out after 120 s (BLENDER_TIMEOUT; the container uses 300).
+tools/blender-mcp/server.py is a small MCP server (streamable HTTP, Python standard library only) that starts a fresh `blender -b --factory-startup` for every call, so nothing stays open and no window is needed. Tools: `blender_scene` (a plan, see below), `blender_run` (runs Python with bpy, returns what it prints) and `blender_render` (builds a scene from an empty one; adds a camera aimed at the objects and a sun light when the code adds none; returns a PNG that Kompanion stores with the chat and shows under the tool line, plus the scene as a `.blend` resource that the chat offers as a download so it can be opened and worked on in Blender). tools/blender-mcp/scene.py holds that camera and light logic. Renders use Cycles on the CPU with denoising (OpenImageDenoise) by default, 128 samples (BLENDER_ENGINE=EEVEE for fast drafts, BLENDER_SAMPLES to change); quality over speed. Calls time out after 120 s (BLENDER_TIMEOUT; the container uses 300).
+
+## Scenes that make sense (BLD-03)
+
+The model does not guess coordinates any more; it writes a plan and the server places things so they touch.
+
+- **blender_scene takes a plan**: objects with a name, shape, size, colour (a name such as `red`, or r,g,b) and one relation: `at [x, y]` (stands on the floor), `at [x, y, z]` (in the air, with `floating: true`), `on <name>`, `attached_to <name>` + `side` (front, back, left, right, top, bottom) + `offset`, or `next_to <name>` + `side`. An object may refer only to one listed before it. Shortcut templates: `snowman`, `character`, `table` (more objects can sit `on: "top"`).
+- **blender_render keeps raw bpy**, with helpers in the code's namespace: `add`, `put_on_ground`, `put_on`, `stack`, `attach`, `next_to`, `ground_plane`, `face_camera`, `build` (scene.py). A failing script returns the failing line, the error and a hint (errors.py) instead of Blender's log.
+- **Measured facts**: every render comes back with the sizes, positions and what touches what (scene.py `layout_report`), plus `WARNING` lines for floating parts and flat sheets standing on edge.
+- **Picture check**: when `BLENDER_VISION_URL` (an OpenAI-compatible base URL, e.g. Ollama on soucouyant `http://192.168.178.80:11434/v1`) and `BLENDER_VISION_MODEL` are set, a vision model looks at the render and its answer is appended (vision.py; it only says what and where, touching is measured). Without it the answer says there is no picture check; nothing is ever invented.
+- Tests: `python3 tools/blender-mcp/check_errors.py`, `check_vision.py`, and in a real Blender `blender -b --factory-startup --python-exit-code 1 --python tools/blender-mcp/check_build.py`. Live: `python3 tools/blender-mcp/live_chat.py "Render a snowman" out.png`.
 
 ## Install
 

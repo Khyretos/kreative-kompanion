@@ -15,4 +15,5 @@ if m:
     png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")
     open(m.group(2), "wb").write(png)
     open(m.group(2).rsplit(".", 1)[0] + ".blend", "wb").write(b"BLENDER-v430")
+    open(m.group(2).rsplit(".", 1)[0] + ".txt", "w").write("- box: 1.00 wide, 1.00 deep, 1.00 tall, centre (0.00, 0.00, 0.50); stands on the ground\nAll objects touch a neighbour; nothing floats.")
     print("rendered", m.group(2))
