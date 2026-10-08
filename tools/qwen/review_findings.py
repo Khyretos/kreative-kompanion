@@ -61,17 +61,17 @@ def clean_review(comments: list, head_date: str) -> bool:
     import datetime
 
     def parse(x: str) -> datetime.datetime:
-        return datetime.datetime.fromisoformat(x.replace('Z', '+00:00'))
+        return datetime.datetime.fromisoformat(x.replace("Z", "+00:00"))
 
-    reviews = [c for c in comments if '<!-- pr-agent:review' in c.get('body', '')]
+    reviews = [c for c in comments if "<!-- pr-agent:review" in c.get("body", "")]
     if not reviews:
         return False
-    newest = max(reviews, key=lambda c: parse(c['created_at']))
-    if '<!-- pr-agent-review-state:v1' in newest['body']:
+    newest = max(reviews, key=lambda c: parse(c["created_at"]))
+    if "<!-- pr-agent-review-state:v1" in newest["body"]:
         return False
-    if 'No major issues detected' not in newest['body']:
+    if "No major issues detected" not in newest["body"]:
         return False
-    return parse(newest['created_at']) >= parse(head_date)
+    return parse(newest["created_at"]) >= parse(head_date)
 
 
 def title(finding: dict) -> str:
@@ -163,7 +163,7 @@ def excerpt(path: str, start: int, end: int, radius: int = 40, cap: int = 400) -
 
     if start is None and end is None:
         limit = min(cap, len(lines))
-        return "".join(f"{i+1}: {lines[i]}" for i in range(limit))
+        return "".join(f"{i + 1}: {lines[i]}" for i in range(limit))
 
     start_idx = max(0, start - radius - 1)
     end_idx = min(len(lines), end + radius)
@@ -173,7 +173,7 @@ def excerpt(path: str, start: int, end: int, radius: int = 40, cap: int = 400) -
         line_content = lines[i]
         # Strip trailing newline but keep internal newlines if any
         line_content = line_content.rstrip("\n\r")
-        result_lines.append(f"{i+1}: {line_content}")
+        result_lines.append(f"{i + 1}: {line_content}")
 
     return "\n".join(result_lines) + "\n"
 
@@ -381,7 +381,9 @@ def main():
 
     if not state:
         # A review without findings carries no state block, only "No major issues detected".
-        head = get_json(f"{base_url}/repos/{owner}/{repo}/git/commits/{head_sha}", headers)
+        head = get_json(
+            f"{base_url}/repos/{owner}/{repo}/git/commits/{head_sha}", headers
+        )
         if clean_review(comments_data, head["commit"]["committer"]["date"]):
             print("review findings: PR-Agent found no issues for the head")
             sys.exit(0)

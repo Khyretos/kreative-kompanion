@@ -284,8 +284,10 @@ FOUND = "## PR Reviewer Guide\n\n<!-- pr-agent:review:full -->\n<td>Recommended 
 
 class CleanReviewTest(unittest.TestCase):
     def test_clean_review_after_the_head_counts(self):
-        cs = [{"body": "lint", "created_at": "2026-10-08T17:01:00+02:00"},
-              {"body": CLEAN, "created_at": "2026-10-08T17:00:36+02:00"}]
+        cs = [
+            {"body": "lint", "created_at": "2026-10-08T17:01:00+02:00"},
+            {"body": CLEAN, "created_at": "2026-10-08T17:00:36+02:00"},
+        ]
         self.assertTrue(rf.clean_review(cs, "2026-10-08T14:50:00Z"))
 
     def test_clean_review_before_the_head_is_stale(self):
@@ -293,12 +295,19 @@ class CleanReviewTest(unittest.TestCase):
         self.assertFalse(rf.clean_review(cs, "2026-10-08T15:10:00Z"))
 
     def test_newest_review_with_findings_wins(self):
-        cs = [{"body": CLEAN, "created_at": "2026-10-08T16:00:00+02:00"},
-              {"body": FOUND, "created_at": "2026-10-08T17:00:00+02:00"}]
+        cs = [
+            {"body": CLEAN, "created_at": "2026-10-08T16:00:00+02:00"},
+            {"body": FOUND, "created_at": "2026-10-08T17:00:00+02:00"},
+        ]
         self.assertFalse(rf.clean_review(cs, "2026-10-08T13:00:00Z"))
 
     def test_no_review_comment(self):
-        self.assertFalse(rf.clean_review([{"body": "hi", "created_at": "2026-10-08T17:00:00Z"}], "2026-10-08T13:00:00Z"))
+        self.assertFalse(
+            rf.clean_review(
+                [{"body": "hi", "created_at": "2026-10-08T17:00:00Z"}],
+                "2026-10-08T13:00:00Z",
+            )
+        )
 
 
 if __name__ == "__main__":

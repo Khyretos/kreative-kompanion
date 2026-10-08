@@ -6,9 +6,15 @@
 # > 30 ms) inside the clip (leading and trailing silence excluded). PASS: no gaps and a peak
 # between -6 and -1 dB (the STU-A1 target).
 set -eu
-[ $# -gt 0 ] || { echo "usage: $0 FILE... | DIR" >&2; exit 2; }
+[ $# -gt 0 ] || {
+    echo "usage: $0 FILE... | DIR" >&2; exit 2
+}
 if [ $# -eq 1 ] && [ -d "$1" ]; then
-    set -- $(find "$1" -maxdepth 1 -type f \( -name '*.wav' -o -name '*.ogg' -o -name '*.mp3' -o -name '*.flac' \) | sort)
+    d=$1
+    shift
+    for f in "$d"/*.wav "$d"/*.ogg "$d"/*.mp3 "$d"/*.flac; do
+        [ -e "$f" ] && set -- "$@" "$f"
+    done
 fi
 printf 'file\tdur\tpeak\trms\tlufs\tflat\tclick\tgaps\tverdict\n'
 for f in "$@"; do
