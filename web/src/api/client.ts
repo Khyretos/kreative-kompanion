@@ -91,8 +91,14 @@ export interface KompanionApi {
   createChat(title: string, projectId?: string): Promise<Chat>;
   /** The project's thread chat (created on first use); returns its chat id. */
   openThread(projectId: string): Promise<string>;
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[] }): Promise<void>;
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean }): Promise<void>;
   deleteChat(chatId: string): Promise<void>;
+  /** OVR-01: the Overseer's name ("" = default) and whether it may add context to running tasks. */
+  setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;
+  /** OVR-01: creates proposed tasks, and their project when it is new. */
+  overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }): Promise<{ projectId: string }>;
+  /** OVR-01: adds context to a running task (read before its next step). */
+  interject(taskId: string, text: string): Promise<void>;
   createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }): Promise<Task>;
   updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }): Promise<Task>;
   deleteTask(id: string): Promise<void>;

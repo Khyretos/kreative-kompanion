@@ -10,6 +10,8 @@ export interface AppState {
   mcpInfo: Record<string, string>; // UI-02: description per tool server
   mcpServers: string[]; // CHAT-01: tool servers a chat can turn on
   draftMcp?: string[]; // CHAT-01: tools picked before a new chat exists
+  draftOverseer?: boolean; // OVR-01: Overseer picked before a new chat exists
+  overseer: import("./api/types").OverseerPrefs; // OVR-01
   toolsMenuOpen?: boolean;
   machineName?: string; // HOST-01: the server's own computer, for "This server's computer" in Pair
   grants: Record<string, import("./views/access").GrantView[]>; // per paired machine
@@ -92,6 +94,7 @@ export const store = new Store<AppState>({
   studioSent: {},
   mcpInfo: {},
   mcpServers: [],
+  overseer: { name: "Overseer", interject: false },
   settingsOpen: false,
   pane: "main",
   section: "chat",

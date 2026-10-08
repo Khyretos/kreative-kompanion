@@ -68,6 +68,20 @@ pub struct Config {
     /// `[features]`: switch whole areas off (all on by default).
     #[serde(default)]
     pub features: FeaturesConfig,
+    /// OVR-01: `[overseer]`: the Overseer's default name and whether it may add context to running tasks.
+    #[serde(default)]
+    pub overseer: OverseerConfig,
+}
+
+/// OVR-01: defaults for every user who hasn't chosen in Settings.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct OverseerConfig {
+    /// The Overseer's name in chats ("Overseer" when empty).
+    #[serde(default)]
+    pub name: Option<String>,
+    /// May the Overseer add context to running tasks without asking (off by default).
+    #[serde(default)]
+    pub interject: bool,
 }
 
 /// `[skills]`: how many tokens of skill cards a plan step gets on top of the role cores.
@@ -441,7 +455,7 @@ impl Config {
             }
         }
         for (role, d) in &self.roles {
-            if !["orchestrator", "worker", "reviewer"].contains(&role.as_str()) {
+            if !["orchestrator", "worker", "reviewer", "overseer"].contains(&role.as_str()) {
                 bail!("unknown role {role}");
             }
             if self.provider(&d.provider).is_none() {

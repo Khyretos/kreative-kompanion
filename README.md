@@ -33,6 +33,7 @@ The banner source is `docs/branding/banner.html`; `docs/branding/render-banner.m
 ## What works today
 
 - Chat with any OpenAI-compatible or Anthropic model, streaming, a full log of every model call; roles (orchestrator, worker, reviewer and teacher) per project.
+- Overseer (the eye chip in the composer): an assistant that sees all your projects and tasks. Ask it for a status, plan a project with it (it proposes tasks you create with one click, a new project included), and let it add context to running tasks (Settings > Overseer, off by default: then it suggests and you send). Its model is the Overseer role, so a local model, Claude, OpenAI, DeepSeek or any OpenAI-compatible server works (`[[provider]]` examples in `server/kompanion.example.toml`).
 - Sign-in with password or OIDC single sign-on; new people get an account on their first SSO sign-in; separate data per user.
 - Runner on each PC (`runner/`): pairing with a one-time code, CPU/RAM/disk/GPU stats, tools limited to the folders and time you grant (Access tab), with approval cards for anything else.
 - Tasks run by themselves on a computer: a plan with a "done when", steps under your grants, a check command, review and up to three fix rounds; progress live in the task's own chat.

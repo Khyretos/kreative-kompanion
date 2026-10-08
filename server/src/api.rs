@@ -67,6 +67,9 @@ pub struct Chat {
     #[sqlx(default)]
     #[serde(serialize_with = "json_list")]
     pub mcp: String,
+    /// OVR-01: the Overseer answers in this chat (its role, the scan of all projects).
+    #[sqlx(default)]
+    pub overseer: bool,
 }
 
 fn json_list<S: serde::Serializer>(v: &str, s: S) -> Result<S::Ok, S::Error> {
@@ -131,7 +134,7 @@ pub async fn chats(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Chat>>> {
     let rows = sqlx::query_as(
-        "SELECT id, title, project_id, updated_at, pinned, thread, effort, mcp FROM chats\n         WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
+        "SELECT id, title, project_id, updated_at, pinned, thread, effort, mcp, overseer FROM chats\n         WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -169,6 +172,7 @@ pub async fn create_chat(
         thread: false,
         effort: "auto".into(),
         mcp: "[]".into(),
+        overseer: false,
     };
     sqlx::query(
         "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
@@ -261,10 +265,13 @@ pub async fn send(
         return Ok(StatusCode::ACCEPTED);
     }
 
+    // OVR-01: an Overseer chat is answered by the overseer role.
+    let overseer: bool = sqlx::query_scalar("SELECT overseer FROM chats WHERE id = ?").bind(&chat_id).fetch_one(&s.db).await?;
+    let wanted = if overseer { "overseer" } else { "orchestrator" };
     let role = user_roles(&s, &u.id)
         .await?
         .into_iter()
-        .find(|r| r.role == "orchestrator");
+        .find(|r| r.role == wanted);
     let Some(role) = role else {
         let m = insert_message(
             &s,
@@ -368,7 +375,20 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         .count()
         .max(1);
     let history = history[history.len().saturating_sub(keep)..].to_vec();
-    let mut convo = vec![ChatMessage::text("system", ORCHESTRATOR_PROMPT.into())];
+    // OVR-01: the Overseer gets its own prompt with a fresh scan of all the user's projects.
+    let overseer_on: bool = sqlx::query_scalar("SELECT overseer FROM chats WHERE id = ?").bind(&chat_id).fetch_one(&s.db).await.unwrap_or(false);
+    let overseer = if overseer_on {
+        let (name, interject) = crate::overseer::prefs(&s, &user_id).await;
+        let scan = crate::overseer::scan(&s.db, &user_id, 10_000).await;
+        Some((name, interject, scan))
+    } else {
+        None
+    };
+    let system = match &overseer {
+        Some((name, interject, scan)) => crate::overseer::prompt(name, *interject, scan, &util::now().get(..16).unwrap_or("").replace('T', " ")),
+        None => ORCHESTRATOR_PROMPT.into(),
+    };
+    let mut convo = vec![ChatMessage::text("system", system)];
     // A project chat knows its project: description, tasks with states and steps.
     let project: Option<(Option<String>,)> = sqlx::query_as("SELECT project_id FROM chats WHERE id = ?")
         .bind(&chat_id)
@@ -554,6 +574,17 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         text = crate::chat_media::strip_images(&text, &keep);
     }
 
+    // OVR-01: proposed tasks and context for running tasks, as a block under the answer.
+    if error.is_none() && !text.is_empty()
+        && let Some((name, interject, scan)) = &overseer
+    {
+        let block = crate::overseer::finish(&s, &user_id, name, *interject, scan, &text).await;
+        if !block.is_empty() {
+            text.push_str(&block);
+            s.bus.send(&user_id, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: block, done: false });
+        }
+    }
+
     // CHAT-04: the sources under the answer: names are links in the text, the excerpts open from the list.
     if error.is_none() && !text.is_empty() {
         let block = crate::chat_tools::sources_block(&all_uses, &text);
@@ -673,6 +704,12 @@ pub(crate) async fn user_roles(s: &AppState, user_id: &str) -> ApiResult<Vec<Rol
             });
         }
     }
+    // OVR-01: the Overseer uses the orchestrator's model until the user picks one.
+    if !rows.iter().any(|r| r.role == "overseer")
+        && let Some(o) = rows.iter().find(|r| r.role == "orchestrator").cloned()
+    {
+        rows.push(RoleAssignment { role: "overseer".into(), ..o });
+    }
     rows.sort_by(|a, b| a.role.cmp(&b.role));
     Ok(rows)
 }
@@ -736,6 +773,8 @@ pub struct ChatChange {
     effort: Option<String>,
     /// CHAT-01: the [[mcp]] tool servers this chat may use (names).
     mcp: Option<Vec<String>>,
+    /// OVR-01: the Overseer answers in this chat.
+    overseer: Option<bool>,
 }
 
 /// Rename, pin or archive a chat (the chat menu).
@@ -757,6 +796,9 @@ pub async fn update_chat(
             .bind(&id)
             .execute(&s.db)
             .await?;
+    }
+    if let Some(on) = b.overseer {
+        sqlx::query("UPDATE chats SET overseer = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
     }
     if let Some(list) = b.mcp {
         // CHAT-01: only names from [[mcp]] in kompanion.toml.
@@ -853,7 +895,7 @@ pub async fn set_role(
     Extension(u): Extension<User>,
     Json(r): Json<RoleAssignment>,
 ) -> ApiResult<StatusCode> {
-    if !["orchestrator", "worker", "reviewer"].contains(&r.role.as_str()) {
+    if !["orchestrator", "worker", "reviewer", "overseer"].contains(&r.role.as_str()) {
         return Err(ApiError::BadRequest("Unknown role.".into()));
     }
     if s.config.provider(&r.provider_id).is_none() {

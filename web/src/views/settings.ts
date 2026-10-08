@@ -13,7 +13,22 @@ const roleInfo: Record<Role, { name: string; text: string }> = {
   orchestrator: { name: "Orchestrator", text: "Talks with you, plans and splits the work." },
   worker: { name: "Worker", text: "Does the steps: code, files, commands." },
   reviewer: { name: "Reviewer and teacher", text: "Checks results and writes lessons into the skills." },
+  overseer: { name: "Overseer", text: "Sees all projects and tasks: status, planning, context for running tasks." },
 };
+
+/** OVR-01: the Overseer's name and whether it may add context to running tasks without asking. */
+function overseerSection(s: AppState): SafeHtml {
+  return html`<section class="overseer-settings">
+    <h3 class="label">Overseer</h3>
+    <p class="muted small">Turn it on per chat with the eye chip next to the effort. It reads a fresh scan of all your projects and tasks with every answer. Its model is the Overseer role above.</p>
+    <div class="field">
+      <label for="overseer-name">Name</label>
+      <input id="overseer-name" maxlength="40" value="${s.overseer.name}" placeholder="Overseer" title="Shown on its answers; empty uses the server default">
+    </div>
+    <label><input type="checkbox" id="overseer-interject" ${s.overseer.interject ? "checked" : ""}> May add context to running tasks without asking</label>
+    <p class="muted small">Off: it suggests the context and you send it with a button. On: the task reads it before its next step and the project thread shows what was added.</p>
+  </section>`;
+}
 
 const DEFAULTS: AdminSettings = {
   appName: "", smtpHost: "", smtpPort: 587, smtpTls: "starttls", smtpUser: "", smtpFrom: "", smtpReplyTo: "",
@@ -119,6 +134,7 @@ export function renderSettings(s: AppState): SafeHtml {
             </div>`;
         })}</div>
       </section>
+      ${overseerSection(s)}
       ${voiceSection(s)}
       ${cardSection(s)}
       <section>

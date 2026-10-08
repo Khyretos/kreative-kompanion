@@ -21,6 +21,7 @@ mod activity;
 mod taskrun;
 mod hoststats;
 mod import;
+mod overseer;
 mod lessons;
 mod llm;
 mod mail;
@@ -308,6 +309,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/tasks/{id}/events", get(tasks::events))
         .route("/tasks/{id}/start", post(taskrun::start))
         .route("/tasks/{id}/stop", post(taskrun::stop))
+        .route("/tasks/{id}/interject", post(overseer::interject))
+        .route("/overseer/tasks", post(overseer::create_tasks))
         .route("/tasks/{id}/runs", get(runs::of_task))
         .route("/tasks/{id}/costs", get(costs::of_task))
         .route("/costs/weekly", get(costs::weekly))

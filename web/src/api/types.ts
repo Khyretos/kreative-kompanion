@@ -1,7 +1,7 @@
 // Shapes shared with the Kompanion server. Later these are generated from the
 // Rust `protocol` crate so both sides always agree.
 
-export type Role = "orchestrator" | "worker" | "reviewer";
+export type Role = "orchestrator" | "worker" | "reviewer" | "overseer";
 
 export interface ModelProvider {
   id: string;
@@ -51,6 +51,7 @@ export interface Chat {
   thread?: boolean; // the project's thread: task runs post their updates here
   effort?: Effort; // EF-01: stored per chat, used for its answers
   mcp?: string[]; // CHAT-01: the tool servers this chat may use
+  overseer?: boolean; // OVR-01: the Overseer answers in this chat
 }
 
 /** How hard the model works on an answer (EF-01). Auto resolves to Medium on the server. */
@@ -199,6 +200,9 @@ export interface Server {
   demo?: boolean; // example data, not a real server
 }
 
+/** OVR-01: the user's Overseer settings. */
+export interface OverseerPrefs { name: string; interject: boolean }
+
 export interface ServerStatus {
   name: string;
   version: string;
@@ -208,6 +212,7 @@ export interface ServerStatus {
   adult?: boolean; // STU-01c: may use the questionable and explicit Studio ratings
   mcp?: string[]; // CHAT-01: [[mcp]] tool servers a chat can turn on
   mcpInfo?: Record<string, string>; // UI-02: their one-line descriptions
+  overseer?: OverseerPrefs | null; // OVR-01: the Overseer's name and whether it may add context to running tasks
   machineName?: string | null; // HOST-01: the server's own computer ([machine_name] in kompanion.toml)
   theme?: ThemeChoice;
   machinesRefresh?: number; // seconds; 1 = live

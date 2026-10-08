@@ -263,10 +263,13 @@ const providers: ModelProvider[] = [
   },
 ];
 
+const overseerPrefs = { name: "Loquendo", interject: true };
+
 let roles: RoleAssignment[] = [
   { role: "orchestrator", providerId: "deepseek", modelId: "deepseek-chat" },
   { role: "worker", providerId: "ovms", modelId: "qwen3.5-9b" },
   { role: "reviewer", providerId: "deepseek", modelId: "deepseek-chat" },
+  { role: "overseer", providerId: "ovms", modelId: "qwen3.5-9b" },
 ];
 
 const machines: MachineStats[] = [
@@ -346,7 +349,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs"], mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs"], overseer: { ...overseerPrefs }, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}
@@ -354,6 +357,22 @@ export class MockApi implements KompanionApi {
   async setTheme() {}
   async setMachinesRefresh() {}
   async setGpuPins() {}
+  async setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) {
+    if (change.overseerName !== undefined) overseerPrefs.name = change.overseerName.trim() || "Overseer";
+    if (change.overseerInterject !== undefined) overseerPrefs.interject = change.overseerInterject;
+  }
+  async overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }) {
+    let projectId = b.projectId ?? projects.find((p) => p.name.toLowerCase() === b.project.toLowerCase())?.id;
+    if (!projectId) {
+      projectId = id("p");
+      projects.unshift({ id: projectId, name: b.project, description: "", updatedAt: new Date().toISOString() });
+      this.emit({ type: "changed", what: "projects" });
+    }
+    for (const t of b.tasks) await this.createTask({ projectId, title: t.title, description: t.description });
+    this.emit({ type: "changed", what: "tasks" });
+    return { projectId };
+  }
+  async interject() {}
   async setCardStyle() {}
   async getNotifications() { return { email: "", onNeedsInput: true, onFailed: true, onDone: false, dailySummary: false }; }
   async setNotifications() {}
@@ -466,11 +485,11 @@ export class MockApi implements KompanionApi {
     return structuredClone(chat);
   }
 
-  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[] }) {
+  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean }) {
     const i = chats.findIndex((c) => c.id === chatId);
     if (i < 0) return;
     if (change.archived) chats.splice(i, 1);
-    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp });
+    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer });
   }
 
   async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }) {
@@ -856,6 +875,19 @@ export class MockApi implements KompanionApi {
     const user: Message = { id: id("m"), chatId, author: "user", text, at: new Date().toISOString() };
     messages.push(user);
     this.emit({ type: "message", message: structuredClone(user) });
+    // OVR-01: a canned Overseer answer: a status, two proposed tasks and context for a running task.
+    if (chats.find((c) => c.id === chatId)?.overseer) {
+      const proposal = { tasks: [
+        { project: "Medabots", projectId: null, title: "Write the battle rules", description: "Turns, parts and damage on one page; done when two bots can fight on paper." },
+        { project: "Medabots", projectId: null, title: "Sketch three robot personalities", description: "Name, temper and fighting style for each." },
+      ], interjections: [{ taskId: "t1", title: "Add a --vk-validation flag and setting", text: "Kees wants the flag off by default in release builds.", sent: overseerPrefs.interject }] };
+      const reply: Message = { id: id("m"), chatId, author: "orchestrator", at: new Date().toISOString(), text:
+        "**Needs you:** nothing right now.\n\n**Running:** **Add a --vk-validation flag and setting** (62%), building in the container.\n\n**Next:** two queued tasks in kk-engine.\n\nFor Medabots I would start small:\n" +
+        "TASK: Medabots | Write the battle rules | Turns, parts and damage on one page; done when two bots can fight on paper.\nTASK: Medabots | Sketch three robot personalities | Name, temper and fighting style for each.\nINTERJECT: T1 | Kees wants the flag off by default in release builds." +
+        "\n\n:::overseer\n" + JSON.stringify(proposal) };
+      setTimeout(() => { messages.push(reply); this.emit({ type: "message", message: structuredClone(reply) }); }, 300);
+      return;
+    }
 
     // A project thread: "pause" and "go on" steer the project's running tasks (server: thread::command).
     const thread = chats.find((c) => c.id === chatId && c.thread);
