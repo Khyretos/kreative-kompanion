@@ -3,7 +3,6 @@ import { HttpApi } from "./api/http";
 import { $, html, html as h, mount, onAction, restoreBusy, busyWhile, swUrl } from "./core/html";
 import { attachLiveMarkdown } from "./core/livemd";
 import { initResize } from "./core/resize";
-import { modal, type Modal } from "./core/modal";
 import { MockApi } from "./api/mock";
 import type { KompanionApi, ServerEvent } from "./api/client";
 import type { AdminSettings, Effort, Project, Role, Server, TaskState, ThemeChoice, SearchResult } from "./api/types";
@@ -44,7 +43,13 @@ let studioNegative = ""; // STU-N1: the Leave out words, kept like the prompt
 import { ALL_FEATURES } from "./api/types";
 import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
-let settingsModal: Modal | undefined;
+// NAV-01: a page (Studio, Assets, Capabilities, Settings) puts one entry in the browser history, so
+// back (browser, phone gesture, Android app) returns to the chat. navEntry: that entry is there;
+// skipPop: the next popstate is our own history.back() after the chat was opened another way.
+let navEntry = false;
+let skipPop = false;
+// Unsaved edits on the Settings page: leaving asks first (what the old Settings window did).
+let settingsDirty = false;
 let assetsView: AssetsView | undefined;
 let assetsApi: AssetsApi | undefined; // shared by the Assets section and game projects' asset picker
 
@@ -60,6 +65,8 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
 import { renderSettings } from "./views/settings";
+import { pageHead } from "./views/pagehead";
+import { modal } from "./core/modal";
 import { doneChip as overseerDoneChip, markDone as markOverseerDone } from "./core/overseer";
 import { openSkillSheet } from "./views/skillsheet";
 
@@ -139,7 +146,7 @@ async function start(server: Server): Promise<void> {
       <section class="pane studio-pane" id="studio" aria-label="Studio"></section>
       <aside class="pane right" id="right" aria-label="Tasks"></aside>
       <div class="scrim" data-action="pane" data-pane="main"></div>
-      <div id="settings" hidden></div>
+      <section class="pane settings-pane" id="settings" aria-label="Settings"></section>
     </div>`);
 
   const [projects, chats, tasks, providers, roles, machines, today, status] = await Promise.all([
@@ -233,7 +240,7 @@ async function goTo(r: SearchResult): Promise<void> {
       return;
     }
     case "setting": {
-      if (!store.get().settingsOpen) {
+      if (store.get().section !== "settings") {
         document.querySelector<HTMLElement>('[data-action="settings"]')?.click();
       }
       whenShown(() => {
@@ -327,8 +334,7 @@ function render(s: AppState, prev: AppState): void {
   if (s.section === "studio") {
     // The form and the library render apart, so a finished image doesn't touch what is being typed.
     if (s.section !== prev.section || firstRender) mount($("#studio"), h`<div class="studio">
-      <header class="caps-head"><div class="caps-title"><h1>Studio</h1>
-        <p class="muted">Describe it, pick a type and a size; Kompanion picks the GPU.</p></div></header>
+      ${pageHead("Studio", "Describe it, pick a type and a size; Kompanion picks the GPU.")}
       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
     if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight, studioNegative));
     if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent", "studioPicked", "studioHidden"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent, s.studioPicked, s.studioHidden));
@@ -442,13 +448,34 @@ function render(s: AppState, prev: AppState): void {
     const stop = document.getElementById("voice-stop");
     if (stop) stop.hidden = !s.speaking;
   }
+  if (s.section !== prev.section && !firstRender) navHistory(s.section, prev.section);
   const settings = $("#settings");
-  settings.hidden = !s.settingsOpen;
-  if (s.settingsOpen && changed(s, prev, ["settingsOpen", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer"])) {
+  if (s.section === "settings" && s.section !== prev.section) settingsDirty = false;
+  if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer"])) {
     remount(settings, renderSettings(s));
   }
   firstRender = false;
   restoreBusy(shell);
+}
+
+/** NAV-01: opening a page from the chat adds one history entry (moving between pages keeps it);
+ *  going back to the chat any other way takes it off again, so back never stops on a dead step. */
+function navHistory(section: AppState["section"], prev: AppState["section"]): void {
+  if (section !== "chat" && !navEntry) {
+    history.pushState({ kkPage: true }, "");
+    navEntry = true;
+  } else if (section === "chat" && prev !== "chat" && navEntry) {
+    navEntry = false;
+    skipPop = true;
+    history.back();
+  }
+}
+
+/** True when Settings may close: nothing unsaved, or the user says to drop it. */
+function leaveSettingsOk(): boolean {
+  if (settingsDirty && !confirm("Leave Settings without saving your changes?")) return false;
+  settingsDirty = false;
+  return true;
 }
 
 /** BUG-05: a chat's options menu near the bottom of the sidebar opens upward, and the list scrolls
@@ -682,7 +709,7 @@ function refetch(what: string): void {
         const pcActions = await api.listActions(s.activeChatId);
         if (JSON.stringify(pcActions) !== JSON.stringify(store.get().pcActions)) store.set({ pcActions });
       }
-      else if (what === "settings" && s.settingsOpen) {
+      else if (what === "settings" && s.section === "settings") {
         store.set({ notifications: await api.getNotifications(), roles: await api.listRoles() });
         if (s.isAdmin) store.set({ admin: await api.getAdmin() });
       }
@@ -704,14 +731,30 @@ function wire(shell: HTMLElement): void {
   const assets = assetsApi;
   setAssetThumbs((a) => assets.previewUrl(a, "t"));
   assetsView = new AssetsView($("#assets"), assetsApi, () => store.get().isAdmin);
-  settingsModal = modal($("#settings"), () => store.set({ settingsOpen: false }));
+  const settingsPage = $("#settings");
+  settingsPage.addEventListener("input", (ev) => { if ((ev.target as Element).closest("form")) settingsDirty = true; });
+  settingsPage.addEventListener("submit", () => { settingsDirty = false; });
+  // Leaving Settings by the sidebar or a link: ask first when a form has unsaved edits.
+  shell.addEventListener("click", (ev) => {
+    const t = (ev.target as HTMLElement).closest<HTMLElement>("[data-action], a[href]");
+    if (!t || store.get().section !== "settings" || t.closest("#settings") || t.dataset.action === "pane" || t.dataset.action === "search") return;
+    if (!leaveSettingsOk()) { ev.preventDefault(); ev.stopImmediatePropagation(); }
+  }, true);
+  window.addEventListener("popstate", () => {
+    if (skipPop) { skipPop = false; return; }
+    navEntry = false;
+    const s = store.get();
+    if (s.section === "chat") return;
+    if (s.section === "settings" && !leaveSettingsOk()) { history.pushState({ kkPage: true }, ""); navEntry = true; return; }
+    store.set({ section: "chat", pane: "main", chatMenuId: undefined, movingChatId: undefined });
+  });
   // BUG-05: the Android app asks the page first when back is pressed (MainActivity.onBackPressed):
   // close a menu or panel, then go back to the chat, and only then may the app close.
   (window as { kompanionBack?: () => boolean }).kompanionBack = () => {
     const step = backStep(store.get());
     if (!step) return false;
-    if (step.settingsOpen === false) settingsModal?.requestClose();
-    else store.set(step);
+    if (step.section === "chat" && store.get().section === "settings" && !leaveSettingsOk()) return true;
+    store.set(step);
     return true;
   };
   store.subscribe(render);
@@ -1103,9 +1146,8 @@ function wire(shell: HTMLElement): void {
     scope: (el) => store.set({ taskScope: el.dataset.scope as AppState["taskScope"] }),
     pane: (el) => store.set({ pane: el.dataset.pane as AppState["pane"] }),
     answer: (el) => api.answer(el.dataset.task ?? "", el.dataset.option ?? "").catch(showError),
-    settings: (el) => {
-      settingsModal?.open(el);
-      store.set({ settingsOpen: true, pane: "main" });
+    settings: () => {
+      store.set({ section: "settings", pane: "main", chatMenuId: undefined });
       api.getNotifications().then((notifications) => store.set({ notifications }), showError);
       if (store.get().isAdmin) api.getAdmin().then((admin) => store.set({ admin }), showError);
     },
@@ -1121,7 +1163,6 @@ function wire(shell: HTMLElement): void {
     },
     // Ends this app's session, and the Keycloak session too after single sign-on.
     logout: () => api.logout().then((sso) => location.replace(sso ?? "/"), showError),
-    "close-settings": () => settingsModal?.requestClose(),
   });
 
   shell.addEventListener("pointerdown", (ev) => {
@@ -1303,7 +1344,7 @@ function wire(shell: HTMLElement): void {
       return;
     }
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
-    else if (s.settingsOpen) settingsModal?.requestClose();
+    else if (s.section === "settings" && leaveSettingsOk()) store.set({ section: "chat", pane: "main" });
   });
   // A click anywhere outside an open chat menu closes it.
   document.addEventListener("click", (ev) => {

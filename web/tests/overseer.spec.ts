@@ -56,7 +56,7 @@ test.describe("Overseer (OVR-01)", () => {
     await page.locator("#overseer-interject").uncheck();
     await page.fill("#overseer-name", "Medabot");
     await page.locator("#overseer-name").blur();
-    await page.locator('[data-action="close-settings"]').click();
+    await page.keyboard.press("Escape"); // NAV-01: Settings is a page; Escape returns to the chat
     const chip = page.locator("#overseer-slot .overseer-chip");
     await expect(chip).toHaveAttribute("title", /Turn on Medabot/);
     await chip.click();

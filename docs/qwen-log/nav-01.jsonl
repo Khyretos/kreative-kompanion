@@ -1,0 +1,1 @@
+{"name": "nav01-settings-spec", "out": "/home/khyretos/Docker/Personal-projects/kk-wt-nav01/web/tests/settings.spec.ts", "gpu_seconds": 48.9, "tokens": 1416, "prompt_tokens": 12469, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/playwright", "worker/web/controls"], "lines": 78, "model": "Coder", "at": "2026-10-09T08:28:30"}
