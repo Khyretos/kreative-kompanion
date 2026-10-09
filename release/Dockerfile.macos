@@ -5,13 +5,16 @@
 ARG OSXCROSS_VERSION=26.1-r0
 FROM crazymax/osxcross:${OSXCROSS_VERSION}-ubuntu AS osxcross
 
-FROM rust:1-bookworm
+# Same Ubuntu as the osxcross image: its tools need that glibc.
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -qq && \
-    apt-get install -y -qq --no-install-recommends clang lld zip >/dev/null && \
+    apt-get install -y -qq --no-install-recommends clang lld zip curl ca-certificates >/dev/null && \
     rm -rf /var/lib/apt/lists/*
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal -q \
+        -t x86_64-apple-darwin -t aarch64-apple-darwin
 COPY --from=osxcross /osxcross /osxcross
-ENV PATH=/osxcross/bin:$PATH LD_LIBRARY_PATH=/osxcross/lib MACOSX_DEPLOYMENT_TARGET=11.0
-RUN rustup target add x86_64-apple-darwin aarch64-apple-darwin
+ENV PATH=/osxcross/bin:/root/.cargo/bin:$PATH LD_LIBRARY_PATH=/osxcross/lib MACOSX_DEPLOYMENT_TARGET=11.0
 ENV CC_x86_64_apple_darwin=o64-clang CXX_x86_64_apple_darwin=o64-clang++ \
     CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=o64-clang \
     CC_aarch64_apple_darwin=oa64-clang CXX_aarch64_apple_darwin=oa64-clang++ \
