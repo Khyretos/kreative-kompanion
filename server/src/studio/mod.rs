@@ -14,6 +14,7 @@ pub mod to_assets;
 pub mod watchdog;
 pub mod remove;
 pub mod negative;
+pub mod helmet;
 
 use crate::{
     AppState,

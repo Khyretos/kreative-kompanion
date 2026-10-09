@@ -543,14 +543,20 @@ export class MockApi implements KompanionApi {
       { name: "landscape", label: "Landscape", hint: "Wide place, no people", sizes: ["wide", "square", "tall"], order: 3 },
       { name: "sprite", label: "Sprite", hint: "One game object, plain background", sizes: ["square", "tall", "wide"], order: 4 },
       { name: "icon", label: "Icon", hint: "Simple and bold, for menus", sizes: ["square"], order: 5 },
-      { name: "oc-sheet", label: "OC sheet", hint: "Character turnaround", sizes: ["wide"], order: 6, warning: "novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use", ratings: ["general", "sensitive", "questionable", "explicit"], adultRatings: ["questionable", "explicit"], face: true, negative: "" },
+      { name: "oc-sheet", label: "OC sheet", hint: "Character turnaround", sizes: ["wide"], order: 6, warning: "novaAnimeXL_ilV170.safetensors: Fair AI Public License 1.0-SD: unknown licence, check it before use", ratings: ["general", "sensitive", "questionable", "explicit"], adultRatings: ["questionable", "explicit"], face: true, negative: "", helmet: true },
       { name: "video", label: "Video", hint: "A few seconds, no sound", sizes: ["wide", "tall", "square"], order: 7 },
       ...AUDIO_TYPES,
     ];
   }
-  async studioMake(type: string, prompt: string, size: string, count: 1 | 4, _rating?: string, face?: { file: File; weight: number }) {
+  async studioMake(type: string, prompt: string, size: string, count: 1 | 4, _rating?: string, face?: { file: File; weight: number }, _negative?: string, params?: Record<string, string>) {
     if (face && !face.file.type.startsWith("image/")) throw new Error("The photo must be a JPEG, PNG or WebP.");
-    const made = Array.from({ length: count }, (_, i) => ({ id: id("sr"), type, gpu: "rx9070", prompt, size, state: "running" as const, error: null, files: [] as string[], startedAt: new Date().toISOString(), endedAt: null as string | null, hue: 200 + i * 30 }));
+    // STU-C3: a helmet description makes a pair per picture (helmet on, then the face).
+    const desc = params?.helmet_desc?.trim();
+    const sides: ("on" | "off" | null)[] = desc ? ["on", "off"] : [null];
+    const made = Array.from({ length: count }, (_, i) => {
+      const pair = desc ? id("pair") : null;
+      return sides.map((helmet) => ({ id: id("sr"), type, gpu: "rx9070", prompt: helmet === "on" ? `${prompt}, ${desc}` : prompt, size, state: "running" as const, error: null, files: [] as string[], startedAt: new Date().toISOString(), endedAt: null as string | null, helmet, pair, hue: 200 + i * 30 + (helmet === "off" ? 90 : 0) }));
+    }).flat();
     studioRuns.unshift(...made.map(({ hue: _h, ...r }) => r));
     setTimeout(() => {
       for (const m of made) {

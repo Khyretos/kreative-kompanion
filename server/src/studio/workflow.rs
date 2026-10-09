@@ -282,6 +282,11 @@ impl Workflow {
                     {
                         text = other;
                     }
+                    // STU-C3: a string with no node and no template (helmet description, pair id) is only kept.
+                    if p.node.is_empty() && p.template.is_none() {
+                        used.insert(p.name.clone(), json!(text));
+                        continue;
+                    }
                     // STU-01: the graph gets the templated text; `used` keeps what the user typed.
                     if let Some(t) = &p.template {
                         // STU-01c: the choice placeholders first ({rating}, {rating_neg}, ...).
@@ -679,6 +684,46 @@ licence = "CreativeML OpenRAIL-M"
         assert_eq!(g["6"]["inputs"]["text"], json!("safe"));
         let (g, _) = w.fill(&graph(), &m(json!({ name: "cat" }))).unwrap();
         assert_eq!(g["6"]["inputs"]["text"], json!("safe, cat"));
+    }
+
+    /// STU-C3: a string setting with no node (the helmet description, the pair id) is only kept.
+    #[test]
+    fn a_string_without_a_node_is_only_kept() {
+        let mut w = wf();
+        let mut p = w.params.iter().find(|p| p.kind == "string").unwrap().clone();
+        p.name = "pair".into();
+        p.node = String::new();
+        p.template = None;
+        w.params.push(p);
+        let before = graph();
+        let mut given = m(json!({"pair": "p1"}));
+        given.insert(w.params.iter().find(|p| p.kind == "string").unwrap().name.clone(), json!("cat"));
+        let (g, used) = w.fill(&before, &given).unwrap();
+        assert_eq!(used["pair"], json!("p1"));
+        assert!(!g.to_string().contains("p1"));
+    }
+
+    /// STU-C3: the helmet side changes the sheet's and the shots' prompts; "none" leaves them as before.
+    #[test]
+    fn helmet_words_reach_the_prompts() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        for name in ["oc-sheet", "oc-shots"] {
+            let w = all.iter().find(|(n, _)| n == name).unwrap().1.as_ref().unwrap();
+            let g: Value = serde_json::from_str(&std::fs::read_to_string(dir.join(name).join(&w.graph)).unwrap()).unwrap();
+            let text = |helmet: &str| {
+                let (g, used) = w.fill(&g, &m(json!({"prompt": "a knight", "helmet": helmet, "helmet_desc": "teal visor", "pair": "p1"}))).unwrap();
+                assert_eq!((used["helmet"].as_str(), used["pair"].as_str()), (Some(helmet), Some("p1")));
+                (g["4"]["inputs"]["text"].as_str().unwrap().to_string(), g["5"]["inputs"]["text"].as_str().unwrap().to_string(), g["16"]["inputs"]["text"].as_str().unwrap().to_string())
+            };
+            let (pos, neg, face) = text("on");
+            assert!(pos.contains("helmet, full helmet covering the head") && neg.contains("visible face, bare head") && face.contains("helmet, visor, face hidden"), "{name}: {pos} / {neg} / {face}");
+            assert!(!face.contains("detailed face"), "{name}: {face}");
+            let (pos, neg, face) = text("off");
+            assert!(pos.contains("no helmet, face visible") && neg.contains("helmet, headwear") && face.contains("detailed face"), "{name}");
+            let (pos, neg, face) = text("none");
+            assert!(!pos.contains("helmet") && !neg.contains("helmet") && face.contains("detailed face"), "{name}: {pos}");
+        }
     }
 
     #[test]

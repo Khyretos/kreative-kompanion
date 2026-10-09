@@ -147,7 +147,7 @@ export interface KompanionApi {
   /** STU-01: the image types (workflows with a [studio] section), sorted by their order. */
   studioTypes(): Promise<import("../views/studio").StudioType[]>;
   /** STU-01: make 1 or 4 images; returns the run ids. */
-  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string, face?: { file: File; weight: number }, negative?: string): Promise<{ ids: string[] }>;
+  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string, face?: { file: File; weight: number }, negative?: string, params?: Record<string, string>): Promise<{ ids: string[] }>;
   /** STU-02: music or a sound effect; returns the run id. */
   studioAudio(kind: "music" | "sfx", prompt: string, lyrics: string, seconds: number): Promise<{ ids: string[] }>;
   /** STU-01: the signed-in user's runs, newest first. */

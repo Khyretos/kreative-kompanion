@@ -686,6 +686,31 @@ write(
     ["face", "bg"],
 )
 
+HELMET = """# STU-C3: helmet on and off. Kompanion's make turns helmet_desc into two runs with one seed (helmet "on" and
+# "off", the same pair id); the words keep the face fix on the helmet when it is on.
+[[param]]
+name = "helmet"
+type = "choice"
+default = "none"
+node = ""
+choices = ["none", "on", "off"]
+words = { helmet_tags = { on = "helmet, full helmet covering the head, face hidden, ", off = "no helmet, face visible, bare head, short hair, " }, helmet_neg = { on = "visible face, bare head, ", off = "helmet, headwear, visor, mask, hood, " }, helmet_face = { none = "detailed face, ", on = "helmet, visor, face hidden, ", off = "detailed face, " } }
+
+[[param]]
+name = "helmet_desc"
+type = "string"
+default = ""
+node = ""
+input = ""
+
+[[param]]
+name = "pair"
+type = "string"
+default = ""
+node = ""
+input = ""
+"""
+
 # 6. STU-C2: a headshot or a cowboy shot of a finished OC sheet's character. The sheet (scaled to 3024x1512) gives two IP-Adapter references: the front cell (outfit, colours, accessories) and the front head (face, hair, moustache); same prompt and seed as the sheet, only the shot tags change.
 M["style"] = (
     "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors",
@@ -808,17 +833,17 @@ params = [
     p_str(
         "prompt",
         "4",
-        "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, solo, {shot_tags}, {bg}, {value}",
+        "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, solo, {shot_tags}, {bg}, {helmet_tags}{value}",
     ),
     p_str(
         "negative",
         "5",
-        "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, multiple views, character sheet, reference sheet, turnaround, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {shot_neg}{bg_neg}{rating_neg}{value}",
+        "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, multiple views, character sheet, reference sheet, turnaround, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {helmet_neg}{shot_neg}{bg_neg}{rating_neg}{value}",
     ),
     p_str(
         "face_prompt",
         "16",
-        "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}",
+        "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, {helmet_face}{value}",
     )
     + 'fallback = "prompt"\n',
     """# STU-C2: which shot; the size comes with it (headshot tall, cowboy square, sent by Kreative Studio).
@@ -844,21 +869,12 @@ words = { bg = { white = "simple background, white background", starry = "purple
         "float",
         "34",
         "weight",
-        0.6,
-        0.0,
-        1.0,
-        "How much of the sheet's outfit and colours carries over.",
-    ),
-    p_num(
-        "likeness",
-        "float",
-        "34",
-        "weight",
         0.7,
         0.0,
         1.0,
         "How much of the sheet's look (outfit, colours, face) carries over.",
     ),
+    HELMET,
     RATING,
 ]
 

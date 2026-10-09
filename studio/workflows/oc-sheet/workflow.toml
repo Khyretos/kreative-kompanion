@@ -37,7 +37,7 @@ type = "string"
 default = "an adult woman knight with silver hair, a blue cloak and silver armour"
 node = "4"
 input = "text"
-template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, {rating}, adult, mature, character sheet, character turnaround, reference sheet, multiple views of the same character, full body, front view, side view, from behind, standing, {bg}, {value}"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, {rating}, adult, mature, character sheet, character turnaround, reference sheet, multiple views of the same character, full body, front view, side view, from behind, standing, {bg}, {helmet_tags}{value}"
 
 [[param]]
 name = "negative"
@@ -45,7 +45,7 @@ type = "string"
 default = ""
 node = "5"
 input = "text"
-template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, {bg_neg}frame, border, panels, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, {helmet_neg}{bg_neg}frame, border, panels, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
 
 # STU-R2: the face fix (node 13) gets its own short prompt, so a moustache or eye colour the whole-sheet
 # prompt mentions late is not painted away; empty uses the main prompt.
@@ -56,7 +56,7 @@ default = ""
 fallback = "prompt"
 node = "16"
 input = "text"
-template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, {helmet_face}{value}"
 
 # STU-R2: plain white (the reference sheet) or the purple starry sky seed 304 painted by itself.
 [[param]]
@@ -65,6 +65,30 @@ type = "choice"
 default = "white"
 choices = ["white", "starry"]
 words = { bg = { white = "simple background, white background", starry = "purple starry night sky background, stars, deep purple to pink gradient sky" }, bg_neg = { white = "gradient background, starry sky, ", starry = "white background, simple background, " } }
+
+# STU-C3: helmet on and off. Kompanion's make turns helmet_desc into two runs with one seed (helmet "on" and
+# "off", the same pair id); the words keep the face fix on the helmet when it is on.
+[[param]]
+name = "helmet"
+type = "choice"
+default = "none"
+node = ""
+choices = ["none", "on", "off"]
+words = { helmet_tags = { on = "helmet, full helmet covering the head, face hidden, ", off = "no helmet, face visible, bare head, short hair, " }, helmet_neg = { on = "visible face, bare head, ", off = "helmet, headwear, visor, mask, hood, " }, helmet_face = { none = "detailed face, ", on = "helmet, visor, face hidden, ", off = "detailed face, " } }
+
+[[param]]
+name = "helmet_desc"
+type = "string"
+default = ""
+node = ""
+input = ""
+
+[[param]]
+name = "pair"
+type = "string"
+default = ""
+node = ""
+input = ""
 
 [[param]]
 name = "width"

@@ -30,14 +30,15 @@
 .studio-form label[for] { font-weight: 600; color: var(--fg-strong); }
 .studio-form textarea { width: 100%; resize: vertical; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; }
 /* STU-N1: the Leave out (negative prompt) field, collapsed until wanted. */
-.studio-neg > summary { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; list-style: none; font-weight: 600; color: var(--fg-strong); border-radius: var(--radius); }
-.studio-neg > summary::-webkit-details-marker { display: none; }
-.studio-neg > summary::before { content: "▸"; color: var(--accent); display: inline-block; transition: transform 0.15s; }
-.studio-neg[open] > summary::before { transform: rotate(90deg); }
-.studio-neg > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.studio-neg textarea { margin-top: 0.4rem; }
-.studio-neg p { margin: 0.25rem 0 0; overflow-wrap: anywhere; }
-@media (prefers-reduced-motion: reduce) { .studio-neg > summary::before { transition: none; } }
+.studio-neg > summary, .studio-helmet > summary { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; list-style: none; font-weight: 600; color: var(--fg-strong); border-radius: var(--radius); }
+.studio-neg > summary::-webkit-details-marker, .studio-helmet > summary::-webkit-details-marker { display: none; }
+.studio-neg > summary::before, .studio-helmet > summary::before { content: "▸"; color: var(--accent); display: inline-block; transition: transform 0.15s; }
+.studio-neg[open] > summary::before, .studio-helmet[open] > summary::before { transform: rotate(90deg); }
+.studio-neg > summary:focus-visible, .studio-helmet > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.studio-neg textarea, .studio-helmet input { margin-top: 0.4rem; }
+.studio-helmet label { display: block; margin-top: 0.4rem; }
+.studio-neg p, .studio-helmet p { margin: 0.25rem 0 0; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .studio-neg > summary::before, .studio-helmet > summary::before { transition: none; } }
 .studio-options { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
 .studio-count { display: inline-flex; gap: 0.35rem; align-items: center; }
 .studio-runs { list-style: none; padding: 0; margin: 0.5rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); }
@@ -87,3 +88,9 @@
 .round-btn[data-action="studio-delete"]:hover { color: var(--danger-text); border-color: var(--bad); }
 .toast.studio-undo { display: flex; align-items: center; gap: 0.75rem; white-space: nowrap; border-color: var(--line); }
 @media (prefers-reduced-motion: reduce) { .round-btn, .round-btn[role="checkbox"] .icon { transition: none; } .round-btn:hover { transform: none; } }
+/* STU-C3: a helmet pair is one grid cell: the toggle, then the side it shows. */
+.studio-pair { display: flex; flex-direction: column; gap: 0.35rem; }
+.studio-pair-runs { list-style: none; padding: 0; margin: 0; }
+.studio-pair[data-side="on"] .studio-run[data-helmet="off"], .studio-pair[data-side="off"] .studio-run[data-helmet="on"] { display: none; }
+.studio-side { align-self: flex-start; }
+.studio-wait { color: var(--muted); }
