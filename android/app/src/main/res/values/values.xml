@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Kompanion</string>
-    <!-- Your Kompanion server. Change this and inside_hosts to build the app for another server. -->
+    <!-- Suggested on the first start (client mode, REL-01); the user can type any Kompanion server. -->
     <string name="server_url">https://kompanion.kreative-kompas.com</string>
 
-    <!-- Pages on these hosts open inside the app, the server and its sign-in; every other link opens in the browser. -->
+    <!-- Extra hosts whose pages open inside the app. The chosen server, pages it redirects to (its sign-in)
+         and links within a shown page always do; every other link opens in the browser. -->
     <string-array name="inside_hosts">
         <item>kompanion.kreative-kompas.com</item>
         <item>keycloak.kreative-kompas.com</item>
@@ -27,6 +28,18 @@
     <string name="battery_open">Open settings</string>
     <string name="settings_done">Done</string>
     <string name="shortcut_settings">Notification settings</string>
+
+    <!-- Client mode (REL-01): which server the app uses. -->
+    <string name="server_title">Connect to a Kompanion server</string>
+    <string name="server_text">Enter the address of the server you use, the same one you would open in a browser.</string>
+    <string name="server_hint" translatable="false">https://kompanion.example.com</string>
+    <string name="server_connect">Connect</string>
+    <string name="server_connecting">Connecting…</string>
+    <string name="server_invalid">That is not a server address.</string>
+    <string name="server_no_answer">No Kompanion server answered at this address.</string>
+    <string name="server_plain_http">An http:// address is not encrypted: use it only on your own network.</string>
+    <string name="server_heading">Server</string>
+    <string name="server_change">Change server</string>
 
     <color name="night">#0c0917</color>
     <color name="plum">#1c1329</color>

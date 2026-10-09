@@ -26,7 +26,7 @@ public final class MainActivity extends Activity {
 
     /** The web view with the web app. */
     private WebView web;
-    /** The server URL from the app's strings. */
+    /** The chosen server's URL (client mode, Server). */
     private String server;
 
     /** Created by Android. */
@@ -37,24 +37,30 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(final Bundle state) {
         super.onCreate(state);
-        setContentView(R.layout.activity_main);
-        // BUG-05: with targetSdk 36 Android 16 no longer calls onBackPressed
-        // (predictive back), so back is registered here as well.
-        if (VERSION.SDK_INT >= TIRAMISU) {
-            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
-                OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
-        }
-        server = getString(R.string.server_url);
-        web = findViewById(R.id.web);
-        setUpWebView();
-        if (state == null) {
-            web.loadUrl(startUrl(getIntent()));
+        // Client mode (REL-01): the first start asks for the server.
+        if (Server.chosen(this)) {
+            setContentView(R.layout.activity_main);
+            // BUG-05: with targetSdk 36 Android 16 no longer calls
+            // onBackPressed (predictive back), so back is registered here.
+            if (VERSION.SDK_INT >= TIRAMISU) {
+                getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
+            }
+            server = Server.url(this);
+            web = findViewById(R.id.web);
+            setUpWebView();
+            if (state == null) {
+                web.loadUrl(startUrl(getIntent()));
+            } else {
+                web.restoreState(state);
+            }
+            askForNotifications();
+            SettingsActivity.showOnceForMaker(this);
+            Distributors.choose(this);
         } else {
-            web.restoreState(state);
+            startActivity(new Intent(this, ServerActivity.class));
+            finish();
         }
-        askForNotifications();
-        SettingsActivity.showOnceForMaker(this);
-        Distributors.choose(this);
     }
 
     /** Settings, cookies and clients of the web view. */

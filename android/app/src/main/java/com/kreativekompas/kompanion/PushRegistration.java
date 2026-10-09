@@ -56,6 +56,16 @@ public final class PushRegistration {
     }
 
     /**
+     * Forgets only that the server knew the endpoint, so it is sent again
+     * (after switching servers).
+     *
+     * @param context any context of the app
+     */
+    public static void resend(final Context context) {
+        prefs(context).edit().remove(KEY_SENT).apply();
+    }
+
+    /**
      * Sends the endpoint to the server in the background, once per endpoint.
      *
      * @param context any context of the app
@@ -63,7 +73,7 @@ public final class PushRegistration {
     public static void sendIfNeeded(final Context context) {
         new Thread(() -> {
             final String endpoint = pendingEndpoint(context);
-            final String server = context.getString(R.string.server_url);
+            final String server = Server.url(context);
             final String cookie = sessionCookie(server);
             if (endpoint != null && cookie != null) {
                 try {
@@ -109,7 +119,7 @@ public final class PushRegistration {
     /**
      * The web view's session cookie for the server.
      *
-     * @param server the server URL from the app's strings
+     * @param server the chosen server's URL
      * @return the cookie header value, or null when not signed in
      */
     private static String sessionCookie(final String server) {

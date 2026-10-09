@@ -3,7 +3,7 @@
     "id": "trivy-glib-GHSA-wrw7-89jp-8q8g",
     "linter": "REPOSITORY_TRIVY",
     "file": "desktop/src-tauri/Cargo.lock",
-    "line": 1283,
+    "line": 1294,
     "match": "GHSA-wrw7-89jp-8q8g",
     "message": "glib 0.18.5: unsoundness in Iterator and DoubleEndedIterator impls for glib::VariantStrIter (MEDIUM), fixed in glib 0.20.0",
     "why": "The desktop app gets glib through Tauri (tauri 2.12.1 -> tao 0.37 / wry -> gtk 0.18 -> glib 0.18). Even the newest Tauri and tao still require gtk ^0.18, which pins glib 0.18, so cargo update cannot reach 0.20. Kompanion's own code never touches glib. A fix by us is not possible without leaving Tauri or forking gtk-rs.",

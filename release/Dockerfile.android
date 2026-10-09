@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+# REL-01: the Android APK, signed with the release key. Starts from the image of
+# android/Dockerfile.build (tagged kompanion-android-build:release by the workflow). The key comes
+# in as BuildKit secrets, so it never lands in an image layer.
+FROM kompanion-android-build:release
+USER root
+COPY android/ /src/
+ARG VERSION_CODE=1
+RUN --mount=type=secret,id=keystore,target=/keys/release.jks \
+    --mount=type=secret,id=keystore_env,target=/keys/keystore.env \
+    set -a && . /keys/keystore.env && set +a && \
+    KK_KEYSTORE=/keys/release.jks VERSION_CODE="$VERSION_CODE" gradle --no-daemon -q assembleRelease && \
+    mkdir -p /out && cp app/build/outputs/apk/release/app-release.apk /out/kreative-kompanion.apk
+# The workflow's anonymous /dist volume takes this owner; the image only copies files out.
+RUN mkdir /dist && chown 1000:1000 /dist
+USER 1000:1000
+# A build image runs one copy and exits: there is no service to check.
+HEALTHCHECK NONE
+CMD ["sh", "-c", "cp /out/* /dist/"]

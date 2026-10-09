@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- REL-01: Windows installer, built with wixl (msitools) in release/Dockerfile.windows.
+     Per-machine install into Program Files with a Start menu shortcut. The UpgradeCode
+     never changes, so a newer .msi replaces an older one. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Kreative Kompanion" Language="1033" Version="$(var.Version)"
+           Manufacturer="Kreative Kompas" UpgradeCode="5B0F2C1E-7A4D-4E5B-9C3A-2F6E8D1B4A70">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"
+             Description="Kreative Kompanion" />
+    <Media Id="1" Cabinet="kompanion.cab" EmbedCab="yes" />
+    <MajorUpgrade DowngradeErrorMessage="A newer Kreative Kompanion is already installed." />
+    <Icon Id="kompanion.ico" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="kompanion.ico" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Kreative Kompanion">
+          <Component Id="App" Guid="8E3C1A52-6F0B-4D7E-A1C9-3B5D7F902E14" Win64="yes">
+            <File Id="AppExe" Name="kreative-kompanion.exe" Source="$(var.Exe)" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Component Id="Shortcut" Guid="C4A97D10-2E5B-4F3A-8D61-0B9E7C5A3F28" Win64="yes">
+          <Shortcut Id="StartMenu" Name="Kreative Kompanion" Target="[INSTALLDIR]kreative-kompanion.exe"
+                    WorkingDirectory="INSTALLDIR" Icon="kompanion.ico" />
+          <RegistryValue Root="HKLM" Key="Software\Kreative Kompas\Kompanion" Name="installed"
+                         Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </Directory>
+
+    <Feature Id="Main" Title="Kreative Kompanion" Level="1">
+      <ComponentRef Id="App" />
+      <ComponentRef Id="Shortcut" />
+    </Feature>
+  </Product>
+</Wix>
