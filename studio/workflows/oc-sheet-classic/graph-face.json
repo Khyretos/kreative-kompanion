@@ -29,8 +29,8 @@
   "6": {
     "class_type": "EmptyLatentImage",
     "inputs": {
-      "width": 1344,
-      "height": 672,
+      "width": 1216,
+      "height": 832,
       "batch_size": 1
     }
   },
@@ -38,8 +38,8 @@
     "class_type": "KSampler",
     "inputs": {
       "model": ["34", 0],
-      "positive": ["66", 0],
-      "negative": ["66", 1],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
       "latent_image": ["6", 0],
       "seed": 42,
       "steps": 28,
@@ -182,7 +182,7 @@
   "20": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": ["72", 0],
+      "images": ["15", 0],
       "filename_prefix": "kompanion/oc-sheet"
     }
   },
@@ -265,87 +265,6 @@
       "image": ["50", 0],
       "upscale_method": "lanczos",
       "scale_by": 1.5
-    }
-  },
-  "60": {
-    "class_type": "LoadImage",
-    "inputs": {
-      "image": "kompanion/oc-sheet-pose.png"
-    }
-  },
-  "61": {
-    "class_type": "ControlNetLoader",
-    "inputs": {
-      "control_net_name": "xinsir-union-sdxl-promax.safetensors"
-    }
-  },
-  "62": {
-    "class_type": "SetUnionControlNetType",
-    "inputs": {
-      "control_net": ["61", 0],
-      "type": "openpose"
-    }
-  },
-  "63": {
-    "class_type": "ControlNetApplyAdvanced",
-    "inputs": {
-      "positive": ["4", 0],
-      "negative": ["5", 0],
-      "control_net": ["62", 0],
-      "image": ["60", 0],
-      "strength": 0.7,
-      "start_percent": 0.0,
-      "end_percent": 0.8,
-      "vae": ["1", 2]
-    }
-  },
-  "64": {
-    "class_type": "LoadImage",
-    "inputs": {
-      "image": "kompanion/oc-sheet-depth.png"
-    }
-  },
-  "65": {
-    "class_type": "SetUnionControlNetType",
-    "inputs": {
-      "control_net": ["61", 0],
-      "type": "depth"
-    }
-  },
-  "66": {
-    "class_type": "ControlNetApplyAdvanced",
-    "inputs": {
-      "positive": ["63", 0],
-      "negative": ["63", 1],
-      "control_net": ["65", 0],
-      "image": ["64", 0],
-      "strength": 0.4,
-      "start_percent": 0.0,
-      "end_percent": 0.6,
-      "vae": ["1", 2]
-    }
-  },
-  "70": {
-    "class_type": "UpscaleModelLoader",
-    "inputs": {
-      "model_name": "4x-AnimeSharp.pth"
-    }
-  },
-  "71": {
-    "class_type": "ImageUpscaleWithModel",
-    "inputs": {
-      "upscale_model": ["70", 0],
-      "image": ["15", 0]
-    }
-  },
-  "72": {
-    "class_type": "ImageScale",
-    "inputs": {
-      "image": ["71", 0],
-      "upscale_method": "lanczos",
-      "width": 3024,
-      "height": 1512,
-      "crop": "disabled"
     }
   }
 }

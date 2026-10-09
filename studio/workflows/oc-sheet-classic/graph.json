@@ -29,17 +29,17 @@
   "6": {
     "class_type": "EmptyLatentImage",
     "inputs": {
-      "width": 1344,
-      "height": 672,
+      "width": 1216,
+      "height": 832,
       "batch_size": 1
     }
   },
   "7": {
     "class_type": "KSampler",
     "inputs": {
-      "model": ["34", 0],
-      "positive": ["66", 0],
-      "negative": ["66", 1],
+      "model": ["41", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
       "latent_image": ["6", 0],
       "seed": 42,
       "steps": 28,
@@ -63,7 +63,7 @@
   "9": {
     "class_type": "KSampler",
     "inputs": {
-      "model": ["34", 0],
+      "model": ["41", 0],
       "positive": ["4", 0],
       "negative": ["5", 0],
       "latent_image": ["8", 0],
@@ -102,7 +102,7 @@
   "13": {
     "class_type": "FaceDetailer",
     "inputs": {
-      "model": ["34", 0],
+      "model": ["41", 0],
       "clip": ["3", 0],
       "vae": ["1", 2],
       "positive": ["4", 0],
@@ -145,7 +145,7 @@
   "15": {
     "class_type": "FaceDetailer",
     "inputs": {
-      "model": ["34", 0],
+      "model": ["41", 0],
       "clip": ["3", 0],
       "vae": ["1", 2],
       "positive": ["4", 0],
@@ -182,50 +182,8 @@
   "20": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": ["72", 0],
+      "images": ["15", 0],
       "filename_prefix": "kompanion/oc-sheet"
-    }
-  },
-  "30": {
-    "class_type": "LoadImage",
-    "inputs": {
-      "image": "face.png"
-    }
-  },
-  "31": {
-    "class_type": "PrepImageForClipVision",
-    "inputs": {
-      "image": ["30", 0],
-      "interpolation": "LANCZOS",
-      "crop_position": "center",
-      "sharpening": 0
-    }
-  },
-  "32": {
-    "class_type": "CLIPVisionLoader",
-    "inputs": {
-      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
-    }
-  },
-  "33": {
-    "class_type": "IPAdapterModelLoader",
-    "inputs": {
-      "ipadapter_file": "ip-adapter-plus-face_sdxl_vit-h.safetensors"
-    }
-  },
-  "34": {
-    "class_type": "IPAdapterAdvanced",
-    "inputs": {
-      "model": ["41", 0],
-      "ipadapter": ["33", 0],
-      "image": ["31", 0],
-      "clip_vision": ["32", 0],
-      "weight": 0.85,
-      "weight_type": "linear",
-      "combine_embeds": "concat",
-      "start_at": 0,
-      "end_at": 0.85,
-      "embeds_scaling": "V only"
     }
   },
   "40": {
@@ -265,87 +223,6 @@
       "image": ["50", 0],
       "upscale_method": "lanczos",
       "scale_by": 1.5
-    }
-  },
-  "60": {
-    "class_type": "LoadImage",
-    "inputs": {
-      "image": "kompanion/oc-sheet-pose.png"
-    }
-  },
-  "61": {
-    "class_type": "ControlNetLoader",
-    "inputs": {
-      "control_net_name": "xinsir-union-sdxl-promax.safetensors"
-    }
-  },
-  "62": {
-    "class_type": "SetUnionControlNetType",
-    "inputs": {
-      "control_net": ["61", 0],
-      "type": "openpose"
-    }
-  },
-  "63": {
-    "class_type": "ControlNetApplyAdvanced",
-    "inputs": {
-      "positive": ["4", 0],
-      "negative": ["5", 0],
-      "control_net": ["62", 0],
-      "image": ["60", 0],
-      "strength": 0.7,
-      "start_percent": 0.0,
-      "end_percent": 0.8,
-      "vae": ["1", 2]
-    }
-  },
-  "64": {
-    "class_type": "LoadImage",
-    "inputs": {
-      "image": "kompanion/oc-sheet-depth.png"
-    }
-  },
-  "65": {
-    "class_type": "SetUnionControlNetType",
-    "inputs": {
-      "control_net": ["61", 0],
-      "type": "depth"
-    }
-  },
-  "66": {
-    "class_type": "ControlNetApplyAdvanced",
-    "inputs": {
-      "positive": ["63", 0],
-      "negative": ["63", 1],
-      "control_net": ["65", 0],
-      "image": ["64", 0],
-      "strength": 0.4,
-      "start_percent": 0.0,
-      "end_percent": 0.6,
-      "vae": ["1", 2]
-    }
-  },
-  "70": {
-    "class_type": "UpscaleModelLoader",
-    "inputs": {
-      "model_name": "4x-AnimeSharp.pth"
-    }
-  },
-  "71": {
-    "class_type": "ImageUpscaleWithModel",
-    "inputs": {
-      "upscale_model": ["70", 0],
-      "image": ["15", 0]
-    }
-  },
-  "72": {
-    "class_type": "ImageScale",
-    "inputs": {
-      "image": ["71", 0],
-      "upscale_method": "lanczos",
-      "width": 3024,
-      "height": 1512,
-      "crop": "disabled"
     }
   }
 }

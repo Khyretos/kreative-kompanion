@@ -1,15 +1,14 @@
-# STU-C1: OC sheet v2. Four views (front, left, back, right) placed by ControlNet union (OpenPose + depth)
-# from a Blender base mesh (tools/pose-sheet), 1344x672 base, 2016x1008 hires, 4x-AnimeSharp to 3024x1512.
-# 1536x768 with both controls ran out of VRAM on the 9070 after a fresh load. The first sheet is oc-sheet-classic.
-title = "OC sheet"
-description = "An original character as a 3024 px reference sheet with four standing views (front, left side, back, right side), SDXL novaAnimeXL with the character sheet and Marvel Rivals style LoRAs, faces and hands fixed."
+# STU-C1: the first OC sheet, kept as "oc-sheet-classic" next to v2.
+# STU-01b: OC sheet from Kreative Studio (lib/graphs.js build), SDXL novaAnimeXL + FaceDetailer; ratings general to explicit (STU-01c).
+title = "OC sheet (classic)"
+description = "Kreative Studio's OC sheet: an original character as a turnaround sheet (front, side and back), SDXL novaAnimeXL with the character sheet and Marvel Rivals style LoRAs, faces and hands fixed."
 graph = "graph.json"
 outputs = ["20"]
 # soucouyant only: the A770 has the files but SDXL + FaceDetailer is not measured there yet.
 machines = ["soucouyant"]
-vram_mb = 11000
-ram_mb = 12000
-# STU-C1: SDXL + ControlNet union peaks at ~13 GB torch on the 9070 (1344x672 base), 140-170 s; 11000 + the 2 GB headroom fits next to the desktop (STU-V1b).
+vram_mb = 10000
+ram_mb = 10000
+# estimates until measured
 
 # STU-01d: an optional face photo makes the character resemble a person (IP-Adapter plus-face,
 # graph-face.json = graph.json plus Kreative Studio's nodes 30-34 with the model rewired).
@@ -18,18 +17,12 @@ graph = "graph-face.json"
 image = "30"
 weight = "34"
 
-# STU-C1: the pose and depth sheets ship with the workflow and are uploaded to ComfyUI before each run
-# (LoadImage node -> file in this folder). Made by tools/pose-sheet (base_mesh.py in Blender, draw_pose.py).
-[images]
-"60" = "pose.png"
-"64" = "depth.png"
-
 [studio]
-label = "OC sheet"
-hint = "Four views: front, left, back, right"
+label = "OC sheet (classic)"
+hint = "Character turnaround: front, side, back"
 sizes = ["wide"]
-order = 7
-px = { wide = [1344, 672] }
+order = 10
+px = { wide = [1216, 832] }
 
 [[param]]
 name = "prompt"
@@ -37,7 +30,7 @@ type = "string"
 default = "an adult woman knight with silver hair, a blue cloak and silver armour"
 node = "4"
 input = "text"
-template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, {rating}, adult, mature, character sheet, character turnaround, reference sheet, multiple views of the same character, full body, front view, side view, from behind, standing, simple background, white background, {value}"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, {rating}, adult, mature, character sheet, character design sheet, full body, multiple views, front view, side view, back view, standing, simple background, white background, {value}"
 
 [[param]]
 name = "negative"
@@ -45,23 +38,23 @@ type = "string"
 default = ""
 node = "5"
 input = "text"
-template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, gradient background, starry sky, frame, border, panels, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
 
 [[param]]
 name = "width"
 type = "int"
-default = 1344
-min = 1344
-max = 1344
+default = 1216
+min = 512
+max = 2048
 node = "6"
 input = "width"
 
 [[param]]
 name = "height"
 type = "int"
-default = 672
-min = 672
-max = 672
+default = 832
+min = 512
+max = 2048
 node = "6"
 input = "height"
 
@@ -108,14 +101,6 @@ licence = "unknown (Civitai, check the model page)"
 [[model]]
 file = "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors"
 licence = "unknown (Civitai, check the model page)"
-
-[[model]]
-file = "xinsir-union-sdxl-promax.safetensors"
-licence = "Apache-2.0"
-
-[[model]]
-file = "4x-AnimeSharp.pth"
-licence = "CC BY-NC-SA 4.0 (non-commercial; already used by the Studio upscale)"
 
 [[model]]
 file = "ip-adapter-plus-face_sdxl_vit-h.safetensors"
