@@ -231,6 +231,7 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
             params.insert("negative".into(), json!(n));
         }
         params.extend(b.params.clone());
+        drop_unused(wf, &mut params);
         for (name, bytes, ext) in &b.pics {
             let dir = s.config.studio.output_dir.join("users").join(&u.id).join("inputs");
             tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
@@ -374,6 +375,16 @@ mod tests {
     }
 }
 
+/// STU-R2b: the form's own fields a type does not declare are left out (refine-4k and refine-parts
+/// have no prompt, seed or size; workflow::fill refuses unknown names).
+pub fn drop_unused(wf: &super::workflow::Workflow, params: &mut Map<String, Value>) {
+    for k in ["prompt", "width", "height", "seed"] {
+        if !wf.params.iter().any(|p| p.name == k) {
+            params.remove(k);
+        }
+    }
+}
+
 /// STU-R2: settings the make form fills itself never come through `params`; any other name must be
 /// one of the type's own params. Every [inputs] picture is required and no other picture is taken.
 pub fn check_extra(wf: &super::workflow::Workflow, params: &Map<String, Value>, pics: &[(String, Vec<u8>, &'static str)], label: &str) -> Result<(), String> {
@@ -420,6 +431,20 @@ mod extra_tests {
         assert_eq!(check_extra(&sheet, &obj(json!({"strength": 0.5})), &[], "OC sheet").unwrap_err(), "OC sheet has no setting strength.");
         assert_eq!(check_extra(&sheet, &obj(json!({"seed": 5})), &[], "OC sheet").unwrap_err(), "OC sheet has no setting seed.");
         assert_eq!(check_extra(&sheet, &Map::new(), &[pic("source")], "OC sheet").unwrap_err(), "OC sheet takes no source picture.");
+    }
+
+    #[test]
+    fn form_fields_a_type_lacks_are_dropped() {
+        for n in ["refine-4k", "refine-change", "refine-repaint", "refine-chibi", "refine-parts"] {
+            let w = wf(n);
+            let mut p = obj(json!({"prompt": "same picture", "width": 1024, "height": 1024, "seed": 5}));
+            super::drop_unused(&w, &mut p);
+            let g = w.graph_for("rx9070").unwrap();
+            w.fill(&g, &p).unwrap_or_else(|e| panic!("{n}: {e}"));
+        }
+        let mut p = obj(json!({"prompt": "x", "width": 1, "height": 1, "seed": 5}));
+        super::drop_unused(&wf("refine-parts"), &mut p);
+        assert!(p.is_empty());
     }
 
     #[test]
