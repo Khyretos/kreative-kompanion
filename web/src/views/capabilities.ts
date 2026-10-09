@@ -3,6 +3,7 @@ import { html, type SafeHtml } from "../core/html";
 import { renderTimeline, type TlGpu } from "./gputimeline";
 import { relTime } from "../core/time";
 import { icon } from "./icons";
+import { pageHead } from "./pagehead";
 import { capHead, capStep } from "./cap-card";
 
 export interface CapModel {
@@ -288,12 +289,7 @@ export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu
   if (c === undefined) {
     return html`
       <div class="caps">
-        <header class="caps-head">
-          <div class="caps-title">
-            <h1>Capabilities</h1>
-            <p class="muted">What Kompanion can use right now. Updates live.</p>
-          </div>
-        </header>
+        ${pageHead("Capabilities", "What Kompanion can use right now. Updates live.")}
         <p class="muted caps-loading">Checking models and computers…</p>
       </div>
     `;
@@ -308,12 +304,7 @@ export function renderCapabilities(c: Capabilities | undefined, timeline?: TlGpu
 
   return html`
     <div class="caps">
-      <header class="caps-head">
-        <div class="caps-title">
-          <h1>Capabilities</h1>
-          <p class="muted">What Kompanion can use right now. Updates live.</p>
-        </div>
-      </header>
+      ${pageHead("Capabilities", "What Kompanion can use right now. Updates live.")}
       ${gpus && c.studioTarget ? studioTargetControl(c.studioTarget) : ""}
       ${gpus ? group("gpus", "GPUs", (c.gpus ?? []).map((g) => gpuCard(g, c.gpuRole, c.gpuModes)), "No GPUs configured (kompanion.toml [[gpu]]).") : ""}
       ${gpus ? group("workflows", "Workflows", (c.workflows ?? []).map((w) => workflowCard(w)), "No saved workflows yet (studio/workflows).") : ""}
