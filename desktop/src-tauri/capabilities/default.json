@@ -2,11 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "The app's own server picker page. Each chosen server gets its own capability at runtime (main.rs open_server): core and notifications, nothing else.",
-  "windows": [
-    "main"
-  ],
-  "permissions": [
-    "core:default",
-    "notification:default"
-  ]
+  "windows": ["main"],
+  "permissions": ["core:default", "notification:default"]
 }

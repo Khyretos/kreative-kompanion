@@ -25,10 +25,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "appimage",
-      "deb"
-    ],
+    "targets": ["appimage", "deb"],
     "category": "Productivity",
     "shortDescription": "Kreative Kompanion",
     "icon": [
