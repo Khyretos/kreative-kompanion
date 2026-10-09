@@ -1,0 +1,44 @@
+{
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "source.png"
+    }
+  },
+  "11": {
+    "class_type": "ImageScaleToMaxDimension",
+    "inputs": {
+      "image": ["10", 0],
+      "upscale_method": "lanczos",
+      "largest_size": 1920
+    }
+  },
+  "50": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x-AnimeSharp.pth"
+    }
+  },
+  "51": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": ["50", 0],
+      "image": ["11", 0]
+    }
+  },
+  "54": {
+    "class_type": "ImageScaleToMaxDimension",
+    "inputs": {
+      "image": ["51", 0],
+      "upscale_method": "lanczos",
+      "largest_size": 3840
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["54", 0],
+      "filename_prefix": "kompanion/refine-4k"
+    }
+  }
+}
