@@ -18,11 +18,16 @@ COPY desktop/ /src/desktop/
 WORKDIR /src/desktop
 RUN cargo clippy --manifest-path src-tauri/Cargo.toml --locked -q -- -D warnings && \
     tauri build --ci --bundles appimage,deb --config "{\"version\":\"$APP_VERSION\"}" && \
-    mkdir -p /out && cd src-tauri/target/release && \
-    cp bundle/appimage/*.AppImage "/out/kreative-kompanion-$APP_VERSION-x86_64.AppImage" && \
-    cp bundle/deb/*.deb "/out/kreative-kompanion-$APP_VERSION-amd64.deb" && \
-    bin=$(find . -maxdepth 1 -type f -perm -u+x -name 'kreative*' | head -1) && \
+    mkdir -p /out && t=src-tauri/target/release && \
+    cp "$t"/bundle/appimage/*.AppImage "/out/kreative-kompanion-$APP_VERSION-x86_64.AppImage" && \
+    cp "$t"/bundle/deb/*.deb "/out/kreative-kompanion-$APP_VERSION-amd64.deb" && \
+    bin=$(find "$t" -maxdepth 1 -type f -perm -u+x -name 'kreative*' | head -1) && \
     mkdir /tmp/pkg && cp "$bin" /tmp/pkg/kreative-kompanion && \
     tar -C /tmp/pkg -czf "/out/kreative-kompanion-$APP_VERSION-linux-x86_64.tar.gz" kreative-kompanion
 
+# The workflow's anonymous /dist volume takes this owner; the image only copies files out.
+RUN mkdir /dist && chown 1000:1000 /dist
+USER 1000:1000
+# A build image runs one copy and exits: there is no service to check.
+HEALTHCHECK NONE
 CMD ["sh", "-c", "cp /out/* /dist/"]

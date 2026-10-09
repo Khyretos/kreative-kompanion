@@ -66,7 +66,7 @@ jobs:
           mkdir -p /tmp/keys && umask 077
           printf '%s' "$KEYSTORE" | base64 -d > /tmp/keys/release.jks
           printf '%s\n' "$KEYSTORE_ENV" > /tmp/keys/keystore.env
-          nice -n 15 docker build -q -t kompanion-android-build -f android/Dockerfile.build android
+          nice -n 15 docker build -q -t kompanion-android-build:release -f android/Dockerfile.build android
       - name: Build
         run: |
           set -eu

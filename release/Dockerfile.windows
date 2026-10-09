@@ -21,13 +21,18 @@ COPY release/windows/ /src/release/windows/
 WORKDIR /src/desktop
 RUN tauri build --ci --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis \
         --config "{\"version\":\"$APP_VERSION\"}" && \
-    mkdir -p /out && cd src-tauri/target/x86_64-pc-windows-msvc/release && \
-    cp bundle/nsis/*-setup.exe "/out/kreative-kompanion-$APP_VERSION-x64-setup.exe" && \
-    exe=$(find . -maxdepth 1 -type f -iname 'kreative*.exe' | head -1) && \
+    mkdir -p /out && t=src-tauri/target/x86_64-pc-windows-msvc/release && \
+    cp "$t"/bundle/nsis/*-setup.exe "/out/kreative-kompanion-$APP_VERSION-x64-setup.exe" && \
+    exe=$(find "$t" -maxdepth 1 -type f -iname 'kreative*.exe' | head -1) && \
     cp "$exe" "/out/kreative-kompanion-$APP_VERSION-x64-portable.exe" && \
     cp "$exe" /tmp/kreative-kompanion.exe && \
     wixl -a x64 -D Version="$APP_VERSION" -D Exe=/tmp/kreative-kompanion.exe \
         -D Icon=/src/desktop/src-tauri/icons/icon.ico \
         -o "/out/kreative-kompanion-$APP_VERSION-x64.msi" /src/release/windows/kompanion.wxs
 
+# The workflow's anonymous /dist volume takes this owner; the image only copies files out.
+RUN mkdir /dist && chown 1000:1000 /dist
+USER 1000:1000
+# A build image runs one copy and exits: there is no service to check.
+HEALTHCHECK NONE
 CMD ["sh", "-c", "cp /out/* /dist/"]

@@ -47,7 +47,7 @@ public final class ServerActivity extends Activity {
     /** The address field. */
     private EditText address;
     /** The connect button. */
-    private Button go;
+    private Button connectButton;
     /** The error line. */
     private TextView error;
 
@@ -85,15 +85,15 @@ public final class ServerActivity extends Activity {
         address.setPadding(pad / 2, 0, pad / 2, 0);
         add(address);
 
-        go = new Button(this);
-        go.setText(R.string.server_connect);
-        go.setAllCaps(false);
+        connectButton = new Button(this);
+        connectButton.setText(R.string.server_connect);
+        connectButton.setAllCaps(false);
         // Dark text on orange: white on orange fails contrast.
-        go.setBackgroundColor(ORANGE);
-        go.setTextColor(NIGHT);
-        go.setMinHeight(pixels(TOUCH_DP));
-        go.setOnClickListener(view -> connect());
-        add(go);
+        connectButton.setBackgroundColor(ORANGE);
+        connectButton.setTextColor(NIGHT);
+        connectButton.setMinHeight(pixels(TOUCH_DP));
+        connectButton.setOnClickListener(view -> connect());
+        add(connectButton);
 
         error = text(R.string.server_plain_http, ERROR, BODY_SP);
         error.setText("");
@@ -107,8 +107,8 @@ public final class ServerActivity extends Activity {
         if (server == null) {
             error.setText(R.string.server_invalid);
         } else {
-            go.setEnabled(false);
-            go.setText(R.string.server_connecting);
+            connectButton.setEnabled(false);
+            connectButton.setText(R.string.server_connecting);
             new Thread(() -> {
                 final boolean answered = Server.answers(server);
                 runOnUiThread(() -> connected(server, answered));
@@ -123,8 +123,8 @@ public final class ServerActivity extends Activity {
      * @param answered whether its status page answered
      */
     private void connected(final String server, final boolean answered) {
-        go.setEnabled(true);
-        go.setText(R.string.server_connect);
+        connectButton.setEnabled(true);
+        connectButton.setText(R.string.server_connect);
         if (answered) {
             final boolean changed = !server.equals(Server.url(this));
             Server.save(this, server);

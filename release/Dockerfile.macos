@@ -39,8 +39,14 @@ RUN for t in x86_64-apple-darwin aarch64-apple-darwin; do \
         target/aarch64-apple-darwin/release/kreative-kompanion-desktop \
         -output "$app/Contents/MacOS/kreative-kompanion" && \
     sed "s/@VERSION@/$APP_VERSION/g" /src/release/macos/Info.plist > "$app/Contents/Info.plist" && \
-    cp icons/icon.icns "$app/Contents/Resources/icon.icns" && \
-    mkdir -p /out && cd /tmp && \
+    cp icons/icon.icns "$app/Contents/Resources/icon.icns"
+WORKDIR /tmp
+RUN mkdir -p /out && \
     zip -qry "/out/kreative-kompanion-$APP_VERSION-macos-universal.zip" "Kreative Kompanion.app"
 
+# The workflow's anonymous /dist volume takes this owner; the image only copies files out.
+RUN mkdir /dist && chown 1000:1000 /dist
+USER 1000:1000
+# A build image runs one copy and exits: there is no service to check.
+HEALTHCHECK NONE
 CMD ["sh", "-c", "cp /out/* /dist/"]
