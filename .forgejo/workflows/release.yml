@@ -60,14 +60,17 @@ jobs:
           KEYSTORE_ENV: ${{ secrets.KK_ANDROID_KEYSTORE_ENV }}
         run: |
           if [ -z "$KEYSTORE" ] || [ -z "$KEYSTORE_ENV" ]; then
-            echo "::error::Secrets KK_ANDROID_KEYSTORE and KK_ANDROID_KEYSTORE_ENV are missing (release/README.md)"
-            exit 1
+            # The other platforms still publish; the APK waits for the signing key.
+            echo "::warning::No APK: secrets KK_ANDROID_KEYSTORE and KK_ANDROID_KEYSTORE_ENV are missing (release/README.md)"
+            echo "SKIP=1" >> "$GITHUB_ENV"
+            exit 0
           fi
           mkdir -p /tmp/keys && umask 077
           printf '%s' "$KEYSTORE" | base64 -d > /tmp/keys/release.jks
           printf '%s\n' "$KEYSTORE_ENV" > /tmp/keys/keystore.env
           nice -n 15 docker build -q -t kompanion-android-build:release -f android/Dockerfile.build android
       - name: Build
+        if: env.SKIP != '1'
         run: |
           set -eu
           tag="kompanion-release-${{ matrix.platform }}"
@@ -89,6 +92,7 @@ jobs:
           docker rm -v "$name"
           ls -l dist
       - uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        if: env.SKIP != '1'
         with:
           name: kompanion-${{ matrix.platform }}
           path: dist/*

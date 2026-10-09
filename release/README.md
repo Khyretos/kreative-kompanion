@@ -27,7 +27,7 @@ Repository Settings > Actions > Secrets:
 - `KK_ANDROID_KEYSTORE_ENV`: the contents of `~/.config/kompanion-android/keystore.env`
 
 They reach the build as BuildKit secrets and never land in an image layer. Without them
-the Android job fails with a clear message and no release is made.
+the Android job only warns and the release goes out without the APK.
 
 ## Notes per platform
 
