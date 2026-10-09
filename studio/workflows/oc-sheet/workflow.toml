@@ -37,7 +37,7 @@ type = "string"
 default = "an adult woman knight with silver hair, a blue cloak and silver armour"
 node = "4"
 input = "text"
-template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, {rating}, adult, mature, character sheet, character turnaround, reference sheet, multiple views of the same character, full body, front view, side view, from behind, standing, simple background, white background, {value}"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, {rating}, adult, mature, character sheet, character turnaround, reference sheet, multiple views of the same character, full body, front view, side view, from behind, standing, {bg}, {value}"
 
 [[param]]
 name = "negative"
@@ -45,7 +45,26 @@ type = "string"
 default = ""
 node = "5"
 input = "text"
-template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, gradient background, starry sky, frame, border, panels, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, {bg_neg}frame, border, panels, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+
+# STU-R2: the face fix (node 13) gets its own short prompt, so a moustache or eye colour the whole-sheet
+# prompt mentions late is not painted away; empty uses the main prompt.
+[[param]]
+name = "face_prompt"
+type = "string"
+default = ""
+fallback = "prompt"
+node = "16"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}"
+
+# STU-R2: plain white (the reference sheet) or the purple starry sky seed 304 painted by itself.
+[[param]]
+name = "background"
+type = "choice"
+default = "white"
+choices = ["white", "starry"]
+words = { bg = { white = "simple background, white background", starry = "purple starry night sky background, stars, deep purple to pink gradient sky" }, bg_neg = { white = "gradient background, starry sky, ", starry = "white background, simple background, " } }
 
 [[param]]
 name = "width"

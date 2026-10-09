@@ -1,0 +1,202 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["1", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "worst quality"
+    }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "source.png"
+    }
+  },
+  "11": {
+    "class_type": "ImageScaleToTotalPixels",
+    "inputs": {
+      "image": ["10", 0],
+      "upscale_method": "lanczos",
+      "megapixels": 2.0,
+      "resolution_steps": 8
+    }
+  },
+  "12": {
+    "class_type": "AnimeLineArtPreprocessor",
+    "inputs": {
+      "image": ["11", 0],
+      "resolution": 1280
+    }
+  },
+  "13": {
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "xinsir-union-sdxl-promax.safetensors"
+    }
+  },
+  "14": {
+    "class_type": "SetUnionControlNetType",
+    "inputs": {
+      "control_net": ["13", 0],
+      "type": "canny/lineart/anime_lineart/mlsd"
+    }
+  },
+  "15": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "control_net": ["14", 0],
+      "image": ["12", 0],
+      "strength": 0.75,
+      "start_percent": 0.0,
+      "end_percent": 1.0,
+      "vae": ["1", 2]
+    }
+  },
+  "16": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8,
+      "pixels": ["11", 0]
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["15", 0],
+      "negative": ["15", 1],
+      "latent_image": ["16", 0],
+      "seed": 1,
+      "steps": 28,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 1.0
+    }
+  },
+  "17": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8,
+      "samples": ["7", 0]
+    }
+  },
+  "40": {
+    "class_type": "UltralyticsDetectorProvider",
+    "inputs": {
+      "model_name": "bbox/face_yolov8m.pt"
+    }
+  },
+  "41": {
+    "class_type": "SAMLoader",
+    "inputs": {
+      "model_name": "sam_vit_b_01ec64.pth",
+      "device_mode": "AUTO"
+    }
+  },
+  "42": {
+    "class_type": "FaceDetailer",
+    "inputs": {
+      "image": ["17", 0],
+      "model": ["1", 0],
+      "clip": ["3", 0],
+      "vae": ["1", 2],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "guide_size": 512,
+      "guide_size_for": true,
+      "max_size": 1024,
+      "seed": 2,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35,
+      "feather": 5,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "bbox_threshold": 0.5,
+      "bbox_dilation": 10,
+      "bbox_crop_factor": 3,
+      "sam_detection_hint": "center-1",
+      "sam_dilation": 0,
+      "sam_threshold": 0.93,
+      "sam_bbox_expansion": 0,
+      "sam_mask_hint_threshold": 0.7,
+      "sam_mask_hint_use_negative": "False",
+      "drop_size": 10,
+      "bbox_detector": ["40", 0],
+      "sam_model_opt": ["41", 0],
+      "wildcard": "",
+      "cycle": 1,
+      "tiled_encode": true,
+      "tiled_decode": true
+    }
+  },
+  "50": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x-AnimeSharp.pth"
+    }
+  },
+  "51": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": ["50", 0],
+      "image": ["42", 0]
+    }
+  },
+  "52": {
+    "class_type": "GetImageSize",
+    "inputs": {
+      "image": ["10", 0]
+    }
+  },
+  "53": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["51", 0],
+      "upscale_method": "lanczos",
+      "width": ["52", 0],
+      "height": ["52", 1],
+      "crop": "disabled"
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["53", 0],
+      "filename_prefix": "kompanion/refine-change"
+    }
+  }
+}

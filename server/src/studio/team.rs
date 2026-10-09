@@ -44,6 +44,12 @@ pub struct Make {
     /// STU-N1: words to leave out, added after the type's own negative.
     #[serde(default)]
     negative: Option<String>,
+    /// STU-R2: the type's own other settings by name (the OC sheet's face_prompt and background, a refine strength).
+    #[serde(default)]
+    params: Map<String, Value>,
+    /// STU-R2: pictures for the type's [inputs] (multipart fields "source" and "mask"): name, bytes, extension.
+    #[serde(skip)]
+    pics: Vec<(String, Vec<u8>, &'static str)>,
 }
 
 pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(Make, Option<(Vec<u8>, &'static str)>, f64)> {
@@ -67,6 +73,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
     let (mut kind, mut prompt, mut size, mut count, mut rating, mut seed, mut length, mut face, mut weight) = (String::new(), String::new(), String::new(), 1u32, None::<String>, None::<i64>, None::<i64>, None::<(Vec<u8>, &'static str)>, 0.85f64);
 
     let mut negative = None::<String>;
+    let (mut params, mut pics) = (Map::new(), Vec::new());
     while let Some(field) = form.next_field().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))? {
         let name = field.name().unwrap_or("").to_string();
 
@@ -86,6 +93,22 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
                     face = Some((bytes.to_vec(), ext));
                 }
             }
+            // STU-R2: the picture a refine step works on and its painted area.
+            "source" | "mask" => {
+                let ext = match field.content_type().unwrap_or("") {
+                    "image/jpeg" => "jpg",
+                    "image/png" => "png",
+                    "image/webp" => "webp",
+                    _ => return Err(crate::error::ApiError::BadRequest("The picture must be a JPEG, PNG or WebP.".into())),
+                };
+                let bytes = field.bytes().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
+                if bytes.len() > 40 * 1024 * 1024 {
+                    return Err(crate::error::ApiError::BadRequest("Keep the picture under 40 MB.".into()));
+                }
+                if !bytes.is_empty() {
+                    pics.push((name.clone(), bytes.to_vec(), ext));
+                }
+            }
             _ => {
                 let text = field.text().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
                 match name.as_str() {
@@ -101,6 +124,9 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
                     "seed" => seed = text.trim().parse().ok(),
                     "length" => length = text.trim().parse().ok(),
                     "negative" => negative = Some(text),
+                    "params" => {
+                        params = serde_json::from_str(&text).map_err(|_| crate::error::ApiError::BadRequest("params must be a JSON object.".into()))?;
+                    }
                     "face_weight" => {
                         weight = text.parse().map_err(|_| crate::error::ApiError::BadRequest("The face weight must be a number.".into()))?;
                     }
@@ -110,7 +136,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
         }
     }
 
-    Ok((Make { kind, prompt, size, count, rating, seed, length, negative }, face, weight))
+    Ok((Make { kind, prompt, size, count, rating, seed, length, negative, params, pics }, face, weight))
 }
 
 /// POST /api/studio/make: generate images based on a workflow.
@@ -166,6 +192,12 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
     if face.is_some() && !(0.0..=1.2).contains(&weight) {
         return Err(ApiError::BadRequest("The face weight must be between 0 and 1.2.".into()));
     }
+    // STU-R2: the type's pictures (all required) and its other settings (only its own params).
+    let wf = workflows
+        .iter()
+        .find_map(|(n, r)| r.as_ref().ok().filter(|_| *n == b.kind))
+        .ok_or(ApiError::NotFound)?;
+    check_extra(wf, &b.params, &b.pics, &studio.label).map_err(ApiError::BadRequest)?;
     // KS-02: Coder describes the face photo; its tags go in front (what the prompt says wins).
     let mut face_tags = String::new();
     if let Some((bytes, _)) = &face {
@@ -198,6 +230,14 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         if let Some(n) = &negative {
             params.insert("negative".into(), json!(n));
         }
+        params.extend(b.params.clone());
+        for (name, bytes, ext) in &b.pics {
+            let dir = s.config.studio.output_dir.join("users").join(&u.id).join("inputs");
+            tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
+            let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
+            tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
+            params.insert(format!("input:{name}"), json!(path.display().to_string()));
+        }
         if let Some((bytes, ext)) = &face {
             let dir = s.config.studio.output_dir.join("users").join(&u.id).join("faces");
             tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
@@ -210,8 +250,12 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         let (id, job) = match super::queue(&s, &b.kind, "auto", &params, &u.id).await {
             Ok(x) => x,
             Err(e) => {
-                if let Some(p) = params.get("face").and_then(|v| v.as_str()) {
-                    let _ = tokio::fs::remove_file(p).await;
+                for (k, v) in &params {
+                    if (k == "face" || k.starts_with("input:"))
+                        && let Some(p) = v.as_str()
+                    {
+                        let _ = tokio::fs::remove_file(p).await;
+                    }
                 }
                 return Err(e);
             }
@@ -327,5 +371,65 @@ mod tests {
         assert_eq!(size_name(768, 1344), "tall");
         assert_eq!(size_name(1024, 1024), "square");
         assert_eq!(size_name(0, 0), "square");
+    }
+}
+
+/// STU-R2: settings the make form fills itself never come through `params`; any other name must be
+/// one of the type's own params. Every [inputs] picture is required and no other picture is taken.
+pub fn check_extra(wf: &super::workflow::Workflow, params: &Map<String, Value>, pics: &[(String, Vec<u8>, &'static str)], label: &str) -> Result<(), String> {
+    const OWN: [&str; 7] = ["prompt", "width", "height", "seed", "length", "rating", "negative"];
+    for k in params.keys() {
+        if OWN.contains(&k.as_str()) || !wf.params.iter().any(|p| &p.name == k) {
+            return Err(format!("{label} has no setting {k}."));
+        }
+    }
+    for (name, _, _) in pics {
+        if !wf.inputs.contains_key(name) {
+            return Err(format!("{label} takes no {name} picture."));
+        }
+    }
+    for name in wf.inputs.keys() {
+        if !pics.iter().any(|(n, _, _)| n == name) {
+            return Err(match name.as_str() {
+                "source" => "Pick a picture to refine.".to_string(),
+                "mask" => "Paint the area to change.".to_string(),
+                _ => format!("{label} needs a {name} picture."),
+            });
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod extra_tests {
+    use super::check_extra;
+    use serde_json::{Map, Value, json};
+    use std::path::PathBuf;
+
+    fn wf(n: &str) -> crate::studio::workflow::Workflow {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        crate::studio::workflow::load_all(&dir).into_iter().find(|(name, _)| name == n).unwrap().1.unwrap()
+    }
+    fn obj(v: Value) -> Map<String, Value> { v.as_object().unwrap().clone() }
+    fn pic(n: &str) -> (String, Vec<u8>, &'static str) { (n.to_string(), vec![1], "png") }
+
+    #[test]
+    fn extra_params_only_the_types_own() {
+        let sheet = wf("oc-sheet");
+        assert!(check_extra(&sheet, &obj(json!({"face_prompt": "1boy", "background": "starry"})), &[], "OC sheet").is_ok());
+        assert_eq!(check_extra(&sheet, &obj(json!({"strength": 0.5})), &[], "OC sheet").unwrap_err(), "OC sheet has no setting strength.");
+        assert_eq!(check_extra(&sheet, &obj(json!({"seed": 5})), &[], "OC sheet").unwrap_err(), "OC sheet has no setting seed.");
+        assert_eq!(check_extra(&sheet, &Map::new(), &[pic("source")], "OC sheet").unwrap_err(), "OC sheet takes no source picture.");
+    }
+
+    #[test]
+    fn refine_steps_need_their_pictures() {
+        let four = wf("refine-4k");
+        assert_eq!(check_extra(&four, &Map::new(), &[], "4K").unwrap_err(), "Pick a picture to refine.");
+        assert!(check_extra(&four, &obj(json!({"size": 4096})), &[pic("source")], "4K").is_ok());
+        assert_eq!(check_extra(&four, &Map::new(), &[pic("source"), pic("mask")], "4K").unwrap_err(), "4K takes no mask picture.");
+        let rep = wf("refine-repaint");
+        assert_eq!(check_extra(&rep, &Map::new(), &[pic("source")], "Repaint").unwrap_err(), "Paint the area to change.");
+        assert!(check_extra(&rep, &Map::new(), &[pic("source"), pic("mask")], "Repaint").is_ok());
     }
 }

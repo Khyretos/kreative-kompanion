@@ -1,0 +1,90 @@
+# STU-R2: a refine step for Kreative Studio: recolour/restyle held by the lineart.
+title = "Refine: change"
+description = "Recolours or restyles a picture while its lines stay: say what changes (black and gold armour, dark skin)."
+graph = "graph.json"
+outputs = ["20"]
+machines = ["soucouyant"]
+vram_mb = 11000
+ram_mb = 12000
+
+[studio]
+label = "Recolour or change"
+hint = "Keeps the lines, changes colours and details"
+sizes = ["square"]
+order = 102
+refine = true
+
+[inputs]
+source = "10"
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "black and gold armour"
+node = "4"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, {value}"
+
+[[param]]
+name = "negative"
+type = "string"
+default = ""
+node = "5"
+input = "text"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "7"
+input = "seed"
+also = [{ node = "42", input = "seed", add = 1 }]
+
+# How much may change: a white suit stayed white at 0.65 and 0.85 (the start picture's colours win); 1.0 redraws on the lines.
+[[param]]
+name = "strength"
+type = "float"
+default = 1.0
+min = 0.2
+max = 1.0
+node = "7"
+input = "denoise"
+
+# How closely the lines are kept.
+[[param]]
+name = "keep"
+type = "float"
+default = 0.75
+min = 0.0
+max = 1.0
+node = "15"
+input = "strength"
+
+[[param]]
+name = "rating"
+type = "choice"
+default = "general"
+choices = ["general", "sensitive", "questionable", "explicit"]
+adult = ["questionable", "explicit"]
+words = { rating_neg = { general = "nsfw, nude, explicit, " } }
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "xinsir-union-sdxl-promax.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "bbox/face_yolov8m.pt"
+licence = "AGPL-3.0"
+
+[[model]]
+file = "sam_vit_b_01ec64.pth"
+licence = "Apache-2.0"
+
+[[model]]
+file = "4x-AnimeSharp.pth"
+licence = "CC BY-NC-SA 4.0 (non-commercial; already used by the Studio upscale)"

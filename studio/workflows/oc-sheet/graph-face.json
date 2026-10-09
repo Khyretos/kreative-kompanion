@@ -105,7 +105,7 @@
       "model": ["34", 0],
       "clip": ["3", 0],
       "vae": ["1", 2],
-      "positive": ["4", 0],
+      "positive": ["16", 0],
       "negative": ["5", 0],
       "guide_size": 512,
       "guide_size_for": true,
@@ -133,7 +133,9 @@
       "image": ["10", 0],
       "bbox_detector": ["11", 0],
       "seed": 44,
-      "denoise": 0.4
+      "denoise": 0.4,
+      "tiled_encode": true,
+      "tiled_decode": true
     }
   },
   "14": {
@@ -176,7 +178,9 @@
       "image": ["13", 0],
       "bbox_detector": ["14", 0],
       "seed": 45,
-      "denoise": 0.35
+      "denoise": 0.35,
+      "tiled_encode": true,
+      "tiled_decode": true
     }
   },
   "20": {
@@ -346,6 +350,13 @@
       "width": 3024,
       "height": 1512,
       "crop": "disabled"
+    }
+  },
+  "16": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "face"
     }
   }
 }

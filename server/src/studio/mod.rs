@@ -42,7 +42,7 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/runs/delete", post(remove::delete_many))
         .route("/studio/target", get(target::read).put(target::set))
         // STU-01d: room for a face photo (12 MiB) in the multipart form.
-        .route("/studio/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
+        .route("/studio/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(60 * 1024 * 1024)))
         .route("/studio/audio", post(audio::make))
         .route("/studio/mine", get(team::mine))
         .route("/studio/runs/{id}/files/{n}", get(team::file))
@@ -50,7 +50,7 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/runs/{id}/to-assets", post(to_assets::send))
         .route("/studio/target/service", get(target::service_read).put(target::service_set))
         // KS-01: Kreative Studio's jobs, on behalf of a studio user (auth::guard maps the user).
-        .route("/studio/service/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
+        .route("/studio/service/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(60 * 1024 * 1024)))
         .route("/studio/service/audio", post(audio::make))
         .route("/studio/service/workflows", get(list))
         .route("/studio/service/mine", get(team::mine))
@@ -264,6 +264,15 @@ async fn queue(
     let mut params = params.clone();
     let face = params.remove("face").and_then(|v| v.as_str().map(std::path::PathBuf::from));
     let weight = params.remove("face_weight").and_then(|v| v.as_f64()).unwrap_or(0.85);
+    // STU-R2: the user's pictures ("input:<name>": its file on this server) for the [inputs] LoadImage nodes.
+    let mut pics = Vec::new();
+    for (input, node) in &wf.inputs {
+        let path = params.remove(&format!("input:{input}")).and_then(|v| v.as_str().map(std::path::PathBuf::from));
+        match path {
+            Some(p) => pics.push((node.clone(), p)),
+            None => return Err(ApiError::BadRequest(format!("{} needs a picture ({input}).", wf.title))),
+        }
+    }
     let graph = match &face {
         Some(_) => wf.face_graph("", weight),
         None => wf.graph_for(&machine),
@@ -298,6 +307,7 @@ async fn queue(
             id,
             user_id.to_string(),
             face,
+            pics,
         ),
     ))
 }
@@ -335,6 +345,7 @@ async fn execute(
     id: String,
     user_id: String,
     face: Option<std::path::PathBuf>,
+    pics: Vec<(String, std::path::PathBuf)>,
 ) {
     // BUG-02: Studio off stops this run at once; it also has a time limit.
     let watch = watchdog::watch(&id, &gpu);
@@ -395,6 +406,13 @@ async fn execute(
             let up = match up {
                 Err(e) => Err(e),
                 Ok(()) => async {
+                    // STU-R2: and the user's pictures for this run (a refine step's source and mask).
+                    for (node, path) in &pics {
+                        let bytes = tokio::fs::read(path).await.map_err(|e| anyhow::anyhow!("picture: {e}"))?;
+                        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png");
+                        let name = comfy::upload(&s.http, &url, bytes, &format!("{id}-{node}.{ext}")).await?;
+                        graph[node.as_str()]["inputs"]["image"] = json!(name);
+                    }
                     for (node, file) in &w.images {
                         let path = w.dir.join(file);
                         let bytes = tokio::fs::read(&path).await;

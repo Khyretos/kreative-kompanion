@@ -1,0 +1,32 @@
+# STU-R2: a refine step for Kreative Studio: 4K upscale (4x-AnimeSharp only, long side 3840).
+title = "Refine: 4K"
+description = "Makes a picture 4K (3840 px on the long side) with 4x-AnimeSharp, nothing redrawn, to hand to an artist."
+graph = "graph.json"
+outputs = ["20"]
+machines = ["soucouyant"]
+vram_mb = 3000
+ram_mb = 12000
+
+[studio]
+label = "4K for an artist"
+hint = "Same picture, 3840 px, crisp lines"
+sizes = ["square"]
+order = 101
+refine = true
+
+[inputs]
+source = "10"
+
+# Pixels on the long side.
+[[param]]
+name = "size"
+type = "int"
+default = 3840
+min = 2048
+max = 4096
+node = "54"
+input = "largest_size"
+
+[[model]]
+file = "4x-AnimeSharp.pth"
+licence = "CC BY-NC-SA 4.0 (non-commercial; already used by the Studio upscale)"

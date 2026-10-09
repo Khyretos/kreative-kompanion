@@ -1,0 +1,36 @@
+# STU-R2: a refine step for Kreative Studio: avatar layers (BiRefNet cut-out, head, body).
+title = "Refine: parts"
+description = "Splits a character into layers for an avatar: the whole cut-out, the head and the body without the head, as transparent PNGs."
+graph = "graph.json"
+outputs = ["20", "21", "22"]
+machines = ["soucouyant"]
+vram_mb = 4000
+ram_mb = 12000
+
+[studio]
+label = "Split into parts"
+hint = "Cut-out, head and body as transparent layers"
+sizes = ["square"]
+order = 105
+refine = true
+
+[inputs]
+source = "10"
+
+# Pixels the face box grows by to take in hair and helmet (the picture is 2048 px on the long side).
+[[param]]
+name = "head"
+type = "int"
+default = 60
+min = 0
+max = 400
+node = "15"
+input = "dilation"
+
+[[model]]
+file = "bbox/face_yolov8m.pt"
+licence = "AGPL-3.0"
+
+[[model]]
+file = "birefnet.safetensors"
+licence = "MIT (BiRefNet)"
