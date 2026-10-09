@@ -1,7 +1,14 @@
 """STU-R2: writes the five refine workflows (graph.json [+ graph-face.json] + workflow.toml).
 Usage: python3 tools/refine/gen.py studio/workflows"""
-import json, os, sys, copy
-sys.path.insert(0, os.path.dirname(__file__)); from fmt import dump
+
+import copy
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(__file__))
+from fmt import dump  # noqa: E402
+
 ROOT = sys.argv[1]
 CK = "novaAnimeXL_ilV170.safetensors"
 POS = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, {value}"
@@ -70,14 +77,17 @@ def p_seed(node, also=()):
     return f'[[param]]\nname = "seed"\ntype = "seed"\ndefault = -1\nnode = "{node}"\ninput = "seed"\n' + (f"also = [{a}]\n" if a else "")
 
 def write(name, head, graph, params, models, face=None, inputs='source = "10"'):
-    d = os.path.join(ROOT, name); os.makedirs(d, exist_ok=True)
+    d = os.path.join(ROOT, name)
+    os.makedirs(d, exist_ok=True)
     dump(graph, os.path.join(d, "graph.json"))
     t = head + "\n[inputs]\n" + inputs + "\n"
     if face:
-        g2 = copy.deepcopy(graph); face(g2); dump(g2, os.path.join(d, "graph-face.json"))
+        g2 = copy.deepcopy(graph)
+        face(g2)
+        dump(g2, os.path.join(d, "graph-face.json"))
         t += '\n# A face photo makes the new part look like that person (IP-Adapter plus-face, nodes 30-34).\n[face]\ngraph = "graph-face.json"\nimage = "30"\nweight = "34"\n'
     t += "\n" + "\n".join(params) + "\n" + "\n".join(f'[[model]]\nfile = "{M[m][0]}"\nlicence = "{M[m][1]}"\n' for m in models)
-    open(os.path.join(d, "workflow.toml"), "w").write(t)
+    Path(d, "workflow.toml").write_text(t)
 
 def head(title, desc, label, hint, order, vram, outputs='["20"]', comment=""):
     return (f"# STU-R2: a refine step for Kreative Studio: {comment}\n"
@@ -170,7 +180,7 @@ g = {
     "17": {"class_type": "MaskComposite", "inputs": {"destination": L(13), "source": L(16), "x": 0, "y": 0, "operation": "multiply"}},
     "18": {"class_type": "MaskComposite", "inputs": {"destination": L(13), "source": L(16), "x": 0, "y": 0, "operation": "subtract"}},
 }
-for n, (m, out) in {"20": ("13", "21"), "21": ("17", "22"), "22": ("18", "23")}.items():
+for n, m in {"20": "13", "21": "17", "22": "18"}.items():
     g[f"3{n[1]}"] = {"class_type": "InvertMask", "inputs": {"mask": L(m)}}
     g[f"4{n[1]}"] = {"class_type": "JoinImageWithAlpha", "inputs": {"image": L(11), "alpha": L(f"3{n[1]}")}}
     g[n] = save(L(f"4{n[1]}"), "refine-parts")
