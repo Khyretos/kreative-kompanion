@@ -197,7 +197,10 @@ async fn run(s: AppState, k: AudioKind, gpu: String, url: String, params: Value,
     
     let result: anyhow::Result<Vec<String>> = async {
         super::make_room(&s, &gpu, k.vram_mib, k.app).await;
-        let lease = jobs::acquire(&s, spec, Duration::from_secs(900)).await?;
+        let nudge = super::make_room_while_waiting(&s, &gpu, k.vram_mib, k.app);
+        let leased = jobs::acquire(&s, spec, Duration::from_secs(900)).await;
+        nudge.abort();
+        let lease = leased?;
         if let Err(e) = wait_up(&s.http, &url, Duration::from_secs(120)).await {
             lease.fail(e.to_string());
             return Err(e);

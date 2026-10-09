@@ -190,6 +190,24 @@ pub async fn make_room(s: &AppState, gpu: &str, need_mib: u64, keep: &str) {
     }
 }
 
+pub fn make_room_while_waiting(s: &AppState, gpu: &str, need_mib: u64, keep: &'static str) -> tokio::task::JoinHandle<()> {
+    let s = s.clone();
+    let gpu = gpu.to_string();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            let running: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM gpu_job WHERE gpu = ? AND state = 'running'")
+                .bind(&gpu)
+                .fetch_one(&s.db)
+                .await
+                .unwrap_or(1);
+            if running == 0 {
+                crate::studio::make_room(&s, &gpu, need_mib, keep).await;
+            }
+        }
+    })
+}
+
 /// GPU-02: the GPU a studio run uses. A named GPU is used as asked; "auto" takes the first
 /// configured GPU with studio apps and a ComfyUI whose computer has the studio on, else
 /// `[studio] fallback_gpu` (e.g. the A770, at the cost of Coder), else an error saying why.
@@ -388,7 +406,11 @@ async fn execute(
     }
     // STU-02: idle music/SFX apps on this GPU make way too.
     make_room(&s, &gpu, spec.vram_mib, "comfyui").await;
-    let result = match jobs::acquire(&s, spec, Duration::from_secs(1800)).await {
+    // STU-C3: a run queued behind another one frees ComfyUI's cache too, once that one is done.
+    let nudge = make_room_while_waiting(&s, &gpu, spec.vram_mib, "");
+    let leased = jobs::acquire(&s, spec, Duration::from_secs(1800)).await;
+    nudge.abort();
+    let result = match leased {
         Err(e) => Err(e),
         Ok(lease) => {
             // The output root is shared too (create_dir_all makes it 755 otherwise).
