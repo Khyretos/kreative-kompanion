@@ -377,6 +377,14 @@ async fn execute(
     } else if ledger.as_ref().is_none_or(|l| l.free_mib < spec.vram_mib) {
         comfy::free_if_idle(&s.http, &url).await;
     }
+    // STU-C3: the RAM ComfyUI already holds is used on the host and is part of what this run
+    // needs; counting it twice kept oc-shots queued on soucouyant with 14 GB of VRAM free.
+    if let Some(total) = jobs::ram_total_mib(&s, &machine).await
+        && let Ok(r) = s.http.get(format!("{url}/system_stats")).timeout(Duration::from_secs(3)).send().await
+        && let Ok(stats) = r.json::<Value>().await
+    {
+        spec.ram_mib = spec.ram_mib.saturating_sub(comfy::ram_held_mib(&stats, total));
+    }
     // STU-02: idle music/SFX apps on this GPU make way too.
     make_room(&s, &gpu, spec.vram_mib, "comfyui").await;
     let result = match jobs::acquire(&s, spec, Duration::from_secs(1800)).await {

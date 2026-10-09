@@ -270,8 +270,10 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
 
 /// GET /api/studio/mine: list recent runs for the current user.
 pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> ApiResult<Json<Vec<Value>>> {
-    let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, String, String, Option<String>)>(
-        "SELECT id, workflow, gpu, params, state, error, outputs, started_at, ended_at FROM studio_run WHERE user_id = ? ORDER BY started_at DESC LIMIT 200"
+    let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, String, String, Option<String>, Option<String>)>(
+        "SELECT id, workflow, gpu, params, state, error, outputs, started_at, ended_at,
+                (SELECT j.error FROM gpu_job j WHERE j.run_id = studio_run.id AND j.state = 'queued' LIMIT 1)
+         FROM studio_run WHERE user_id = ? ORDER BY started_at DESC LIMIT 200"
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -298,6 +300,8 @@ pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> A
             "seconds": params["seconds"],
             "state": row.4,
             "error": row.5,
+            // STU-C3: why a running run still waits for its GPU (None once it runs).
+            "waiting": row.9,
             "files": files,
             // KS-03: file names, so Kreative Studio can label downloads.
             "names": outputs.iter().map(|o| o.rsplit('/').next().unwrap_or("")).collect::<Vec<_>>(),

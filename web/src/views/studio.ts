@@ -4,7 +4,7 @@ import { SIZE_LABELS, typeCard, typeDetail } from "./studio-cards";
 import { icon } from "./icons";
 
 export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number }; ratings?: string[]; adultRatings?: string[]; face?: boolean; negative?: string }
-export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; files: string[]; startedAt: string; endedAt: string | null }
+export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; waiting?: string | null; files: string[]; startedAt: string; endedAt: string | null }
 export interface StudioForm { type: string; size: string; count: 1 | 4; busy: boolean; error?: string }
 
 export function renderStudioMake(types: StudioType[] | undefined, form: StudioForm, prompt: string, lyrics: string, seconds: string, rating: string, adult: boolean, faceName: string, faceWeight: string, negative = ""): SafeHtml {
@@ -78,7 +78,9 @@ export function runCard(
   const what = isAudio ? `${r.seconds ?? "?"} s` : SIZE_LABELS[r.size] ?? r.size;
   let pictures: SafeHtml;
   if (r.state === "running") {
-    pictures = html`<div class="studio-thumb pending" role="status">Making…</div>`;
+    pictures = r.waiting
+      ? html`<div class="studio-thumb pending" role="status" title="${r.waiting}">Waiting for room…</div><p class="small muted studio-wait">${r.waiting}</p>`
+      : html`<div class="studio-thumb pending" role="status">Making…</div>`;
   } else if (r.state === "failed") {
     pictures = html`<div class="studio-thumb failed">Failed</div><p class="error small">${r.error ?? "Something went wrong."}</p>`;
   } else if (isAudio) {
