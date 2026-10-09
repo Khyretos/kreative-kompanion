@@ -213,65 +213,93 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         }
     }
     let prompt = if face_tags.is_empty() { text.to_string() } else { format!("{face_tags}, {text}") };
-    let mut ids = Vec::new();
+    // STU-C3: a helmet description makes a pair (helmet on, face visible) with one seed.
+    let mut extra = b.params.clone();
+    let helmet = if wf.params.iter().any(|p| p.name == "helmet") {
+        super::helmet::split(&prompt, &mut extra, crate::util::new_id).map_err(ApiError::BadRequest)?
+    } else {
+        None
+    };
+    let sides: Vec<Option<&super::helmet::Side>> = match &helmet {
+        Some(h) => h.sides.iter().map(Some).collect(),
+        None => vec![None],
+    };
+    let (mut ids, mut states, mut pairs) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..b.count {
-        let mut params = Map::new();
-        params.insert("prompt".into(), json!(prompt));
-        params.insert("width".into(), json!(w_px));
-        params.insert("height".into(), json!(h_px));
         // KS-02: "Make 4" with a seed makes four different pictures (seed, seed + 1, ...).
-        params.insert("seed".into(), json!(b.seed.map(|s| s + i as i64).unwrap_or(-1)));
-        if let Some(l) = b.length {
-            params.insert("length".into(), json!(l));
-        }
-        if let Some(r) = &b.rating {
-            params.insert("rating".into(), json!(r));
-        }
-        if let Some(n) = &negative {
-            params.insert("negative".into(), json!(n));
-        }
-        params.extend(b.params.clone());
-        drop_unused(wf, &mut params);
-        for (name, bytes, ext) in &b.pics {
-            let dir = s.config.studio.output_dir.join("users").join(&u.id).join("inputs");
-            tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
-            let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
-            tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
-            params.insert(format!("input:{name}"), json!(path.display().to_string()));
-        }
-        if let Some((bytes, ext)) = &face {
-            let dir = s.config.studio.output_dir.join("users").join(&u.id).join("faces");
-            tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
-            let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
-            tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
-            params.insert("face".into(), json!(path.display().to_string()));
-            params.insert("face_weight".into(), json!(weight));
-        }
-        // STU-01d: a refused run removes its photo copy.
-        let (id, job) = match super::queue(&s, &b.kind, "auto", &params, &u.id).await {
-            Ok(x) => x,
-            Err(e) => {
-                for (k, v) in &params {
-                    if (k == "face" || k.starts_with("input:"))
-                        && let Some(p) = v.as_str()
-                    {
-                        let _ = tokio::fs::remove_file(p).await;
-                    }
-                }
-                return Err(e);
+        let seed = b.seed.map(|s| s + i as i64).unwrap_or(if helmet.is_some() { rand::random::<u32>() as i64 } else { -1 });
+        let pair = helmet.as_ref().map(|h| if b.count == 1 { h.id.clone() } else { format!("{}-{i}", h.id) });
+        for side in &sides {
+            let mut params = Map::new();
+            params.insert("prompt".into(), json!(side.map_or(prompt.as_str(), |s| s.prompt.as_str())));
+            params.insert("width".into(), json!(w_px));
+            params.insert("height".into(), json!(h_px));
+            params.insert("seed".into(), json!(seed));
+            if let Some(l) = b.length {
+                params.insert("length".into(), json!(l));
             }
-        };
-        tokio::spawn(job);
-        ids.push(id);
+            if let Some(r) = &b.rating {
+                params.insert("rating".into(), json!(r));
+            }
+            if let Some(n) = &negative {
+                params.insert("negative".into(), json!(n));
+            }
+            params.extend(extra.clone());
+            if let (Some(side), Some(h), Some(pair)) = (side, &helmet, &pair) {
+                params.insert("helmet".into(), json!(side.state));
+                params.insert("helmet_desc".into(), json!(h.desc));
+                params.insert("pair".into(), json!(pair));
+                if let Some(fp) = &side.face_prompt {
+                    params.insert("face_prompt".into(), json!(fp));
+                }
+            }
+            drop_unused(wf, &mut params);
+            for (name, bytes, ext) in &b.pics {
+                let dir = s.config.studio.output_dir.join("users").join(&u.id).join("inputs");
+                tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
+                let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
+                tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
+                params.insert(format!("input:{name}"), json!(path.display().to_string()));
+            }
+            if let Some((bytes, ext)) = face.as_ref().filter(|_| side.is_none_or(|s| s.face_photo)) {
+                let dir = s.config.studio.output_dir.join("users").join(&u.id).join("faces");
+                tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
+                let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
+                tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
+                params.insert("face".into(), json!(path.display().to_string()));
+                params.insert("face_weight".into(), json!(weight));
+            }
+            // STU-01d: a refused run removes its photo copy.
+            let (id, job) = match super::queue(&s, &b.kind, "auto", &params, &u.id).await {
+                Ok(x) => x,
+                Err(e) => {
+                    for (k, v) in &params {
+                        if (k == "face" || k.starts_with("input:"))
+                            && let Some(p) = v.as_str()
+                        {
+                            let _ = tokio::fs::remove_file(p).await;
+                        }
+                    }
+                    return Err(e);
+                }
+            };
+            tokio::spawn(job);
+            ids.push(id);
+            states.push(side.map(|s| s.state));
+            pairs.push(pair.clone());
+        }
     }
 
-    Ok((StatusCode::ACCEPTED, Json(json!({"ids": ids, "faceTags": face_tags}))))
+    // STU-C3: per id, its helmet side and pair (null without a helmet).
+    Ok((StatusCode::ACCEPTED, Json(json!({"ids": ids, "faceTags": face_tags, "helmet": states, "pairs": pairs}))))
 }
 
 /// GET /api/studio/mine: list recent runs for the current user.
 pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> ApiResult<Json<Vec<Value>>> {
-    let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, String, String, Option<String>)>(
-        "SELECT id, workflow, gpu, params, state, error, outputs, started_at, ended_at FROM studio_run WHERE user_id = ? ORDER BY started_at DESC LIMIT 200"
+    let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, String, String, Option<String>, Option<String>)>(
+        "SELECT id, workflow, gpu, params, state, error, outputs, started_at, ended_at,
+                (SELECT j.error FROM gpu_job j WHERE j.run_id = studio_run.id AND j.state = 'queued' LIMIT 1)
+         FROM studio_run WHERE user_id = ? ORDER BY started_at DESC LIMIT 200"
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -298,6 +326,11 @@ pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> A
             "seconds": params["seconds"],
             "state": row.4,
             "error": row.5,
+            // STU-C3: why a running run still waits for its GPU (None once it runs).
+            "waiting": row.9,
+            // STU-C3: the helmet side ("on" / "off") and the pair it belongs to.
+            "helmet": params.get("helmet").filter(|h| h.as_str().is_some_and(|h| h != "none")),
+            "pair": params.get("pair").filter(|p| p.as_str().is_some_and(|p| !p.is_empty())),
             "files": files,
             // KS-03: file names, so Kreative Studio can label downloads.
             "names": outputs.iter().map(|o| o.rsplit('/').next().unwrap_or("")).collect::<Vec<_>>(),

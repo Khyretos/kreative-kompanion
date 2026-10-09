@@ -40,6 +40,8 @@ let studioRating = ""; // STU-01c: the picked rating ("" = the first one offered
 let studioFace: File | undefined; // STU-01d: the face photo (a re-render empties the file input)
 let studioFaceWeight = "";
 let studioNegative = ""; // STU-N1: the Leave out words, kept like the prompt
+let studioHelmet = ""; // STU-C3: the helmet description (empty: no helmet pair)
+const studioSides: Record<string, "on" | "off"> = {}; // STU-C3: which side each helmet pair shows
 import { ALL_FEATURES } from "./api/types";
 import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
@@ -336,8 +338,8 @@ function render(s: AppState, prev: AppState): void {
     if (s.section !== prev.section || firstRender) mount($("#studio"), h`<div class="studio">
       ${pageHead("Studio", "Describe it, pick a type and a size; Kompanion picks the GPU.")}
       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
-    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight, studioNegative));
-    if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent", "studioPicked", "studioHidden"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent, s.studioPicked, s.studioHidden));
+    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight, studioNegative, studioHelmet));
+    if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent", "studioPicked", "studioHidden"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent, s.studioPicked, s.studioHidden, studioSides));
   }
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
@@ -819,6 +821,15 @@ function wire(shell: HTMLElement): void {
     "studio-clear-failed": () => {
       const { studioRuns, studioHidden } = store.get();
       studioDeleteLater((studioRuns ?? []).filter((r) => r.state === "failed" && !studioHidden.includes(r.id)).map((r) => r.id));
+    },
+    // STU-C3: a helmet pair's toggle flips which run its card shows (no re-render).
+    "studio-side": (el) => {
+      const pair = el.dataset.pair ?? "";
+      const side = el.dataset.side === "off" ? "off" : "on";
+      studioSides[pair] = side;
+      const card = el.closest<HTMLElement>(".studio-pair");
+      if (card) card.dataset.side = side;
+      el.parentElement?.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === el)));
     },
     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
     // A finished image, large, in a dialog that closes on Escape or a click.
@@ -1385,7 +1396,7 @@ function wire(shell: HTMLElement): void {
       store.set({ studioForm: { ...f, count, busy: true, error: undefined } });
       const made = chosen?.audio
         ? api.studioAudio(chosen.audio, prompt, studioLyrics, Number(studioSeconds) || chosen.seconds?.default || 4)
-        : api.studioMake(f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined, chosen?.face && studioFace ? { file: studioFace, weight: Number(studioFaceWeight || "0.85") } : undefined, chosen?.negative !== undefined ? studioNegative.trim() : undefined);
+        : api.studioMake(f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined, chosen?.face && studioFace ? { file: studioFace, weight: Number(studioFaceWeight || "0.85") } : undefined, chosen?.negative !== undefined ? studioNegative.trim() : undefined, chosen?.helmet && studioHelmet.trim() ? { helmet_desc: studioHelmet.trim() } : undefined);
       void made
         .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
         .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
@@ -1545,6 +1556,7 @@ function wire(shell: HTMLElement): void {
     if (el.id === "studio-prompt") { studioPrompt = el.value; return; }
     if (el.id === "studio-lyrics") { studioLyrics = el.value; return; }
     if (el.id === "studio-negative") { studioNegative = el.value; return; }
+    if (el.id === "studio-helmet") { studioHelmet = el.value; return; }
     if (el.id === "studio-seconds") { studioSeconds = el.value; return; }
     if (el.id === "studio-rating") { studioRating = el.value; return; }
     if (el.id === "studio-face") { studioFace = el.files?.[0]; store.set({ studioForm: { ...store.get().studioForm } }); return; }

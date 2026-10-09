@@ -261,6 +261,16 @@ impl HostStats {
         out
     }
 
+    /// Total host RAM in GB per machine (STU-C3), keyed like `ram_free`.
+    pub fn ram_total(&self, state: &AppState) -> Vec<(Option<String>, f64)> {
+        let _ = self.local_view(state);
+        let mut out: Vec<_> = self.local.lock().unwrap().snap.iter().map(|s| (None, s.ram_total_gb)).collect();
+        for (id, r) in self.remote.lock().unwrap().iter() {
+            out.push((Some(id.clone()), r.snap.ram_total_gb));
+        }
+        out
+    }
+
     /// Everything `user_id` may see: this server plus their own paired PCs.
     async fn views(&self, state: &AppState, user_id: &str) -> ApiResult<Vec<Value>> {
         let local = self.local_view(state);

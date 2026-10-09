@@ -25,7 +25,7 @@ type = "string"
 default = ""
 node = "4"
 input = "text"
-template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, solo, {shot_tags}, {bg}, {value}"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, solo, {shot_tags}, {bg}, {helmet_tags}{value}"
 
 [[param]]
 name = "negative"
@@ -33,7 +33,7 @@ type = "string"
 default = ""
 node = "5"
 input = "text"
-template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, multiple views, character sheet, reference sheet, turnaround, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {shot_neg}{bg_neg}{rating_neg}{value}"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, multiple views, character sheet, reference sheet, turnaround, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {helmet_neg}{shot_neg}{bg_neg}{rating_neg}{value}"
 
 [[param]]
 name = "face_prompt"
@@ -41,7 +41,7 @@ type = "string"
 default = ""
 node = "16"
 input = "text"
-template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, {helmet_face}{value}"
 fallback = "prompt"
 
 # STU-C2: which shot; the size comes with it (headshot tall, cowboy square, sent by Kreative Studio).
@@ -85,16 +85,6 @@ node = "7"
 input = "seed"
 also = [{ node = "42", input = "seed", add = 2 }]
 
-# How much of the sheet's outfit and colours carries over.
-[[param]]
-name = "likeness"
-type = "float"
-default = 0.6
-min = 0.0
-max = 1.0
-node = "34"
-input = "weight"
-
 # How much of the sheet's look (outfit, colours, face) carries over.
 [[param]]
 name = "likeness"
@@ -104,6 +94,30 @@ min = 0.0
 max = 1.0
 node = "34"
 input = "weight"
+
+# STU-C3: helmet on and off. Kompanion's make turns helmet_desc into two runs with one seed (helmet "on" and
+# "off", the same pair id); the words keep the face fix on the helmet when it is on.
+[[param]]
+name = "helmet"
+type = "choice"
+default = "none"
+node = ""
+choices = ["none", "on", "off"]
+words = { helmet_tags = { on = "helmet, full helmet covering the head, face hidden, ", off = "no helmet, face visible, bare head, short hair, " }, helmet_neg = { on = "visible face, bare head, ", off = "helmet, headwear, visor, mask, hood, " }, helmet_face = { none = "detailed face, ", on = "helmet, visor, face hidden, ", off = "detailed face, " } }
+
+[[param]]
+name = "helmet_desc"
+type = "string"
+default = ""
+node = ""
+input = ""
+
+[[param]]
+name = "pair"
+type = "string"
+default = ""
+node = ""
+input = ""
 
 [[param]]
 name = "rating"

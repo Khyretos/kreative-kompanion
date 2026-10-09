@@ -127,12 +127,20 @@ pub async fn acquire(s: &AppState, spec: Spec, wait: Duration) -> Result<Lease> 
             _ => {}
         }
         if tokio::time::Instant::now() >= deadline {
-            let _ = sqlx::query("UPDATE gpu_job SET state = 'dropped', ended_at = ?, error = 'waited too long' WHERE id = ? AND state = 'queued'")
+            // STU-C3: say what it waited for (the scheduler keeps the reason on the queued row).
+            let why: Option<String> =
+                sqlx::query_scalar("SELECT error FROM gpu_job WHERE id = ?").bind(&id).fetch_optional(&s.db).await?.flatten();
+            let msg = match why {
+                Some(w) => format!("no GPU became free in time ({w})"),
+                None => "no GPU became free in time".to_string(),
+            };
+            let _ = sqlx::query("UPDATE gpu_job SET state = 'dropped', ended_at = ?, error = ? WHERE id = ? AND state = 'queued'")
                 .bind(util::now())
+                .bind(format!("waited too long: {msg}"))
                 .bind(&id)
                 .execute(&s.db)
                 .await;
-            bail!("no GPU became free in time");
+            bail!("{msg}");
         }
         if last_beat.elapsed() >= BEAT {
             beat(s, &id).await;
@@ -196,7 +204,7 @@ pub async fn round(s: &AppState, ledgers: &[super::ledger::GpuLedger]) {
         }
     }
     let hour = time::OffsetDateTime::now_utc().hour();
-    let start = sched::decide(&sched::Inputs {
+    let (start, waiting) = sched::plan(&sched::Inputs {
         gpus: &gpus,
         ram_free_mib: &ram_free,
         busy_machines: &busy,
@@ -205,10 +213,19 @@ pub async fn round(s: &AppState, ledgers: &[super::ledger::GpuLedger]) {
         night: crate::assets::ai::night(hour),
     });
     for (job, gpu) in &start {
-        let _ = sqlx::query("UPDATE gpu_job SET state = 'running', gpu = ?, started_at = ? WHERE id = ? AND state = 'queued'")
+        let _ = sqlx::query("UPDATE gpu_job SET state = 'running', gpu = ?, started_at = ?, error = NULL WHERE id = ? AND state = 'queued'")
             .bind(gpu)
             .bind(util::now())
             .bind(job)
+            .execute(&s.db)
+            .await;
+    }
+    // STU-C3: a queued job keeps why it waits (shown on its Studio card, and in the error when it gives up).
+    for (job, why) in &waiting {
+        let _ = sqlx::query("UPDATE gpu_job SET error = ? WHERE id = ? AND state = 'queued' AND error IS NOT ?")
+            .bind(why)
+            .bind(job)
+            .bind(why)
             .execute(&s.db)
             .await;
     }
@@ -219,6 +236,16 @@ pub async fn round(s: &AppState, ledgers: &[super::ledger::GpuLedger]) {
 
 /// Free host RAM per machine name, in MiB.
 async fn ram_free_mib(s: &AppState) -> HashMap<String, u64> {
+    per_machine(s, s.host.ram_free(s)).await
+}
+
+/// Total host RAM of one machine, in MiB (STU-C3).
+pub async fn ram_total_mib(s: &AppState, machine: &str) -> Option<u64> {
+    per_machine(s, s.host.ram_total(s)).await.remove(machine)
+}
+
+/// Host stats keyed by remote machine id (None = this server), as MiB per machine name.
+async fn per_machine(s: &AppState, gb: Vec<(Option<String>, f64)>) -> HashMap<String, u64> {
     let names: HashMap<String, String> = sqlx::query_as::<_, (String, String)>("SELECT id, name FROM machines")
         .fetch_all(&s.db)
         .await
@@ -226,9 +253,7 @@ async fn ram_free_mib(s: &AppState) -> HashMap<String, u64> {
         .into_iter()
         .collect();
     let local = s.config.machine_name.clone().unwrap_or_default();
-    s.host
-        .ram_free(s)
-        .into_iter()
+    gb.into_iter()
         .filter_map(|(remote, gb)| {
             let name = match remote {
                 None => local.clone(),

@@ -61,8 +61,8 @@ pub struct Inputs<'a> {
 /// Host RAM kept free on every machine (2026-10-04: running out of host RAM froze kireserver).
 pub const RAM_SPARE_MIB: u64 = 5 * 1024;
 
-/// (job id, gpu id) to start now, in start order.
-pub fn decide(i: &Inputs) -> Vec<(String, String)> {
+/// (job id, gpu id) to start now, in start order; and (job id, why it waits) for every queued job left waiting.
+pub fn plan(i: &Inputs) -> (Vec<(String, String)>, Vec<(String, String)>) {
     let machine_of: HashMap<&str, &str> = i.gpus.iter().map(|g| (g.id.as_str(), g.machine.as_str())).collect();
     let mut vram: HashMap<&str, u64> = i.gpus.iter().map(|g| (g.id.as_str(), g.free_mib)).collect();
     let mut ram: HashMap<&str, u64> = i.ram_free_mib.iter().map(|(m, v)| (m.as_str(), *v)).collect();
@@ -87,6 +87,7 @@ pub fn decide(i: &Inputs) -> Vec<(String, String)> {
     queue.sort_by(|a, b| a.kind.cmp(&b.kind).then_with(|| a.created.cmp(&b.created)).then_with(|| a.id.cmp(&b.id)));
 
     let mut out = Vec::new();
+    let mut waiting = Vec::new();
     let mut started: HashSet<&str> = HashSet::new();
     for job in queue {
         if running.contains(job.id.as_str()) || !started.insert(job.id.as_str()) {
@@ -111,9 +112,38 @@ pub fn decide(i: &Inputs) -> Vec<(String, String)> {
             }
             busy_gpu.insert(g.id.as_str());
             out.push((job.id.clone(), g.id.clone()));
+        } else {
+            // One reason per GPU the job may use: the first check that fails there.
+            let why: Vec<String> = job
+                .gpus
+                .iter()
+                .filter_map(|id| i.gpus.iter().find(|g| &g.id == id))
+                .map(|g| {
+                    let free_vram = vram.get(g.id.as_str()).copied().unwrap_or(0);
+                    let free_ram = ram.get(g.machine.as_str()).copied().unwrap_or(0);
+                    if !g.schedulable {
+                        format!("{} is not used for jobs", g.id)
+                    } else if i.busy_machines.contains(&g.machine) {
+                        format!("{}: a game is running or its studio is off", g.machine)
+                    } else if free_vram < job.vram_mib {
+                        format!("{}: {free_vram} MiB VRAM free, needs {} MiB", g.id, job.vram_mib)
+                    } else if free_ram < job.ram_mib {
+                        format!("{}: {free_ram} MiB host RAM free after the {RAM_SPARE_MIB} MiB spare, needs {} MiB", g.machine, job.ram_mib)
+                    } else {
+                        format!("{}: waits for the night or an idle GPU", g.id)
+                    }
+                })
+                .collect();
+            let reason = if why.is_empty() { "no GPU it may use is set up".to_string() } else { why.join("; ") };
+            waiting.push((job.id.clone(), reason));
         }
     }
-    out
+    (out, waiting)
+}
+
+/// (job id, gpu id) to start now, in start order.
+pub fn decide(i: &Inputs) -> Vec<(String, String)> {
+    plan(i).0
 }
 
 #[cfg(test)]
@@ -184,6 +214,37 @@ mod tests {
     fn a_job_that_fits_nowhere_does_not_block_smaller_ones() {
         let q = [job("big", Kind::Chat, &["a770"], 12000, 100, "1"), job("small", Kind::Chat, &["a770"], 2000, 100, "2")];
         assert_eq!(run(&[gpu("a770", "m1", 10000)], RAM, &[], &[], &q, false), [("small".into(), "a770".into())]);
+    }
+
+    fn why(gpus: &[Gpu], ram: &[(&str, u64)], busy: &[&str], running: &[Running], queue: &[Job]) -> Vec<(String, String)> {
+        let ram: HashMap<String, u64> = ram.iter().map(|(m, v)| (m.to_string(), *v)).collect();
+        let busy: HashSet<String> = busy.iter().map(|m| m.to_string()).collect();
+        plan(&Inputs { gpus, ram_free_mib: &ram, busy_machines: &busy, running, queue, night: false }).1
+    }
+
+    /// STU-C3: a job that stays queued says why (it waited 30 min as "no GPU became free in time"
+    /// while the real cause was host RAM on soucouyant).
+    #[test]
+    fn a_waiting_job_says_why() {
+        let g = [gpu("rx9070", "m2", 12300)];
+        let j = |gpus: &[&str], vram: u64, ram: u64| [job("j", Kind::Asset, gpus, vram, ram, "1")];
+        assert_eq!(
+            why(&g, &[("m2", 16549)], &[], &[], &j(&["rx9070"], 10000, 12000)),
+            [("j".to_string(), "m2: 11429 MiB host RAM free after the 5120 MiB spare, needs 12000 MiB".to_string())]
+        );
+        assert_eq!(why(&g, RAM, &[], &[], &j(&["rx9070"], 13000, 100))[0].1, "rx9070: 12300 MiB VRAM free, needs 13000 MiB");
+        assert_eq!(why(&g, RAM, &["m2"], &[], &j(&["rx9070"], 1000, 100))[0].1, "m2: a game is running or its studio is off");
+        let r = [Running { job_id: "r".into(), gpu: "rx9070".into(), vram_mib: 5000, ram_mib: 100 }];
+        assert_eq!(why(&g, RAM, &[], &r, &j(&["rx9070"], 10000, 100))[0].1, "rx9070: 7300 MiB VRAM free, needs 10000 MiB");
+        assert!(why(&g, RAM, &[], &[], &j(&["rx9070"], 1000, 100)).is_empty());
+        assert_eq!(why(&g, RAM, &[], &[], &j(&["a770"], 1000, 100))[0].1, "no GPU it may use is set up");
+        let mut a580 = gpu("a580", "m1", 10000);
+        a580.schedulable = false;
+        let two = [a580, gpu("rx9070", "m2", 500)];
+        assert_eq!(
+            why(&two, RAM, &[], &[], &j(&["a580", "rx9070"], 1000, 100))[0].1,
+            "a580 is not used for jobs; rx9070: 500 MiB VRAM free, needs 1000 MiB"
+        );
     }
 
     /// 1,000 random rounds: no GPU or machine is ever overcommitted.

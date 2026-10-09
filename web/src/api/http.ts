@@ -193,14 +193,14 @@ export class HttpApi implements KompanionApi {
   knowledgeDoc(id: string, doc: number) { return this.request<{ id: number; name: string; text: string }>("GET", `/knowledge/${encodeURIComponent(id)}/docs/${doc}`); }
   async studioTypes() {
     const all = await this.request<{ name: string; problems?: string[]; face?: boolean; params?: { name: string; choices?: string[]; adult?: string[]; default?: unknown }[]; studio?: { label: string; hint: string; sizes: string[]; order: number; refine?: boolean } | null }[]>("GET", "/studio/workflows");
-    return all.filter((w) => w.studio && !w.studio.refine).map((w): import("../views/studio").StudioType => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order, warning: w.problems?.length ? w.problems.join("; ") : undefined, ratings: w.params?.find((p) => p.name === "rating")?.choices, adultRatings: w.params?.find((p) => p.name === "rating")?.adult, face: !!w.face, negative: negativeDefault(w.params) }))
+    return all.filter((w) => w.studio && !w.studio.refine).map((w): import("../views/studio").StudioType => ({ name: w.name, label: w.studio!.label, hint: w.studio!.hint, sizes: w.studio!.sizes.length ? w.studio!.sizes : ["square"], order: w.studio!.order, warning: w.problems?.length ? w.problems.join("; ") : undefined, ratings: w.params?.find((p) => p.name === "rating")?.choices, adultRatings: w.params?.find((p) => p.name === "rating")?.adult, face: !!w.face, negative: negativeDefault(w.params), helmet: !!w.params?.some((p) => p.name === "helmet") }))
       .sort((a, b) => a.order - b.order)
       // STU-02: music and sound effects are apps, not workflows.
       .concat(AUDIO_TYPES);
   }
   studioAudio(kind: "music" | "sfx", prompt: string, lyrics: string, seconds: number) { return this.request<{ ids: string[] }>("POST", "/studio/audio", { kind, prompt, lyrics, seconds }); }
   // STU-01d: with a face photo the form goes as multipart.
-  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string, face?: { file: File; weight: number }, negative?: string) {
+  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string, face?: { file: File; weight: number }, negative?: string, params?: Record<string, string>) {
     if (face) {
       const f = new FormData();
       f.append("type", type);
@@ -209,11 +209,12 @@ export class HttpApi implements KompanionApi {
       f.append("count", String(count));
       if (rating) f.append("rating", rating);
       if (negative) f.append("negative", negative);
+      if (params) f.append("params", JSON.stringify(params));
       f.append("face", face.file);
       f.append("face_weight", String(face.weight));
       return this.request<{ ids: string[] }>("POST", "/studio/make", f);
     }
-    return this.request<{ ids: string[] }>("POST", "/studio/make", { type, prompt, size, count, rating, negative: negative || undefined });
+    return this.request<{ ids: string[] }>("POST", "/studio/make", { type, prompt, size, count, rating, negative: negative || undefined, params });
   }
   studioMine() { return this.request<import("../views/studio").StudioRun[]>("GET", "/studio/mine"); }
   studioToAssets(runId: string, project: string, n = 0) {
