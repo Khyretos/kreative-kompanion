@@ -1,20 +1,20 @@
 {
- "008cc2076d0e": {
-  "by": "claude",
-  "checked": true,
-  "fixed": "",
-  "path": "server.js",
-  "reason": "Read from the pipeline log's check_errors of a Coder draft of Kreative Studio's server.js (not in this PR). Claude removed the second `let r;` before committing; Kreative Studio 4d6c2d1 passes node --check and test/shots-route.test.js.",
-  "title": "Duplicate Variable Declaration",
-  "verdict": "false_positive"
- },
- "fe969deecaa1": {
-  "by": "claude",
-  "checked": true,
-  "fixed": "",
-  "path": "lib/refine.js",
-  "reason": "Also from the log of a draft: lib/refine.js branched on body.action === 'headshot', so cowboy said 'Say what should change.'. Claude changed it to a.shot; test/shots.test.js passes in Kreative Studio 14288db. Nothing in this PR.",
-  "title": "Incorrect Error Message",
-  "verdict": "false_positive"
- }
+  "008cc2076d0e": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server.js",
+    "reason": "Read from the pipeline log's check_errors of a Coder draft of Kreative Studio's server.js (not in this PR). Claude removed the second `let r;` before committing; Kreative Studio 4d6c2d1 passes node --check and test/shots-route.test.js.",
+    "title": "Duplicate Variable Declaration",
+    "verdict": "false_positive"
+  },
+  "fe969deecaa1": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "lib/refine.js",
+    "reason": "Also from the log of a draft: lib/refine.js branched on body.action === 'headshot', so cowboy said 'Say what should change.'. Claude changed it to a.shot; test/shots.test.js passes in Kreative Studio 14288db. Nothing in this PR.",
+    "title": "Incorrect Error Message",
+    "verdict": "false_positive"
+  }
 }
