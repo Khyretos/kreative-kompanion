@@ -1,0 +1,142 @@
+# STU-C2: a headshot or a cowboy shot of a finished OC sheet's character (the sheet is the source picture).
+title = "OC shots"
+description = "A headshot (neck up) or a cowboy shot (thighs up) of the character on a finished OC sheet, with the same face, hair, outfit and colours."
+graph = "graph.json"
+outputs = ["20"]
+machines = ["soucouyant"]
+vram_mb = 10000
+ram_mb = 12000
+
+[studio]
+label = "OC shots"
+hint = "Headshot or cowboy shot of a sheet's character"
+sizes = ["tall", "square"]
+order = 106
+refine = true
+# headshot 1024x1280, cowboy shot 1216x1216 (the 4x model and a 0.5 scale give twice that)
+px = { tall = [1024, 1280], square = [1216, 1216] }
+
+[inputs]
+source = "10"
+
+[[param]]
+name = "prompt"
+type = "string"
+default = ""
+node = "4"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, solo, {shot_tags}, {bg}, {value}"
+
+[[param]]
+name = "negative"
+type = "string"
+default = ""
+node = "5"
+input = "text"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, multiple views, character sheet, reference sheet, turnaround, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {shot_neg}{bg_neg}{rating_neg}{value}"
+
+[[param]]
+name = "face_prompt"
+type = "string"
+default = ""
+node = "16"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}"
+fallback = "prompt"
+
+# STU-C2: which shot; the size comes with it (headshot tall, cowboy square, sent by Kreative Studio).
+[[param]]
+name = "shot"
+type = "choice"
+default = "headshot"
+choices = ["headshot", "cowboy"]
+words = { shot_tags = { headshot = "portrait, close-up, head and shoulders, upper body, looking at viewer", cowboy = "cowboy shot, from the thighs up, standing, looking at viewer" }, shot_neg = { headshot = "full body, feet, legs, ", cowboy = "full body, feet, close-up, " } }
+
+[[param]]
+name = "background"
+type = "choice"
+default = "white"
+choices = ["white", "starry"]
+words = { bg = { white = "simple background, white background", starry = "purple starry night sky background, stars, deep purple to pink gradient sky" }, bg_neg = { white = "gradient background, starry sky, ", starry = "white background, simple background, " } }
+
+[[param]]
+name = "width"
+type = "int"
+default = 1024
+min = 1024
+max = 1216
+node = "6"
+input = "width"
+
+[[param]]
+name = "height"
+type = "int"
+default = 1280
+min = 1216
+max = 1280
+node = "6"
+input = "height"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "7"
+input = "seed"
+also = [{ node = "42", input = "seed", add = 2 }]
+
+# How much of the sheet's outfit and colours carries over.
+[[param]]
+name = "likeness"
+type = "float"
+default = 0.6
+min = 0.0
+max = 1.0
+node = "34"
+input = "weight"
+
+# How much of the sheet's look (outfit, colours, face) carries over.
+[[param]]
+name = "likeness"
+type = "float"
+default = 0.7
+min = 0.0
+max = 1.0
+node = "34"
+input = "weight"
+
+[[param]]
+name = "rating"
+type = "choice"
+default = "general"
+choices = ["general", "sensitive", "questionable", "explicit"]
+adult = ["questionable", "explicit"]
+words = { rating_neg = { general = "nsfw, nude, explicit, " } }
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors"
+licence = "unknown (Civitai, check the model page)"
+
+[[model]]
+file = "ip-adapter-plus_sdxl_vit-h.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+licence = "MIT"
+
+[[model]]
+file = "bbox/face_yolov8m.pt"
+licence = "AGPL-3.0"
+
+[[model]]
+file = "sam_vit_b_01ec64.pth"
+licence = "Apache-2.0"
+
+[[model]]
+file = "4x-AnimeSharp.pth"
+licence = "CC BY-NC-SA 4.0 (non-commercial; already used by the Studio upscale)"

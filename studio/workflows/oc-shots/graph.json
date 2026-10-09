@@ -1,0 +1,255 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["45", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "worst quality"
+    }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "source.png"
+    }
+  },
+  "45": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors",
+      "strength_model": 0.8,
+      "strength_clip": 0.8
+    }
+  },
+  "16": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "detailed face"
+    }
+  },
+  "18": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["16", 0]
+    }
+  },
+  "11": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["10", 0],
+      "upscale_method": "lanczos",
+      "width": 3024,
+      "height": 1512,
+      "crop": "disabled"
+    }
+  },
+  "12": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["11", 0],
+      "width": 756,
+      "height": 1512,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "13": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["11", 0],
+      "width": 320,
+      "height": 320,
+      "x": 208,
+      "y": 80
+    }
+  },
+  "30": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    }
+  },
+  "31": {
+    "class_type": "PrepImageForClipVision",
+    "inputs": {
+      "image": ["12", 0],
+      "interpolation": "LANCZOS",
+      "crop_position": "pad",
+      "sharpening": 0
+    }
+  },
+  "32": {
+    "class_type": "PrepImageForClipVision",
+    "inputs": {
+      "image": ["13", 0],
+      "interpolation": "LANCZOS",
+      "crop_position": "center",
+      "sharpening": 0
+    }
+  },
+  "33": {
+    "class_type": "IPAdapterModelLoader",
+    "inputs": {
+      "ipadapter_file": "ip-adapter-plus_sdxl_vit-h.safetensors"
+    }
+  },
+  "34": {
+    "class_type": "IPAdapterAdvanced",
+    "inputs": {
+      "model": ["45", 0],
+      "ipadapter": ["33", 0],
+      "image": ["37", 0],
+      "clip_vision": ["30", 0],
+      "weight": 0.7,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 0.8,
+      "embeds_scaling": "V only"
+    }
+  },
+  "37": {
+    "class_type": "ImageBatch",
+    "inputs": {
+      "image1": ["31", 0],
+      "image2": ["32", 0]
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1280,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["34", 0],
+      "positive": ["18", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0],
+      "seed": 1,
+      "steps": 28,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 1.0
+    }
+  },
+  "17": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8,
+      "samples": ["7", 0]
+    }
+  },
+  "40": {
+    "class_type": "UltralyticsDetectorProvider",
+    "inputs": {
+      "model_name": "bbox/face_yolov8m.pt"
+    }
+  },
+  "41": {
+    "class_type": "SAMLoader",
+    "inputs": {
+      "model_name": "sam_vit_b_01ec64.pth",
+      "device_mode": "AUTO"
+    }
+  },
+  "42": {
+    "class_type": "FaceDetailer",
+    "inputs": {
+      "image": ["17", 0],
+      "model": ["34", 0],
+      "clip": ["3", 0],
+      "vae": ["1", 2],
+      "positive": ["16", 0],
+      "negative": ["5", 0],
+      "guide_size": 512,
+      "guide_size_for": true,
+      "max_size": 1024,
+      "seed": 2,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35,
+      "feather": 5,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "bbox_threshold": 0.5,
+      "bbox_dilation": 10,
+      "bbox_crop_factor": 3,
+      "sam_detection_hint": "center-1",
+      "sam_dilation": 0,
+      "sam_threshold": 0.93,
+      "sam_bbox_expansion": 0,
+      "sam_mask_hint_threshold": 0.7,
+      "sam_mask_hint_use_negative": "False",
+      "drop_size": 10,
+      "bbox_detector": ["40", 0],
+      "sam_model_opt": ["41", 0],
+      "wildcard": "",
+      "cycle": 1,
+      "tiled_encode": true,
+      "tiled_decode": true
+    }
+  },
+  "50": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x-AnimeSharp.pth"
+    }
+  },
+  "51": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": ["50", 0],
+      "image": ["42", 0]
+    }
+  },
+  "54": {
+    "class_type": "ImageScaleBy",
+    "inputs": {
+      "image": ["51", 0],
+      "upscale_method": "lanczos",
+      "scale_by": 0.5
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["54", 0],
+      "filename_prefix": "kompanion/oc-shots"
+    }
+  }
+}

@@ -791,7 +791,7 @@ licence = "CreativeML OpenRAIL-M"
     fn refine_workflows_take_their_pictures() {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
         let all = load_all(&dir);
-        let names = ["refine-4k", "refine-change", "refine-repaint", "refine-chibi", "refine-parts"];
+        let names = ["refine-4k", "refine-change", "refine-repaint", "refine-chibi", "refine-parts", "oc-shots"];
         for n in names {
             let w = all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap_or_else(|e| panic!("{n}: {e}"));
             assert!(w.studio.as_ref().unwrap().refine, "{n} is a refine step");
@@ -812,5 +812,31 @@ licence = "CreativeML OpenRAIL-M"
         assert!(chibi.adult.is_empty() && !chibi.choices.contains(&"explicit".to_string()), "no adult ratings for chibi");
         // other types are not refine steps
         assert!(!get("oc-sheet").studio.as_ref().unwrap().refine && get("oc-sheet").inputs.is_empty());
+    }
+
+    #[test]
+    fn oc_shots_change_only_the_shot() {
+        // STU-C2: a sheet's prompt and seed, the shot tags and size from the shot, the face prompt for the face fix.
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let w = all.iter().find(|(name, _)| name == "oc-shots").unwrap().1.as_ref().unwrap();
+        let st = w.studio.as_ref().unwrap();
+        assert_eq!(st.sizes, vec!["tall".to_string(), "square".to_string()]);
+        assert_eq!(st.px.get("tall"), Some(&[1024, 1280]));
+        let g = w.graph_for("rx9070").unwrap();
+        let given = |v: Value| v.as_object().unwrap().clone();
+        let (f, used) = w.fill(&g, &given(json!({"prompt": "android gentleman", "face_prompt": "1boy, moustache", "seed": 300}))).unwrap();
+        let text = |f: &Value, n: &str| f[n]["inputs"]["text"].as_str().unwrap().to_string();
+        assert!(text(&f, "4").contains("portrait, close-up, head and shoulders") && text(&f, "4").ends_with("android gentleman"), "{}", text(&f, "4"));
+        assert!(text(&f, "5").contains("full body, feet, legs, "), "{}", text(&f, "5"));
+        assert!(text(&f, "16").ends_with("detailed face, 1boy, moustache"), "{}", text(&f, "16"));
+        assert_eq!(f["42"]["inputs"]["positive"], json!(["16", 0]), "the face fix uses the face prompt");
+        assert_eq!((f["7"]["inputs"]["seed"].clone(), f["42"]["inputs"]["seed"].clone()), (json!(300), json!(302)));
+        assert_eq!(used["shot"], json!("headshot"));
+        let (c, _) = w.fill(&g, &given(json!({"prompt": "knight", "shot": "cowboy", "width": 1216, "height": 1216}))).unwrap();
+        assert!(text(&c, "4").contains("cowboy shot, from the thighs up") && !text(&c, "4").contains("close-up"), "{}", text(&c, "4"));
+        assert!(text(&c, "16").ends_with("detailed face, knight"), "empty face prompt falls back: {}", text(&c, "16"));
+        assert_eq!((c["6"]["inputs"]["width"].clone(), c["6"]["inputs"]["height"].clone()), (json!(1216), json!(1216)));
+        assert!(w.fill(&g, &given(json!({"shot": "full"}))).unwrap_err().contains("shot must be one of headshot, cowboy"));
     }
 }

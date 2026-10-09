@@ -685,3 +685,187 @@ write(
     ],
     ["face", "bg"],
 )
+
+# 6. STU-C2: a headshot or a cowboy shot of a finished OC sheet's character. The sheet (scaled to 3024x1512) gives two IP-Adapter references: the front cell (outfit, colours, accessories) and the front head (face, hair, moustache); same prompt and seed as the sheet, only the shot tags change.
+M["style"] = (
+    "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors",
+    "unknown (Civitai, check the model page)",
+)
+
+g = base()  # gives nodes 1, 3, 4, 5, 10
+g["3"]["inputs"]["clip"] = L(45, 1)
+g.update(
+    {
+        "45": {
+            "class_type": "LoraLoader",
+            "inputs": {
+                "model": L(1),
+                "clip": L(1, 1),
+                "lora_name": "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors",
+                "strength_model": 0.8,
+                "strength_clip": 0.8,
+            },
+        },
+        "16": {
+            "class_type": "CLIPTextEncode",
+            "inputs": {"clip": L(3), "text": "detailed face"},
+        },
+        "18": {
+            "class_type": "ConditioningConcat",
+            "inputs": {"conditioning_to": L(4), "conditioning_from": L(16)},
+        },
+        "11": {
+            "class_type": "ImageScale",
+            "inputs": {
+                "image": L(10),
+                "upscale_method": "lanczos",
+                "width": 3024,
+                "height": 1512,
+                "crop": "disabled",
+            },
+        },
+        "12": {
+            "class_type": "ImageCrop",
+            "inputs": {"image": L(11), "width": 756, "height": 1512, "x": 0, "y": 0},
+        },
+        "13": {
+            "class_type": "ImageCrop",
+            "inputs": {"image": L(11), "width": 320, "height": 320, "x": 208, "y": 80},
+        },
+        "30": {
+            "class_type": "CLIPVisionLoader",
+            "inputs": {"clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"},
+        },
+        "31": {
+            "class_type": "PrepImageForClipVision",
+            "inputs": {
+                "image": L(12),
+                "interpolation": "LANCZOS",
+                "crop_position": "pad",
+                "sharpening": 0,
+            },
+        },
+        "32": {
+            "class_type": "PrepImageForClipVision",
+            "inputs": {
+                "image": L(13),
+                "interpolation": "LANCZOS",
+                "crop_position": "center",
+                "sharpening": 0,
+            },
+        },
+        "33": {
+            "class_type": "IPAdapterModelLoader",
+            "inputs": {"ipadapter_file": "ip-adapter-plus_sdxl_vit-h.safetensors"},
+        },
+        "34": {
+            "class_type": "IPAdapterAdvanced",
+            "inputs": {
+                "model": L(45),
+                "ipadapter": L(33),
+                "image": L(37),
+                "clip_vision": L(30),
+                "weight": 0.7,
+                "weight_type": "linear",
+                "combine_embeds": "concat",
+                "start_at": 0,
+                "end_at": 0.8,
+                "embeds_scaling": "V only",
+            },
+        },
+        "37": {
+            "class_type": "ImageBatch",
+            "inputs": {"image1": L(31), "image2": L(32)},
+        },
+        "6": {
+            "class_type": "EmptyLatentImage",
+            "inputs": {"width": 1024, "height": 1280, "batch_size": 1},
+        },
+        "7": ks(L(34), L(18), L(5), L(6), 1.0, steps=28),
+        "17": tiled("VAEDecodeTiled", L(7)),
+        **face_fix(L(17), L(34)),
+        **upscaler(L(42)),
+        "54": {
+            "class_type": "ImageScaleBy",
+            "inputs": {"image": L(51), "upscale_method": "lanczos", "scale_by": 0.5},
+        },
+        "20": save(L(54), "oc-shots"),
+    }
+)
+g["42"]["inputs"]["positive"] = L(16)
+
+hd = (
+    "# STU-C2: a headshot or a cowboy shot of a finished OC sheet's character (the sheet is the source picture).\n"
+    'title = "OC shots"\n'
+    'description = "A headshot (neck up) or a cowboy shot (thighs up) of the character on a finished OC sheet, with the same face, hair, outfit and colours."\n'
+    'graph = "graph.json"\noutputs = ["20"]\nmachines = ["soucouyant"]\nvram_mb = 10000\nram_mb = 12000\n\n'
+    '[studio]\nlabel = "OC shots"\nhint = "Headshot or cowboy shot of a sheet\'s character"\nsizes = ["tall", "square"]\norder = 106\nrefine = true\n'
+    "# headshot 1024x1280, cowboy shot 1216x1216 (the 4x model and a 0.5 scale give twice that)\n"
+    "px = { tall = [1024, 1280], square = [1216, 1216] }\n"
+)
+
+params = [
+    p_str(
+        "prompt",
+        "4",
+        "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, solo, {shot_tags}, {bg}, {value}",
+    ),
+    p_str(
+        "negative",
+        "5",
+        "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, multiple views, character sheet, reference sheet, turnaround, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {shot_neg}{bg_neg}{rating_neg}{value}",
+    ),
+    p_str(
+        "face_prompt",
+        "16",
+        "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}",
+    )
+    + 'fallback = "prompt"\n',
+    """# STU-C2: which shot; the size comes with it (headshot tall, cowboy square, sent by Kreative Studio).
+[[param]]
+name = "shot"
+type = "choice"
+default = "headshot"
+choices = ["headshot", "cowboy"]
+words = { shot_tags = { headshot = "portrait, close-up, head and shoulders, upper body, looking at viewer", cowboy = "cowboy shot, from the thighs up, standing, looking at viewer" }, shot_neg = { headshot = "full body, feet, legs, ", cowboy = "full body, feet, close-up, " } }
+""",
+    """[[param]]
+name = "background"
+type = "choice"
+default = "white"
+choices = ["white", "starry"]
+words = { bg = { white = "simple background, white background", starry = "purple starry night sky background, stars, deep purple to pink gradient sky" }, bg_neg = { white = "gradient background, starry sky, ", starry = "white background, simple background, " } }
+""",
+    p_num("width", "int", "6", "width", 1024, 1024, 1216),
+    p_num("height", "int", "6", "height", 1280, 1216, 1280),
+    p_seed("7", [("42", 2)]),
+    p_num(
+        "likeness",
+        "float",
+        "34",
+        "weight",
+        0.6,
+        0.0,
+        1.0,
+        "How much of the sheet's outfit and colours carries over.",
+    ),
+    p_num(
+        "likeness",
+        "float",
+        "34",
+        "weight",
+        0.7,
+        0.0,
+        1.0,
+        "How much of the sheet's look (outfit, colours, face) carries over.",
+    ),
+    RATING,
+]
+
+write(
+    "oc-shots",
+    hd,
+    g,
+    params,
+    ["ck", "style", "ip", "clipv", "face", "sam", "up"],
+)
