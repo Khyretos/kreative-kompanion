@@ -1,0 +1,122 @@
+# REL-01: release builds, the 3dco+ way (Docker builder image per platform, files copied
+# out with `docker cp`, one Forgejo release per tag). Push a tag `v1.2.3` to publish:
+# Linux binary (tar.gz), AppImage and .deb; Windows setup .exe, portable .exe and .msi;
+# macOS universal .app (zip); the Android APK. "Run workflow" builds everything without
+# a release (files on the run's Artifacts). Details: release/README.md.
+name: release
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_BUILD_JOBS: "6" # soucouyant also runs ComfyUI and games
+  # Suggested on the apps' first start; anyone can type another server.
+  KOMPANION_DEFAULT_SERVER: https://kompanion.kreative-kompas.com
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    # Docker on soucouyant (jobs there get the host socket); docker build sends the
+    # checkout as its context, so no host paths are mounted.
+    runs-on: soucouyant
+    container:
+      image: docker:cli
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: Linux (binary, AppImage, deb)
+            platform: linux
+          - name: Windows (setup exe, portable exe, msi)
+            platform: windows
+          - name: macOS (universal app)
+            platform: macos
+          - name: Android (APK)
+            platform: android
+    steps:
+      - name: Tools for checkout and artifacts
+        run: apk add --no-cache -q git nodejs
+      - uses: https://code.forgejo.org/actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Version
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) v="${GITHUB_REF#refs/tags/v}" ;;
+            *) v="0.0.${{ github.run_number }}" ;;
+          esac
+          echo "APP_VERSION=$v" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+      - name: Android key
+        if: matrix.platform == 'android'
+        env:
+          KEYSTORE: ${{ secrets.KK_ANDROID_KEYSTORE }}
+          KEYSTORE_ENV: ${{ secrets.KK_ANDROID_KEYSTORE_ENV }}
+        run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$KEYSTORE_ENV" ]; then
+            echo "::error::Secrets KK_ANDROID_KEYSTORE and KK_ANDROID_KEYSTORE_ENV are missing (release/README.md)"
+            exit 1
+          fi
+          mkdir -p /tmp/keys && umask 077
+          printf '%s' "$KEYSTORE" | base64 -d > /tmp/keys/release.jks
+          printf '%s\n' "$KEYSTORE_ENV" > /tmp/keys/keystore.env
+          nice -n 15 docker build -q -t kompanion-android-build -f android/Dockerfile.build android
+      - name: Build
+        run: |
+          set -eu
+          tag="kompanion-release-${{ matrix.platform }}"
+          extra=""
+          if [ "${{ matrix.platform }}" = android ]; then
+            extra="--secret id=keystore,src=/tmp/keys/release.jks --secret id=keystore_env,src=/tmp/keys/keystore.env"
+          fi
+          # shellcheck disable=SC2086 # extra holds separate arguments
+          DOCKER_BUILDKIT=1 nice -n 15 docker build $extra \
+            --build-arg APP_VERSION="$APP_VERSION" --build-arg VERSION_CODE="$VERSION_CODE" \
+            --build-arg CARGO_BUILD_JOBS --build-arg KOMPANION_DEFAULT_SERVER \
+            -f "release/Dockerfile.${{ matrix.platform }}" -t "$tag" .
+          rm -rf /tmp/keys
+          name="$tag-${{ github.run_number }}"
+          docker rm -f "$name" 2>/dev/null || true
+          docker run --name "$name" -v /dist "$tag"
+          mkdir -p dist
+          docker cp "$name:/dist/." dist/
+          docker rm -v "$name"
+          ls -l dist
+      - uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: kompanion-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Forgejo release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build]
+    runs-on: soucouyant
+    container:
+      image: node:22-alpine
+    steps:
+      - uses: https://code.forgejo.org/actions/checkout@v4
+      - uses: https://code.forgejo.org/forgejo/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: kompanion-*
+          merge-multiple: true
+      - name: Release notes
+        run: |
+          f="release/notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$f" ]; then cp "$f" release-notes.md; else : > release-notes.md; fi
+          cd release-assets && sha256sum -- * > SHA256SUMS && ls -l
+      - uses: https://code.forgejo.org/actions/forgejo-release@v2
+        with:
+          direction: upload
+          tag: ${{ github.ref_name }}
+          release-dir: release-assets
+          release-notes-file: release-notes.md
+          token: ${{ secrets.GITHUB_TOKEN }}

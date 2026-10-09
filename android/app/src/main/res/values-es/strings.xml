@@ -15,4 +15,13 @@
     <string name="battery_open">Abrir ajustes</string>
     <string name="settings_done">Listo</string>
     <string name="shortcut_settings">Ajustes de avisos</string>
+    <string name="server_title">Conectar a un servidor de Kompanion</string>
+    <string name="server_text">Escribe la dirección del servidor que usas, la misma que abrirías en un navegador.</string>
+    <string name="server_connect">Conectar</string>
+    <string name="server_connecting">Conectando…</string>
+    <string name="server_invalid">Eso no es una dirección de servidor.</string>
+    <string name="server_no_answer">Ningún servidor de Kompanion respondió en esta dirección.</string>
+    <string name="server_plain_http">Una dirección http:// no está cifrada: úsala solo en tu propia red.</string>
+    <string name="server_heading">Servidor</string>
+    <string name="server_change">Cambiar de servidor</string>
 </resources>

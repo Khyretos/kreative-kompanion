@@ -3,32 +3,41 @@
   "productName": "Kreative Kompanion",
   "version": "0.1.0",
   "identifier": "com.kreative-kompas.kompanion",
-  "build": { "frontendDist": "../fallback" },
+  "build": {
+    "frontendDist": "../fallback"
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
         "title": "Kreative Kompanion",
-        "url": "https://kompanion.kreative-kompas.com/",
+        "url": "index.html",
         "width": 1280,
         "height": 860,
         "minWidth": 380,
         "minHeight": 500
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["appimage", "deb"],
+    "targets": [
+      "appimage",
+      "deb"
+    ],
     "category": "Productivity",
     "shortDescription": "Kreative Kompanion",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.png"
+      "icons/icon.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
     ]
   }
 }

@@ -1,6 +1,10 @@
 # Kompanion for Android
 
-A small Java app (no AndroidX) that shows the Kompanion web app in a WebView and notifies about tasks; the server address is `server_url` in app/src/main/res/values/values.xml (change `inside_hosts` with it).
+A small Java app (no AndroidX) that shows the Kompanion web app in a WebView and notifies about tasks.
+
+Client mode (REL-01): the first start asks for the server (ServerActivity), checks that `/api/status` answers and keeps it; Settings > Server > "Change server" asks again. `server_url` in app/src/main/res/values/values.xml is only the suggestion. Pages of the server, pages it redirects to (its sign-in) and links within a shown page stay in the app; other links open in the browser. http:// addresses work (with a warning) for servers on your own network.
+
+Releases: tagged builds publish the signed APK too, see release/README.md.
 
 ## Build
 

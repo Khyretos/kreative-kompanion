@@ -1,0 +1,33 @@
+# REL-01: the desktop app for Windows, cross-compiled on Linux: the NSIS setup .exe
+# (Tauri's documented cross-compile path, cargo-xwin + MSVC target), a portable .exe and an
+# .msi made with wixl (msitools) from release/windows/kompanion.wxs. WiX itself only runs on
+# Windows. Windows 10 and 11 ship the WebView2 runtime the app needs. The Tauri CLI looks for
+# an appindicator library on the build host when the tray is on, even for Windows targets.
+# Debian 13: its NSIS (3.10+) has the RestartManager.nsh that Tauri's installer script needs.
+FROM rust:1-trixie
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends nsis lld llvm clang wixl nodejs npm \
+        libayatana-appindicator3-dev >/dev/null && \
+    rm -rf /var/lib/apt/lists/*
+RUN rustup target add x86_64-pc-windows-msvc && cargo install --locked -q cargo-xwin
+RUN npm install -g -s @tauri-apps/cli@2
+
+ARG APP_VERSION=0.0.0
+ARG KOMPANION_DEFAULT_SERVER=
+ARG CARGO_BUILD_JOBS=6
+ENV KOMPANION_DEFAULT_SERVER=$KOMPANION_DEFAULT_SERVER CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS
+COPY desktop/ /src/desktop/
+COPY release/windows/ /src/release/windows/
+WORKDIR /src/desktop
+RUN tauri build --ci --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis \
+        --config "{\"version\":\"$APP_VERSION\"}" && \
+    mkdir -p /out && cd src-tauri/target/x86_64-pc-windows-msvc/release && \
+    cp bundle/nsis/*-setup.exe "/out/kreative-kompanion-$APP_VERSION-x64-setup.exe" && \
+    exe=$(find . -maxdepth 1 -type f -iname 'kreative*.exe' | head -1) && \
+    cp "$exe" "/out/kreative-kompanion-$APP_VERSION-x64-portable.exe" && \
+    cp "$exe" /tmp/kreative-kompanion.exe && \
+    wixl -a x64 -D Version="$APP_VERSION" -D Exe=/tmp/kreative-kompanion.exe \
+        -D Icon=/src/desktop/src-tauri/icons/icon.ico \
+        -o "/out/kreative-kompanion-$APP_VERSION-x64.msi" /src/release/windows/kompanion.wxs
+
+CMD ["sh", "-c", "cp /out/* /dist/"]

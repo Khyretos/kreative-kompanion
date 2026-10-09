@@ -14,7 +14,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/Theme.Kompanion"
         android:allowBackup="false"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"
@@ -27,6 +27,12 @@
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
+
+        <!-- Client mode (REL-01): asks which Kompanion server to use. -->
+        <activity
+            android:name=".ServerActivity"
+            android:exported="false"
+            android:label="@string/server_heading" />
 
         <activity
             android:name=".SettingsActivity"

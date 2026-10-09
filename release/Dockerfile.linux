@@ -1,0 +1,28 @@
+# REL-01: the desktop app for Linux: a plain binary (tar.gz), an AppImage and a .deb.
+# Built on Debian 12 so the binary runs on older glibc systems too.
+# Used by .forgejo/workflows/release.yml (see release/README.md).
+FROM node:22-bookworm
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+        librsvg2-dev libxdo-dev libssl-dev patchelf file curl build-essential >/dev/null && \
+    rm -rf /var/lib/apt/lists/*
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal -c clippy -q
+ENV PATH=/root/.cargo/bin:$PATH
+RUN npm install -g -s @tauri-apps/cli@2
+
+ARG APP_VERSION=0.0.0
+ARG KOMPANION_DEFAULT_SERVER=
+ARG CARGO_BUILD_JOBS=6
+ENV KOMPANION_DEFAULT_SERVER=$KOMPANION_DEFAULT_SERVER CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS
+COPY desktop/ /src/desktop/
+WORKDIR /src/desktop
+RUN cargo clippy --manifest-path src-tauri/Cargo.toml --locked -q -- -D warnings && \
+    tauri build --ci --bundles appimage,deb --config "{\"version\":\"$APP_VERSION\"}" && \
+    mkdir -p /out && cd src-tauri/target/release && \
+    cp bundle/appimage/*.AppImage "/out/kreative-kompanion-$APP_VERSION-x86_64.AppImage" && \
+    cp bundle/deb/*.deb "/out/kreative-kompanion-$APP_VERSION-amd64.deb" && \
+    bin=$(find . -maxdepth 1 -type f -perm -u+x -name 'kreative*' | head -1) && \
+    mkdir /tmp/pkg && cp "$bin" /tmp/pkg/kreative-kompanion && \
+    tar -C /tmp/pkg -czf "/out/kreative-kompanion-$APP_VERSION-linux-x86_64.tar.gz" kreative-kompanion
+
+CMD ["sh", "-c", "cp /out/* /dist/"]

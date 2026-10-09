@@ -1,8 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The Kompanion server's own pages may show notifications; nothing else is exposed.",
-  "windows": ["main"],
-  "remote": { "urls": ["https://kompanion.kreative-kompas.com/*"] },
-  "permissions": ["core:default", "notification:default"]
+  "description": "The app's own server picker page. Each chosen server gets its own capability at runtime (main.rs open_server): core and notifications, nothing else.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "notification:default"
+  ]
 }
