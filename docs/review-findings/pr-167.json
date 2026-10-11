@@ -35,6 +35,24 @@
   "title": "Missing Error Handling",
   "verdict": "false_positive"
  },
+ "c49271faab70": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/planner.rs",
+  "reason": "False positive (Claude checked): every query in planner.rs is a sqlx query with bound parameters (planner.rs insert_task and insert_deps use .bind); text from the model is never put into SQL.",
+  "title": "Potential SQL Injection",
+  "verdict": "false_positive"
+ },
+ "d3dd01656bd7": {
+  "by": "repeat of 10824172b0fe",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/planner.rs",
+  "reason": "Repeat of the insert_deps note: deduplicated per task, primary key on task_deps.",
+  "title": "Missing Error Handling",
+  "verdict": "false_positive"
+ },
  "d3fcba7c74ed": {
   "by": "coder",
   "checked": true,
