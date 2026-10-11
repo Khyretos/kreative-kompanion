@@ -10,6 +10,9 @@ machines = ["soucouyant"]
 vram_mb = 11000
 ram_mb = 12000
 # STU-C1: SDXL + ControlNet union peaks at ~13 GB torch on the 9070 (1344x672 base), 140-170 s; 11000 + the 2 GB headroom fits next to the desktop (STU-V1b).
+# STU-C4b (2026-10-11, measured from amdgpu sysfs every second): 13.4 GB peak for ComfyUI without --highvram
+# (--reserve-vram 3), 104 s. 11000 stays: it is the most the 16 GB card can offer next to the ~2.3 GB desktop
+# and the 2 GB headroom, and ComfyUI offloads to fit. A higher figure would never start.
 
 # STU-01d: an optional face photo makes the character resemble a person (IP-Adapter plus-face,
 # graph-face.json = graph.json plus Kreative Studio's nodes 30-34 with the model rewired).

@@ -1,0 +1,14 @@
+# STU-C4b: soucouyant's GPU guard (user unit). It only calls ComfyUI's /queue clear and /interrupt
+# when free VRAM stays under 1 GB for 6 s or the junction/memory reaches 100 C for 4 s; it never
+# kills or restarts anything. Install: sh tools/gpu-guard/install.sh (on soucouyant).
+[Unit]
+Description=GPU guard: cancel ComfyUI jobs before the 9070 runs out of VRAM or overheats
+
+[Service]
+ExecStart=/usr/bin/python3 -I %h/.local/lib/gpu-guard/gpu_guard.py --url http://127.0.0.1:8188 --device /sys/class/drm/card1/device
+Restart=on-failure
+RestartSec=10
+Nice=-5
+
+[Install]
+WantedBy=default.target
