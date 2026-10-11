@@ -1,4 +1,13 @@
 {
+  "0974ec01f834": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/kg-01-task-tree.jsonl",
+    "reason": "Checked by Claude: the failure is from an intermediate Coder draft recorded in the qwen log, not from the committed code; tasktree tests pass locally and in CI.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  },
   "43d648fad0ec": {
     "by": "coder",
     "checked": true,
@@ -8,6 +17,24 @@
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
+  "65f4b6c56535": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: set_deps checks every id (exists, same user and project, no loop) before it writes anything, and writes inside its own transaction; on any error create deletes the new row. Invalid ids give a BadRequest, never a database error (test dependencies_are_replaced_and_checked).",
+    "title": "Potential Data Loss on Create Failure",
+    "verdict": "false_positive"
+  },
+  "6d37de1d05b4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/kg-01-task-tree.jsonl",
+    "reason": "Checked by Claude: build errors of intermediate drafts in the qwen log; the committed code builds (CI green on c1e1568).",
+    "title": "Build Errors",
+    "verdict": "false_positive"
+  },
   "7a64d7afe2bf": {
     "by": "coder",
     "checked": true,
@@ -15,6 +42,15 @@
     "path": "server/src/tasks.rs",
     "reason": "Checked by Claude: create inserts, then sets dependencies; a failing set_deps deletes the row before returning the error (compensation instead of one transaction, since set_deps validates against the stored task). Nothing is left behind: task_deps rows are only written inside set_deps' own transaction.",
     "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "c97feb0f0a1b": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: update uses the same set_deps, which validates before writing (existence, project, loops) in one transaction; the API test edits dependencies through update.",
+    "title": "Missing Dependency Validation on Update",
     "verdict": "false_positive"
   },
   "f6b5e2bf5dbb": {
