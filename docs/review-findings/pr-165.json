@@ -1,0 +1,20 @@
+{
+  "c0268f137562": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_gpu_guard.py",
+    "reason": "False positive (Claude checked): the 3 failures are quoted from Coder first draft in docs/qwen-log/stu-c4b-gpu-guard.jsonl; the rewritten guard passes all 16 tests locally and in CI (44a8dd8). Cooldown fires at t=6, not 8; heat checks fire after 4 s.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  },
+  "ff408ece332b": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_gpu_guard.py",
+    "reason": "False positive (Claude checked): the test already reads the source with a context manager since 1a5dfac; the warning came from the Coder draft log.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  }
+}
