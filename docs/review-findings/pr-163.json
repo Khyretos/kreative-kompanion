@@ -1,52 +1,82 @@
 {
+  "3a8cec5f859d": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/mod.rs",
+    "reason": "The finding incorrectly identifies a missing variable and potential data inconsistency based on assumptions about code not shown in the diff, whereas the provided code snippet demonstrates correct usage of the `used` map within the `queue` function's scope.",
+    "title": "Unused Variable Warning",
+    "verdict": "false_positive",
+    "note": "false positive: watch is defined at the top of execute(); the 2100 s limit covers four sheets (about 4 x 170 s plus 2 s checks); a run stopped by the limit is marked failed, so a half-written check never reaches a done run"
+  },
   "59cd19a83944": {
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive: after a failed check the loop breaks and the tries so far are compared; every try except the kept one is deleted (test a_checker_error..., after_three_retries...). Real neighbour found while checking: a failed ComfyUI retry failed the whole run; fixed, test a_failed_retry_keeps_the_best_try_so_far",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
     "title": "Resource Leak",
-    "verdict": "false_positive",
-    "note": "false positive: after a failed check the loop breaks and the tries so far are compared; every try except the kept one is deleted (test a_checker_error..., after_three_retries...). Real neighbour found while checking: a failed ComfyUI retry failed the whole run; fixed, test a_failed_retry_keeps_the_best_try_so_far"
+    "verdict": "false_positive"
   },
   "88ce164f97e4": {
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive: detect() returns four values (test test_each_quarter_is_checked...); the Rust side does not call it",
     "path": "tools/anatomy/check.py",
     "reason": "The code explicitly unpacks four values from the `detect` function's return statement, which matches the function's actual implementation that returns exactly four values (faces, hands, width, height).",
     "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "ab7b025a13e8": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly bounds the retry loop with a maximum number of attempts (`c.retries`), preventing an infinite loop regardless of the `check` function's behavior.",
+    "title": "Potential Infinite Loop",
     "verdict": "false_positive",
-    "note": "false positive: detect() returns four values (test test_each_quarter_is_checked...); the Rust side does not call it"
+    "note": "false positive: the loop is bounded by n < c.retries (3 in oc-sheet), whatever the verdicts are"
+  },
+  "b5ce2847db73": {
+    "by": "repeat of bab248480bed",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of bab248480bed): tries starts with one entry; best() returns 0 for an empty slice and never panics",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
   },
   "bab248480bed": {
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive: tries starts with one entry and only grows; best() returns 0 for an empty slice and never panics",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
     "title": "Missing Error Handling",
-    "verdict": "false_positive",
-    "note": "false positive: tries starts with one entry and only grows; best() returns 0 for an empty slice and never panics"
+    "verdict": "false_positive"
   },
   "bfaa8761b89f": {
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive at this head: the duplicate import was removed before the push; CI build/server is green",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The provided code snippet shows a single, clean import statement for serde_json items without any evidence of duplication or the specific E0252 error mentioned in the finding.",
     "title": "Compilation Error",
-    "verdict": "false_positive",
-    "note": "false positive at this head: the duplicate import was removed before the push; CI build/server is green"
+    "verdict": "false_positive"
   },
   "ff564317fe69": {
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive: graph is this run's own copy (filled per run in queue()), owned by execute(); nothing else sees it",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The code operates on a single-threaded async runtime where `graph` is passed by mutable reference to sequential calls, making concurrent modification of the same shared state impossible within this specific function's execution flow.",
     "title": "Race Condition",
-    "verdict": "false_positive",
-    "note": "false positive: graph is this run's own copy (filled per run in queue()), owned by execute(); nothing else sees it"
+    "verdict": "false_positive"
   }
 }
