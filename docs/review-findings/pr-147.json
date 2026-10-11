@@ -1,4 +1,13 @@
 {
+  "02cde594cad8": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/gate02-owner-decisions.jsonl",
+    "reason": "Checked, false positive: docs/qwen-log is Coder's draft log; it records failures of earlier draft rounds, not the final code (21/21 tests pass in CI).",
+    "title": "Resource Leaks",
+    "verdict": "false_positive"
+  },
   "11392bca32fd": {
     "by": "coder; approved by Kees in the project thread 2026-10-08",
     "checked": true,
@@ -213,6 +222,15 @@
     "path": "tools/owner_decision.py",
     "reason": "The code explicitly closes the file handle immediately after reading, preventing any resource leak in this specific instance, and the finding incorrectly labels this explicit cleanup as an anti-pattern rather than a defect.",
     "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "9d7f90936dbc": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/gate02-owner-decisions.jsonl",
+    "reason": "Checked, false positive: docs/qwen-log is Coder's draft log; it records failures of earlier draft rounds, not the final code (21/21 tests pass in CI).",
+    "title": "Test Failures",
     "verdict": "false_positive"
   },
   "bbbab1ed588f": {
