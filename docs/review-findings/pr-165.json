@@ -8,6 +8,24 @@
     "title": "Test Failure",
     "verdict": "false_positive"
   },
+  "c5113ccaf3ff": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_gpu_guard.py",
+    "reason": "False positive (Claude checked): the cancel happens at t=6 inside the first loop, so t=8..34 fall in the 30 s cooldown; test passes in CI (5470294).",
+    "title": "Test Logic Bug",
+    "verdict": "false_positive"
+  },
+  "e4173720d63e": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_gpu_guard.py",
+    "reason": "False positive (Claude checked): the guard uses >= (junction_c >= 100, mem_c >= 100), so 101 and 100 trigger after 4 s; both tests pass in CI.",
+    "title": "Missing Temp Thresholds",
+    "verdict": "false_positive"
+  },
   "ff408ece332b": {
     "by": "coder",
     "checked": true,
