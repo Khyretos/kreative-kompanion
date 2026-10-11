@@ -1,4 +1,14 @@
 {
+  "0a8b6efea88e": {
+    "by": "repeat of 59cd19a83944",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: after a failed check the loop breaks and the tries so far are compared; every try except the kept one is deleted (test a_checker_error..., after_three_retries...). Real neighbour found while checking: a failed ComfyUI retry failed the whole run; fixed, test a_failed_retry_keeps_the_best_try_so_far",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
   "363d5fddebb1": {
     "by": "coder",
     "checked": true,
@@ -43,11 +53,11 @@
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive: deleting a losing try's file is best effort on purpose; a failure there must not fail a run that has its picture (the output folder is the run's own)",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The code intentionally suppresses errors during cleanup of failed or non-best attempts to prevent the entire operation from failing due to transient file system issues, which is an acceptable trade-off for resource cleanup in this context.",
     "title": "Missing Error Handling for File Deletion",
-    "verdict": "false_positive",
-    "note": "false positive: deleting a losing try's file is best effort on purpose; a failure there must not fail a run that has its picture (the output folder is the run's own)"
+    "verdict": "false_positive"
   },
   "59cd19a83944": {
     "by": "coder",
@@ -63,11 +73,21 @@
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive (repeat of ab7b025a13e8): bounded by n < c.retries; the loop stops at the first ok verdict",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The code correctly breaks the retry loop when `check` returns an error or succeeds, and the logic for tracking attempts and updating state is sound.",
     "title": "Potential Infinite Loop in Retry Logic",
-    "verdict": "false_positive",
-    "note": "false positive (repeat of ab7b025a13e8): bounded by n < c.retries; the loop stops at the first ok verdict"
+    "verdict": "false_positive"
+  },
+  "759a14b607a1": {
+    "by": "repeat of b5ce2847db73",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of b5ce2847db73 / bab248480bed): best() never panics, tries is never empty",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
   },
   "88ce164f97e4": {
     "by": "coder",
@@ -129,6 +149,16 @@
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
+  "baba8936f726": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The loop is bounded by `c.retries` and includes a break condition on error, preventing infinite execution even if the check function hangs due to the outer 1800-second timeout.",
+    "title": "Unbounded Retry Loop",
+    "verdict": "false_positive",
+    "note": "false positive (repeat of ab7b025a13e8): bounded by n < c.retries"
+  },
   "bfaa8761b89f": {
     "by": "coder",
     "checked": true,
@@ -173,11 +203,11 @@
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "false positive: 180 s is about 90x the measured 2 s per sheet on the CPU; the whole run has its own 2100 s watchdog limit",
     "path": "server/src/studio/anatomy.rs",
     "reason": "unparsed model answer, Claude decides",
     "title": "Hardcoded Timeout Value",
-    "verdict": "false_positive",
-    "note": "false positive: 180 s is about 90x the measured 2 s per sheet on the CPU; the whole run has its own 2100 s watchdog limit"
+    "verdict": "false_positive"
   },
   "ff564317fe69": {
     "by": "coder",
