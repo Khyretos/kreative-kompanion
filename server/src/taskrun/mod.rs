@@ -323,6 +323,9 @@ async fn finish(s: &AppState, r: &Run, state: &str, step: &str) {
         .execute(&s.db)
         .await;
     s.bus.send(&r.user_id, Event::Changed { what: "tasks", machine_id: None });
+    if state != "done" {
+        crate::planner_web::spawn_replan(s.clone(), r.user_id.clone(), r.task_id.clone(), step.to_string());
+    }
     let text = match state {
         "done" => format!("Done: **{}** ({step}). [Open the task](#task={})", r.title, r.task_id),
         _ => format!("**{}** needs you: {step}. [Open the task](#task={})", r.title, r.task_id),
