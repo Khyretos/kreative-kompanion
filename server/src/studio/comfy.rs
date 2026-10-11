@@ -20,14 +20,12 @@ pub async fn wait(http: &reqwest::Client, base: &str, id: &str, timeout: Duratio
         if started.elapsed() > timeout {
             bail!("ComfyUI did not finish in {} s", timeout.as_secs());
         }
-        let v: Value = http
-            .get(format!("{base}/history/{id}"))
-            .timeout(Duration::from_secs(20))
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        // STU-C3: a busy ComfyUI may miss a /history answer; the stall check below still catches a dead one.
+        let asked = async { http.get(format!("{base}/history/{id}")).timeout(Duration::from_secs(20)).send().await?.error_for_status()?.json::<Value>().await };
+        let v: Value = match asked.await {
+            Ok(v) => v,
+            Err(_) => json!({}),
+        };
         let h = &v[id];
         if h["status"]["status_str"] == "error" {
             let msg = h["status"]["messages"]
@@ -267,20 +265,27 @@ mod tests {
         }
     }
 
-    async fn history(State(f): State<Arc<Fake>>) -> Json<Value> {
-        if f.polls.fetch_add(1, Ordering::SeqCst) == 0 || f.mode == "lost" || f.mode == "running" {
-            return Json(json!({}));
+    async fn history(State(f): State<Arc<Fake>>) -> axum::response::Response {
+        let n = f.polls.fetch_add(1, Ordering::SeqCst);
+        // STU-C3: a busy ComfyUI may not answer /history for a while (the cowboy shot failed on one miss).
+        if f.mode == "flaky" && n < 3 {
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+        if n == 0 || f.mode == "lost" || f.mode == "running" {
+            return Json(json!({})).into_response();
         }
         if f.mode == "error" {
             return Json(
                 json!({"p1": {"status": {"status_str": "error", "completed": false,
                 "messages": [["execution_start", {}], ["execution_error", {"exception_message": "OOM"}]]}}}),
-            );
+            )
+            .into_response();
         }
         Json(
             json!({"p1": {"status": {"status_str": "success", "completed": true},
             "outputs": {"10": {"images": [{"filename": "a.png", "subfolder": "kompanion", "type": "output"}]}}}}),
         )
+        .into_response()
     }
 
     /// mode "busy": one prompt running.
@@ -482,5 +487,12 @@ mod tests {
         // Missing numbers or an unknown host: nothing.
         assert_eq!(ram_held_mib(&json!({}), 31692), 0);
         assert_eq!(ram_held_mib(&stats(20 * gib, 15 * gib), 0), 0);
+    }
+
+    #[tokio::test]
+    async fn a_missed_history_answer_is_waited_out() {
+        let (url, _f) = fake("flaky").await;
+        let h = wait(&Client::new(), &url, "p1", Duration::from_secs(10), Duration::from_secs(9)).await.unwrap();
+        assert_eq!(h["status"]["completed"], json!(true));
     }
 }
