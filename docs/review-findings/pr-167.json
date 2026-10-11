@@ -1,0 +1,47 @@
+{
+ "10824172b0fe": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/planner.rs",
+  "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+  "title": "Missing Error Handling",
+  "verdict": "false_positive"
+ },
+ "2aee21b683d1": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/planner.rs",
+  "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+  "title": "Possible Issue",
+  "verdict": "false_positive"
+ },
+ "3548b25ea31c": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/taskrun/mod.rs",
+  "reason": "False positive (Claude checked): an automatic re-plan only stores a pending proposal, nothing runs until the user applies it, and spawn_replan skips a task that already has a pending re-plan and tasks the user stopped. No loop.",
+  "title": "Potential Infinite Loop",
+  "verdict": "false_positive"
+ },
+ "b00cf6293a33": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/main.rs",
+  "reason": "False positive (Claude checked): the handlers return ApiResult, so errors become 400/404 responses like every other route; same auth layer as the task routes.",
+  "title": "Missing Error Handling",
+  "verdict": "false_positive"
+ },
+ "d3fcba7c74ed": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/migrations/0123_plan_proposals.sql",
+  "reason": "False positive (Claude checked): every query filters by project_id (indexed with state) or by the proposal id (primary key); no query lists by user alone.",
+  "title": "Missing Index for User Queries",
+  "verdict": "false_positive"
+ }
+}
