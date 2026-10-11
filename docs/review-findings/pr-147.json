@@ -254,7 +254,7 @@
   "d73d74e02573": {
     "by": "claude",
     "checked": true,
-    "fixed": "PENDING",
+    "fixed": "b04c595",
     "path": "tools/test_owner_decision.py",
     "reason": "Checked: real but minor, tests left files open (ResourceWarning). Fixed with Path.read_text().",
     "title": "Resource Leaks in Tests",
