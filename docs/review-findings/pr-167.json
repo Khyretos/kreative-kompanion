@@ -8,6 +8,15 @@
   "title": "Missing Error Handling",
   "verdict": "false_positive"
  },
+ "2aa245ae0438": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/planner.rs",
+  "reason": "False positive (Claude checked): dep_cycle gets the plan edges (which already contain this task own edges) plus its filtered dependency list, so a loop through any known key is found; unknown and self deps are reported separately. Test: a_dependency_loop_is_reported.",
+  "title": "Logic Error in Loop Detection",
+  "verdict": "false_positive"
+ },
  "2aee21b683d1": {
   "by": "coder",
   "checked": true,
@@ -24,6 +33,15 @@
   "path": "server/src/taskrun/mod.rs",
   "reason": "False positive (Claude checked): an automatic re-plan only stores a pending proposal, nothing runs until the user applies it, and spawn_replan skips a task that already has a pending re-plan and tasks the user stopped. No loop.",
   "title": "Potential Infinite Loop",
+  "verdict": "false_positive"
+ },
+ "85990cecd653": {
+  "by": "coder",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/planner_web.rs",
+  "reason": "False positive (Claude checked): the handler logs the failed proposal save and returns before marking the task, so no task is left waiting without a proposal.",
+  "title": "Missing Error Handling",
   "verdict": "false_positive"
  },
  "b00cf6293a33": {
@@ -60,6 +78,15 @@
   "path": "server/migrations/0123_plan_proposals.sql",
   "reason": "False positive (Claude checked): every query filters by project_id (indexed with state) or by the proposal id (primary key); no query lists by user alone.",
   "title": "Missing Index for User Queries",
+  "verdict": "false_positive"
+ },
+ "d80b49c44319": {
+  "by": "repeat of 2aee21b683d1",
+  "checked": true,
+  "fixed": "",
+  "path": "server/src/planner.rs",
+  "reason": "Repeat of the insert_deps note: deduplicated per task, primary key on task_deps.",
+  "title": "Possible Issue",
   "verdict": "false_positive"
  }
 }
