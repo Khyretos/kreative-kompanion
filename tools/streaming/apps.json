@@ -1,0 +1,36 @@
+{
+  "env": {
+    "PATH": "$(PATH):$(HOME)/.local/bin"
+  },
+  "apps": [
+    {
+      "name": "Phone screen",
+      "image-path": "desktop.png",
+      "prep-cmd": [
+        {
+          "do": "bash -c \"$HOME/.local/bin/kk-stream-display.sh start\"",
+          "undo": "bash -c \"$HOME/.local/bin/kk-stream-display.sh stop\""
+        }
+      ]
+    },
+    {
+      "name": "Steam Big Picture (phone screen)",
+      "image-path": "steam.png",
+      "prep-cmd": [
+        {
+          "do": "bash -c \"$HOME/.local/bin/kk-stream-display.sh start\"",
+          "undo": "bash -c \"$HOME/.local/bin/kk-stream-display.sh stop\""
+        },
+        {
+          "do": "",
+          "undo": "setsid steam steam://close/bigpicture"
+        }
+      ],
+      "detached": ["setsid steam steam://open/bigpicture"]
+    },
+    {
+      "name": "Desktop (my monitor)",
+      "image-path": "desktop.png"
+    }
+  ]
+}
