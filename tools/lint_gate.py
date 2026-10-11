@@ -4,7 +4,8 @@
 Fails when any linter reports a problem, except problems that wait for Kees's decision
 (.forgejo/lint-decisions.json). Each waiting item gets its own issue, which Forgejo mails
 to Kees as "Kompas Linter": linter, file:line, the message and the options with one
-recommended. Only that item waits; every other problem blocks the merge.
+recommended. Only that item waits; every other problem blocks the merge. The owner
+answers by comment; tools/owner_decision.py handles the answer.
 
 Usage (in the MegaLinter container, repo root): python3 tools/lint_gate.py
 Env: API (repo API URL), TOKEN (job token) to open the decision issues; without them
@@ -39,9 +40,9 @@ def problems(linter, report_errors, log):
 
 
 def gate(report, decisions, reports):
-    """(messages, ok): one message per blocking linter or stale decision."""
+    """Returns (messages, ok): one message per blocking linter or stale decision."""
     messages, ok = [], True
-    waiting = [d for d in decisions if not d.get("decided")]
+    waiting = [d for d in decisions if not d.get("decided") or d.get("keep_waiting")]
     for linter in report.get("linters", []):
         name = linter.get("name", "")
         if not linter.get("is_active", True) or linter.get("status") == "success":
@@ -91,7 +92,9 @@ def issue_body(d):
     lines += [
         "",
         "Only this item waits; everything else in the lint report blocks the merge.",
-        "Reply here (or in the Kompanion project) with the option you pick.",
+        "Answer with a comment such as `accept option 2` (or `accept` for the recommended"
+        " one): a job applies it, opens a pull request and closes this issue.",
+        "Only the repo owner's comment counts; comments from anyone else are ignored.",
     ]
     return "\n".join(lines)
 

@@ -1,0 +1,20 @@
+{
+  "aaf9c3b6cb3f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/audio.rs",
+    "reason": "Checked by Claude: nudge.abort() runs right after acquire returns and before `leased?`, so the task ends on success and on error.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "aeada3888fa2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/mod.rs",
+    "reason": "Checked by Claude: the loop is meant to run until aborted; both callers abort it as soon as acquire returns, which it always does within its timeout (1800 s / 900 s).",
+    "title": "Infinite Loop Risk",
+    "verdict": "false_positive"
+  }
+}

@@ -1,0 +1,40 @@
+# GATE-02: the repo owner answers a decision by comment, without Claude.
+# - On a "Lint decision: <id>" issue: "accept option 2" (or "accept" for the recommended one).
+# - On a pull request with PR-Agent findings: "accept" (every proposed verdict), "accept <id>",
+#   "<id> bug" or "<id> false positive".
+# tools/owner_decision.py checks through the API that the comment is the owner's, applies the
+# option (Coder drafts code changes through tools/qwen/pipeline.py), records it in
+# .forgejo/lint-decisions.json or docs/review-findings/pr-<n>.json, opens a pull request and
+# closes the issue. Comments from anyone else are ignored. Nothing merges automatically: the
+# owner merges the pull request.
+name: owner-decision
+enable-email-notifications: true
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  decide:
+    if: github.event.comment.user.login == github.repository_owner
+    runs-on: kireserver
+    container:
+      image: node:22
+    env:
+      # Coder (OVMS on kireserver) through the model-relay; OVMS wants its API key.
+      MODEL_BASE: http://192.168.178.103:11435/v3
+      OVMS_API_KEY: ${{ secrets.OVMS_API_KEY }}
+      # PRs opened with the job token start no CI (Forgejo skips its own events): open them
+      # as the review bot (user secret LINT_PR_TOKEN), else fall back to the job token.
+      PR_TOKEN: ${{ secrets.LINT_PR_TOKEN || github.token }}
+      TOKEN: ${{ github.token }}
+      API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+    steps:
+      - name: Check out main (plain git, push access)
+        run: |
+          git init -q . && git config core.autocrlf false
+          git remote add origin "${{ github.server_url }}/${{ github.repository }}"
+          git config http.extraHeader "Authorization: token ${{ github.token }}"
+          git fetch -q origin main && git checkout -q -B main FETCH_HEAD
+          git config user.name "kompas-decisions" && git config user.email "decisions@kreative-kompas.com"
+      - name: Apply the owner's decision
+        run: python3 tools/owner_decision.py

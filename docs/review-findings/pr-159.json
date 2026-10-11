@@ -1,0 +1,56 @@
+{
+  "033bf4411dae": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/team.rs",
+    "reason": "The code correctly uses the `?` operator to propagate the error from `split`, which immediately halts execution and prevents any subsequent logic (including file creation or queue submission) from running, thus avoiding resource leaks or unexpected behavior in this specific path.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "0bcfae076270": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/gpus/sched.rs",
+    "reason": "Checked by Claude: `ram` in plan() already has RAM_SPARE_MIB subtracted, so the number is the free RAM after the spare, as the text says (test a_waiting_job_says_why: 16549 - 5120 = 11429).",
+    "title": "Logic Error in Waiting Reason",
+    "verdict": "false_positive"
+  },
+  "365f4386ef1b": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/gpus/jobs.rs",
+    "reason": "The code safely binds the formatted string as a parameter, preventing SQL injection since the database driver treats it as a literal value rather than parsing it as SQL syntax.",
+    "title": "SQL Injection Risk",
+    "verdict": "false_positive"
+  },
+  "67807ef79406": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/refine/gen.py",
+    "reason": "Checked by Claude: \"4\", \"5\" and \"16\" are the graph's node ids (positive, negative, face-fix text), not values; helmet_words_reach_the_prompts fills both workflows through them.",
+    "title": "Hardcoded Prompt Values",
+    "verdict": "false_positive"
+  },
+  "a614f63e2765": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/team.rs",
+    "reason": "Checked by Claude: the pair id is made once per picture (outside the sides loop) and shared by its on and off runs; only Make 4 gives each picture its own pair (<id>-<i>).",
+    "title": "Possible Logic Error",
+    "verdict": "false_positive"
+  },
+  "ab7b126874d2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "Checked by Claude: the demo mock has no seeds at all; it only models the pair and the helmet side, which tests/helmet.spec.ts checks.",
+    "title": "Possible Logic Error",
+    "verdict": "false_positive"
+  }
+}
