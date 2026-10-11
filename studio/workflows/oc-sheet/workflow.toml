@@ -24,6 +24,13 @@ weight = "34"
 "60" = "pose.png"
 "64" = "depth.png"
 
+# STU-C4: a sheet with a face in the back view, no face in the front or side views, more than two hands on a
+# figure or two hands at one wrist is re-rolled (new seed) up to three times; the best try is kept.
+# Needs [studio] anatomy_url (tools/anatomy); without it the sheet is not checked.
+[check]
+retries = 3
+face_views = ["front", "left", "right"]
+
 [studio]
 label = "OC sheet"
 hint = "Four views: front, left, back, right"

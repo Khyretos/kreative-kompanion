@@ -210,11 +210,14 @@ pub struct StudioConfig {
     /// when no studio computer is on; None: they are refused instead.
     #[serde(default)]
     pub fallback_gpu: Option<String>,
+    /// STU-C4: the anatomy checker (tools/anatomy, e.g. http://anatomy:8000); None: no check.
+    #[serde(default)]
+    pub anatomy_url: Option<String>,
 }
 
 impl Default for StudioConfig {
     fn default() -> Self {
-        Self { workflows_dir: default_workflows_dir(), output_dir: default_output_dir(), fallback_gpu: None }
+        Self { workflows_dir: default_workflows_dir(), output_dir: default_output_dir(), fallback_gpu: None, anatomy_url: None }
     }
 }
 

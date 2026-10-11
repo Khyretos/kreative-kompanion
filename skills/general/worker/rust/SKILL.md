@@ -75,3 +75,7 @@ Topic lessons moved into cards (sql, processes-files, axum-api), loaded when a j
 104. (2026-10-07) Qwen's chat template accepts system text only as the first message: a
    `system` message added after the user's turn made OVMS answer 400. Add late context (tool
    results) to the first system message instead.
+
+162. (2026-10-11) Write every early return in a spec's list (one dropped guard re-rolled helmet pairs that must
+   keep one seed). When a `use` line grows (`use serde_json::{json, Map, Value};`), replace the old line instead of
+   adding a second one (E0252 "defined multiple times").

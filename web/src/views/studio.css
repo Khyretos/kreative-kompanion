@@ -94,3 +94,8 @@
 .studio-pair[data-side="on"] .studio-run[data-helmet="off"], .studio-pair[data-side="off"] .studio-run[data-helmet="on"] { display: none; }
 .studio-side { align-self: flex-start; }
 .studio-wait { color: var(--muted); }
+/* STU-C4: the anatomy check line; problems left open on click. */
+.studio-check { margin: 0; }
+.studio-check.warn summary { cursor: pointer; width: fit-content; font-size: 0.8rem; color: var(--link); }
+.studio-check.warn summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.studio-check.warn ul { margin: 0.25rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; color: var(--fg); }
