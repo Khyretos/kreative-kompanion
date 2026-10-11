@@ -80,6 +80,15 @@
     "title": "Unnecessary File Write",
     "verdict": "false_positive"
   },
+  "3f399a1327d7": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "an API error should fail the job loudly; the Actions log shows the traceback, and a half-applied decision must not be reported as done Checked by Claude: same code as the earlier finding.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "3f584952cd4c": {
     "by": "claude",
     "checked": true,
@@ -105,6 +114,15 @@
     "path": ".forgejo/workflows/owner-decision.yml",
     "reason": "Checked, corrected to false positive: 192.168.178.103 is a private LAN address, not a secret (the same relay URL is already in lint-fix.yml on main); the API key comes from a secret.",
     "title": "Hard-coded Secret Exposure",
+    "verdict": "false_positive"
+  },
+  "5ffd301e364e": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "tests test_out_of_range_questions_or_nothing and test_owner_chatter_changes_nothing show out-of-range numbers and chatter give None Checked by Claude: same code as the earlier finding.",
+    "title": "Possible Issue",
     "verdict": "false_positive"
   },
   "68fba746e7d5": {
@@ -204,6 +222,15 @@
     "path": "tools/owner_decision.py",
     "reason": "The code explicitly closes the file handle immediately after reading, preventing any resource leak in this specific instance, and the finding incorrectly labels this explicit cleanup as an anti-pattern rather than a defect.",
     "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "bd0c7b3856b2": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/gate02-owner-decisions.jsonl",
+    "reason": "Checked, corrected to false positive: the jsonl is Coder's draft log and shows failures of earlier draft rounds; the final suite passes (21/21, also in CI).",
+    "title": "Test Failures in PR",
     "verdict": "false_positive"
   },
   "bf93d185ebce": {
