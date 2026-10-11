@@ -153,9 +153,10 @@ class AnatomyHandler(BaseHTTPRequestHandler):
             if clen == 0:
                 self.send_json(400, {"error": "no body"})
                 return
+            body = self.rfile.read(clen)
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
-                f.write(self.rfile.read(clen))
                 tmp_path = f.name
+                f.write(body)
             try:
                 q = self.path.split("?")[1] if "?" in self.path else ""
                 fv = FACE_VIEWS
