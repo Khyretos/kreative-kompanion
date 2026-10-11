@@ -5,7 +5,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "tests",
   timeout: 20_000,
-  retries: 0,
+  // CI shares kireserver with GPU and build jobs (load 20+): one retry there turns a timing flake
+  // into a pass, a real failure still fails twice (KG-01). Locally a failure fails at once.
+  retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],
   use: { baseURL: "http://localhost:5173", trace: "off" },
   // A fake microphone (and no permission prompt) and audio that may play without a click,

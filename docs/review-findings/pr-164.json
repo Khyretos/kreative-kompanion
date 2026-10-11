@@ -1,0 +1,245 @@
+{
+  "0974ec01f834": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/kg-01-task-tree.jsonl",
+    "reason": "Checked by Claude: the failure is from an intermediate Coder draft recorded in the qwen log, not from the committed code; tasktree tests pass locally and in CI.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  },
+  "0ebcf987a8c6": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/tasktree.ts",
+    "reason": "Checked by Claude: the walk skips ids already in `below` (`if (below.has(id)) continue`), so a parent loop ends; the server refuses loops anyway.",
+    "title": "Potential Infinite Loop",
+    "verdict": "false_positive"
+  },
+  "1b7b881a8adc": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: \"\" maps to None (top level), which needs no parent check; any real parent change or kind change runs check_parent.",
+    "title": "Potential Logic Flaw",
+    "verdict": "false_positive"
+  },
+  "2ba291697aaf": {
+    "by": "repeat of 7a64d7afe2bf",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: same as 65f4b6c56535: set_deps validates before writing, in its own transaction; create deletes the row on error.",
+    "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "2ffdbd483c45": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: errors of intermediate drafts in the qwen log; CI's server job builds and tests green.",
+    "title": "Compilation Error",
+    "verdict": "false_positive"
+  },
+  "32263aed7b3e": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "Checked by Claude: a null parentId is the project's top level, so the subtasks of a deleted top-level task become top-level tasks, exactly like the server's detach.",
+    "title": "Logic Error in Delete",
+    "verdict": "false_positive"
+  },
+  "43d648fad0ec": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: an empty fetch_all is an empty Vec in sqlx; set_deps errors are returned with ? (update) or after deleting the new row (create). No bug.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "4d659226428e": {
+    "by": "repeat of 43d648fad0ec",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: tasks.kind is NOT NULL DEFAULT 'task' (migration 0122) and the resulting kind always goes through check_kind.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "612afaafd700": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "Checked by Claude: the mock is demo data only; the server checks parents (check_parent) and the tree shows a task whose parent is missing as a top-level row.",
+    "title": "Missing Validation",
+    "verdict": "false_positive"
+  },
+  "65f4b6c56535": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: set_deps checks every id (exists, same user and project, no loop) before it writes anything, and writes inside its own transaction; on any error create deletes the new row. Invalid ids give a BadRequest, never a database error (test dependencies_are_replaced_and_checked).",
+    "title": "Potential Data Loss on Create Failure",
+    "verdict": "false_positive"
+  },
+  "6d37de1d05b4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/kg-01-task-tree.jsonl",
+    "reason": "Checked by Claude: build errors of intermediate drafts in the qwen log; the committed code builds (CI green on c1e1568).",
+    "title": "Build Errors",
+    "verdict": "false_positive"
+  },
+  "76d3119cc3cf": {
+    "by": "repeat of 43d648fad0ec",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: Checked by Claude: an empty fetch_all is an empty Vec in sqlx; set_deps errors are returned with ? (update) or after deleting the new row (create). No bug.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "7a64d7afe2bf": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: create inserts, then sets dependencies; a failing set_deps deletes the row before returning the error (compensation instead of one transaction, since set_deps validates against the stored task). Nothing is left behind: task_deps rows are only written inside set_deps' own transaction.",
+    "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "7b0d608caf25": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: src/access/web.rs is not in this PR; that warning is from cargo output in the qwen log.",
+    "title": "Missing Imports",
+    "verdict": "false_positive"
+  },
+  "7ff28adc22f4": {
+    "by": "repeat of f6b5e2bf5dbb",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: errors of intermediate drafts in the qwen log; the committed code builds (CI server job green).",
+    "title": "Compilation Errors",
+    "verdict": "false_positive"
+  },
+  "882d578d5c5c": {
+    "by": "repeat of 2ffdbd483c45",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: Checked by Claude: errors of intermediate drafts in the qwen log; CI's server job builds and tests green.",
+    "title": "Compilation Error",
+    "verdict": "false_positive"
+  },
+  "962ea3abf66b": {
+    "by": "repeat of fb98a822ca5a",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: panic of an intermediate draft in the qwen log; tasktree tests pass in CI.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  },
+  "a12c5483c627": {
+    "by": "repeat of 2ffdbd483c45",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: repeat of 2ffdbd483c45 (qwen log draft errors).",
+    "title": "Compilation Error",
+    "verdict": "false_positive"
+  },
+  "ae2d040c273a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: tasks are per user and edited by that user only; a stale read between two of the user's own concurrent edits can at worst refuse one edit, and set_deps re-reads the edges right before its transaction. Not worth a lock.",
+    "title": "Race Condition Risk",
+    "verdict": "false_positive"
+  },
+  "b1b674ff8a3d": {
+    "by": "repeat of 43d648fad0ec",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: same as 43d648fad0ec: empty fetch_all is an empty Vec; errors propagate with ?.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "c97feb0f0a1b": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: update uses the same set_deps, which validates before writing (existence, project, loops) in one transaction; the API test edits dependencies through update.",
+    "title": "Missing Dependency Validation on Update",
+    "verdict": "false_positive"
+  },
+  "cee63601d58f": {
+    "by": "repeat of 962ea3abf66b",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: panic of an intermediate draft in the qwen log; tasktree tests pass in CI.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  },
+  "e07d70b8270e": {
+    "by": "repeat of 32263aed7b3e",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "Checked by Claude: repeat of 32263aed7b3e (null parent = top level, as on the server).",
+    "title": "Logic Error in Delete",
+    "verdict": "false_positive"
+  },
+  "ea9314e9c897": {
+    "by": "repeat of 2ba291697aaf",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: Checked by Claude: same as 65f4b6c56535: set_deps validates before writing, in its own transaction; create deletes the row on error.",
+    "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "f6b5e2bf5dbb": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: these errors are from Coder's intermediate drafts recorded in docs/qwen-log/kg-01-task-tree.jsonl, not the committed code; CI built and ran cargo test green on 780d244.",
+    "title": "Compilation Errors",
+    "verdict": "false_positive"
+  },
+  "fb98a822ca5a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: the panic is from an intermediate draft in the qwen log; the committed test passes locally (7/7 tasktree) and in CI.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  },
+  "ff9db8339047": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: describes errors of an intermediate draft in the qwen log; the committed tasktree.rs builds in CI.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  }
+}

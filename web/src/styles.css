@@ -524,6 +524,24 @@ a.attach-chip:hover { border-color: var(--accent); }
 .task.s-needs_input, .task.s-waiting_resources { border-color: color-mix(in srgb, var(--attn) 55%, var(--line)); }
 .task-main { width: 100%; display: grid; gap: 0.35rem; padding: 0.7rem 0.8rem; }
 .task-main:hover { background: color-mix(in srgb, var(--surface-2) 50%, transparent); }
+/* KG-01: the project's plan as a tree: title + badges per row, details on click. */
+.task-tree { display: grid; gap: 0.4rem; min-width: 0; }
+.task-tree ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.task-tree .tree-children { margin-left: 0.7rem; padding-left: 0.6rem; border-left: 1px solid var(--line); }
+.tree-row { width: 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.45rem; padding: 0.45rem 0.6rem;
+  border-radius: var(--radius); border: 1px solid var(--line); background: var(--bg); text-align: left; color: var(--fg); }
+.tree-row:hover { background: color-mix(in srgb, var(--surface-2) 50%, var(--bg)); }
+.tree-node.s-done > .tree-row .tree-title { color: var(--muted); }
+.tree-title { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.tree-count { font-size: 0.8rem; color: var(--muted); }
+.chip.kind { font-weight: 600; color: var(--fg-strong); background: var(--surface-2); }
+.chip.waits { color: var(--attn); border-color: var(--attn); }
+.task-links { display: grid; gap: 0.3rem; margin: 0.4rem 0 0.6rem; }
+.task-links > div { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; align-items: baseline; }
+.task-links dt { color: var(--muted); font-size: 0.8rem; min-width: 5.5rem; }
+.task-links dd { margin: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; }
+.task-deps { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.7rem; display: grid; gap: 0.3rem; max-height: 12rem; overflow-y: auto; }
+.task-deps label { display: flex; gap: 0.45rem; align-items: center; }
 .task-top { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; }
 .task .chip.state, .detail-state .chip { font-weight: 600; }
 .s-running .chip.state, .chip.state.s-running, .s-in_review .chip.state, .chip.state.s-in_review { color: var(--link); }

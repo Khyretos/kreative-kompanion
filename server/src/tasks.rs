@@ -14,6 +14,7 @@ use sqlx::SqlitePool;
 use crate::{
     AppState,
     auth::User,
+    tasktree,
     error::{ApiError, ApiResult},
     util,
 };
@@ -46,17 +47,20 @@ struct Row {
     source: Option<String>,
     updated_at: String,
     effort: String,
+    parent_id: Option<String>,
+    kind: String,
 }
 
-fn to_json(r: Row) -> Value {
+fn to_json(r: Row, deps: Vec<String>) -> Value {
     json!({
         "id": r.id, "projectId": r.project_id, "title": r.title, "description": r.description,
         "state": r.state, "position": r.position, "progress": r.progress, "step": r.step,
         "role": r.role, "model": r.model, "source": r.source, "updatedAt": r.updated_at, "effort": r.effort, "events": [],
+        "parentId": r.parent_id, "kind": r.kind, "dependsOn": deps,
     })
 }
 
-const COLUMNS: &str = "id, project_id, title, description, state, position, progress, step, role, model, source, updated_at, effort";
+const COLUMNS: &str = "id, project_id, title, description, state, position, progress, step, role, model, source, updated_at, effort, parent_id, kind";
 
 #[derive(Deserialize)]
 pub struct ListQuery {
@@ -72,11 +76,25 @@ pub async fn list(
         "SELECT {COLUMNS} FROM tasks WHERE user_id = ?2 AND (?1 IS NULL OR project_id = ?1)
          ORDER BY project_id, position, updated_at DESC LIMIT 2000"
     ))
-    .bind(q.project)
+    .bind(&q.project)
     .bind(&u.id)
     .fetch_all(&s.db)
     .await?;
-    Ok(Json(rows.into_iter().map(to_json).collect()))
+    let mut deps = tasktree::deps_of(&s.db, &u.id, q.project.as_deref()).await?;
+    Ok(Json(rows.into_iter().map(|r| {
+        let d = deps.get(&r.id).cloned().unwrap_or_default();
+        to_json(r, d)
+    }).collect::<Vec<Value>>()))
+}
+
+/// KG-01: a task as JSON with its dependencies.
+async fn full(db: &SqlitePool, id: &str, user_id: &str) -> ApiResult<Value> {
+    let r = one(db, id, user_id).await?;
+    let deps: Vec<String> = sqlx::query_scalar("SELECT depends_on FROM task_deps WHERE task_id = ? ORDER BY depends_on")
+        .bind(id)
+        .fetch_all(db)
+        .await?;
+    Ok(to_json(r, deps))
 }
 
 async fn one(db: &SqlitePool, id: &str, user_id: &str) -> ApiResult<Row> {
@@ -177,6 +195,13 @@ pub struct NewTask {
     chat_id: Option<String>,
     #[serde(default)]
     effort: Option<String>,
+    /// KG-01: the tree. kind: goal, milestone or task (default); parentId: a task of the same project.
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    parent_id: Option<String>,
+    #[serde(default)]
+    depends_on: Option<Vec<String>>,
 }
 
 pub async fn create(
@@ -188,6 +213,9 @@ pub async fn create(
     let description = clean_description(&b.description)?;
     let state = b.state.unwrap_or_else(|| "queued".into());
     check_state(&state)?;
+    let kind = b.kind.clone().unwrap_or_else(|| "task".into());
+    tasktree::check_kind(&kind)?;
+    let parent = b.parent_id.clone().filter(|p| !p.is_empty());
     let owns: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM projects WHERE id = ? AND user_id = ?")
         .bind(&b.project_id)
         .bind(&u.id)
@@ -196,12 +224,15 @@ pub async fn create(
     if owns.is_none() {
         return Err(ApiError::NotFound);
     }
+    if let Some(p) = &parent {
+        tasktree::check_parent(&s.db, &u.id, None, &b.project_id, &kind, p).await?;
+    }
     let effort = new_task_effort(&s.db, &u.id, b.effort.as_deref(), b.chat_id.as_deref()).await;
     let id = util::new_id();
     sqlx::query(
-        "INSERT INTO tasks (id, project_id, title, description, state, position, updated_at, user_id, effort, sync_dirty)
+        "INSERT INTO tasks (id, project_id, title, description, state, position, updated_at, user_id, effort, sync_dirty, parent_id, kind)
          VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM tasks WHERE project_id = ?), ?, ?, ?,
-                 (SELECT kind = 'windshift' FROM projects WHERE id = ?))",
+                 (SELECT kind = 'windshift' FROM projects WHERE id = ?), ?, ?)",
     )
     .bind(&id)
     .bind(&b.project_id)
@@ -213,18 +244,31 @@ pub async fn create(
     .bind(&u.id)
     .bind(&effort)
     .bind(&b.project_id)
+    .bind(&parent)
+    .bind(&kind)
     .execute(&s.db)
     .await?;
+    if let Some(d) = &b.depends_on {
+        if let Err(e) = tasktree::set_deps(&s.db, &u.id, &id, d).await {
+            sqlx::query("DELETE FROM tasks WHERE id = ?").bind(&id).execute(&s.db).await?;
+            return Err(e);
+        }
+    }
     history(&s.db, &id, &u.id, "created", json!({ "title": title })).await?;
-    Ok((StatusCode::CREATED, Json(to_json(one(&s.db, &id, &u.id).await?))))
+    Ok((StatusCode::CREATED, Json(full(&s.db, &id, &u.id).await?)))
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Change {
     title: Option<String>,
     description: Option<String>,
     state: Option<String>,
     effort: Option<String>,
+    /// KG-01: "" moves the task to the top level.
+    kind: Option<String>,
+    parent_id: Option<String>,
+    depends_on: Option<Vec<String>>,
 }
 
 pub async fn update(
@@ -243,14 +287,35 @@ pub async fn update(
         Some(e) => Some(crate::effort::Effort::parse(e).ok_or_else(|| ApiError::BadRequest(format!("Unknown effort {e}.")))?.as_str()),
         None => None,
     };
+    let kind = b.kind.clone().unwrap_or_else(|| before.kind.clone());
+    tasktree::check_kind(&kind)?;
+    let parent: Option<String> = match b.parent_id.as_deref() {
+        Some("") => None,
+        Some(p) => Some(p.to_string()),
+        None => before.parent_id.clone(),
+    };
+    if parent != before.parent_id || kind != before.kind {
+        if let Some(p) = &parent {
+            tasktree::check_parent(&s.db, &u.id, Some(&id), &before.project_id, &kind, p).await?;
+        }
+    }
+    if kind != before.kind {
+        tasktree::check_children(&s.db, &u.id, &id, &kind).await?;
+    }
+    let deps = match &b.depends_on {
+        Some(d) => Some(tasktree::set_deps(&s.db, &u.id, &id, d).await?),
+        None => None,
+    };
     sqlx::query(
         "UPDATE tasks SET title = COALESCE(?, title), description = COALESCE(?, description),
-         state = COALESCE(?, state), effort = COALESCE(?, effort), updated_at = ? WHERE id = ? AND user_id = ?",
+         state = COALESCE(?, state), effort = COALESCE(?, effort), kind = ?, parent_id = ?, updated_at = ? WHERE id = ? AND user_id = ?",
     )
     .bind(&title)
     .bind(&description)
     .bind(&b.state)
     .bind(effort)
+    .bind(&kind)
+    .bind(&parent)
     .bind(util::now())
     .bind(&id)
     .bind(&u.id)
@@ -270,11 +335,20 @@ pub async fn update(
         changed.insert("state".into(), json!({ "from": before.state, "to": st }));
         crate::notify::task_changed(s.db.clone(), u.id.clone(), id.clone(), before.title.clone(), before.state.clone(), st);
     }
+    if parent != before.parent_id {
+        changed.insert("parent".into(), json!({ "from": before.parent_id, "to": parent }));
+    }
+    if kind != before.kind {
+        changed.insert("kind".into(), json!({ "from": before.kind, "to": kind }));
+    }
+    if let Some(d) = deps {
+        changed.insert("dependsOn".into(), json!(d));
+    }
     if !changed.is_empty() {
         history(&s.db, &id, &u.id, "changed", Value::Object(changed)).await?;
         mark_dirty(&s.db, &id).await?;
     }
-    Ok(Json(to_json(one(&s.db, &id, &u.id).await?)))
+    Ok(Json(full(&s.db, &id, &u.id).await?))
 }
 
 pub async fn delete(
@@ -293,6 +367,7 @@ pub async fn delete(
             .execute(&s.db)
             .await?;
     }
+    tasktree::detach(&s.db, &u.id, &id).await?;
     sqlx::query("DELETE FROM tasks WHERE id = ? AND user_id = ?")
         .bind(&id)
         .bind(&u.id)

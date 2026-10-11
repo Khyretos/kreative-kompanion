@@ -46,6 +46,7 @@ mod skills;
 mod studio;
 mod skillrepo;
 mod tasks;
+mod tasktree;
 mod thread;
 mod util;
 mod voice;

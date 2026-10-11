@@ -494,21 +494,26 @@ export class MockApi implements KompanionApi {
     else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer });
   }
 
-  async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }) {
+  async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {
     const task: Task = { id: id("t"), projectId: t.projectId, title: t.title, description: t.description, state: t.state ?? "queued",
       progress: 0, step: "", role: "worker", model: "", events: [],
-      effort: t.effort ?? chats.find((c) => c.id === t.chatId)?.effort ?? "auto" };
+      effort: t.effort ?? chats.find((c) => c.id === t.chatId)?.effort ?? "auto",
+      kind: t.kind ?? "task", parentId: t.parentId || null, dependsOn: t.dependsOn ?? [] };
     tasks.unshift(task);
     return structuredClone(task);
   }
-  async updateTask(taskId: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }) {
+  async updateTask(taskId: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {
     const t = tasks.find((x) => x.id === taskId);
     if (!t) throw new Error("No such task.");
     Object.assign(t, Object.fromEntries(Object.entries(change).filter(([, v]) => v !== undefined)));
+    if (change.parentId === "") t.parentId = null;
     return structuredClone(t);
   }
   async deleteTask(taskId: string) {
     const i = tasks.findIndex((x) => x.id === taskId);
+    // KG-01: like the server, its subtasks move up to its own parent.
+    if (i >= 0) for (const c of tasks) if (c.parentId === taskId) c.parentId = tasks[i].parentId ?? null;
+    for (const c of tasks) if (c.dependsOn?.includes(taskId)) c.dependsOn = c.dependsOn.filter((d) => d !== taskId);
     if (i >= 0) tasks.splice(i, 1);
   }
   async reorderTasks(_projectId: string, ids: string[]) {
