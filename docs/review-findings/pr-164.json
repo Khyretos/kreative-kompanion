@@ -17,6 +17,15 @@
     "title": "Potential Infinite Loop",
     "verdict": "false_positive"
   },
+  "1b7b881a8adc": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: \"\" maps to None (top level), which needs no parent check; any real parent change or kind change runs check_parent.",
+    "title": "Potential Logic Flaw",
+    "verdict": "false_positive"
+  },
   "2ba291697aaf": {
     "by": "repeat of 7a64d7afe2bf",
     "checked": true,
@@ -24,6 +33,15 @@
     "path": "server/src/tasks.rs",
     "reason": "Checked by Claude: same as 65f4b6c56535: set_deps validates before writing, in its own transaction; create deletes the row on error.",
     "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "2ffdbd483c45": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: errors of intermediate drafts in the qwen log; CI's server job builds and tests green.",
+    "title": "Compilation Error",
     "verdict": "false_positive"
   },
   "32263aed7b3e": {
@@ -41,6 +59,15 @@
     "fixed": "",
     "path": "server/src/tasks.rs",
     "reason": "Checked by Claude: an empty fetch_all is an empty Vec in sqlx; set_deps errors are returned with ? (update) or after deleting the new row (create). No bug.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "4d659226428e": {
+    "by": "repeat of 43d648fad0ec",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: tasks.kind is NOT NULL DEFAULT 'task' (migration 0122) and the resulting kind always goes through check_kind.",
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
@@ -114,6 +141,15 @@
     "path": "server/src/tasks.rs",
     "reason": "Checked by Claude: update uses the same set_deps, which validates before writing (existence, project, loops) in one transaction; the API test edits dependencies through update.",
     "title": "Missing Dependency Validation on Update",
+    "verdict": "false_positive"
+  },
+  "cee63601d58f": {
+    "by": "repeat of 962ea3abf66b",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: panic of an intermediate draft in the qwen log; tasktree tests pass in CI.",
+    "title": "Test Failure",
     "verdict": "false_positive"
   },
   "f6b5e2bf5dbb": {
