@@ -26,6 +26,15 @@
     "title": "Possible Issue",
     "verdict": "false_positive"
   },
+  "2c0daabeb76f": {
+    "by": "repeat of c49271faab70",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): every query in planner.rs is a sqlx query with bound parameters (planner.rs insert_task and insert_deps use .bind); text from the model is never put into SQL.",
+    "title": "Potential SQL Injection",
+    "verdict": "false_positive"
+  },
   "3172ee927b2f": {
     "by": "repeat of 10824172b0fe",
     "checked": true,
