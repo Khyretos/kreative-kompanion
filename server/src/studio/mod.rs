@@ -12,6 +12,9 @@ pub mod facetags;
 pub mod import;
 pub mod to_assets;
 pub mod watchdog;
+pub mod remove;
+pub mod negative;
+pub mod helmet;
 
 use crate::{
     AppState,
@@ -35,10 +38,12 @@ pub fn routes() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/studio/workflows", get(list))
         .route("/studio/workflows/{name}/run", post(start))
-        .route("/studio/runs/{id}", get(run_get))
+        .route("/studio/runs/{id}", get(run_get).delete(remove::delete_one))
+        // STU-D1: delete finished runs (ids, or every failed one) with their files.
+        .route("/studio/runs/delete", post(remove::delete_many))
         .route("/studio/target", get(target::read).put(target::set))
         // STU-01d: room for a face photo (12 MiB) in the multipart form.
-        .route("/studio/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
+        .route("/studio/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(60 * 1024 * 1024)))
         .route("/studio/audio", post(audio::make))
         .route("/studio/mine", get(team::mine))
         .route("/studio/runs/{id}/files/{n}", get(team::file))
@@ -46,11 +51,12 @@ pub fn routes() -> axum::Router<AppState> {
         .route("/studio/runs/{id}/to-assets", post(to_assets::send))
         .route("/studio/target/service", get(target::service_read).put(target::service_set))
         // KS-01: Kreative Studio's jobs, on behalf of a studio user (auth::guard maps the user).
-        .route("/studio/service/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(13 * 1024 * 1024)))
+        .route("/studio/service/make", post(team::make).layer(axum::extract::DefaultBodyLimit::max(60 * 1024 * 1024)))
         .route("/studio/service/audio", post(audio::make))
         .route("/studio/service/workflows", get(list))
         .route("/studio/service/mine", get(team::mine))
-        .route("/studio/service/runs/{id}", get(run_get))
+        .route("/studio/service/runs/{id}", get(run_get).delete(remove::delete_one))
+        .route("/studio/service/runs/delete", post(remove::delete_many))
         .route("/studio/service/runs/{id}/files/{n}", get(team::file))
         // KS-03: Kreative Studio's own finished jobs join the same library.
         .route("/studio/service/import", post(import::import))
@@ -184,6 +190,24 @@ pub async fn make_room(s: &AppState, gpu: &str, need_mib: u64, keep: &str) {
     }
 }
 
+pub fn make_room_while_waiting(s: &AppState, gpu: &str, need_mib: u64, keep: &'static str) -> tokio::task::JoinHandle<()> {
+    let s = s.clone();
+    let gpu = gpu.to_string();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            let running: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM gpu_job WHERE gpu = ? AND state = 'running'")
+                .bind(&gpu)
+                .fetch_one(&s.db)
+                .await
+                .unwrap_or(1);
+            if running == 0 {
+                crate::studio::make_room(&s, &gpu, need_mib, keep).await;
+            }
+        }
+    })
+}
+
 /// GPU-02: the GPU a studio run uses. A named GPU is used as asked; "auto" takes the first
 /// configured GPU with studio apps and a ComfyUI whose computer has the studio on, else
 /// `[studio] fallback_gpu` (e.g. the A770, at the cost of Coder), else an error saying why.
@@ -259,6 +283,15 @@ async fn queue(
     let mut params = params.clone();
     let face = params.remove("face").and_then(|v| v.as_str().map(std::path::PathBuf::from));
     let weight = params.remove("face_weight").and_then(|v| v.as_f64()).unwrap_or(0.85);
+    // STU-R2: the user's pictures ("input:<name>": its file on this server) for the [inputs] LoadImage nodes.
+    let mut pics = Vec::new();
+    for (input, node) in &wf.inputs {
+        let path = params.remove(&format!("input:{input}")).and_then(|v| v.as_str().map(std::path::PathBuf::from));
+        match path {
+            Some(p) => pics.push((node.clone(), p)),
+            None => return Err(ApiError::BadRequest(format!("{} needs a picture ({input}).", wf.title))),
+        }
+    }
     let graph = match &face {
         Some(_) => wf.face_graph("", weight),
         None => wf.graph_for(&machine),
@@ -293,6 +326,7 @@ async fn queue(
             id,
             user_id.to_string(),
             face,
+            pics,
         ),
     ))
 }
@@ -330,6 +364,7 @@ async fn execute(
     id: String,
     user_id: String,
     face: Option<std::path::PathBuf>,
+    pics: Vec<(String, std::path::PathBuf)>,
 ) {
     // BUG-02: Studio off stops this run at once; it also has a time limit.
     let watch = watchdog::watch(&id, &gpu);
@@ -361,9 +396,21 @@ async fn execute(
     } else if ledger.as_ref().is_none_or(|l| l.free_mib < spec.vram_mib) {
         comfy::free_if_idle(&s.http, &url).await;
     }
+    // STU-C3: the RAM ComfyUI already holds is used on the host and is part of what this run
+    // needs; counting it twice kept oc-shots queued on soucouyant with 14 GB of VRAM free.
+    if let Some(total) = jobs::ram_total_mib(&s, &machine).await
+        && let Ok(r) = s.http.get(format!("{url}/system_stats")).timeout(Duration::from_secs(3)).send().await
+        && let Ok(stats) = r.json::<Value>().await
+    {
+        spec.ram_mib = spec.ram_mib.saturating_sub(comfy::ram_held_mib(&stats, total));
+    }
     // STU-02: idle music/SFX apps on this GPU make way too.
     make_room(&s, &gpu, spec.vram_mib, "comfyui").await;
-    let result = match jobs::acquire(&s, spec, Duration::from_secs(1800)).await {
+    // STU-C3: a run queued behind another one frees ComfyUI's cache too, once that one is done.
+    let nudge = make_room_while_waiting(&s, &gpu, spec.vram_mib, "");
+    let leased = jobs::acquire(&s, spec, Duration::from_secs(1800)).await;
+    nudge.abort();
+    let result = match leased {
         Err(e) => Err(e),
         Ok(lease) => {
             // The output root is shared too (create_dir_all makes it 755 otherwise).
@@ -385,6 +432,31 @@ async fn execute(
                     Err(e) => Err(anyhow::anyhow!("face photo: {e}")),
                 },
                 _ => Ok(()),
+            };
+            // STU-C1: images shipped with the workflow (the OC sheet's pose and depth sheets).
+            let up = match up {
+                Err(e) => Err(e),
+                Ok(()) => async {
+                    // STU-R2: and the user's pictures for this run (a refine step's source and mask).
+                    for (node, path) in &pics {
+                        let bytes = tokio::fs::read(path).await.map_err(|e| anyhow::anyhow!("picture: {e}"))?;
+                        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png");
+                        let name = comfy::upload(&s.http, &url, bytes, &format!("{id}-{node}.{ext}")).await?;
+                        graph[node.as_str()]["inputs"]["image"] = json!(name);
+                    }
+                    for (node, file) in &w.images {
+                        let path = w.dir.join(file);
+                        let bytes = tokio::fs::read(&path).await;
+                        let name = match bytes {
+                            Ok(b) => {
+                                comfy::upload(&s.http, &url, b, &format!("{}-{file}", w.name)).await?
+                            }
+                            Err(e) => return Err(anyhow::anyhow!("{file}: {e}")),
+                        };
+                        graph[node.as_str()]["inputs"]["image"] = json!(name);
+                    }
+                    Ok(())
+                }.await,
             };
             let r = match up {
                 Err(e) => Err(e),

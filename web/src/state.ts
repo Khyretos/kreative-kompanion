@@ -44,11 +44,12 @@ export interface AppState {
   activityFilter: import("./views/activity").ActivityFilter;
   openTaskId?: string; // task shown in detail
   taskScope: "project" | "all";
-  settingsOpen: boolean;
   pane: "main" | "left" | "right"; // which pane is visible on a phone
-  section: "chat" | "assets" | "capabilities" | "studio"; // what the middle of the screen shows
+  section: "chat" | "assets" | "capabilities" | "studio" | "settings"; // what the middle of the screen shows
   studioTypes?: import("./views/studio").StudioType[]; // STU-01, loaded when the Studio opens
   studioRuns?: import("./views/studio").StudioRun[];
+  studioPicked: string[]; // STU-D1: runs selected for "Delete N"
+  studioHidden: string[]; // STU-D1: deleted, waiting out the 10-second Undo
   studioSent: Record<string, string[]>; // STU-02b: run id -> project names it was sent to (this session)
   studioForm: import("./views/studio").StudioForm;
   capabilities?: import("./views/capabilities").Capabilities; // loaded when the Capabilities section opens
@@ -91,11 +92,12 @@ export const store = new Store<AppState>({
   machines: [],
   rightTab: "tasks",
   taskScope: "project",
+  studioPicked: [],
+  studioHidden: [],
   studioSent: {},
   mcpInfo: {},
   mcpServers: [],
   overseer: { name: "Overseer", interject: false },
-  settingsOpen: false,
   pane: "main",
   section: "chat",
   studioForm: { type: "", size: "", count: 1, busy: false },

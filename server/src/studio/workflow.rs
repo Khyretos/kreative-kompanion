@@ -44,6 +44,9 @@ pub struct Param {
     /// STU-01b: more nodes that get this value (TOML: also = [{ node = "9", input = "seed", add = 1 }]).
     #[serde(default)]
     pub also: Vec<Also>,
+    /// STU-R2: an empty text uses this other param's text instead (the OC sheet's face prompt falls back to the prompt).
+    #[serde(default)]
+    pub fallback: Option<String>,
 }
 
 /// STU-01: how a workflow shows in the Studio (an image type such as "Character").
@@ -61,6 +64,9 @@ pub struct StudioMeta {
     /// STU-02: pixels per size when they differ from the image sizes (video: wide = [1280, 704]).
     #[serde(default)]
     pub px: BTreeMap<String, [i64; 2]>,
+    /// STU-R2: a refine step works on a picture the user sends ([inputs] source); type pickers leave it out.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub refine: bool,
 }
 
 /// STU-01: a preset changes a base workflow's parameter: its template and/or default.
@@ -129,6 +135,14 @@ pub struct Workflow {
     pub models: Vec<Model>,
     #[serde(default)]
     pub face: Option<Face>,
+    /// STU-C1: images shipped in the workflow's folder (LoadImage node -> file name), uploaded to
+    /// ComfyUI's input before each run, e.g. the OC sheet's pose and depth templates.
+    #[serde(default)]
+    pub images: BTreeMap<String, String>,
+    /// STU-R2: pictures the user sends with a run (form field -> LoadImage node), all required, e.g.
+    /// source = "10" (the picture a refine step works on) and mask = "11" (the painted area).
+    #[serde(default)]
+    pub inputs: BTreeMap<String, String>,
     #[serde(default, skip_serializing)]
     pub dir: PathBuf,
 }
@@ -262,7 +276,17 @@ impl Workflow {
                     json!(n)
                 }
                 "string" => {
-                    let text = v.as_str().ok_or_else(|| format!("{} must be a string", p.name))?;
+                    let mut text = v.as_str().ok_or_else(|| format!("{} must be a string", p.name))?;
+                    if text.trim().is_empty()
+                        && let Some(other) = p.fallback.as_ref().and_then(|f| given.get(f)).and_then(Value::as_str)
+                    {
+                        text = other;
+                    }
+                    // STU-C3: a string with no node and no template (helmet description, pair id) is only kept.
+                    if p.node.is_empty() && p.template.is_none() {
+                        used.insert(p.name.clone(), json!(text));
+                        continue;
+                    }
                     // STU-01: the graph gets the templated text; `used` keeps what the user typed.
                     if let Some(t) = &p.template {
                         // STU-01c: the choice placeholders first ({rating}, {rating_neg}, ...).
@@ -281,7 +305,7 @@ impl Workflow {
                             };
                             inputs.insert(p.input.clone(), json!(filled));
                         }
-                        used.insert(p.name.clone(), json!(text));
+                        used.insert(p.name.clone(), v.clone()); // what the user typed (STU-R2: not the fallback)
                         continue;
                     }
                     json!(text)
@@ -662,6 +686,46 @@ licence = "CreativeML OpenRAIL-M"
         assert_eq!(g["6"]["inputs"]["text"], json!("safe, cat"));
     }
 
+    /// STU-C3: a string setting with no node (the helmet description, the pair id) is only kept.
+    #[test]
+    fn a_string_without_a_node_is_only_kept() {
+        let mut w = wf();
+        let mut p = w.params.iter().find(|p| p.kind == "string").unwrap().clone();
+        p.name = "pair".into();
+        p.node = String::new();
+        p.template = None;
+        w.params.push(p);
+        let before = graph();
+        let mut given = m(json!({"pair": "p1"}));
+        given.insert(w.params.iter().find(|p| p.kind == "string").unwrap().name.clone(), json!("cat"));
+        let (g, used) = w.fill(&before, &given).unwrap();
+        assert_eq!(used["pair"], json!("p1"));
+        assert!(!g.to_string().contains("p1"));
+    }
+
+    /// STU-C3: the helmet side changes the sheet's and the shots' prompts; "none" leaves them as before.
+    #[test]
+    fn helmet_words_reach_the_prompts() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        for name in ["oc-sheet", "oc-shots"] {
+            let w = all.iter().find(|(n, _)| n == name).unwrap().1.as_ref().unwrap();
+            let g: Value = serde_json::from_str(&std::fs::read_to_string(dir.join(name).join(&w.graph)).unwrap()).unwrap();
+            let text = |helmet: &str| {
+                let (g, used) = w.fill(&g, &m(json!({"prompt": "a knight", "helmet": helmet, "helmet_desc": "teal visor", "pair": "p1"}))).unwrap();
+                assert_eq!((used["helmet"].as_str(), used["pair"].as_str()), (Some(helmet), Some("p1")));
+                (g["4"]["inputs"]["text"].as_str().unwrap().to_string(), g["5"]["inputs"]["text"].as_str().unwrap().to_string(), g["16"]["inputs"]["text"].as_str().unwrap().to_string())
+            };
+            let (pos, neg, face) = text("on");
+            assert!(pos.contains("helmet, full helmet covering the head") && neg.contains("visible face, bare head") && face.contains("helmet, visor, face hidden"), "{name}: {pos} / {neg} / {face}");
+            assert!(!face.contains("detailed face"), "{name}: {face}");
+            let (pos, neg, face) = text("off");
+            assert!(pos.contains("no helmet, face visible") && neg.contains("helmet, headwear") && face.contains("detailed face"), "{name}");
+            let (pos, neg, face) = text("none");
+            assert!(!pos.contains("helmet") && !neg.contains("helmet") && face.contains("detailed face"), "{name}: {pos}");
+        }
+    }
+
     #[test]
     fn repo_workflows_all_load() {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
@@ -691,6 +755,23 @@ licence = "CreativeML OpenRAIL-M"
 
         assert_eq!(get("vn-portrait").face_graph("x.png", 0.85).unwrap()["34"]["inputs"]["model"], json!(["1", 0]));
         assert!(get("character").face_graph("x.png", 0.8).unwrap_err().contains("takes no face photo"));
+    }
+
+    #[test]
+    fn oc_sheet_ships_its_pose_images() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let get = |n: &str| all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap();
+        let w = get("oc-sheet");
+        assert_eq!(w.images.keys().cloned().collect::<Vec<_>>(), vec!["60".to_string(), "64".to_string()]);
+        for (node, file) in &w.images {
+            assert!(w.dir.join(file).is_file(), "{file} missing");
+            for g in [w.graph_for("rx9070").unwrap(), w.face_graph("x.png", 0.7).unwrap()] {
+                assert_eq!(g[node.as_str()]["class_type"], json!("LoadImage"), "node {node}");
+            }
+        }
+        assert!(get("oc-sheet-classic").images.is_empty());
+        assert_eq!(get("oc-sheet-classic").title, "OC sheet (classic)");
     }
 
     fn rated() -> Workflow {
@@ -724,5 +805,83 @@ licence = "CreativeML OpenRAIL-M"
         assert_eq!(w.adult_choice(&m(json!({"rating": "explicit"}))), Some("explicit".to_string()));
         assert_eq!(w.adult_choice(&m(json!({"rating": "sensitive"}))), None);
         assert_eq!(w.adult_choice(&Map::new()), None);
+    }
+
+    #[test]
+    fn oc_sheet_face_prompt_and_background() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let w = all.iter().find(|(n, _)| n == "oc-sheet").unwrap().1.as_ref().unwrap();
+        let g = w.graph_for("rx9070").unwrap();
+        assert_eq!(g["13"]["inputs"]["positive"], json!(["16", 0]), "face fix uses the face prompt");
+        assert_eq!(w.face_graph("x.png", 0.7).unwrap()["13"]["inputs"]["positive"], json!(["16", 0]));
+        let given = |v: Value| v.as_object().unwrap().clone();
+        // empty face prompt: the main prompt; white background by default
+        let (f, used) = w.fill(&g, &given(json!({"prompt": "android gentleman, moustache", "face_prompt": ""}))).unwrap();
+        let text = |n: &str| f[n]["inputs"]["text"].as_str().unwrap().to_string();
+        assert!(text("16").ends_with("detailed face, android gentleman, moustache"), "{}", text("16"));
+        assert!(text("4").contains("standing, simple background, white background, android"), "{}", text("4"));
+        assert!(text("5").contains("gradient background, starry sky, frame"), "{}", text("5"));
+        assert_eq!(used["face_prompt"], json!(""));
+        // own face prompt, starry sky
+        let (f, _) = w.fill(&g, &given(json!({"prompt": "android gentleman", "face_prompt": "1boy, moustache", "background": "starry"}))).unwrap();
+        let text = |n: &str| f[n]["inputs"]["text"].as_str().unwrap().to_string();
+        assert!(text("16").ends_with("detailed face, 1boy, moustache") && !text("16").contains("android"), "{}", text("16"));
+        assert!(text("4").contains("purple starry night sky background") && !text("4").contains("white background"), "{}", text("4"));
+        assert!(text("5").contains("white background, simple background, frame") && !text("5").contains("starry"), "{}", text("5"));
+        assert!(w.fill(&g, &given(json!({"prompt": "x", "background": "beach"}))).unwrap_err().contains("background must be one of white, starry"));
+    }
+
+    #[test]
+    fn refine_workflows_take_their_pictures() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let names = ["refine-4k", "refine-change", "refine-repaint", "refine-chibi", "refine-parts", "oc-shots"];
+        for n in names {
+            let w = all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap_or_else(|e| panic!("{n}: {e}"));
+            assert!(w.studio.as_ref().unwrap().refine, "{n} is a refine step");
+            assert_eq!(w.inputs.get("source").map(String::as_str), Some("10"), "{n}");
+            let g = w.graph_for("rx9070").unwrap();
+            assert_eq!(g["10"]["class_type"], json!("LoadImage"), "{n}");
+            let (f, _) = w.fill(&g, &Map::new()).unwrap_or_else(|e| panic!("{n}: {e}"));
+            for o in &w.outputs {
+                assert_eq!(f[o.as_str()]["class_type"], json!("SaveImage"), "{n} output {o}");
+            }
+        }
+        let get = |n: &str| all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap();
+        assert_eq!(get("refine-repaint").inputs.get("mask").map(String::as_str), Some("11"));
+        assert_eq!(get("refine-repaint").graph_for("x").unwrap()["11"]["class_type"], json!("LoadImageMask"));
+        assert_eq!(get("refine-repaint").face_graph("f.png", 0.8).unwrap()["14"]["inputs"]["model"], json!(["34", 0]));
+        assert_eq!(get("refine-parts").outputs.len(), 3);
+        let chibi = get("refine-chibi").params.iter().find(|p| p.name == "rating").unwrap();
+        assert!(chibi.adult.is_empty() && !chibi.choices.contains(&"explicit".to_string()), "no adult ratings for chibi");
+        // other types are not refine steps
+        assert!(!get("oc-sheet").studio.as_ref().unwrap().refine && get("oc-sheet").inputs.is_empty());
+    }
+
+    #[test]
+    fn oc_shots_change_only_the_shot() {
+        // STU-C2: a sheet's prompt and seed, the shot tags and size from the shot, the face prompt for the face fix.
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let w = all.iter().find(|(name, _)| name == "oc-shots").unwrap().1.as_ref().unwrap();
+        let st = w.studio.as_ref().unwrap();
+        assert_eq!(st.sizes, vec!["tall".to_string(), "square".to_string()]);
+        assert_eq!(st.px.get("tall"), Some(&[1024, 1280]));
+        let g = w.graph_for("rx9070").unwrap();
+        let given = |v: Value| v.as_object().unwrap().clone();
+        let (f, used) = w.fill(&g, &given(json!({"prompt": "android gentleman", "face_prompt": "1boy, moustache", "seed": 300}))).unwrap();
+        let text = |f: &Value, n: &str| f[n]["inputs"]["text"].as_str().unwrap().to_string();
+        assert!(text(&f, "4").contains("portrait, close-up, head and shoulders") && text(&f, "4").ends_with("android gentleman"), "{}", text(&f, "4"));
+        assert!(text(&f, "5").contains("full body, feet, legs, "), "{}", text(&f, "5"));
+        assert!(text(&f, "16").ends_with("detailed face, 1boy, moustache"), "{}", text(&f, "16"));
+        assert_eq!(f["42"]["inputs"]["positive"], json!(["16", 0]), "the face fix uses the face prompt");
+        assert_eq!((f["7"]["inputs"]["seed"].clone(), f["42"]["inputs"]["seed"].clone()), (json!(300), json!(302)));
+        assert_eq!(used["shot"], json!("headshot"));
+        let (c, _) = w.fill(&g, &given(json!({"prompt": "knight", "shot": "cowboy", "width": 1216, "height": 1216}))).unwrap();
+        assert!(text(&c, "4").contains("cowboy shot, from the thighs up") && !text(&c, "4").contains("close-up"), "{}", text(&c, "4"));
+        assert!(text(&c, "16").ends_with("detailed face, knight"), "empty face prompt falls back: {}", text(&c, "16"));
+        assert_eq!((c["6"]["inputs"]["width"].clone(), c["6"]["inputs"]["height"].clone()), (json!(1216), json!(1216)));
+        assert!(w.fill(&g, &given(json!({"shot": "full"}))).unwrap_err().contains("shot must be one of headshot, cowboy"));
     }
 }

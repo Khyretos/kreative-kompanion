@@ -147,12 +147,13 @@ export interface KompanionApi {
   /** STU-01: the image types (workflows with a [studio] section), sorted by their order. */
   studioTypes(): Promise<import("../views/studio").StudioType[]>;
   /** STU-01: make 1 or 4 images; returns the run ids. */
-  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string, face?: { file: File; weight: number }): Promise<{ ids: string[] }>;
+  studioMake(type: string, prompt: string, size: string, count: 1 | 4, rating?: string, face?: { file: File; weight: number }, negative?: string, params?: Record<string, string>): Promise<{ ids: string[] }>;
   /** STU-02: music or a sound effect; returns the run id. */
   studioAudio(kind: "music" | "sfx", prompt: string, lyrics: string, seconds: number): Promise<{ ids: string[] }>;
   /** STU-01: the signed-in user's runs, newest first. */
   studioMine(): Promise<import("../views/studio").StudioRun[]>;
   /** STU-02b: file n of a finished run becomes an asset of the project. */
+  studioDelete(ids: string[], failed?: boolean): Promise<{ deleted: string[]; skipped: string[]; keptFiles: number }>;
   studioToAssets(runId: string, project: string, n?: number): Promise<{ assetId: number; project: string; name: string }>;
   /** M6-04: per GPU, samples, jobs and events of the last 1 or 24 hours. */
   gpuTimeline(hours: 1 | 24): Promise<import("../views/gputimeline").TlGpu[]>;

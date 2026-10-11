@@ -1,0 +1,52 @@
+# REL-01: the desktop app for macOS (Intel and Apple Silicon in one universal .app, zipped),
+# cross-compiled with osxcross like 3dco+ does. Tauri's bundler only runs on macOS, so the
+# .app is put together here from release/macos/Info.plist. Not notarized: the first start
+# needs right-click > Open (see release/README.md).
+ARG OSXCROSS_VERSION=26.1-r0
+FROM crazymax/osxcross:${OSXCROSS_VERSION}-ubuntu AS osxcross
+
+# Same Ubuntu as the osxcross image: its tools need that glibc.
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends clang lld zip curl ca-certificates >/dev/null && \
+    rm -rf /var/lib/apt/lists/*
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal -q \
+        -t x86_64-apple-darwin -t aarch64-apple-darwin
+COPY --from=osxcross /osxcross /osxcross
+ENV PATH=/osxcross/bin:/root/.cargo/bin:$PATH LD_LIBRARY_PATH=/osxcross/lib MACOSX_DEPLOYMENT_TARGET=11.0
+ENV CC_x86_64_apple_darwin=o64-clang CXX_x86_64_apple_darwin=o64-clang++ \
+    CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=o64-clang \
+    CC_aarch64_apple_darwin=oa64-clang CXX_aarch64_apple_darwin=oa64-clang++ \
+    CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER=oa64-clang
+
+ARG APP_VERSION=0.0.0
+ARG KOMPANION_DEFAULT_SERVER=
+ARG CARGO_BUILD_JOBS=6
+ENV KOMPANION_DEFAULT_SERVER=$KOMPANION_DEFAULT_SERVER CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS
+COPY desktop/ /src/desktop/
+COPY release/macos/ /src/release/macos/
+WORKDIR /src/desktop/src-tauri
+# tauri/custom-protocol: serve the bundled picker page instead of a dev server
+# (the Tauri CLI sets it; plain cargo does not).
+RUN for t in x86_64-apple-darwin aarch64-apple-darwin; do \
+        cargo build --release --locked --target "$t" --features tauri/custom-protocol || exit 1; \
+    done && \
+    app="/tmp/Kreative Kompanion.app" && \
+    mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" && \
+    lipo=$(find /osxcross/bin -name '*-lipo' | head -1) && \
+    "$lipo" -create target/x86_64-apple-darwin/release/kreative-kompanion-desktop \
+        target/aarch64-apple-darwin/release/kreative-kompanion-desktop \
+        -output "$app/Contents/MacOS/kreative-kompanion" && \
+    sed "s/@VERSION@/$APP_VERSION/g" /src/release/macos/Info.plist > "$app/Contents/Info.plist" && \
+    cp icons/icon.icns "$app/Contents/Resources/icon.icns"
+WORKDIR /tmp
+RUN mkdir -p /out && \
+    zip -qry "/out/kreative-kompanion-$APP_VERSION-macos-universal.zip" "Kreative Kompanion.app"
+
+# The workflow's anonymous /dist volume takes this owner; the image only copies files out.
+RUN mkdir /dist && chown 1000:1000 /dist
+USER 1000:1000
+# A build image runs one copy and exits: there is no service to check.
+HEALTHCHECK NONE
+CMD ["sh", "-c", "cp /out/* /dist/"]

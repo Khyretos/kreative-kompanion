@@ -9,12 +9,14 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * Keeps the server's pages in the app and opens every other link in the
- * phone's browser.
+ * phone's browser. Sign-in pages on another host (any server's own login
+ * provider) stay in the app because the server redirects to them.
  */
 public final class WebClient extends WebViewClient {
     /** The activity that shows the web view. */
@@ -28,38 +30,57 @@ public final class WebClient extends WebViewClient {
      * A client for the main activity's web view.
      *
      * @param owner the activity that shows the web view
-     * @param serverUrl the server URL from the app's strings
+     * @param serverUrl the chosen server's URL
      */
     public WebClient(final Activity owner, final String serverUrl) {
         super();
         activity = owner;
         server = serverUrl;
-        insideHosts = Arrays.asList(
-            owner.getResources().getStringArray(R.array.inside_hosts));
+        insideHosts = new ArrayList<>(Arrays.asList(
+            owner.getResources().getStringArray(R.array.inside_hosts)));
+        insideHosts.add(Uri.parse(serverUrl).getHost());
     }
 
     @Override
     public boolean shouldOverrideUrlLoading(final WebView view,
             final WebResourceRequest request) {
-        return openOutside(request.getUrl());
+        final Uri uri = request.getUrl();
+        final boolean inside = request.isRedirect()
+            || insideHosts.contains(uri.getHost())
+            || sameHost(uri, view.getUrl());
+        if (!inside) {
+            openInBrowser(uri);
+        }
+        return !inside;
+    }
+
+    /**
+     * Whether a link stays on the host of the page that shows it.
+     *
+     * @param uri the link
+     * @param current the shown page's URL, or null
+     * @return true for a link on the same host
+     */
+    private static boolean sameHost(final Uri uri, final String current) {
+        final String host = uri.getHost();
+        boolean same = false;
+        if (host != null && current != null) {
+            same = host.equals(Uri.parse(current).getHost());
+        }
+        return same;
     }
 
     /**
      * Opens a link of another host in the phone's browser.
      *
      * @param uri the link
-     * @return true when the web view must not load it
      */
-    private boolean openOutside(final Uri uri) {
-        final boolean outside = !insideHosts.contains(uri.getHost());
-        if (outside) {
-            try {
-                activity.startActivity(new Intent(Intent.ACTION_VIEW, uri));
-            } catch (ActivityNotFoundException noBrowser) {
-                // No app can open it: the tap does nothing.
-            }
+    private void openInBrowser(final Uri uri) {
+        try {
+            activity.startActivity(new Intent(Intent.ACTION_VIEW, uri));
+        } catch (ActivityNotFoundException noBrowser) {
+            // No app can open it: the tap does nothing.
         }
-        return outside;
     }
 
     @Override

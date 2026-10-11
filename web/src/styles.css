@@ -568,16 +568,20 @@ a.attach-chip:hover { border-color: var(--accent); }
 }
 .shot-box .icon { width: 1.6rem; height: 1.6rem; }
 
-/* Settings sheet */
-#settings { position: absolute; inset: 0; z-index: 30; background: var(--scrim); display: grid; place-items: center; padding: 1rem; }
-#settings[hidden] { display: none; }
-.sheet {
-  width: min(40rem, 100%); max-height: 100%; overflow-y: auto; background: var(--surface); border: 1px solid var(--line);
-  border-radius: 14px; padding: 1.25rem; display: grid; gap: 1.5rem;
-}
-.sheet-head { display: flex; justify-content: space-between; align-items: center; }
-.sheet-head h2 { font-size: 1.2rem; }
-.sheet section { display: grid; gap: 0.75rem; }
+/* Settings page (NAV-01: a page like Capabilities, no longer a window) */
+.shell .settings-pane { display: none; background: var(--bg); overflow-y: auto; }
+.shell[data-section="settings"] .center,
+.shell[data-section="settings"] .right,
+.shell[data-section="settings"] .resize-handle[data-side="right"],
+.shell[data-section="settings"] .collapse-btn[data-side="right"] { display: none; }
+.shell[data-section="settings"] .settings-pane { display: block; grid-column: 2 / -1; grid-row: 1; }
+@media (max-width: 760px) { .shell[data-section="settings"] .settings-pane { grid-column: 1 / -1; } }
+.settings-page { max-width: 48rem; margin: 0 auto; padding: 0.75rem 1rem 2rem; display: grid; gap: 1.5rem; }
+.settings-page section { display: grid; gap: 0.75rem; }
+/* NAV-01: every page head has the same ☰ (phones) left of its title. */
+.page-head { display: flex; align-items: flex-start; gap: 0.6rem; }
+.page-head > .icon-btn { flex: none; margin-top: 0.05rem; }
+
 .roles { display: grid; gap: 0.75rem; }
 .role { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 15rem) minmax(0, 8rem); gap: 0.75rem; align-items: center; }
 .role label { display: grid; }
@@ -595,9 +599,10 @@ a.attach-chip:hover { border-color: var(--accent); }
   .only-narrow { display: inline-grid; }
   .right {
     position: absolute; inset: 0 0 0 auto; width: min(var(--right-w), 92vw); z-index: 20;
-    transform: translateX(100%); transition: transform 0.25s ease; box-shadow: -12px 0 40px rgb(0 0 0 / 0.35);
+    transform: translateX(100%); transition: transform 0.25s ease, box-shadow 0.25s ease;
   }
-  .shell[data-pane="right"] .right { transform: none; }
+  /* NAV-01: shadow only while open, else it falls on the page edge (grey strip in light mode). */
+  .shell[data-pane="right"] .right { transform: none; box-shadow: -12px 0 40px rgb(0 0 0 / 0.35); }
   .shell[data-pane="right"] .scrim, .shell[data-pane="left"] .scrim { display: block; position: absolute; inset: 0; z-index: 10; background: var(--scrim); }
 }
 /* Phone: projects slide over too */
@@ -607,9 +612,9 @@ a.attach-chip:hover { border-color: var(--accent); }
   .only-phone { display: inline-grid; }
   .left {
     position: absolute; inset: 0 auto 0 0; width: min(var(--left-w), 88vw); z-index: 20;
-    transform: translateX(-100%); transition: transform 0.25s ease; box-shadow: 12px 0 40px rgb(0 0 0 / 0.35);
+    transform: translateX(-100%); transition: transform 0.25s ease, box-shadow 0.25s ease;
   }
-  .shell[data-pane="left"] .left { transform: none; }
+  .shell[data-pane="left"] .left { transform: none; box-shadow: 12px 0 40px rgb(0 0 0 / 0.35); }
   .conv-head { padding: 0.5rem 0.75rem; gap: 0.4rem; }
   .chip.model { display: none; }
   .messages { padding: 1rem; }

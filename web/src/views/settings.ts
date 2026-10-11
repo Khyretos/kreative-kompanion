@@ -5,6 +5,7 @@ import type { AppState } from "../state";
 import type { AdminSettings, Effort, Role } from "../api/types";
 import { EFFORT_LABELS } from "./tasks";
 import { icon } from "./icons";
+import { pageHead } from "./pagehead";
 import { renderAdmin } from "./admin";
 import { DEFAULT_STYLE, KINDS, styleOf } from "../core/cardtypes";
 import { enabled as deskNotifyOn } from "../core/desknotify";
@@ -80,11 +81,8 @@ function voiceSection(s: AppState): SafeHtml {
 export function renderSettings(s: AppState): SafeHtml {
   const options = s.providers.flatMap((p) => p.models.map((m) => ({ p, m, value: `${p.id}::${m.id}` })));
   return html`
-    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-h">
-      <div class="sheet-head">
-        <h2 id="settings-h">Settings</h2>
-        <button class="icon-btn" data-action="close-settings" aria-label="Close">${icon("close")}</button>
-      </div>
+    <div class="settings-page">
+      ${pageHead("Settings", "Your account, models and how Kompanion looks.", "settings-h")}
       ${renderAdmin(s.admin?.settings ?? DEFAULTS, s.admin?.smtpPasswordSet ?? false, s.theme, s.isAdmin && !!s.admin)}
       ${s.notifications ? html`<form class="admin-form" id="notify-form">
         <h3 class="label">Notifications</h3>

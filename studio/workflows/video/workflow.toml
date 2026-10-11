@@ -1,12 +1,15 @@
 # STU-02: a short clip from a description (Wan 2.2 TI2V-5B, Q8 GGUF), as in Kreative Studio.
 # Small VAE tiles: the Wan 2.2 VAE needs 9 GB for a plain 1280x704x73 decode.
+# STU-V1: text encoder on the CPU (on the card it starved the model: OOM or noise), euler, temporal tiles 32/8.
 title = "Video"
 description = "A few seconds of moving picture, no sound."
 graph = "graph.json"
 outputs = ["20"]
 # soucouyant only until measured on the A770 (its XPU crashed with an fp8 text encoder, GPU-02).
 machines = ["soucouyant"]
-vram_mb = 13000
+# STU-V1: with the text encoder on the CPU the 1280x704 clip peaks at about 8 GB in torch (10 GB on the
+# card with the desktop); 13000 plus the 9070's 2 GB headroom was never free, so video waited for ever.
+vram_mb = 10000
 ram_mb = 10000
 
 [studio]

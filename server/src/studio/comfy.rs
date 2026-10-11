@@ -150,6 +150,18 @@ pub async fn shared(path: &Path, mode: u32) {
     let _ = tokio::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).await;
 }
 
+/// STU-C3: host RAM (MiB) that a ComfyUI already holds, from its GET /system_stats answer.
+/// Only a ComfyUI in a container with a memory limit reports its own RAM there; one that sees
+/// the whole host (its total within 1 GiB of the host's) gives 0, and so do missing numbers.
+pub fn ram_held_mib(stats: &Value, host_total_mib: u64) -> u64 {
+    let Some(ram_total) = stats["system"]["ram_total"].as_u64() else { return 0 };
+    let Some(ram_free) = stats["system"]["ram_free"].as_u64() else { return 0 };
+    if host_total_mib == 0 || ram_total / 1_048_576 + 1024 >= host_total_mib {
+        return 0;
+    }
+    ram_total.saturating_sub(ram_free) / 1_048_576
+}
+
 /// Ask an idle ComfyUI to drop its cached models, so the VRAM ledger sees room for the next
 /// job on it. True when it was idle and took the request.
 pub async fn free_if_idle(http: &reqwest::Client, base: &str) -> bool {
@@ -455,5 +467,20 @@ mod tests {
         let (url, _f) = fake("running").await;
         let e = wait(&Client::new(), &url, "p1", Duration::from_millis(1500), Duration::from_millis(900)).await.unwrap_err().to_string();
         assert!(e.contains("did not finish"), "{e}");
+    }
+
+    /// STU-C3: ComfyUI in a container with a memory limit reports the container's own RAM;
+    /// one that sees the whole host reports the host's, which is not ComfyUI's to give back.
+    #[test]
+    fn ram_held_counts_only_a_containers_own_ram() {
+        let gib = 1u64 << 30;
+        let stats = |total: u64, free: u64| json!({"system": {"ram_total": total, "ram_free": free}});
+        // soucouyant, 2026-10-09: 20 GiB limit, 14.57 GiB free in it, host 31692 MiB.
+        assert_eq!(ram_held_mib(&stats(20 * gib, 15647371264), 31692), 5557);
+        // Same total as the host (no limit): nothing.
+        assert_eq!(ram_held_mib(&stats(62 * gib, 7 * gib), 64202), 0);
+        // Missing numbers or an unknown host: nothing.
+        assert_eq!(ram_held_mib(&json!({}), 31692), 0);
+        assert_eq!(ram_held_mib(&stats(20 * gib, 15 * gib), 0), 0);
     }
 }

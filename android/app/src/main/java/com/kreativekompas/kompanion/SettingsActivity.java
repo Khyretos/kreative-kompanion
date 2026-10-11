@@ -22,8 +22,8 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Notification settings: the own-connection switch and the battery page of
- * phones that stop background apps.
+ * Settings: the own-connection switch, the battery page of phones that stop
+ * background apps, and the server the app uses.
  */
 public final class SettingsActivity extends Activity {
     /** Kompas white, headings. */
@@ -90,6 +90,13 @@ public final class SettingsActivity extends Activity {
         // Dark text on orange: white on orange fails contrast.
         button(R.string.battery_open, ORANGE, NIGHT,
             view -> openBatterySettings());
+
+        // Client mode (REL-01): which Kompanion server the app uses.
+        text(getString(R.string.server_heading), WHITE, HEADING_SP,
+            SECTION_GAP_DP);
+        text(Server.url(this), MIST, BODY_SP, 0);
+        button(R.string.server_change, PLUM_2, WHITE, view ->
+            startActivity(new Intent(this, ServerActivity.class)));
         button(R.string.settings_done, PLUM_2, WHITE, view -> finish());
     }
 

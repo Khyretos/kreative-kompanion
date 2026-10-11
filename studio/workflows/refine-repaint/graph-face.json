@@ -1,0 +1,139 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["1", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "worst quality"
+    }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "source.png"
+    }
+  },
+  "11": {
+    "class_type": "LoadImageMask",
+    "inputs": {
+      "image": "mask.png",
+      "channel": "red"
+    }
+  },
+  "12": {
+    "class_type": "GrowMask",
+    "inputs": {
+      "mask": ["11", 0],
+      "expand": 12,
+      "tapered_corners": true
+    }
+  },
+  "13": {
+    "class_type": "MaskToSEGS",
+    "inputs": {
+      "mask": ["12", 0],
+      "combined": true,
+      "crop_factor": 1.6,
+      "bbox_fill": false,
+      "drop_size": 10,
+      "contour_fill": true
+    }
+  },
+  "14": {
+    "class_type": "DetailerForEach",
+    "inputs": {
+      "image": ["10", 0],
+      "segs": ["13", 0],
+      "model": ["34", 0],
+      "clip": ["3", 0],
+      "vae": ["1", 2],
+      "guide_size": 1024,
+      "guide_size_for": true,
+      "max_size": 1536,
+      "seed": 1,
+      "steps": 28,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "denoise": 0.9,
+      "feather": 8,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "wildcard": "",
+      "cycle": 1,
+      "noise_mask_feather": 20,
+      "tiled_encode": true,
+      "tiled_decode": true
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["14", 0],
+      "filename_prefix": "kompanion/refine-repaint"
+    }
+  },
+  "30": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "face.png"
+    }
+  },
+  "31": {
+    "class_type": "PrepImageForClipVision",
+    "inputs": {
+      "image": ["30", 0],
+      "interpolation": "LANCZOS",
+      "crop_position": "center",
+      "sharpening": 0
+    }
+  },
+  "32": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    }
+  },
+  "33": {
+    "class_type": "IPAdapterModelLoader",
+    "inputs": {
+      "ipadapter_file": "ip-adapter-plus-face_sdxl_vit-h.safetensors"
+    }
+  },
+  "34": {
+    "class_type": "IPAdapterAdvanced",
+    "inputs": {
+      "model": ["1", 0],
+      "ipadapter": ["33", 0],
+      "image": ["31", 0],
+      "clip_vision": ["32", 0],
+      "weight": 0.85,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 0.85,
+      "embeds_scaling": "V only"
+    }
+  }
+}

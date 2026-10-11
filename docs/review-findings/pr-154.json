@@ -1,0 +1,20 @@
+{
+  "bbd04319deb6": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "The finding incorrectly assumes the popstate handler will fire after a blocked navigation, but the browser prevents the popstate event from firing if history.back() is called and then blocked by a return false in a link handler, as the navigation never completes to trigger the event listener. Claude: a blocked click stops the event before any state change, so navHistory never runs and no history.back()/popstate happens; popstate only re-pushes when the user cancels leaving from a real back press.",
+    "title": "Possible Logic Error",
+    "verdict": "false_positive"
+  },
+  "dcb5cee0d02a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "The code operates in a browser environment where history manipulation APIs are generally robust, and the specific error scenarios mentioned (sandboxed contexts) are not standard runtime conditions for this type of application logic. Claude: pushState/back only throw for cross-origin URLs; here the URL is unchanged (same document), so they cannot throw.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  }
+}

@@ -1,0 +1,75 @@
+# STU-R2: a refine step for Kreative Studio: chibi version (IP-Adapter plus, style transfer).
+title = "Refine: chibi"
+description = "Draws the character again as a chibi (big head, small body) in the same colours and outfit."
+graph = "graph.json"
+outputs = ["20"]
+machines = ["soucouyant"]
+vram_mb = 9000
+ram_mb = 12000
+
+[studio]
+label = "Chibi version"
+hint = "Same outfit and colours, chibi proportions"
+sizes = ["square"]
+order = 104
+refine = true
+
+[inputs]
+source = "10"
+
+[[param]]
+name = "prompt"
+type = "string"
+default = ""
+node = "4"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, chibi, super deformed, big head, small body, cute, full body, standing, simple background, white background, {value}"
+
+[[param]]
+name = "negative"
+type = "string"
+default = ""
+node = "5"
+input = "text"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, loli, shota, underage, toddler, minor, {rating_neg}{value}"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "7"
+input = "seed"
+
+# How much of the source's look carries over.
+[[param]]
+name = "likeness"
+type = "float"
+default = 0.6
+min = 0.0
+max = 1.0
+node = "14"
+input = "weight"
+
+# chibi proportions: never the adult ratings, nudity always left out
+[[param]]
+name = "rating"
+type = "choice"
+default = "general"
+choices = ["general", "sensitive"]
+words = { rating_neg = { general = "nsfw, nude, explicit, ", sensitive = "nsfw, nude, explicit, " } }
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "ip-adapter-plus_sdxl_vit-h.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+licence = "MIT"
+
+[[model]]
+file = "4x-AnimeSharp.pth"
+licence = "CC BY-NC-SA 4.0 (non-commercial; already used by the Studio upscale)"

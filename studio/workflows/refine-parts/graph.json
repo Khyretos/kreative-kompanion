@@ -1,0 +1,133 @@
+{
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "source.png"
+    }
+  },
+  "11": {
+    "class_type": "ImageScaleToMaxDimension",
+    "inputs": {
+      "image": ["10", 0],
+      "upscale_method": "lanczos",
+      "largest_size": 2048
+    }
+  },
+  "12": {
+    "class_type": "LoadBackgroundRemovalModel",
+    "inputs": {
+      "bg_removal_name": "birefnet.safetensors"
+    }
+  },
+  "13": {
+    "class_type": "RemoveBackground",
+    "inputs": {
+      "bg_removal_model": ["12", 0],
+      "image": ["11", 0]
+    }
+  },
+  "14": {
+    "class_type": "UltralyticsDetectorProvider",
+    "inputs": {
+      "model_name": "bbox/face_yolov8m.pt"
+    }
+  },
+  "15": {
+    "class_type": "BboxDetectorSEGS",
+    "inputs": {
+      "bbox_detector": ["14", 0],
+      "image": ["11", 0],
+      "threshold": 0.4,
+      "dilation": 60,
+      "crop_factor": 3.0,
+      "drop_size": 10,
+      "labels": "all"
+    }
+  },
+  "16": {
+    "class_type": "SegsToCombinedMask",
+    "inputs": {
+      "segs": ["15", 0]
+    }
+  },
+  "17": {
+    "class_type": "MaskComposite",
+    "inputs": {
+      "destination": ["13", 0],
+      "source": ["16", 0],
+      "x": 0,
+      "y": 0,
+      "operation": "multiply"
+    }
+  },
+  "18": {
+    "class_type": "MaskComposite",
+    "inputs": {
+      "destination": ["13", 0],
+      "source": ["16", 0],
+      "x": 0,
+      "y": 0,
+      "operation": "subtract"
+    }
+  },
+  "30": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": ["13", 0]
+    }
+  },
+  "40": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": ["11", 0],
+      "alpha": ["30", 0]
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["40", 0],
+      "filename_prefix": "kompanion/refine-parts"
+    }
+  },
+  "31": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": ["17", 0]
+    }
+  },
+  "41": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": ["11", 0],
+      "alpha": ["31", 0]
+    }
+  },
+  "21": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["41", 0],
+      "filename_prefix": "kompanion/refine-parts"
+    }
+  },
+  "32": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": ["18", 0]
+    }
+  },
+  "42": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": ["11", 0],
+      "alpha": ["32", 0]
+    }
+  },
+  "22": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["42", 0],
+      "filename_prefix": "kompanion/refine-parts"
+    }
+  }
+}

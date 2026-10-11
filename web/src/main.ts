@@ -3,7 +3,6 @@ import { HttpApi } from "./api/http";
 import { $, html, html as h, mount, onAction, restoreBusy, busyWhile, swUrl } from "./core/html";
 import { attachLiveMarkdown } from "./core/livemd";
 import { initResize } from "./core/resize";
-import { modal, type Modal } from "./core/modal";
 import { MockApi } from "./api/mock";
 import type { KompanionApi, ServerEvent } from "./api/client";
 import type { AdminSettings, Effort, Project, Role, Server, TaskState, ThemeChoice, SearchResult } from "./api/types";
@@ -40,10 +39,19 @@ let studioSeconds = "";
 let studioRating = ""; // STU-01c: the picked rating ("" = the first one offered)
 let studioFace: File | undefined; // STU-01d: the face photo (a re-render empties the file input)
 let studioFaceWeight = "";
+let studioNegative = ""; // STU-N1: the Leave out words, kept like the prompt
+let studioHelmet = ""; // STU-C3: the helmet description (empty: no helmet pair)
+const studioSides: Record<string, "on" | "off"> = {}; // STU-C3: which side each helmet pair shows
 import { ALL_FEATURES } from "./api/types";
 import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
-let settingsModal: Modal | undefined;
+// NAV-01: a page (Studio, Assets, Capabilities, Settings) puts one entry in the browser history, so
+// back (browser, phone gesture, Android app) returns to the chat. navEntry: that entry is there;
+// skipPop: the next popstate is our own history.back() after the chat was opened another way.
+let navEntry = false;
+let skipPop = false;
+// Unsaved edits on the Settings page: leaving asks first (what the old Settings window did).
+let settingsDirty = false;
 let assetsView: AssetsView | undefined;
 let assetsApi: AssetsApi | undefined; // shared by the Assets section and game projects' asset picker
 
@@ -59,6 +67,8 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
 import { renderSettings } from "./views/settings";
+import { pageHead } from "./views/pagehead";
+import { modal } from "./core/modal";
 import { doneChip as overseerDoneChip, markDone as markOverseerDone } from "./core/overseer";
 import { openSkillSheet } from "./views/skillsheet";
 
@@ -138,7 +148,7 @@ async function start(server: Server): Promise<void> {
       <section class="pane studio-pane" id="studio" aria-label="Studio"></section>
       <aside class="pane right" id="right" aria-label="Tasks"></aside>
       <div class="scrim" data-action="pane" data-pane="main"></div>
-      <div id="settings" hidden></div>
+      <section class="pane settings-pane" id="settings" aria-label="Settings"></section>
     </div>`);
 
   const [projects, chats, tasks, providers, roles, machines, today, status] = await Promise.all([
@@ -232,7 +242,7 @@ async function goTo(r: SearchResult): Promise<void> {
       return;
     }
     case "setting": {
-      if (!store.get().settingsOpen) {
+      if (store.get().section !== "settings") {
         document.querySelector<HTMLElement>('[data-action="settings"]')?.click();
       }
       whenShown(() => {
@@ -326,11 +336,10 @@ function render(s: AppState, prev: AppState): void {
   if (s.section === "studio") {
     // The form and the library render apart, so a finished image doesn't touch what is being typed.
     if (s.section !== prev.section || firstRender) mount($("#studio"), h`<div class="studio">
-      <header class="caps-head"><div class="caps-title"><h1>Studio</h1>
-        <p class="muted">Describe it, pick a type and a size; Kompanion picks the GPU.</p></div></header>
+      ${pageHead("Studio", "Describe it, pick a type and a size; Kompanion picks the GPU.")}
       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
-    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight));
-    if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent));
+    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight, studioNegative, studioHelmet));
+    if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent", "studioPicked", "studioHidden"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent, s.studioPicked, s.studioHidden, studioSides));
   }
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
@@ -441,13 +450,34 @@ function render(s: AppState, prev: AppState): void {
     const stop = document.getElementById("voice-stop");
     if (stop) stop.hidden = !s.speaking;
   }
+  if (s.section !== prev.section && !firstRender) navHistory(s.section, prev.section);
   const settings = $("#settings");
-  settings.hidden = !s.settingsOpen;
-  if (s.settingsOpen && changed(s, prev, ["settingsOpen", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer"])) {
+  if (s.section === "settings" && s.section !== prev.section) settingsDirty = false;
+  if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer"])) {
     remount(settings, renderSettings(s));
   }
   firstRender = false;
   restoreBusy(shell);
+}
+
+/** NAV-01: opening a page from the chat adds one history entry (moving between pages keeps it);
+ *  going back to the chat any other way takes it off again, so back never stops on a dead step. */
+function navHistory(section: AppState["section"], prev: AppState["section"]): void {
+  if (section !== "chat" && !navEntry) {
+    history.pushState({ kkPage: true }, "");
+    navEntry = true;
+  } else if (section === "chat" && prev !== "chat" && navEntry) {
+    navEntry = false;
+    skipPop = true;
+    history.back();
+  }
+}
+
+/** True when Settings may close: nothing unsaved, or the user says to drop it. */
+function leaveSettingsOk(): boolean {
+  if (settingsDirty && !confirm("Leave Settings without saving your changes?")) return false;
+  settingsDirty = false;
+  return true;
 }
 
 /** BUG-05: a chat's options menu near the bottom of the sidebar opens upward, and the list scrolls
@@ -681,7 +711,7 @@ function refetch(what: string): void {
         const pcActions = await api.listActions(s.activeChatId);
         if (JSON.stringify(pcActions) !== JSON.stringify(store.get().pcActions)) store.set({ pcActions });
       }
-      else if (what === "settings" && s.settingsOpen) {
+      else if (what === "settings" && s.section === "settings") {
         store.set({ notifications: await api.getNotifications(), roles: await api.listRoles() });
         if (s.isAdmin) store.set({ admin: await api.getAdmin() });
       }
@@ -703,14 +733,30 @@ function wire(shell: HTMLElement): void {
   const assets = assetsApi;
   setAssetThumbs((a) => assets.previewUrl(a, "t"));
   assetsView = new AssetsView($("#assets"), assetsApi, () => store.get().isAdmin);
-  settingsModal = modal($("#settings"), () => store.set({ settingsOpen: false }));
+  const settingsPage = $("#settings");
+  settingsPage.addEventListener("input", (ev) => { if ((ev.target as Element).closest("form")) settingsDirty = true; });
+  settingsPage.addEventListener("submit", () => { settingsDirty = false; });
+  // Leaving Settings by the sidebar or a link: ask first when a form has unsaved edits.
+  shell.addEventListener("click", (ev) => {
+    const t = (ev.target as HTMLElement).closest<HTMLElement>("[data-action], a[href]");
+    if (!t || store.get().section !== "settings" || t.closest("#settings") || t.dataset.action === "pane" || t.dataset.action === "search") return;
+    if (!leaveSettingsOk()) { ev.preventDefault(); ev.stopImmediatePropagation(); }
+  }, true);
+  window.addEventListener("popstate", () => {
+    if (skipPop) { skipPop = false; return; }
+    navEntry = false;
+    const s = store.get();
+    if (s.section === "chat") return;
+    if (s.section === "settings" && !leaveSettingsOk()) { history.pushState({ kkPage: true }, ""); navEntry = true; return; }
+    store.set({ section: "chat", pane: "main", chatMenuId: undefined, movingChatId: undefined });
+  });
   // BUG-05: the Android app asks the page first when back is pressed (MainActivity.onBackPressed):
   // close a menu or panel, then go back to the chat, and only then may the app close.
   (window as { kompanionBack?: () => boolean }).kompanionBack = () => {
     const step = backStep(store.get());
     if (!step) return false;
-    if (step.settingsOpen === false) settingsModal?.requestClose();
-    else store.set(step);
+    if (step.section === "chat" && store.get().section === "settings" && !leaveSettingsOk()) return true;
+    store.set(step);
     return true;
   };
   store.subscribe(render);
@@ -762,6 +808,28 @@ function wire(shell: HTMLElement): void {
       const sent = { ...store.get().studioSent };
       sent[run] = [...new Set([...(sent[run] ?? []), name])];
       store.set({ studioSent: sent });
+    },
+    // STU-D1: delete one, the picked ones, or every failed one; each waits 10 s for Undo.
+    "studio-pick": (el) => {
+      const run = el.dataset.run ?? "";
+      const picked = store.get().studioPicked;
+      store.set({ studioPicked: picked.includes(run) ? picked.filter((x) => x !== run) : [...picked, run] });
+    },
+    "studio-pick-clear": () => store.set({ studioPicked: [] }),
+    "studio-delete": (el) => studioDeleteLater([el.dataset.run ?? ""]),
+    "studio-delete-picked": () => studioDeleteLater(store.get().studioPicked),
+    "studio-clear-failed": () => {
+      const { studioRuns, studioHidden } = store.get();
+      studioDeleteLater((studioRuns ?? []).filter((r) => r.state === "failed" && !studioHidden.includes(r.id)).map((r) => r.id));
+    },
+    // STU-C3: a helmet pair's toggle flips which run its card shows (no re-render).
+    "studio-side": (el) => {
+      const pair = el.dataset.pair ?? "";
+      const side = el.dataset.side === "off" ? "off" : "on";
+      studioSides[pair] = side;
+      const card = el.closest<HTMLElement>(".studio-pair");
+      if (card) card.dataset.side = side;
+      el.parentElement?.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === el)));
     },
     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
     // A finished image, large, in a dialog that closes on Escape or a click.
@@ -1089,9 +1157,8 @@ function wire(shell: HTMLElement): void {
     scope: (el) => store.set({ taskScope: el.dataset.scope as AppState["taskScope"] }),
     pane: (el) => store.set({ pane: el.dataset.pane as AppState["pane"] }),
     answer: (el) => api.answer(el.dataset.task ?? "", el.dataset.option ?? "").catch(showError),
-    settings: (el) => {
-      settingsModal?.open(el);
-      store.set({ settingsOpen: true, pane: "main" });
+    settings: () => {
+      store.set({ section: "settings", pane: "main", chatMenuId: undefined });
       api.getNotifications().then((notifications) => store.set({ notifications }), showError);
       if (store.get().isAdmin) api.getAdmin().then((admin) => store.set({ admin }), showError);
     },
@@ -1107,7 +1174,6 @@ function wire(shell: HTMLElement): void {
     },
     // Ends this app's session, and the Keycloak session too after single sign-on.
     logout: () => api.logout().then((sso) => location.replace(sso ?? "/"), showError),
-    "close-settings": () => settingsModal?.requestClose(),
   });
 
   shell.addEventListener("pointerdown", (ev) => {
@@ -1289,7 +1355,7 @@ function wire(shell: HTMLElement): void {
       return;
     }
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
-    else if (s.settingsOpen) settingsModal?.requestClose();
+    else if (s.section === "settings" && leaveSettingsOk()) store.set({ section: "chat", pane: "main" });
   });
   // A click anywhere outside an open chat menu closes it.
   document.addEventListener("click", (ev) => {
@@ -1330,7 +1396,7 @@ function wire(shell: HTMLElement): void {
       store.set({ studioForm: { ...f, count, busy: true, error: undefined } });
       const made = chosen?.audio
         ? api.studioAudio(chosen.audio, prompt, studioLyrics, Number(studioSeconds) || chosen.seconds?.default || 4)
-        : api.studioMake(f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined, chosen?.face && studioFace ? { file: studioFace, weight: Number(studioFaceWeight || "0.85") } : undefined);
+        : api.studioMake(f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined, chosen?.face && studioFace ? { file: studioFace, weight: Number(studioFaceWeight || "0.85") } : undefined, chosen?.negative !== undefined ? studioNegative.trim() : undefined, chosen?.helmet && studioHelmet.trim() ? { helmet_desc: studioHelmet.trim() } : undefined);
       void made
         .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
         .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
@@ -1489,6 +1555,8 @@ function wire(shell: HTMLElement): void {
     if (el.id === "task-filter") { store.set({ taskFilter: el.value }); return; }
     if (el.id === "studio-prompt") { studioPrompt = el.value; return; }
     if (el.id === "studio-lyrics") { studioLyrics = el.value; return; }
+    if (el.id === "studio-negative") { studioNegative = el.value; return; }
+    if (el.id === "studio-helmet") { studioHelmet = el.value; return; }
     if (el.id === "studio-seconds") { studioSeconds = el.value; return; }
     if (el.id === "studio-rating") { studioRating = el.value; return; }
     if (el.id === "studio-face") { studioFace = el.files?.[0]; store.set({ studioForm: { ...store.get().studioForm } }); return; }
@@ -1720,6 +1788,52 @@ async function removeChat(id: string): Promise<void> {
     showError(e);
   }
 }
+
+// STU-D1: hide the runs at once, delete them for real after 10 seconds unless Undo is pressed.
+// Leaving the page sends the pending delete right away.
+let studioPending: { ids: string[]; timer: number; toast: HTMLElement } | undefined;
+function studioDeleteLater(ids: string[]): void {
+  ids = ids.filter(Boolean);
+  if (!ids.length) return;
+  studioFlush();
+  store.set({ studioHidden: [...store.get().studioHidden, ...ids], studioPicked: [] });
+  const toast = document.createElement("div");
+  toast.className = "toast studio-undo";
+  toast.setAttribute("role", "status");
+  const text = document.createElement("span");
+  text.textContent = ids.length === 1 ? "Result deleted." : `${ids.length} results deleted.`;
+  const undo = document.createElement("button");
+  undo.type = "button";
+  undo.className = "btn small";
+  undo.textContent = "Undo";
+  undo.addEventListener("click", () => {
+    if (studioPending?.toast !== toast) return;
+    clearTimeout(studioPending.timer);
+    studioPending = undefined;
+    toast.remove();
+    store.set({ studioHidden: store.get().studioHidden.filter((x) => !ids.includes(x)) });
+  });
+  toast.append(text, undo);
+  document.body.append(toast);
+  studioPending = { ids, toast, timer: window.setTimeout(studioFlush, 10_000) };
+}
+function studioFlush(): void {
+  const p = studioPending;
+  if (!p) return;
+  studioPending = undefined;
+  clearTimeout(p.timer);
+  p.toast.remove();
+  api.studioDelete(p.ids)
+    .then(async (r) => {
+      if (r.skipped.length) showError(new Error(r.skipped.length === 1 ? "One result could not be deleted: it is still being made." : `${r.skipped.length} results could not be deleted: they are still being made.`));
+      store.set({ studioRuns: await api.studioMine(), studioHidden: store.get().studioHidden.filter((x) => !p.ids.includes(x)) });
+    })
+    .catch((e) => {
+      store.set({ studioHidden: store.get().studioHidden.filter((x) => !p.ids.includes(x)) });
+      showError(e);
+    });
+}
+window.addEventListener("pagehide", studioFlush);
 
 function showError(e: unknown): void {
   const message = e instanceof Error ? e.message : String(e);

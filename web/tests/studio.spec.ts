@@ -18,16 +18,16 @@ test("Studio makes images from a type, a description and a size", async ({ page 
   await expect(types.nth(2)).toHaveAttribute("aria-checked", "true");
   await expect(sizes).toHaveText(["Wide", "Square", "Tall"]);
   await expect(sizes.first()).toHaveAttribute("aria-pressed", "true");
-  // Nothing made yet in the demo library except one finished image.
+  // The demo library holds one finished image and one failed run (STU-D1: Clear failed).
   const runs = studio.locator(".studio-runs > li");
-  await expect(runs).toHaveCount(1);
+  await expect(runs).toHaveCount(2);
   await expect(runs.first()).toContainText("Character");
   await expect(runs.first().locator("img")).toHaveAttribute("alt", /Character: /);
   // Make 4 landscapes.
   await studio.locator("#studio-prompt").fill("misty mountains at sunrise");
   await studio.locator('.studio-form input[name="four"]').check();
   await studio.locator('.studio-form button[type="submit"]').click();
-  await expect(runs).toHaveCount(5);
+  await expect(runs).toHaveCount(6);
   await expect(runs.first()).toContainText("Landscape · Wide");
   await expect(runs.first()).toContainText("misty mountains at sunrise");
   await expect(studio.locator(".studio-run.s-done")).toHaveCount(5, { timeout: 8000 });

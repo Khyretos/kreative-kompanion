@@ -1,0 +1,78 @@
+# STU-R2: a refine step for Kreative Studio: repaint the painted area (head swap, closed helmet).
+title = "Refine: repaint"
+description = "Repaints the area you paint over and keeps the rest pixel for pixel: a new head, a closed helmet, another weapon."
+graph = "graph.json"
+outputs = ["20"]
+machines = ["soucouyant"]
+vram_mb = 9000
+ram_mb = 12000
+
+[studio]
+label = "Repaint an area"
+hint = "Paint over a part, say what goes there"
+sizes = ["square"]
+order = 103
+refine = true
+
+[inputs]
+source = "10"
+mask = "11"
+
+# A face photo makes the new part look like that person (IP-Adapter plus-face, nodes 30-34).
+[face]
+graph = "graph-face.json"
+image = "30"
+weight = "34"
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "closed dragon helmet"
+node = "4"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, {rating}, adult, mature, {value}"
+
+[[param]]
+name = "negative"
+type = "string"
+default = ""
+node = "5"
+input = "text"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "14"
+input = "seed"
+
+# 1 paints the area anew, lower keeps its shapes.
+[[param]]
+name = "strength"
+type = "float"
+default = 0.9
+min = 0.3
+max = 1.0
+node = "14"
+input = "denoise"
+
+[[param]]
+name = "rating"
+type = "choice"
+default = "general"
+choices = ["general", "sensitive", "questionable", "explicit"]
+adult = ["questionable", "explicit"]
+words = { rating_neg = { general = "nsfw, nude, explicit, " } }
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "ip-adapter-plus-face_sdxl_vit-h.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+licence = "MIT"

@@ -44,3 +44,24 @@ test("the last chat's menu shows whole above the sidebar footer", async ({ page 
   expect(await back(page)).toBe(true);
   await expect(menu).toBeHidden();
 });
+
+// NAV-01: every page has the ☰ on a phone, and browser back (or the phone's back gesture) returns to the chat.
+for (const page_ of ["capabilities", "studio", "assets", "settings"]) {
+  test(`${page_}: the ☰ opens the sidebar and back returns to the chat`, async ({ page }) => {
+    await page.goto("/?demo");
+    await page.click("button.found-server");
+    await page.click('#conv-head [data-action="pane"][data-pane="left"]');
+    await page.click(`[data-action="${page_}"]`);
+    const pane = page.locator(`.shell[data-section="${page_}"]`);
+    await expect(pane).toBeVisible();
+    const menu = page.locator(`.pane:not(.left):not(.center) [data-action="pane"][data-pane="left"]:visible`);
+    await expect(menu).toHaveCount(1);
+    await menu.click();
+    await expect(page.locator(".shell")).toHaveAttribute("data-pane", "left");
+    await page.click(".scrim", { position: { x: 380, y: 400 } });
+    await expect(page.locator(".shell")).toHaveAttribute("data-pane", "main");
+    await page.goBack();
+    await expect(page.locator(".shell")).toHaveAttribute("data-section", "chat");
+    await expect(page.locator("#messages")).toBeVisible();
+  });
+}

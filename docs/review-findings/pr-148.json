@@ -1,0 +1,20 @@
+{
+  "20bfad075a18": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/studio.ts",
+    "reason": "The code correctly handles the case where `runs` is undefined or empty by checking if `shown` is undefined before accessing its length, preventing any runtime errors. (Claude checked: shown is undefined only while runs load, and the list renders the loading text then.)",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "e4fc0a276d43": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/mod.rs",
+    "reason": "The handlers are in studio/remove.rs and return ApiResult: 404 for a missing or foreign run, 400 for a running one, sqlx errors through ?; covered by remove_tests.rs (Claude checked).",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  }
+}

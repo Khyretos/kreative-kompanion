@@ -80,7 +80,7 @@ public final class EventStream {
      */
     public int connect() {
         delivered = false;
-        final String server = context.getString(R.string.server_url);
+        final String server = Server.url(context);
         final String cookie = CookieManager.getInstance().getCookie(server);
         int code = HTTP_UNAUTHORIZED;
         if (cookie != null && !cookie.isEmpty()) {

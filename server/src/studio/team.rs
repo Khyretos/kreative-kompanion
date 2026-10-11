@@ -41,6 +41,15 @@ pub struct Make {
     /// KS-01: video frames (the workflow's "length" parameter).
     #[serde(default)]
     length: Option<i64>,
+    /// STU-N1: words to leave out, added after the type's own negative.
+    #[serde(default)]
+    negative: Option<String>,
+    /// STU-R2: the type's own other settings by name (the OC sheet's face_prompt and background, a refine strength).
+    #[serde(default)]
+    params: Map<String, Value>,
+    /// STU-R2: pictures for the type's [inputs] (multipart fields "source" and "mask"): name, bytes, extension.
+    #[serde(skip)]
+    pics: Vec<(String, Vec<u8>, &'static str)>,
 }
 
 pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(Make, Option<(Vec<u8>, &'static str)>, f64)> {
@@ -63,6 +72,8 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
 
     let (mut kind, mut prompt, mut size, mut count, mut rating, mut seed, mut length, mut face, mut weight) = (String::new(), String::new(), String::new(), 1u32, None::<String>, None::<i64>, None::<i64>, None::<(Vec<u8>, &'static str)>, 0.85f64);
 
+    let mut negative = None::<String>;
+    let (mut params, mut pics) = (Map::new(), Vec::new());
     while let Some(field) = form.next_field().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))? {
         let name = field.name().unwrap_or("").to_string();
 
@@ -82,6 +93,22 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
                     face = Some((bytes.to_vec(), ext));
                 }
             }
+            // STU-R2: the picture a refine step works on and its painted area.
+            "source" | "mask" => {
+                let ext = match field.content_type().unwrap_or("") {
+                    "image/jpeg" => "jpg",
+                    "image/png" => "png",
+                    "image/webp" => "webp",
+                    _ => return Err(crate::error::ApiError::BadRequest("The picture must be a JPEG, PNG or WebP.".into())),
+                };
+                let bytes = field.bytes().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
+                if bytes.len() > 40 * 1024 * 1024 {
+                    return Err(crate::error::ApiError::BadRequest("Keep the picture under 40 MB.".into()));
+                }
+                if !bytes.is_empty() {
+                    pics.push((name.clone(), bytes.to_vec(), ext));
+                }
+            }
             _ => {
                 let text = field.text().await.map_err(|e| crate::error::ApiError::BadRequest(e.body_text()))?;
                 match name.as_str() {
@@ -96,6 +123,10 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
                     }
                     "seed" => seed = text.trim().parse().ok(),
                     "length" => length = text.trim().parse().ok(),
+                    "negative" => negative = Some(text),
+                    "params" => {
+                        params = serde_json::from_str(&text).map_err(|_| crate::error::ApiError::BadRequest("params must be a JSON object.".into()))?;
+                    }
                     "face_weight" => {
                         weight = text.parse().map_err(|_| crate::error::ApiError::BadRequest("The face weight must be a number.".into()))?;
                     }
@@ -105,7 +136,7 @@ pub async fn read_make(req: axum::extract::Request, s: &AppState) -> ApiResult<(
         }
     }
 
-    Ok((Make { kind, prompt, size, count, rating, seed, length }, face, weight))
+    Ok((Make { kind, prompt, size, count, rating, seed, length, negative, params, pics }, face, weight))
 }
 
 /// POST /api/studio/make: generate images based on a workflow.
@@ -146,6 +177,14 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         .or_else(|| size_px(&b.size))
         .ok_or_else(|| ApiError::BadRequest("Pick square, wide or tall.".into()))?;
 
+    // STU-N1: the Leave out words follow the type's own negative default (its locked tags stay in the template).
+    let neg_default = workflows
+        .iter()
+        .find_map(|(n, r)| r.as_ref().ok().filter(|_| *n == b.kind))
+        .and_then(|w| w.params.iter().find(|p| p.name == "negative"))
+        .map(|p| p.default.as_str().unwrap_or("").to_string());
+    let negative = super::negative::negative_param(b.negative.as_deref(), &studio.label, neg_default.as_deref()).map_err(ApiError::BadRequest)?;
+
     // STU-01d: only types with a face graph take a photo.
     if face.is_some() && !workflows.iter().any(|(n, r)| *n == b.kind && r.as_ref().is_ok_and(|w| w.face.is_some())) {
         return Err(ApiError::BadRequest(format!("{} takes no face photo.", studio.label)));
@@ -153,6 +192,12 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
     if face.is_some() && !(0.0..=1.2).contains(&weight) {
         return Err(ApiError::BadRequest("The face weight must be between 0 and 1.2.".into()));
     }
+    // STU-R2: the type's pictures (all required) and its other settings (only its own params).
+    let wf = workflows
+        .iter()
+        .find_map(|(n, r)| r.as_ref().ok().filter(|_| *n == b.kind))
+        .ok_or(ApiError::NotFound)?;
+    check_extra(wf, &b.params, &b.pics, &studio.label).map_err(ApiError::BadRequest)?;
     // KS-02: Coder describes the face photo; its tags go in front (what the prompt says wins).
     let mut face_tags = String::new();
     if let Some((bytes, _)) = &face {
@@ -168,49 +213,93 @@ pub async fn make(State(s): State<AppState>, Extension(u): Extension<User>, req:
         }
     }
     let prompt = if face_tags.is_empty() { text.to_string() } else { format!("{face_tags}, {text}") };
-    let mut ids = Vec::new();
+    // STU-C3: a helmet description makes a pair (helmet on, face visible) with one seed.
+    let mut extra = b.params.clone();
+    let helmet = if wf.params.iter().any(|p| p.name == "helmet") {
+        super::helmet::split(&prompt, &mut extra, crate::util::new_id).map_err(ApiError::BadRequest)?
+    } else {
+        None
+    };
+    let sides: Vec<Option<&super::helmet::Side>> = match &helmet {
+        Some(h) => h.sides.iter().map(Some).collect(),
+        None => vec![None],
+    };
+    let (mut ids, mut states, mut pairs) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..b.count {
-        let mut params = Map::new();
-        params.insert("prompt".into(), json!(prompt));
-        params.insert("width".into(), json!(w_px));
-        params.insert("height".into(), json!(h_px));
         // KS-02: "Make 4" with a seed makes four different pictures (seed, seed + 1, ...).
-        params.insert("seed".into(), json!(b.seed.map(|s| s + i as i64).unwrap_or(-1)));
-        if let Some(l) = b.length {
-            params.insert("length".into(), json!(l));
-        }
-        if let Some(r) = &b.rating {
-            params.insert("rating".into(), json!(r));
-        }
-        if let Some((bytes, ext)) = &face {
-            let dir = s.config.studio.output_dir.join("users").join(&u.id).join("faces");
-            tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
-            let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
-            tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
-            params.insert("face".into(), json!(path.display().to_string()));
-            params.insert("face_weight".into(), json!(weight));
-        }
-        // STU-01d: a refused run removes its photo copy.
-        let (id, job) = match super::queue(&s, &b.kind, "auto", &params, &u.id).await {
-            Ok(x) => x,
-            Err(e) => {
-                if let Some(p) = params.get("face").and_then(|v| v.as_str()) {
-                    let _ = tokio::fs::remove_file(p).await;
-                }
-                return Err(e);
+        let seed = b.seed.map(|s| s + i as i64).unwrap_or(if helmet.is_some() { rand::random::<u32>() as i64 } else { -1 });
+        let pair = helmet.as_ref().map(|h| if b.count == 1 { h.id.clone() } else { format!("{}-{i}", h.id) });
+        for side in &sides {
+            let mut params = Map::new();
+            params.insert("prompt".into(), json!(side.map_or(prompt.as_str(), |s| s.prompt.as_str())));
+            params.insert("width".into(), json!(w_px));
+            params.insert("height".into(), json!(h_px));
+            params.insert("seed".into(), json!(seed));
+            if let Some(l) = b.length {
+                params.insert("length".into(), json!(l));
             }
-        };
-        tokio::spawn(job);
-        ids.push(id);
+            if let Some(r) = &b.rating {
+                params.insert("rating".into(), json!(r));
+            }
+            if let Some(n) = &negative {
+                params.insert("negative".into(), json!(n));
+            }
+            params.extend(extra.clone());
+            if let (Some(side), Some(h), Some(pair)) = (side, &helmet, &pair) {
+                params.insert("helmet".into(), json!(side.state));
+                params.insert("helmet_desc".into(), json!(h.desc));
+                params.insert("pair".into(), json!(pair));
+                if let Some(fp) = &side.face_prompt {
+                    params.insert("face_prompt".into(), json!(fp));
+                }
+            }
+            drop_unused(wf, &mut params);
+            for (name, bytes, ext) in &b.pics {
+                let dir = s.config.studio.output_dir.join("users").join(&u.id).join("inputs");
+                tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
+                let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
+                tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
+                params.insert(format!("input:{name}"), json!(path.display().to_string()));
+            }
+            if let Some((bytes, ext)) = face.as_ref().filter(|_| side.is_none_or(|s| s.face_photo)) {
+                let dir = s.config.studio.output_dir.join("users").join(&u.id).join("faces");
+                tokio::fs::create_dir_all(&dir).await.map_err(anyhow::Error::from)?;
+                let path = dir.join(format!("{}.{ext}", crate::util::new_id()));
+                tokio::fs::write(&path, bytes).await.map_err(anyhow::Error::from)?;
+                params.insert("face".into(), json!(path.display().to_string()));
+                params.insert("face_weight".into(), json!(weight));
+            }
+            // STU-01d: a refused run removes its photo copy.
+            let (id, job) = match super::queue(&s, &b.kind, "auto", &params, &u.id).await {
+                Ok(x) => x,
+                Err(e) => {
+                    for (k, v) in &params {
+                        if (k == "face" || k.starts_with("input:"))
+                            && let Some(p) = v.as_str()
+                        {
+                            let _ = tokio::fs::remove_file(p).await;
+                        }
+                    }
+                    return Err(e);
+                }
+            };
+            tokio::spawn(job);
+            ids.push(id);
+            states.push(side.map(|s| s.state));
+            pairs.push(pair.clone());
+        }
     }
 
-    Ok((StatusCode::ACCEPTED, Json(json!({"ids": ids, "faceTags": face_tags}))))
+    // STU-C3: per id, its helmet side and pair (null without a helmet).
+    Ok((StatusCode::ACCEPTED, Json(json!({"ids": ids, "faceTags": face_tags, "helmet": states, "pairs": pairs}))))
 }
 
 /// GET /api/studio/mine: list recent runs for the current user.
 pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> ApiResult<Json<Vec<Value>>> {
-    let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, String, String, Option<String>)>(
-        "SELECT id, workflow, gpu, params, state, error, outputs, started_at, ended_at FROM studio_run WHERE user_id = ? ORDER BY started_at DESC LIMIT 200"
+    let rows = sqlx::query_as::<_, (String, String, String, String, String, Option<String>, String, String, Option<String>, Option<String>)>(
+        "SELECT id, workflow, gpu, params, state, error, outputs, started_at, ended_at,
+                (SELECT j.error FROM gpu_job j WHERE j.run_id = studio_run.id AND j.state = 'queued' LIMIT 1)
+         FROM studio_run WHERE user_id = ? ORDER BY started_at DESC LIMIT 200"
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -237,6 +326,11 @@ pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> A
             "seconds": params["seconds"],
             "state": row.4,
             "error": row.5,
+            // STU-C3: why a running run still waits for its GPU (None once it runs).
+            "waiting": row.9,
+            // STU-C3: the helmet side ("on" / "off") and the pair it belongs to.
+            "helmet": params.get("helmet").filter(|h| h.as_str().is_some_and(|h| h != "none")),
+            "pair": params.get("pair").filter(|p| p.as_str().is_some_and(|p| !p.is_empty())),
             "files": files,
             // KS-03: file names, so Kreative Studio can label downloads.
             "names": outputs.iter().map(|o| o.rsplit('/').next().unwrap_or("")).collect::<Vec<_>>(),
@@ -311,5 +405,89 @@ mod tests {
         assert_eq!(size_name(768, 1344), "tall");
         assert_eq!(size_name(1024, 1024), "square");
         assert_eq!(size_name(0, 0), "square");
+    }
+}
+
+/// STU-R2b: the form's own fields a type does not declare are left out (refine-4k and refine-parts
+/// have no prompt, seed or size; workflow::fill refuses unknown names).
+pub fn drop_unused(wf: &super::workflow::Workflow, params: &mut Map<String, Value>) {
+    for k in ["prompt", "width", "height", "seed"] {
+        if !wf.params.iter().any(|p| p.name == k) {
+            params.remove(k);
+        }
+    }
+}
+
+/// STU-R2: settings the make form fills itself never come through `params`; any other name must be
+/// one of the type's own params. Every [inputs] picture is required and no other picture is taken.
+pub fn check_extra(wf: &super::workflow::Workflow, params: &Map<String, Value>, pics: &[(String, Vec<u8>, &'static str)], label: &str) -> Result<(), String> {
+    const OWN: [&str; 7] = ["prompt", "width", "height", "seed", "length", "rating", "negative"];
+    for k in params.keys() {
+        if OWN.contains(&k.as_str()) || !wf.params.iter().any(|p| &p.name == k) {
+            return Err(format!("{label} has no setting {k}."));
+        }
+    }
+    for (name, _, _) in pics {
+        if !wf.inputs.contains_key(name) {
+            return Err(format!("{label} takes no {name} picture."));
+        }
+    }
+    for name in wf.inputs.keys() {
+        if !pics.iter().any(|(n, _, _)| n == name) {
+            return Err(match name.as_str() {
+                "source" => "Pick a picture to refine.".to_string(),
+                "mask" => "Paint the area to change.".to_string(),
+                _ => format!("{label} needs a {name} picture."),
+            });
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod extra_tests {
+    use super::check_extra;
+    use serde_json::{Map, Value, json};
+    use std::path::PathBuf;
+
+    fn wf(n: &str) -> crate::studio::workflow::Workflow {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        crate::studio::workflow::load_all(&dir).into_iter().find(|(name, _)| name == n).unwrap().1.unwrap()
+    }
+    fn obj(v: Value) -> Map<String, Value> { v.as_object().unwrap().clone() }
+    fn pic(n: &str) -> (String, Vec<u8>, &'static str) { (n.to_string(), vec![1], "png") }
+
+    #[test]
+    fn extra_params_only_the_types_own() {
+        let sheet = wf("oc-sheet");
+        assert!(check_extra(&sheet, &obj(json!({"face_prompt": "1boy", "background": "starry"})), &[], "OC sheet").is_ok());
+        assert_eq!(check_extra(&sheet, &obj(json!({"strength": 0.5})), &[], "OC sheet").unwrap_err(), "OC sheet has no setting strength.");
+        assert_eq!(check_extra(&sheet, &obj(json!({"seed": 5})), &[], "OC sheet").unwrap_err(), "OC sheet has no setting seed.");
+        assert_eq!(check_extra(&sheet, &Map::new(), &[pic("source")], "OC sheet").unwrap_err(), "OC sheet takes no source picture.");
+    }
+
+    #[test]
+    fn form_fields_a_type_lacks_are_dropped() {
+        for n in ["refine-4k", "refine-change", "refine-repaint", "refine-chibi", "refine-parts"] {
+            let w = wf(n);
+            let mut p = obj(json!({"prompt": "same picture", "width": 1024, "height": 1024, "seed": 5}));
+            super::drop_unused(&w, &mut p);
+            let g = w.graph_for("rx9070").unwrap();
+            w.fill(&g, &p).unwrap_or_else(|e| panic!("{n}: {e}"));
+        }
+        let mut p = obj(json!({"prompt": "x", "width": 1, "height": 1, "seed": 5}));
+        super::drop_unused(&wf("refine-parts"), &mut p);
+        assert!(p.is_empty());
+    }
+
+    #[test]
+    fn refine_steps_need_their_pictures() {
+        let four = wf("refine-4k");
+        assert_eq!(check_extra(&four, &Map::new(), &[], "4K").unwrap_err(), "Pick a picture to refine.");
+        assert!(check_extra(&four, &obj(json!({"size": 4096})), &[pic("source")], "4K").is_ok());
+        assert_eq!(check_extra(&four, &Map::new(), &[pic("source"), pic("mask")], "4K").unwrap_err(), "4K takes no mask picture.");
+        let rep = wf("refine-repaint");
+        assert_eq!(check_extra(&rep, &Map::new(), &[pic("source")], "Repaint").unwrap_err(), "Paint the area to change.");
+        assert!(check_extra(&rep, &Map::new(), &[pic("source"), pic("mask")], "Repaint").is_ok());
     }
 }
