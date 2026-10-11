@@ -3,11 +3,11 @@
     "by": "coder",
     "checked": true,
     "fixed": "91e90b8",
+    "note": "a failed body read inside the with left a temp file behind; the body is now read before the temp file is made",
     "path": "tools/anatomy/check.py",
     "reason": "The temporary file is safely created and written before the inner try block begins, ensuring that os.unlink in the finally block will always execute if an exception occurs within that block.",
     "title": "Resource Leak",
-    "verdict": "bug",
-    "note": "a failed body read inside the with left a temp file behind; the body is now read before the temp file is made"
+    "verdict": "bug"
   },
   "3a8cec5f859d": {
     "by": "coder",
@@ -53,11 +53,11 @@
     "by": "coder",
     "checked": true,
     "fixed": "",
+    "note": "OSError (PIL's UnidentifiedImageError, missing model files), ValueError, RuntimeError (torch) and ImportError answer 500; Kompanion keeps the first picture on any checker error (test a_checker_error_keeps_the_first_picture)",
     "path": "tools/anatomy/check.py",
     "reason": "The finding incorrectly flags missing error handling as a bug, but the code's primary purpose is to detect anatomical issues in images where crashing on invalid input (e.g., corrupted files) is an acceptable failure mode rather than a defect requiring specific exception handling within the `detect` function.",
     "title": "Missing Error Handling",
-    "verdict": "false_positive",
-    "note": "OSError (PIL's UnidentifiedImageError, missing model files), ValueError, RuntimeError (torch) and ImportError answer 500; Kompanion keeps the first picture on any checker error (test a_checker_error_keeps_the_first_picture)"
+    "verdict": "false_positive"
   },
   "ab7b025a13e8": {
     "by": "coder",
@@ -74,6 +74,16 @@
     "checked": true,
     "fixed": "",
     "note": "false positive (repeat of bab248480bed): tries starts with one entry; best() returns 0 for an empty slice and never panics",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "b7c633cfdfda": {
+    "by": "repeat of b5ce2847db73",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of d516e9295c5e): r.json() returns an error through ?, no panic; the run keeps its first picture",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
     "title": "Missing Error Handling",
@@ -104,6 +114,16 @@
     "checked": true,
     "fixed": "",
     "note": "every file of every losing try is removed (for f in &t.0), not only the first; a failed first check keeps the first picture on purpose",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "cdce5e33f4a4": {
+    "by": "repeat of 59cd19a83944",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: the quoted branch removes that retry's files (for f in &files { remove_file }) before the break",
     "path": "server/src/studio/anatomy.rs",
     "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
     "title": "Resource Leak",
