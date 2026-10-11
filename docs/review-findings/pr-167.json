@@ -44,6 +44,24 @@
     "title": "Potential Infinite Loop",
     "verdict": "false_positive"
   },
+  "3dba29d7e60c": {
+    "by": "repeat of 10824172b0fe",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "786d5434b99c": {
+    "by": "repeat of 2aee21b683d1",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
   "7f5cb3b185c7": {
     "by": "repeat of 2aee21b683d1",
     "checked": true,
