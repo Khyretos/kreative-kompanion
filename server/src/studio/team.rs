@@ -331,6 +331,8 @@ pub async fn mine(State(s): State<AppState>, Extension(u): Extension<User>) -> A
             // STU-C3: the helmet side ("on" / "off") and the pair it belongs to.
             "helmet": params.get("helmet").filter(|h| h.as_str().is_some_and(|h| h != "none")),
             "pair": params.get("pair").filter(|p| p.as_str().is_some_and(|p| !p.is_empty())),
+            // STU-C4: the anatomy check's verdict and how often it re-rolled.
+            "check": params.get("check"),
             "files": files,
             // KS-03: file names, so Kreative Studio can label downloads.
             "names": outputs.iter().map(|o| o.rsplit('/').next().unwrap_or("")).collect::<Vec<_>>(),

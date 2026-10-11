@@ -143,8 +143,25 @@ pub struct Workflow {
     /// source = "10" (the picture a refine step works on) and mask = "11" (the painted area).
     #[serde(default)]
     pub inputs: BTreeMap<String, String>,
+    /// STU-C4: check each result ([studio] anatomy_url) and re-roll the seed when it fails.
+    #[serde(default)]
+    pub check: Option<Check>,
     #[serde(default, skip_serializing)]
     pub dir: PathBuf,
+}
+
+/// STU-C4: `[check]` in workflow.toml: re-roll at most `retries` times and keep the best result;
+/// `face_views` are the sheet's views that must show a face (empty: the checker's default).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Check {
+    #[serde(default = "three")]
+    pub retries: u32,
+    #[serde(default)]
+    pub face_views: Vec<String>,
+}
+
+fn three() -> u32 {
+    3
 }
 
 impl Workflow {

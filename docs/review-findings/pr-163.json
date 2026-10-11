@@ -1,0 +1,222 @@
+{
+  "0a8b6efea88e": {
+    "by": "repeat of 59cd19a83944",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: after a failed check the loop breaks and the tries so far are compared; every try except the kept one is deleted (test a_checker_error..., after_three_retries...). Real neighbour found while checking: a failed ComfyUI retry failed the whole run; fixed, test a_failed_retry_keeps_the_best_try_so_far",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "363d5fddebb1": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "91e90b8",
+    "note": "a failed body read inside the with left a temp file behind; the body is now read before the temp file is made",
+    "path": "tools/anatomy/check.py",
+    "reason": "The temporary file is safely created and written before the inner try block begins, ensuring that os.unlink in the finally block will always execute if an exception occurs within that block.",
+    "title": "Resource Leak",
+    "verdict": "bug"
+  },
+  "3a61f273d412": {
+    "by": "repeat of 3a8cec5f859d",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of 3a8cec5f859d): watch is defined at the top of execute() and used by guard",
+    "path": "server/src/studio/mod.rs",
+    "reason": "The finding incorrectly identifies a missing variable and potential data inconsistency based on assumptions about code not shown in the diff, whereas the provided code snippet demonstrates correct usage of the `used` map within the `queue` function's scope.",
+    "title": "Unused Variable Warning",
+    "verdict": "false_positive"
+  },
+  "3a8cec5f859d": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: watch is defined at the top of execute(); the 2100 s limit covers four sheets (about 4 x 170 s plus 2 s checks); a run stopped by the limit is marked failed, so a half-written check never reaches a done run",
+    "path": "server/src/studio/mod.rs",
+    "reason": "The finding incorrectly identifies a missing variable and potential data inconsistency based on assumptions about code not shown in the diff, whereas the provided code snippet demonstrates correct usage of the `used` map within the `queue` function's scope.",
+    "title": "Unused Variable Warning",
+    "verdict": "false_positive"
+  },
+  "3fe23e3d6676": {
+    "by": "repeat of ff564317fe69",
+    "checked": true,
+    "fixed": "",
+    "note": "comfy::run sends the graph in its request and returns before the next reseed; the awaits run one after another, nothing else holds this run's graph",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code operates on a single-threaded async runtime where `graph` is passed by mutable reference to sequential calls, making concurrent modification of the same shared state impossible within this specific function's execution flow.",
+    "title": "Race Condition",
+    "verdict": "false_positive"
+  },
+  "522808644493": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: deleting a losing try's file is best effort on purpose; a failure there must not fail a run that has its picture (the output folder is the run's own)",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code intentionally suppresses errors during cleanup of failed or non-best attempts to prevent the entire operation from failing due to transient file system issues, which is an acceptable trade-off for resource cleanup in this context.",
+    "title": "Missing Error Handling for File Deletion",
+    "verdict": "false_positive"
+  },
+  "59cd19a83944": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: after a failed check the loop breaks and the tries so far are compared; every try except the kept one is deleted (test a_checker_error..., after_three_retries...). Real neighbour found while checking: a failed ComfyUI retry failed the whole run; fixed, test a_failed_retry_keeps_the_best_try_so_far",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "5bd5d55be566": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of ab7b025a13e8): bounded by n < c.retries; the loop stops at the first ok verdict",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code correctly breaks the retry loop when `check` returns an error or succeeds, and the logic for tracking attempts and updating state is sound.",
+    "title": "Potential Infinite Loop in Retry Logic",
+    "verdict": "false_positive"
+  },
+  "759a14b607a1": {
+    "by": "repeat of b5ce2847db73",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of b5ce2847db73 / bab248480bed): best() never panics, tries is never empty",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "88ce164f97e4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: detect() returns four values (test test_each_quarter_is_checked...); the Rust side does not call it",
+    "path": "tools/anatomy/check.py",
+    "reason": "The code explicitly unpacks four values from the `detect` function's return statement, which matches the function's actual implementation that returns exactly four values (faces, hands, width, height).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "a96b5061b7a6": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "OSError (PIL's UnidentifiedImageError, missing model files), ValueError, RuntimeError (torch) and ImportError answer 500; Kompanion keeps the first picture on any checker error (test a_checker_error_keeps_the_first_picture)",
+    "path": "tools/anatomy/check.py",
+    "reason": "The finding incorrectly flags missing error handling as a bug, but the code's primary purpose is to detect anatomical issues in images where crashing on invalid input (e.g., corrupted files) is an acceptable failure mode rather than a defect requiring specific exception handling within the `detect` function.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "ab7b025a13e8": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: the loop is bounded by n < c.retries (3 in oc-sheet), whatever the verdicts are",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly bounds the retry loop with a maximum number of attempts (`c.retries`), preventing an infinite loop regardless of the `check` function's behavior.",
+    "title": "Potential Infinite Loop",
+    "verdict": "false_positive"
+  },
+  "b5ce2847db73": {
+    "by": "repeat of bab248480bed",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of bab248480bed): tries starts with one entry; best() returns 0 for an empty slice and never panics",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "b7c633cfdfda": {
+    "by": "repeat of b5ce2847db73",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of d516e9295c5e): r.json() returns an error through ?, no panic; the run keeps its first picture",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "bab248480bed": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: tries starts with one entry and only grows; best() returns 0 for an empty slice and never panics",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "baba8936f726": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The loop is bounded by `c.retries` and includes a break condition on error, preventing infinite execution even if the check function hangs due to the outer 1800-second timeout.",
+    "title": "Unbounded Retry Loop",
+    "verdict": "false_positive",
+    "note": "false positive (repeat of ab7b025a13e8): bounded by n < c.retries"
+  },
+  "bfaa8761b89f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive at this head: the duplicate import was removed before the push; CI build/server is green",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet shows a single, clean import statement for serde_json items without any evidence of duplication or the specific E0252 error mentioned in the finding.",
+    "title": "Compilation Error",
+    "verdict": "false_positive"
+  },
+  "ca86b8391e81": {
+    "by": "repeat of 59cd19a83944",
+    "checked": true,
+    "fixed": "",
+    "note": "every file of every losing try is removed (for f in &t.0), not only the first; a failed first check keeps the first picture on purpose",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "cdce5e33f4a4": {
+    "by": "repeat of 59cd19a83944",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: the quoted branch removes that retry's files (for f in &files { remove_file }) before the break",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
+    "title": "Resource Leak",
+    "verdict": "false_positive"
+  },
+  "d516e9295c5e": {
+    "by": "repeat of b5ce2847db73",
+    "checked": true,
+    "fixed": "",
+    "note": "r.json() returns an error through ?, it does not panic; run_checked keeps the first picture on any checker error",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "da13c146f1ff": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: 180 s is about 90x the measured 2 s per sheet on the CPU; the whole run has its own 2100 s watchdog limit",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "unparsed model answer, Claude decides",
+    "title": "Hardcoded Timeout Value",
+    "verdict": "false_positive"
+  },
+  "ff564317fe69": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive: graph is this run's own copy (filled per run in queue()), owned by execute(); nothing else sees it",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code operates on a single-threaded async runtime where `graph` is passed by mutable reference to sequential calls, making concurrent modification of the same shared state impossible within this specific function's execution flow.",
+    "title": "Race Condition",
+    "verdict": "false_positive"
+  }
+}

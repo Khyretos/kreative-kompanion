@@ -15,6 +15,7 @@ pub mod watchdog;
 pub mod remove;
 pub mod negative;
 pub mod helmet;
+pub mod anatomy;
 
 use crate::{
     AppState,
@@ -360,7 +361,7 @@ async fn execute(
     machine: String,
     url: String,
     mut graph: Value,
-    used: Map<String, Value>,
+    mut used: Map<String, Value>,
     id: String,
     user_id: String,
     face: Option<std::path::PathBuf>,
@@ -460,14 +461,16 @@ async fn execute(
             };
             let r = match up {
                 Err(e) => Err(e),
-                Ok(()) => watchdog::guard(&watch, watchdog::limit("comfyui"), comfy::run(
+                // STU-C4: with [check], a sheet with a wrong-facing head or extra hands is re-rolled.
+                Ok(()) => watchdog::guard(&watch, watchdog::limit("comfyui"), anatomy::run_checked(
                     &s.http,
+                    s.config.studio.anatomy_url.as_deref(),
+                    &w,
                     &url,
-                    &graph,
-                    &w.outputs,
+                    &mut graph,
                     &out_dir,
                     &id,
-                    Duration::from_secs(1800),
+                    &mut used,
                 ))
                 .await,
             };
@@ -497,9 +500,10 @@ async fn execute(
             )
             .to_string();
             let _ = sqlx::query(
-                "UPDATE studio_run SET state = 'done', outputs = ?, ended_at = ? WHERE id = ?",
+                "UPDATE studio_run SET state = 'done', outputs = ?, params = ?, ended_at = ? WHERE id = ?",
             )
             .bind(outputs)
+            .bind(Value::Object(used.clone()).to_string())
             .bind(util::now())
             .bind(id)
             .execute(&s.db)

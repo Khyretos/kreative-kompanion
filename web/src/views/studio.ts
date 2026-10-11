@@ -4,7 +4,7 @@ import { SIZE_LABELS, typeCard, typeDetail } from "./studio-cards";
 import { icon } from "./icons";
 
 export interface StudioType { name: string; label: string; hint: string; sizes: string[]; order: number; warning?: string; audio?: "music" | "sfx"; seconds?: { min: number; max: number; default: number }; ratings?: string[]; adultRatings?: string[]; face?: boolean; negative?: string; helmet?: boolean }
-export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; waiting?: string | null; helmet?: "on" | "off" | null; pair?: string | null; files: string[]; startedAt: string; endedAt: string | null }
+export interface StudioRun { id: string; type: string; gpu: string; prompt: string; size: string; seconds?: number | null; state: "running" | "done" | "failed"; error: string | null; waiting?: string | null; helmet?: "on" | "off" | null; pair?: string | null; check?: { ok?: boolean; retries?: number; issues?: string[]; error?: string } | null; files: string[]; startedAt: string; endedAt: string | null }
 export interface StudioForm { type: string; size: string; count: 1 | 4; busy: boolean; error?: string }
 
 export function renderStudioMake(types: StudioType[] | undefined, form: StudioForm, prompt: string, lyrics: string, seconds: string, rating: string, adult: boolean, faceName: string, faceWeight: string, negative = "", helmet = ""): SafeHtml {
@@ -101,7 +101,21 @@ export function runCard(
   const top = finished
     ? html`<div class="studio-run-top"><button type="button" class="round-btn" role="checkbox" aria-checked="${picked ? "true" : "false"}" data-action="studio-pick" data-run="${r.id}" aria-label="Select" title="Select">${icon("check")}</button><button type="button" class="round-btn" data-action="studio-delete" data-run="${r.id}" aria-label="Delete" title="Delete">${icon("trash")}</button></div>`
     : "";
-  return html`<li class="studio-run s-${r.state}${picked ? " picked" : ""}" data-helmet="${r.helmet ?? ""}">${top}${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p>${sent}${menu}</li>`;
+  return html`<li class="studio-run s-${r.state}${picked ? " picked" : ""}" data-helmet="${r.helmet ?? ""}">${top}${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p>${checkLine(r)}${sent}${menu}</li>`;
+}
+
+/** STU-C4: the anatomy check at a glance; the problems it could not fix open on click. */
+export function checkLine(r: StudioRun): SafeHtml | "" {
+  const c = r.check;
+  if (!c || r.state !== "done") return "";
+  if (c.error) return html`<p class="small muted studio-check">Anatomy not checked</p>`;
+  const n = c.retries ?? 0;
+  const times = n === 1 ? "1 time" : `${n} times`;
+  if (c.ok) return html`<p class="small muted studio-check">${n > 0 ? `Anatomy checked · re-rolled ${times}` : "Anatomy checked"}</p>`;
+  const issues = c.issues ?? [];
+  const problems = issues.length === 1 ? "1 problem" : `${issues.length} problems`;
+  const rolls = n === 1 ? "1 re-roll" : `${n} re-rolls`;
+  return html`<details class="small studio-check warn"><summary>Anatomy: ${problems} left after ${rolls}</summary><ul>${issues.map((i) => html`<li>${i}</li>`)}</ul></details>`;
 }
 
 /** STU-C3: runs in list order; the two sides of a helmet pair become one group (helmet on first). */

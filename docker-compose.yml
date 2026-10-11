@@ -66,6 +66,21 @@ services:
     cap_add: [NET_BIND_SERVICE] # port 80 inside the container
     security_opt: ["no-new-privileges:true"]
 
+  # STU-C4 (optional): the OC sheet's anatomy check. Start with --profile anatomy (or COMPOSE_PROFILES=anatomy in
+  # .env), put face_yolov8m.pt and hand_yolov8s.pt in KOMPANION_ANATOMY_MODELS and set [studio] anatomy_url =
+  # "http://anatomy:8000" in kompanion.toml. CPU only, about 2 s per sheet.
+  anatomy:
+    profiles: [anatomy]
+    build: tools/anatomy
+    image: kk-anatomy:local
+    restart: unless-stopped
+    volumes:
+      - ${KOMPANION_ANATOMY_MODELS:-./anatomy-models}:/models:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
 volumes:
   kompanion-data:
   kompanion-generated:

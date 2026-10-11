@@ -40,6 +40,8 @@ const demoPic = (hue: number) => "data:image/svg+xml," + encodeURIComponent(`<sv
 const studioRuns: import("../views/studio").StudioRun[] = [
   { id: "sr1", type: "character", gpu: "rx9070", prompt: "a cheerful fox adventurer with a green scarf", size: "tall", state: "done", error: null, files: [demoPic(28)], startedAt: ago(30), endedAt: ago(29) },
   { id: "sr2", type: "character", gpu: "a770", prompt: "a knight in silver armour", size: "square", state: "failed", error: "ComfyUI stopped answering", files: [], startedAt: ago(40), endedAt: ago(39) },
+  { id: "sr3", type: "oc-sheet", gpu: "rx9070", prompt: "an adult woman knight with silver hair", size: "wide", state: "done", error: null, check: { ok: true, retries: 2, issues: [] }, files: [demoPic(270)], startedAt: ago(50), endedAt: ago(45) },
+  { id: "sr4", type: "oc-sheet", gpu: "rx9070", prompt: "a man in a red hoodie", size: "wide", state: "done", error: null, check: { ok: false, retries: 3, issues: ["back: face seen (head facing the wrong way)"] }, files: [demoPic(200)], startedAt: ago(60), endedAt: ago(52) },
 ];
 const id = (p: string) => `${p}${++seq}`;
 

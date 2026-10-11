@@ -137,3 +137,8 @@ servers = []
 
 # Knowledge collections for chats (CHAT-03) need no settings: import Open WebUI's with
 # `kompanion-server knowledge-import-openwebui <webui.db> [user name]`, then turn on "Knowledge" in a chat's Tools menu.
+
+# Studio (optional). anatomy_url: the OC sheet's anatomy check (docker compose --profile anatomy, STU-C4);
+# without it sheets are not checked or re-rolled.
+# [studio]
+# anatomy_url = "http://anatomy:8000"
