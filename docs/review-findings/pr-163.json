@@ -2,7 +2,7 @@
   "363d5fddebb1": {
     "by": "coder",
     "checked": true,
-    "fixed": "",
+    "fixed": "91e90b8",
     "path": "tools/anatomy/check.py",
     "reason": "The temporary file is safely created and written before the inner try block begins, ensuring that os.unlink in the finally block will always execute if an exception occurs within that block.",
     "title": "Resource Leak",
