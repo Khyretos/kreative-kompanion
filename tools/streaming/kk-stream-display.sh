@@ -23,17 +23,25 @@ start)
     w="${SUNSHINE_CLIENT_WIDTH:-2400}"
     h="${SUNSHINE_CLIENT_HEIGHT:-1080}"
     fps="${SUNSHINE_CLIENT_FPS:-60}"
+    case "$w$h$fps" in *[!0-9]*)
+        echo "kk-stream-display: bad client mode ${w}x${h}@${fps}" >&2
+        exit 1
+        ;;
+    esac
     # Remember which monitor had focus, so stop can give it back
     hyprctl monitors -j | jq -r '.[]|select(.focused)|.name' >"$STATE"
     exists || hyprctl output create headless "$OUT" >/dev/null
     # Hyprland 0.56 with a Lua config: monitors are set with hyprctl eval (keyword is gone).
     # A mode sent right after create is lost, so apply it until the output reports it.
+    applied=no
     for _ in 1 2 3 4 5 6 7 8 9 10; do
         hyprctl eval "hl.monitor({ output = \"$OUT\", disabled = false, mode = \"${w}x${h}@${fps}\", position = \"auto-right\", scale = 1.0 })" >/dev/null
         sleep 0.3
         hyprctl monitors -j | jq -e --arg m "$OUT" --argjson w "$w" --argjson h "$h" \
-            'any(.[]; .name==$m and .width==$w and .height==$h)' >/dev/null && break
+            'any(.[]; .name==$m and .width==$w and .height==$h)' >/dev/null && applied=yes && break
     done
+    # Sunshine logs prep-cmd stderr; stream anyway at whatever mode the output has
+    [ "$applied" = yes ] || echo "kk-stream-display: $OUT did not take ${w}x${h}@${fps}" >&2
     # New windows (Steam Big Picture, games) open on the focused monitor
     hyprctl eval "hl.dispatch(hl.dsp.focus({ monitor = \"$OUT\" }))" >/dev/null
     ;;
