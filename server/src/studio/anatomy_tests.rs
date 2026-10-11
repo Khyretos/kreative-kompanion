@@ -99,18 +99,28 @@ struct Fake {
     scores: Mutex<Vec<u32>>,
     seeds: Mutex<Vec<i64>>,
     fail_check: bool,
+    /// ComfyUI refuses every prompt after this many.
+    prompts: usize,
 }
 
 async fn fake_both(scores: Vec<u32>, fail_check: bool) -> (String, Arc<Fake>) {
+    fake_both_limited(scores, fail_check, usize::MAX).await
+}
+
+async fn fake_both_limited(scores: Vec<u32>, fail_check: bool, prompts: usize) -> (String, Arc<Fake>) {
     use axum::routing::get;
-    let f = Arc::new(Fake { scores: Mutex::new(scores), seeds: Mutex::new(vec![]), fail_check });
+    let f = Arc::new(Fake { scores: Mutex::new(scores), seeds: Mutex::new(vec![]), fail_check, prompts });
     let app = Router::new()
         .route("/system_stats", get(|| async { StatusCode::OK }))
         .route(
             "/prompt",
             post(|State(f): State<Arc<Fake>>, Json(b): Json<serde_json::Value>| async move {
-                f.seeds.lock().unwrap().push(b["prompt"]["7"]["inputs"]["seed"].as_i64().unwrap());
-                Json(json!({"prompt_id": "p1"}))
+                let mut seeds = f.seeds.lock().unwrap();
+                if seeds.len() >= f.prompts {
+                    return (StatusCode::BAD_REQUEST, Json(json!({"error": "out of memory"})));
+                }
+                seeds.push(b["prompt"]["7"]["inputs"]["seed"].as_i64().unwrap());
+                (StatusCode::OK, Json(json!({"prompt_id": "p1"})))
             }),
         )
         .route(
@@ -219,4 +229,20 @@ async fn a_checker_error_keeps_the_first_picture() {
     assert_eq!(f.seeds.lock().unwrap().len(), 1);
     assert_eq!(files.len(), 1);
     assert!(used["check"]["error"].as_str().unwrap().contains("no models"));
+}
+
+#[tokio::test]
+async fn a_failed_retry_keeps_the_best_try_so_far() {
+    let (url, f) = fake_both_limited(vec![2, 1], false, 2).await;
+    let dir = out_dir("retryfail");
+    let mut g = json!({"7": {"inputs": {"seed": 11}}, "9": {"inputs": {"seed": 12}}});
+    let mut used = used_with_seed();
+    let files = run_checked(&reqwest::Client::new(), Some(url.as_str()), &checked_wf(), &url, &mut g, &dir, "run6", &mut used).await.unwrap();
+    let seeds = f.seeds.lock().unwrap().clone();
+    assert_eq!(seeds.len(), 2);
+    assert_eq!(used["seed"], json!(seeds[1]));
+    assert_eq!(used["check"], json!({"ok": false, "retries": 1, "issues": ["back: face seen (head facing the wrong way)"]}));
+    assert_eq!(files.len(), 1);
+    assert!(files[0].exists());
+    assert_eq!(files_in(&dir), 1);
 }

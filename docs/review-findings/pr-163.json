@@ -1,0 +1,52 @@
+{
+  "59cd19a83944": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
+    "title": "Resource Leak",
+    "verdict": "false_positive",
+    "note": "false positive: after a failed check the loop breaks and the tries so far are compared; every try except the kept one is deleted (test a_checker_error..., after_three_retries...). Real neighbour found while checking: a failed ComfyUI retry failed the whole run; fixed, test a_failed_retry_keeps_the_best_try_so_far"
+  },
+  "88ce164f97e4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/anatomy/check.py",
+    "reason": "The code explicitly unpacks four values from the `detect` function's return statement, which matches the function's actual implementation that returns exactly four values (faces, hands, width, height).",
+    "title": "Possible Issue",
+    "verdict": "false_positive",
+    "note": "false positive: detect() returns four values (test test_each_quarter_is_checked...); the Rust side does not call it"
+  },
+  "bab248480bed": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "note": "false positive: tries starts with one entry and only grows; best() returns 0 for an empty slice and never panics"
+  },
+  "bfaa8761b89f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The provided code snippet shows a single, clean import statement for serde_json items without any evidence of duplication or the specific E0252 error mentioned in the finding.",
+    "title": "Compilation Error",
+    "verdict": "false_positive",
+    "note": "false positive at this head: the duplicate import was removed before the push; CI build/server is green"
+  },
+  "ff564317fe69": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code operates on a single-threaded async runtime where `graph` is passed by mutable reference to sequential calls, making concurrent modification of the same shared state impossible within this specific function's execution flow.",
+    "title": "Race Condition",
+    "verdict": "false_positive",
+    "note": "false positive: graph is this run's own copy (filled per run in queue()), owned by execute(); nothing else sees it"
+  }
+}

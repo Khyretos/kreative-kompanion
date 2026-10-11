@@ -81,7 +81,10 @@ pub async fn run_checked(http: &reqwest::Client, anatomy_url: Option<&str>, w: &
             n += 1;
             seed = rand::random::<u32>() as i64;
             reseed(graph, seed_p, seed);
-            let files = comfy::run(http, url, graph, &w.outputs, out_dir, &format!("{id}-retry{n}"), limit).await?;
+            let files = match comfy::run(http, url, graph, &w.outputs, out_dir, &format!("{id}-retry{n}"), limit).await {
+                Ok(files) => files,
+                Err(e) => { tracing::warn!("retry {n}: {e:#}"); break; }
+            };
             let Some(f) = files.first().cloned() else { break };
             match check(http, base, &f, &c.face_views).await {
                 Ok(v) => tries.push((files, v, seed)),
@@ -91,11 +94,12 @@ pub async fn run_checked(http: &reqwest::Client, anatomy_url: Option<&str>, w: &
 
         let verdicts: Vec<Verdict> = tries.iter().map(|t| t.1.clone()).collect();
         let b = best(&verdicts);
+        let retries = (tries.len() - 1) as u32;
         for (i, t) in tries.iter().enumerate() { if i != b { for f in &t.0 { let _ = tokio::fs::remove_file(f).await; } } }
         let (files, v, kept) = tries.swap_remove(b);
         reseed(graph, seed_p, kept);
         used.insert("seed".into(), json!(kept));
-        used.insert("check".into(), summary(&v, n));
+        used.insert("check".into(), summary(&v, retries));
         return Ok(files);
     }
 
