@@ -9,6 +9,16 @@
     "title": "Resource Leak",
     "verdict": "bug"
   },
+  "3a61f273d412": {
+    "by": "repeat of 3a8cec5f859d",
+    "checked": true,
+    "fixed": "",
+    "note": "false positive (repeat of 3a8cec5f859d): watch is defined at the top of execute() and used by guard",
+    "path": "server/src/studio/mod.rs",
+    "reason": "The finding incorrectly identifies a missing variable and potential data inconsistency based on assumptions about code not shown in the diff, whereas the provided code snippet demonstrates correct usage of the `used` map within the `queue` function's scope.",
+    "title": "Unused Variable Warning",
+    "verdict": "false_positive"
+  },
   "3a8cec5f859d": {
     "by": "coder",
     "checked": true,
@@ -29,6 +39,16 @@
     "title": "Race Condition",
     "verdict": "false_positive"
   },
+  "522808644493": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code intentionally suppresses errors during cleanup of failed or non-best attempts to prevent the entire operation from failing due to transient file system issues, which is an acceptable trade-off for resource cleanup in this context.",
+    "title": "Missing Error Handling for File Deletion",
+    "verdict": "false_positive",
+    "note": "false positive: deleting a losing try's file is best effort on purpose; a failure there must not fail a run that has its picture (the output folder is the run's own)"
+  },
   "59cd19a83944": {
     "by": "coder",
     "checked": true,
@@ -38,6 +58,16 @@
     "reason": "The provided code snippet does not contain the retry loop or file handling logic described in the finding, making the claim about a resource leak impossible to verify in this context.",
     "title": "Resource Leak",
     "verdict": "false_positive"
+  },
+  "5bd5d55be566": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "The code correctly breaks the retry loop when `check` returns an error or succeeds, and the logic for tracking attempts and updating state is sound.",
+    "title": "Potential Infinite Loop in Retry Logic",
+    "verdict": "false_positive",
+    "note": "false positive (repeat of ab7b025a13e8): bounded by n < c.retries; the loop stops at the first ok verdict"
   },
   "88ce164f97e4": {
     "by": "coder",
@@ -138,6 +168,16 @@
     "reason": "The code explicitly initializes `tries` with a single entry and only appends to it, ensuring it is never empty when `best` is called.",
     "title": "Missing Error Handling",
     "verdict": "false_positive"
+  },
+  "da13c146f1ff": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/anatomy.rs",
+    "reason": "unparsed model answer, Claude decides",
+    "title": "Hardcoded Timeout Value",
+    "verdict": "false_positive",
+    "note": "false positive: 180 s is about 90x the measured 2 s per sheet on the CPU; the whole run has its own 2100 s watchdog limit"
   },
   "ff564317fe69": {
     "by": "coder",
