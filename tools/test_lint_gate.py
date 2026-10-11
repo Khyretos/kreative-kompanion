@@ -90,6 +90,12 @@ class Gate(unittest.TestCase):
             lint_gate.gate(report, [dict(GLIB, decided="Accept")], self.dir)[1]
         )
 
+    def test_decided_to_keep_waiting_still_waits(self):
+        self.log("REPOSITORY_TRIVY", TRIVY_ONE)
+        report = {"linters": [linter("REPOSITORY_TRIVY")]}
+        waiting = dict(GLIB, decided="Wait (khyretos)", keep_waiting=True)
+        self.assertTrue(lint_gate.gate(report, [waiting], self.dir)[1])
+
     def test_fixed_item_is_reported_as_resolved(self):
         report = {"linters": [linter("REPOSITORY_TRIVY", "success", 0)]}
         messages, ok = lint_gate.gate(report, [GLIB], self.dir)
@@ -105,6 +111,8 @@ class Gate(unittest.TestCase):
             "glib 0.18.5",
             "**Accept** (recommended)",
             "**Wait**:",
+            "accept option 2",
+            "Only the repo owner's comment counts",
         ):
             self.assertIn(part, body)
 
