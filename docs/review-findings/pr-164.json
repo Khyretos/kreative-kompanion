@@ -1,0 +1,38 @@
+{
+  "43d648fad0ec": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: an empty fetch_all is an empty Vec in sqlx; set_deps errors are returned with ? (update) or after deleting the new row (create). No bug.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "7a64d7afe2bf": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "reason": "Checked by Claude: create inserts, then sets dependencies; a failing set_deps deletes the row before returning the error (compensation instead of one transaction, since set_deps validates against the stored task). Nothing is left behind: task_deps rows are only written inside set_deps' own transaction.",
+    "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "f6b5e2bf5dbb": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: these errors are from Coder's intermediate drafts recorded in docs/qwen-log/kg-01-task-tree.jsonl, not the committed code; CI built and ran cargo test green on 780d244.",
+    "title": "Compilation Errors",
+    "verdict": "false_positive"
+  },
+  "fb98a822ca5a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasktree.rs",
+    "reason": "Checked by Claude: the panic is from an intermediate draft in the qwen log; the committed test passes locally (7/7 tasktree) and in CI.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  }
+}
