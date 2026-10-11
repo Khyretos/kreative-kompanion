@@ -3,10 +3,10 @@ Only uses ComfyUI's /queue clear and /interrupt endpoints to cancel work when li
 Standard library only: urllib.request, json, argparse, time, os, dataclasses."""
 
 import argparse
+import dataclasses
 import json
 import os
 import time
-import dataclasses
 import urllib.request
 
 MIB = 1024 * 1024
@@ -36,8 +36,11 @@ def read_sample(device_dir: str) -> dict:
     used_mib = used_bytes // MIB
     free_mib = (total_bytes - used_bytes) // MIB
 
-    hwmon_dirs = [d for d in os.listdir(os.path.join(device_dir, "hwmon"))
-                  if os.path.isdir(os.path.join(device_dir, "hwmon", d))]
+    hwmon_dirs = [
+        d
+        for d in os.listdir(os.path.join(device_dir, "hwmon"))
+        if os.path.isdir(os.path.join(device_dir, "hwmon", d))
+    ]
     if not hwmon_dirs:
         raise RuntimeError("No hwmon directory found")
 
@@ -95,7 +98,9 @@ def is_busy(queue) -> bool:
 
 
 def _post(url: str, body: str):
-    req = urllib.request.Request(url, data=body.encode(), headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        url, data=body.encode(), headers={"Content-Type": "application/json"}
+    )
     with urllib.request.urlopen(req, timeout=5):
         pass
 
@@ -104,7 +109,10 @@ def cancel(base_url: str, post=None):
     """Clear ComfyUI's pending queue, then interrupt the running prompt. Each call is tried on its own."""
     post = post or _post
     base = base_url.rstrip("/")
-    for url, body in ((f"{base}/queue", json.dumps({"clear": True})), (f"{base}/interrupt", "{}")):
+    for url, body in (
+        (f"{base}/queue", json.dumps({"clear": True})),
+        (f"{base}/interrupt", "{}"),
+    ):
         try:
             post(url, body)
         except Exception:
@@ -132,12 +140,24 @@ class Guard:
             return None
         lim = self.limits
         checks = (
-            ("vram", sample["free_mib"] < lim.min_free_mib, lim.low_secs,
-             lambda t: f"VRAM free {sample['free_mib']} MiB < {lim.min_free_mib} MiB for {t:.0f} s"),
-            ("junction", sample["junction_c"] >= lim.junction_c, lim.hot_secs,
-             lambda t: f"junction {sample['junction_c']} C >= {lim.junction_c} C for {t:.0f} s"),
-            ("mem", sample["mem_c"] >= lim.mem_c, lim.hot_secs,
-             lambda t: f"mem {sample['mem_c']} C >= {lim.mem_c} C for {t:.0f} s"),
+            (
+                "vram",
+                sample["free_mib"] < lim.min_free_mib,
+                lim.low_secs,
+                lambda t: f"VRAM free {sample['free_mib']} MiB < {lim.min_free_mib} MiB for {t:.0f} s",
+            ),
+            (
+                "junction",
+                sample["junction_c"] >= lim.junction_c,
+                lim.hot_secs,
+                lambda t: f"junction {sample['junction_c']} C >= {lim.junction_c} C for {t:.0f} s",
+            ),
+            (
+                "mem",
+                sample["mem_c"] >= lim.mem_c,
+                lim.hot_secs,
+                lambda t: f"mem {sample['mem_c']} C >= {lim.mem_c} C for {t:.0f} s",
+            ),
         )
         reason = None
         for name, crossed, secs, say in checks:
@@ -155,11 +175,17 @@ class Guard:
 def main():
     parser = argparse.ArgumentParser(description="GPU guard for ComfyUI")
     parser.add_argument("--url", default="http://127.0.0.1:8188", help="ComfyUI URL")
-    parser.add_argument("--device", default="/sys/class/drm/card1/device", help="Device dir")
+    parser.add_argument(
+        "--device", default="/sys/class/drm/card1/device", help="Device dir"
+    )
     parser.add_argument("--interval", type=float, default=2.0, help="Polling interval")
     parser.add_argument("--min-free-mib", type=int, default=1024, help="Min free VRAM")
-    parser.add_argument("--low-secs", type=float, default=6, help="Low VRAM threshold seconds")
-    parser.add_argument("--junction-c", type=int, default=100, help="Junction temp limit")
+    parser.add_argument(
+        "--low-secs", type=float, default=6, help="Low VRAM threshold seconds"
+    )
+    parser.add_argument(
+        "--junction-c", type=int, default=100, help="Junction temp limit"
+    )
     parser.add_argument("--mem-c", type=int, default=100, help="Memory temp limit")
     parser.add_argument("--once", action="store_true", help="Print one sample and exit")
 
@@ -211,7 +237,10 @@ def main():
 
         if time.monotonic() - beat >= 60:
             beat = time.monotonic()
-            print(json.dumps({"event": "heartbeat", "busy": is_busy(queue), **sample}), flush=True)
+            print(
+                json.dumps({"event": "heartbeat", "busy": is_busy(queue), **sample}),
+                flush=True,
+            )
 
         time.sleep(args.interval)
 

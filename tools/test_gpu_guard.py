@@ -16,11 +16,20 @@ MIB = 1024 * 1024
 
 
 def sample(free=8000, junction=60, mem=70):
-    return {"total_mib": 16304, "used_mib": 16304 - free, "free_mib": free,
-            "edge_c": junction - 2, "junction_c": junction, "mem_c": mem, "power_w": 200}
+    return {
+        "total_mib": 16304,
+        "used_mib": 16304 - free,
+        "free_mib": free,
+        "edge_c": junction - 2,
+        "junction_c": junction,
+        "mem_c": mem,
+        "power_w": 200,
+    }
 
 
-def fake_device(root, used_mib=1000, total_mib=16304, temps=(43000, 44000, 65000), power=33000000):
+def fake_device(
+    root, used_mib=1000, total_mib=16304, temps=(43000, 44000, 65000), power=33000000
+):
     dev = os.path.join(root, "device")
     hw = os.path.join(dev, "hwmon", "hwmon3")
     os.makedirs(hw)
@@ -28,7 +37,9 @@ def fake_device(root, used_mib=1000, total_mib=16304, temps=(43000, 44000, 65000
         f.write(f"{used_mib * MIB}\n")
     with open(os.path.join(dev, "mem_info_vram_total"), "w") as f:
         f.write(f"{total_mib * MIB}\n")
-    for i, (label, value) in enumerate(zip(("edge", "junction", "mem"), temps), start=1):
+    for i, (label, value) in enumerate(
+        zip(("edge", "junction", "mem"), temps), start=1
+    ):
         with open(os.path.join(hw, f"temp{i}_label"), "w") as f:
             f.write(label + "\n")
         with open(os.path.join(hw, f"temp{i}_input"), "w") as f:
@@ -112,7 +123,9 @@ class Decide(unittest.TestCase):
 
     def test_idle_comfyui_is_never_cancelled(self):
         for t in range(0, 60, 2):
-            self.assertIsNone(self.g.step(sample(free=100, junction=105), t, busy=False))
+            self.assertIsNone(
+                self.g.step(sample(free=100, junction=105), t, busy=False)
+            )
 
     def test_going_idle_resets_the_timer(self):
         self.g.step(sample(free=800), 0, busy=True)
