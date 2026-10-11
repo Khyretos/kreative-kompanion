@@ -109,7 +109,6 @@ def apply_lint(
         if os.path.exists(trivypath):
             with open(trivypath) as f:
                 lines = f.read().splitlines()
-            f.close()
         if not any(line.startswith(ignore_id + " ") for line in lines):
             lines += [
                 f"# {decision['id']}: {decision['decided']}",
@@ -117,7 +116,6 @@ def apply_lint(
             ]
         with open(trivypath, "w") as f:
             f.write("\n".join(lines) + "\n")
-            f.close()
 
     return jobs
 
