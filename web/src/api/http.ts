@@ -129,10 +129,10 @@ export class HttpApi implements KompanionApi {
   updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean }) {
     return this.request<void>("PATCH", `/chats/${encodeURIComponent(chatId)}`, change);
   }
-  createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }) {
+  createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {
     return this.request<Task>("POST", "/tasks", t);
   }
-  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }) {
+  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {
     return this.request<Task>("PATCH", `/tasks/${encodeURIComponent(id)}`, change);
   }
   deleteTask(id: string) { return this.request<void>("DELETE", `/tasks/${encodeURIComponent(id)}`); }

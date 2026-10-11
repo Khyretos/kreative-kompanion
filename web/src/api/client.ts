@@ -99,8 +99,8 @@ export interface KompanionApi {
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }): Promise<{ projectId: string }>;
   /** OVR-01: adds context to a running task (read before its next step). */
   interject(taskId: string, text: string): Promise<void>;
-  createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort }): Promise<Task>;
-  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort }): Promise<Task>;
+  createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort } & import("./types").TaskTreeChange): Promise<Task>;
+  updateTask(id: string, change: { title?: string; description?: string; state?: TaskState; effort?: import("./types").Effort } & import("./types").TaskTreeChange): Promise<Task>;
   deleteTask(id: string): Promise<void>;
   reorderTasks(projectId: string, ids: string[]): Promise<void>;
   makeProjectInternal(projectId: string): Promise<void>;

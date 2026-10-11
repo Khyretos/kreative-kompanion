@@ -5,7 +5,7 @@ import { attachLiveMarkdown } from "./core/livemd";
 import { initResize } from "./core/resize";
 import { MockApi } from "./api/mock";
 import type { KompanionApi, ServerEvent } from "./api/client";
-import type { AdminSettings, Effort, Project, Role, Server, TaskState, ThemeChoice, SearchResult } from "./api/types";
+import type { AdminSettings, Effort, Project, Role, Server, TaskKind, TaskState, ThemeChoice, SearchResult } from "./api/types";
 import { openSearch } from "./views/search";
 import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
@@ -957,7 +957,10 @@ function wire(shell: HTMLElement): void {
       const t = store.get().tasks.find((x) => x.id === el.dataset.id);
       if (!t || !confirm(`Delete "${t.title}"?${t.source?.startsWith("windshift:") ? " It is closed in Windshift too." : ""}`)) return;
       const before = store.get().tasks;
-      store.set({ tasks: before.filter((x) => x.id !== t.id), openTaskId: undefined });
+      // KG-01: like the server, its subtasks move up to its parent and it leaves every dependency list.
+      store.set({ tasks: before.filter((x) => x.id !== t.id).map((x) => ({ ...x,
+        parentId: x.parentId === t.id ? t.parentId ?? null : x.parentId,
+        dependsOn: x.dependsOn?.filter((d) => d !== t.id) })), openTaskId: undefined });
       return api.deleteTask(t.id).catch((e) => { store.set({ tasks: before }); showError(e); });
     },
     "move-task": (el) => moveTask(el.dataset.id ?? "", Number(el.dataset.dir)),
@@ -1251,6 +1254,12 @@ function wire(shell: HTMLElement): void {
     if (fid === "voice-voice" || fid === "voice-lang") {
       const v = (ev.target as HTMLSelectElement).value;
       setVoicePrefs(fid === "voice-voice" ? { voice: v } : { lang: v as VoicePrefs["lang"] });
+      return;
+    }
+    // KG-01: a goal has no parent.
+    if (fid === "task-kind") {
+      const parent = document.getElementById("task-parent") as HTMLSelectElement | null;
+      if (parent) parent.disabled = (ev.target as HTMLSelectElement).value === "goal";
       return;
     }
     // OVR-01b: the Overseer answers every chat of this project.
@@ -1718,13 +1727,16 @@ async function submitTask(form: HTMLFormElement): Promise<void> {
   const title = String(f.get("title") ?? "").trim();
   const description = String(f.get("description") ?? "").trim();
   const state = String(f.get("state") ?? "queued") as TaskState;
+  // KG-01: the tree fields (a goal has no parent; "" = top level).
+  const kind = String(f.get("kind") ?? "task") as TaskKind;
+  const tree = { kind, parentId: kind === "goal" ? "" : String(f.get("parent") ?? ""), dependsOn: f.getAll("deps").map(String) };
   const msg = form.querySelector("#task-msg");
   try {
     if (form.dataset.id) {
-      const t = await api.updateTask(form.dataset.id, { title, description, state });
+      const t = await api.updateTask(form.dataset.id, { title, description, state, ...tree });
       store.set({ tasks: store.get().tasks.map((x) => (x.id === t.id ? { ...x, ...t } : x)), editingTaskId: undefined, openTaskId: t.id });
     } else {
-      const t = await api.createTask({ projectId: form.dataset.project ?? "", title, description, state, chatId: store.get().activeChatId });
+      const t = await api.createTask({ projectId: form.dataset.project ?? "", title, description, state, chatId: store.get().activeChatId, ...tree });
       store.set({ tasks: [...store.get().tasks, t], editingTaskId: undefined, openTaskId: t.id });
     }
   } catch (e) {

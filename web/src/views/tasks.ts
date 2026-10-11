@@ -6,6 +6,7 @@ import type { Effort, Task, TaskEvent, TaskState } from "../api/types";
 import { icon } from "./icons";
 import { matchTask } from "../core/fuzzy";
 import { renderProjectPanel } from "./projectpanel";
+import { hasTree, renderTree, treeFields, treeLinks } from "./tasktree";
 
 /** Thumbnail URLs for attached assets (set by main.ts from the Assets API). */
 let thumb: (a: { id: number; pv: number }) => string = () => "";
@@ -135,6 +136,7 @@ function editor(t: Task | undefined, projectId: string, s: AppState): SafeHtml {
           aria-describedby="task-description-hint">${t?.description || TEMPLATE}</textarea>
         <p class="hint" id="task-description-hint">Write a goal, numbered steps and when it is done. Markdown works.</p>
       </div>
+      ${treeFields(t, s.tasks.filter((x) => x.projectId === projectId))}
       <div class="field">
         <label for="task-state">State</label>
         <select id="task-state" name="state">${(Object.keys(labels) as TaskState[]).map((k) =>
@@ -248,6 +250,7 @@ function detail(t: Task, s: AppState): SafeHtml {
       <span class="eyebrow">${project?.name ?? ""}${t.source?.startsWith("windshift:")
         ? html` · <span class="chip" title="Changes here are written to Windshift">Windshift ${t.source.slice(10)}</span>` : ""}</span>
       <h3>${t.title}</h3>
+      ${treeLinks(t, s.tasks.filter((x) => x.projectId === t.projectId))}
       <div class="task-actions">
         <button class="btn small" data-action="edit-task" data-id="${t.id}">${icon("edit")} Edit</button>
         <button class="btn small" data-action="move-task" data-id="${t.id}" data-dir="-1" ${i <= 0 ? "disabled" : ""} aria-label="Move up">↑</button>
@@ -335,6 +338,7 @@ export function renderTasks(s: AppState): SafeHtml {
             <button class="btn small" data-action="make-internal" data-id="${project!.id}">Stop syncing</button>` : ""}
         </div>` : ""}
       ${scope === "project" ? "" : html`<div class="project-bar">${search}</div>`}
+      ${scope === "project" && !s.taskFilter.trim() && hasTree(list) ? renderTree(list) : ""}
       ${list.length > 0 && shown.length === 0 ? html`<p class="muted pad">No task matches "${s.taskFilter}".</p>` : ""}
       ${list.length === 0 ? html`<p class="muted pad">No tasks yet. Ask the orchestrator for something and its tasks show up here.</p>` : ""}
       ${groups.map((g) => {

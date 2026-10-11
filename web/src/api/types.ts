@@ -86,6 +86,12 @@ export interface SearchResult {
   snippet: string;
 }
 
+/** KG-01: what a task is in the project's tree. */
+export type TaskKind = "goal" | "milestone" | "task";
+
+/** KG-01: the tree fields a new or changed task can carry (parentId "" = top level). */
+export interface TaskTreeChange { kind?: TaskKind; parentId?: string; dependsOn?: string[] }
+
 export interface Task {
   id: string;
   projectId: string;
@@ -102,6 +108,9 @@ export interface Task {
   position?: number;
   source?: string | null; // "windshift:SRV-12" for synced tasks
   effort?: Effort; // EF-01: inherited from the chat it was made in; the Start form can change it
+  kind?: TaskKind; // KG-01: goal > milestone > task (default task)
+  parentId?: string | null; // KG-01: the goal, milestone or task this one belongs to
+  dependsOn?: string[]; // KG-01: tasks that must be done first (same project)
   events: TaskEvent[];
   question?: TaskQuestion;
 }
