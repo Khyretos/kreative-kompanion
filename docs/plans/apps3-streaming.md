@@ -1,7 +1,7 @@
 # Apps 3: game streaming and remote control, soucouyant → Kees's Android phone
 
-Research for Kompanion task "Apps 3 (B)" (2026-10-05). Nothing is installed until Kees
-picks; installing on soucouyant goes through the soucouyant thread, the phone is his hands.
+Research for Kompanion task "Apps 3 (B)" (2026-10-05). Kees picked Sunshine + Artemis;
+set up on soucouyant on 2026-10-11 (see "Installed" below), the phone is his hands.
 
 ## soucouyant in short
 
@@ -47,6 +47,34 @@ supports wlroots/Hyprland and states a licence.
    20-40 Mbit/s on Wi-Fi, gamepad mapping.
 5. Measure: on-screen timer photo for latency, dropped frames and bitrate at 1080p60 and
    at the phone's native resolution, over Wi-Fi and WireGuard; write the numbers here.
+
+## Installed (2026-10-11)
+
+Files in `tools/streaming/`, installed as `~/.local/bin/kk-stream-display.sh` and
+`~/.config/sunshine/{sunshine.conf,apps.json}` (the old ones are kept as `*.bak-2026-10-11`).
+
+- Sunshine 2026.1006 (CachyOS package) was already installed and starts from Hyprland's
+  `hyprland.start` hook. Capture `wlr`, encoder `vaapi`: the startup probe finds
+  `h264_vaapi`, `hevc_vaapi` and `av1_vaapi` on the RX 9070 XT.
+- `output_name = KK-STREAM`: Sunshine (since #5071) matches the xdg_output name, so it streams
+  the headless output while it exists. Without it the name does not parse as an index and
+  Sunshine takes the first monitor (DP-1). Both cases checked in Sunshine's startup log.
+- Apps: **Phone screen** (desktop on a headless output at the phone's resolution and fps),
+  **Steam Big Picture (phone screen)**, and **Desktop (my monitor)** (mirrors DP-1). The prep
+  command `kk-stream-display.sh start` creates `KK-STREAM` with `hyprctl output create
+  headless`, sets the mode with `hyprctl eval "hl.monitor(...)"` (Lua config; a mode sent right
+  after create is lost, so the script retries until the output reports it) and focuses it so
+  new windows open there; `stop` removes it and gives focus back. Real monitors are not touched.
+- Removed: "Desktop (match my screen)" (changed DP-1's own mode) and "Low Res Desktop"
+  (xrandr, does nothing on Hyprland). A leftover headless output `SUNSHINE-1` was the first
+  monitor, so Sunshine streamed an empty screen; removed. The user unit
+  `app-dev.lizardbyte.app.Sunshine.service` (Solar-Flare build in `~/Solar-Flare`, which no
+  longer exists) failed at every login; disabled, file kept.
+- Network: web UI from this PC only (`origin_web_ui_allowed = pc`, <https://localhost:47990>),
+  UPnP off. `firewall.sh` (run with sudo) limits the stream ports to the LAN
+  (192.168.178.0/24) and WireGuard (10.8.0.0/24); before, ufw allowed them from anywhere and
+  on 2026-10-10 a client connected from a public address (178.230.76.1), so the router
+  forwards them: remove those forwards and use WireGuard away from home.
 
 Sources: github.com/ClassicOldSong/Apollo (Linux virtual display discussion #1516),
 github.com/Nonary/Vibepollo (README), tech-insider.org "Apollo vs Sunshine 2026",
