@@ -170,6 +170,15 @@
     "title": "Possible Issue",
     "verdict": "false_positive"
   },
+  "960dfdab8046": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "Checked: a bare 'accept <id>' keeps the proposed verdict by design (GATE-02 spec); tests cover it.",
+    "title": "Incorrect Verdict Mapping",
+    "verdict": "false_positive"
+  },
   "982c2744d384": {
     "by": "coder; approved by Kees in the project thread 2026-10-08",
     "checked": true,
@@ -242,6 +251,15 @@
     "title": "Resource Leak",
     "verdict": "false_positive"
   },
+  "d73d74e02573": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "PENDING",
+    "path": "tools/test_owner_decision.py",
+    "reason": "Checked: real but minor, tests left files open (ResourceWarning). Fixed with Path.read_text().",
+    "title": "Resource Leaks in Tests",
+    "verdict": "bug"
+  },
   "d7e5303d37db": {
     "by": "coder; approved by Kees in the project thread 2026-10-08",
     "checked": true,
@@ -249,6 +267,24 @@
     "path": "tools/owner_decision.py",
     "reason": "an API error should fail the job loudly; the Actions log shows the traceback, and a half-applied decision must not be reported as done",
     "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "dbbf813e1e41": {
+    "by": "repeat of 6c6530a6843e",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "an API error should fail the job loudly; the Actions log shows the traceback, and a half-applied decision must not be reported as done",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e600cc9a4a9e": {
+    "by": "repeat of 260419550e83",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/owner_decision.py",
+    "reason": "tests test_out_of_range_questions_or_nothing and test_owner_chatter_changes_nothing show out-of-range numbers and chatter give None",
+    "title": "Possible Issue",
     "verdict": "false_positive"
   },
   "e9dd72895fd6": {

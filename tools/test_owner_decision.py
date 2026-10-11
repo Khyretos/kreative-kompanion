@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
@@ -87,7 +88,7 @@ class ApplyLint(unittest.TestCase):
         d["options"][0]["apply"] = {"trivyignore": "GHSA-wrw7-89jp-8q8g", "days": 92}
         jobs = od.apply_lint(d, 0, "khyretos", "2026-10-08", "https://x/c/1", self.root)
         self.assertEqual(jobs, [])
-        text = open(os.path.join(self.root, ".trivyignore")).read()
+        text = Path(os.path.join(self.root, ".trivyignore")).read_text()
         self.assertIn("GHSA-wrw7-89jp-8q8g exp:2027-01-08", text)
         self.assertIn(
             "# trivy-glib-GHSA-wrw7-89jp-8q8g: Accept until Tauri moves (khyretos, 2026-10-08",
@@ -106,7 +107,7 @@ class ApplyLint(unittest.TestCase):
         d["options"][0]["apply"] = {"trivyignore": "GHSA-wrw7-89jp-8q8g", "days": 92}
         od.apply_lint(d, 0, "khyretos", "2026-10-08", "u", self.root)
         od.apply_lint(d, 0, "khyretos", "2026-10-08", "u", self.root)
-        text = open(path).read()
+        text = Path(path).read_text()
         self.assertTrue(text.startswith("# old\nCVE-1 exp:2027-01-01\n"))
         self.assertEqual(text.count("GHSA-wrw7-89jp-8q8g exp:"), 1)
 
@@ -282,13 +283,13 @@ class LintFlow(unittest.TestCase):
         self.assertEqual(self.run_with("mallory", "accept option 4"), 0)
         self.assertEqual([c[0] for c in self.calls], ["GET", "GET"])
         self.assertEqual(self.gits, [])
-        self.assertIsNone(json.load(open(od.DECISIONS))[0]["decided"])
+        self.assertIsNone(json.loads(Path(od.DECISIONS).read_text())[0]["decided"])
 
     def test_owner_pick_is_applied_recorded_and_closed(self):
         self.assertEqual(self.run_with("khyretos", "accept option 1"), 0)
-        d = json.load(open(od.DECISIONS))[0]
+        d = json.loads(Path(od.DECISIONS).read_text())[0]
         self.assertTrue(d["decided"].startswith("Accept until Tauri moves (khyretos, "))
-        self.assertIn("GHSA-wrw7-89jp-8q8g exp:", open(".trivyignore").read())
+        self.assertIn("GHSA-wrw7-89jp-8q8g exp:", Path(".trivyignore").read_text())
         self.assertIn(
             ("checkout", "-q", "-B", "decision/trivy-glib-GHSA-wrw7-89jp-8q8g"),
             self.gits,
@@ -311,7 +312,7 @@ class LintFlow(unittest.TestCase):
     def test_owner_chatter_changes_nothing(self):
         self.assertEqual(self.run_with("khyretos", "what does option 2 cost?"), 0)
         self.assertEqual(self.gits, [])
-        self.assertIsNone(json.load(open(od.DECISIONS))[0]["decided"])
+        self.assertIsNone(json.loads(Path(od.DECISIONS).read_text())[0]["decided"])
 
 
 class FindingsFlow(unittest.TestCase):
@@ -458,7 +459,7 @@ class FindingsFlow(unittest.TestCase):
         self.assertEqual(self.run_with("accept"), 0)
         self.assertEqual([j["out"] for j in self.jobs], ["b.py"])
         self.assertEqual(self.jobs[0]["check"], "python3 -m py_compile b.py")
-        ledger = json.load(open(self.ledger))
+        ledger = json.loads(Path(self.ledger).read_text())
         self.assertTrue(ledger["dedbef95465d"]["checked"])
         self.assertEqual(ledger["dedbef95465d"]["fixed"], "abc1234")
         self.assertEqual(ledger["ae97b8c11446"]["by"], "khyretos")
