@@ -32,8 +32,12 @@ pub async fn wait(http: &reqwest::Client, base: &str, id: &str, timeout: Duratio
                 .as_array()
                 .into_iter()
                 .flatten()
-                .find(|m| m[0] == "execution_error")
-                .and_then(|m| m[1]["exception_message"].as_str())
+                .find(|m| m[0] == "execution_error" || m[0] == "execution_interrupted")
+                .map(|m| match m[0].as_str() {
+                    // STU-C4b: soucouyant's gpu-guard (or a Studio cancel) called /interrupt.
+                    Some("execution_interrupted") => "stopped by the GPU guard or a cancel (VRAM or temperature limit; journalctl --user -u gpu-guard on soucouyant)",
+                    _ => m[1]["exception_message"].as_str().unwrap_or("execution failed"),
+                })
                 .unwrap_or("execution failed")
                 .to_string();
             bail!("ComfyUI: {msg}");
@@ -274,6 +278,13 @@ mod tests {
         if n == 0 || f.mode == "lost" || f.mode == "running" {
             return Json(json!({})).into_response();
         }
+        if f.mode == "interrupted" {
+            return Json(
+                json!({"p1": {"status": {"status_str": "error", "completed": false,
+                "messages": [["execution_start", {}], ["execution_interrupted", {"node_id": "5"}]]}}}),
+            )
+            .into_response();
+        }
         if f.mode == "error" {
             return Json(
                 json!({"p1": {"status": {"status_str": "error", "completed": false,
@@ -358,6 +369,17 @@ mod tests {
         assert_eq!(files, vec![dir.join("run1-1.png")]);
         assert_eq!(std::fs::read(&files[0]).unwrap(), b"PNG");
         assert_eq!(f.got.lock().unwrap().as_ref().unwrap()["prompt"], graph);
+    }
+
+    #[tokio::test]
+    async fn interrupted_run_names_the_guard() {
+        let dir = std::env::temp_dir().join(format!("c4b-{}", uuid::Uuid::new_v4()));
+        let graph = json!({"10": {"class_type": "SaveImage", "inputs": {}}});
+        let (base, _) = fake("interrupted").await;
+        let e = run(&Client::new(), &base, &graph, &["10".to_string()], &dir, "run1", Duration::from_secs(10))
+            .await
+            .unwrap_err();
+        assert!(e.to_string().contains("GPU guard"), "{e}");
     }
 
     #[tokio::test]
