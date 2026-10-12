@@ -20,6 +20,8 @@ import type { Attached } from "./core/attachments";
 import { composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
+import { filterDeps, setDep } from "./views/deppicker";
+import { composeDescription } from "./views/taskdesc";
 import { renderMachines, REFRESH_STEPS, setGpuView, markUpdating, unmarkUpdating } from "./views/machines";
 import { confirmPermanent, grantFromForm, renderAccess, type GrantView } from "./views/access";
 import { renderPcActions, renderPcPicker } from "./views/pcactions";
@@ -976,6 +978,8 @@ function wire(shell: HTMLElement): void {
     "new-task": () => store.set({ editingTaskId: "new" }),
     "edit-task": (el) => store.set({ editingTaskId: el.dataset.id }),
     "cancel-task-edit": () => store.set({ editingTaskId: undefined }),
+    "dep-add": (el) => setDep(el.closest(".dep-picker") as HTMLElement, el.dataset.id ?? "", true),
+    "dep-remove": (el) => setDep(el.closest(".dep-picker") as HTMLElement, el.dataset.id ?? "", false),
     "close-task-done": (el) => saveTask(el.dataset.id ?? "", { state: "done" }),
     "delete-task": (el) => {
       const t = store.get().tasks.find((x) => x.id === el.dataset.id);
@@ -1375,6 +1379,14 @@ function wire(shell: HTMLElement): void {
       openSearchPalette(document.activeElement as HTMLElement | null);
     }
   });
+  // TASK-FORM: Enter in the Depends on search picks the first match instead of submitting the form.
+  shell.addEventListener("keydown", (ev) => {
+    const el = ev.target as HTMLElement;
+    if (ev.key !== "Enter" || el.id !== "dep-search") return;
+    ev.preventDefault();
+    const first = el.closest(".dep-picker")?.querySelector<HTMLElement>(".dep-option:not([hidden])");
+    if (first) first.click();
+  });
   // STU-UI1: arrow keys, Home and End move the Studio type selection (a radiogroup).
   shell.addEventListener("keydown", (ev) => {
     const card = (ev.target as HTMLElement).closest<HTMLElement>('.studio-types [role="radio"]');
@@ -1609,6 +1621,7 @@ function wire(shell: HTMLElement): void {
   shell.addEventListener("input", (ev) => {
     const el = ev.target as HTMLInputElement;
     if (el.id === "task-filter") { store.set({ taskFilter: el.value }); return; }
+    if (el.id === "dep-search") { filterDeps(el.closest(".dep-picker") as HTMLElement, el.value); return; }
     if (el.id === "studio-prompt") { studioPrompt = el.value; return; }
     if (el.id === "studio-lyrics") { studioLyrics = el.value; return; }
     if (el.id === "studio-negative") { studioNegative = el.value; return; }
@@ -1772,7 +1785,8 @@ async function saveTask(id: string, change: { title?: string; description?: stri
 async function submitTask(form: HTMLFormElement): Promise<void> {
   const f = new FormData(form);
   const title = String(f.get("title") ?? "").trim();
-  const description = String(f.get("description") ?? "").trim();
+  const description = composeDescription({ goal: String(f.get("goal") ?? ""), steps: String(f.get("steps") ?? ""),
+    done: String(f.get("done") ?? ""), notes: String(f.get("notes") ?? "") });
   const state = String(f.get("state") ?? "queued") as TaskState;
   // KG-01: the tree fields (a goal has no parent; "" = top level).
   const kind = String(f.get("kind") ?? "task") as TaskKind;

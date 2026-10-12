@@ -307,7 +307,15 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
   width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 0.55rem 0.7rem; color: var(--fg); font: inherit;
 }
-.task-editor textarea { font-family: var(--mono); font-size: 0.85rem; resize: vertical; }
+.task-editor textarea { resize: vertical; }
+.task-editor #task-notes { font-family: var(--mono); font-size: 0.85rem; }
+/* TASK-FORM: selects look like the purple text fields (no grey native control or list). */
+.task-editor select {
+  appearance: none; padding-right: 2rem; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 1rem center, right 0.7rem center; background-size: 0.3rem 0.3rem; background-repeat: no-repeat;
+}
+.task-editor select option { background-color: var(--surface-2); color: var(--fg); }
 .project-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; }
 .project-bar .btn { flex: none; }
 /* A search field with a leading icon and a clear (×) button; looks like the panel's selects. */
@@ -549,8 +557,23 @@ a.attach-chip:hover { border-color: var(--accent); }
 .task-links > div { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; align-items: baseline; }
 .task-links dt { color: var(--muted); font-size: 0.8rem; min-width: 5.5rem; }
 .task-links dd { margin: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; }
-.task-deps { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.7rem; display: grid; gap: 0.3rem; max-height: 12rem; overflow-y: auto; }
-.task-deps label { display: flex; gap: 0.45rem; align-items: center; }
+/* TASK-FORM: Depends on as chips + a search box; the list shows while the picker has focus. */
+.dep-picker { position: relative; }
+.dep-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.dep-chip { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 100%; padding: 0.15rem 0.2rem 0.15rem 0.6rem; border-radius: 999px; background: var(--accent-soft); border: 1px solid var(--line); font-size: 0.85rem; overflow-wrap: anywhere; }
+.dep-chip[hidden], .dep-option[hidden], .dep-none[hidden] { display: none; }
+.dep-remove { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; color: var(--muted); }
+.dep-remove:hover, .dep-remove:focus-visible { color: var(--fg); background: var(--surface-2); }
+.dep-remove svg { width: 0.85rem; height: 0.85rem; }
+.task-editor input[type="search"] { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.55rem 0.7rem; color: var(--fg); }
+.task-editor input[type="search"]:focus { outline: none; border-color: var(--accent); }
+.dep-options { display: grid; max-height: 12rem; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.dep-picker:not(:focus-within) .dep-options { display: none; }
+.dep-option { padding: 0.45rem 0.7rem; cursor: pointer; overflow-wrap: anywhere; }
+.dep-option:hover, .dep-option:focus { outline: none; background: var(--accent-soft); }
+.dep-none { padding: 0.45rem 0.7rem; }
+.task-notes summary { cursor: pointer; color: var(--muted); }
+.task-notes textarea { margin-top: 0.4rem; }
 .task-top { display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; }
 .task .chip.state, .detail-state .chip { font-weight: 600; }
 .s-running .chip.state, .chip.state.s-running, .s-in_review .chip.state, .chip.state.s-in_review { color: var(--link); }
