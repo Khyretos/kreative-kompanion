@@ -28,7 +28,7 @@ fn tool_results_give_their_images() {
 }
 
 /// A stub MCP server: answers initialize, tools/list and tools/call; 401 without the right token.
-async fn stub() -> String {
+pub(crate) async fn stub() -> String {
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = l.local_addr().unwrap();
     tokio::spawn(async move {
@@ -70,7 +70,7 @@ async fn stub() -> String {
     format!("http://{addr}/mcp")
 }
 
-fn server(url: &str, token_env: Option<&str>) -> crate::config::McpServerConfig {
+pub(crate) fn server(url: &str, token_env: Option<&str>) -> crate::config::McpServerConfig {
     crate::config::McpServerConfig { name: "stub".into(), url: url.into(), token_env: token_env.map(String::from), enabled: true, description: None }
 }
 

@@ -191,7 +191,16 @@ impl Agent {
         let Some(p) = s.config.provider(&self.role.provider_id) else {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
-        let tools = tools::schema();
+        let mut tools = tools::schema();
+        // KG-05: a task's worker also gets the tools of the MCP servers the user granted (and is denied the rest).
+        let mut mcp_map = std::collections::HashMap::new();
+        if self.task_id.is_some() {
+            let (specs, map) = crate::mcp_grants::tools_for(s, &self.user_id).await;
+            if let Some(list) = tools.as_array_mut() {
+                list.extend(specs);
+            }
+            mcp_map = map;
+        }
         let (p, model_id) = crate::effort::apply(p, &self.role.model_id, self.effort);
         // Paths a read found missing during this answer (see the write_file guardrail).
         let mut missing = std::collections::HashSet::<String>::new();
@@ -235,6 +244,13 @@ impl Agent {
                     _ => None,
                 };
                 let result = match job {
+                    // KG-05: an MCP tool, answered by its server under the user's grant.
+                    _ if mcp_map.contains_key(name) => {
+                        if let Some((server, tool)) = mcp_map.get(name) {
+                            log_access(s, &self.machine_id, &self.user_id, "mcp", &format!("mcp:{server}"), tool).await;
+                        }
+                        crate::mcp_grants::call(s, &self.user_id, &mcp_map, name, &args).await
+                    }
                     // Answered here, not by a computer.
                     None if name == "capabilities" => crate::capabilities::summary(s, &self.user_id).await,
                     None => "Unknown tool or wrong arguments.".to_string(),
