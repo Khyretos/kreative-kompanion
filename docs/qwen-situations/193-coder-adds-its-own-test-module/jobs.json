@@ -1,0 +1,50 @@
+[
+  {
+    "name": "gp-fill-titles",
+    "role": "worker/rust",
+    "out": "server/src/gameplan.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3000,
+    "context": ["server/src/gameplan_tests.rs"],
+    "focus": ["pub fn fill_titles"],
+    "prompt": "In server/src/gameplan.rs replace the body of `pub fn fill_titles` (currently `todo!()`). `description` is the user's text. When `plan.title.trim()` is empty set `plan.title` to the first sentence of `description.trim()`: the text up to and including the first '.', '!' or '?' (the whole text when there is none), then cut to at most 60 characters (count characters, `chars().take(60)`), then trimmed. When `plan.goal.trim()` is empty set `plan.goal` to `description.trim().to_string()`. A non-empty title or goal is left alone. Change nothing else.",
+    "CHECKFILTERS": "titles_come_from_the_description"
+  },
+  {
+    "name": "gp-handler-fill",
+    "role": "worker/rust",
+    "out": "server/src/gameplan_web.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3000,
+    "context": ["server/src/gameplan.rs"],
+    "focus": ["plan_with_model(&s"],
+    "prompt": "In server/src/gameplan_web.rs, function `propose`: change the line `let (game, left) = plan_with_model(&s, &u.id, &system, &user_msg, &library, &workflows).await?;` so that it reads `let (mut game, left) = ...` (same call) and add the line `gameplan::fill_titles(&mut game, description);` directly after it. Change nothing else.",
+    "CHECKFILTERS": "@NOFILL"
+  },
+  {
+    "name": "gp-title-defaults",
+    "role": "worker/rust",
+    "out": "server/src/gameplan.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3000,
+    "context": ["server/src/gameplan_tests.rs"],
+    "focus": ["pub struct GamePlan"],
+    "prompt": "In server/src/gameplan.rs, struct `GamePlan`: add the attribute `#[serde(default)]` directly above the field `pub title: String,` and directly above the field `pub goal: String,`. Change nothing else.",
+    "CHECKFILTERS": "a_plan_without_title_or_goal_still_parses missing_fields_are_named json_inside_a_fence"
+  },
+  {
+    "name": "gp-last-answer",
+    "role": "worker/rust",
+    "out": "server/src/gameplan.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 4000,
+    "context": ["server/src/gameplan_tests.rs"],
+    "focus": ["pub async fn generate", "last.ok_or"],
+    "prompt": "In server/src/gameplan.rs, function `generate`: remember the model's last answer text and put the start of it into the final error. Before the `for` loop add `let mut last_text = String::new();`; right after `let text = ask(messages.clone()).await?;` add `last_text = text.clone();`; and replace the final expression `last.ok_or(last_err)` by `last.ok_or_else(|| format!(\"{last_err} Last answer: {}\", last_text.chars().take(300).collect::<String>()))`. Change nothing else.",
+    "CHECKFILTERS": "the_last_answer_is_in_the_error a_model_that_never_gives_json the_model_is_asked_again after_three_bad_rounds"
+  }
+]

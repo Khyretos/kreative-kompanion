@@ -1,0 +1,20 @@
+pub fn fill_titles(plan: &mut GamePlan, description: &str) {
+    let desc = description.trim();
+    if plan.goal.trim().is_empty() {
+        plan.goal = desc.to_string();
+    }
+    if plan.title.trim().is_empty() {
+        let mut end = desc.len();
+        for (i, c) in desc.char_indices() {
+            match c {
+                '.' | '!' | '?' => {
+                    end = i + 1;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let sentence = &desc[..end];
+        plan.title = sentence.chars().take(60).collect::<String>().trim_end().to_string();
+    }
+}
