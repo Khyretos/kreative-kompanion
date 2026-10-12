@@ -1,0 +1,20 @@
+{
+  "2e13d5871040": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/187-unit-without-behaviour-check/wrong-browser-path.ts.txt",
+    "reason": "Checked by Claude: the file is a stored situation (lesson 187), an intentionally wrong or corrected excerpt kept as a text file, not code that runs; the live code is web/src/core/desknotify.ts, covered by the Playwright tests.",
+    "title": "Incorrect Logic Flow",
+    "verdict": "false_positive"
+  },
+  "8f852b11858f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/187-unit-without-behaviour-check/corrected-browser-path.ts.txt",
+    "reason": "Checked by Claude: the file is a stored situation (lesson 187), an intentionally wrong or corrected excerpt kept as a text file, not code that runs; the live code is web/src/core/desknotify.ts, covered by the Playwright tests.",
+    "title": "Redundant Permission Check",
+    "verdict": "false_positive"
+  }
+}
