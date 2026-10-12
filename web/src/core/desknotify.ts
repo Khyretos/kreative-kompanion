@@ -15,6 +15,52 @@ function store(v: "0" | "1"): void {
   try { localStorage.setItem("kk-desk-notify", v); } catch { /* not remembered */ }
 }
 
+export async function sendTest(): Promise<{ ok: boolean; detail: string }> {
+  const title = "Kompanion test";
+  const body = "If you can read this, notifications work.";
+
+  // Tauri path
+  if ((window as any).__TAURI__?.notification) {
+    try {
+      const granted = await (window as any).__TAURI__.notification.isPermissionGranted();
+      if (!granted) {
+        await (window as any).__TAURI__.notification.requestPermission();
+        const nowGranted = await (window as any).__TAURI__.notification.isPermissionGranted();
+        if (!nowGranted) {
+          return { ok: false, detail: "Notifications are blocked: allow Kompanion in System Settings > Notifications." };
+        }
+      }
+      await (window as any).__TAURI__.notification.sendNotification({ title, body });
+      return { ok: true, detail: "Test notification sent through the desktop app." };
+    } catch (e) {
+      console.error("Kompanion test notification failed", e);
+      const message = e instanceof Error ? e.message : String(e);
+      return { ok: false, detail: "Test notification failed: " + message };
+    }
+  }
+
+  // Browser path
+  if (!("Notification" in window)) {
+    return { ok: false, detail: "This browser cannot show notifications." };
+  }
+
+  if (Notification.permission !== "granted") {
+    const answer = await Notification.requestPermission();
+    if (answer !== "granted") {
+      return { ok: false, detail: "Notifications are blocked: allow them for this site in the browser's settings." };
+    }
+  }
+
+  try {
+    new Notification(title, { body, icon: "/api/mail-logo.png" });
+    return { ok: true, detail: "Test notification sent." };
+  } catch (e) {
+    console.error("Kompanion test notification failed", e);
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, detail: "Test notification failed: " + message };
+  }
+}
+
 export async function enable(on: boolean): Promise<"on" | "off" | "denied"> {
   if (!on) {
     store("0");
@@ -93,7 +139,13 @@ export function onTaskUpdate(
 
     // Tauri path
     if ((window as any).__TAURI__?.notification) {
-      (window as any).__TAURI__.notification.sendNotification({ title, body });
+      (async () => {
+        try {
+          await (window as any).__TAURI__.notification.sendNotification({ title, body });
+        } catch (e) {
+          console.error("Kompanion notification failed", e);
+        }
+      })();
       return;
     }
 

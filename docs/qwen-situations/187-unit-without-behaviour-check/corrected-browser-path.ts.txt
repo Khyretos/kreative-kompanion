@@ -1,0 +1,8 @@
+  if (Notification.permission !== "granted") {
+    const answer = await Notification.requestPermission();
+    if (answer !== "granted") {
+      return { ok: false, detail: "Notifications are blocked: allow them for this site in the browser's settings." };
+    }
+  }
+    if (Notification.permission !== "granted") {
+      return;
