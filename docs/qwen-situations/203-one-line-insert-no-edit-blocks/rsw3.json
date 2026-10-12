@@ -1,0 +1,13 @@
+[
+  {
+    "name": "rsw3",
+    "role": "worker/web",
+    "out": "web/src/api/http.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1500,
+    "focus": ["unpairMachine(id: string)"],
+    "prompt": "In web/src/api/http.ts add one method directly after the `unpairMachine(id: string) {...}` line, in the same one-line style: `updateRunner(id: string) { return this.request<void>(\"POST\", `/machines/${encodeURIComponent(id)}/jobs`, { tool: { tool: \"self_update\" } }); }`. Change nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsw3.sh"
+  }
+]

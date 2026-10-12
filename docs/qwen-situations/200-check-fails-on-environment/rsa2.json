@@ -1,0 +1,13 @@
+[
+  {
+    "name": "rsa2",
+    "role": "worker/rust",
+    "out": "runner/src/main.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1200,
+    "focus": ["mod gpuapps;", "mod ask;"],
+    "prompt": "In runner/src/main.rs add the line `mod selfupdate;` directly after the line `mod gpuapps;`. Change nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsa2.sh"
+  }
+]

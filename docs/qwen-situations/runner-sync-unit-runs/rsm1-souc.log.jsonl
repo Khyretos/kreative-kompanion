@@ -1,0 +1,2 @@
+{"name": "rsm1", "out": "runner/src/main.rs", "mode": "patch", "gpu_seconds": 6.8, "tokens": 263, "prompt_tokens": 7905, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/processes-files", "shared/processes"], "lines": 1, "attempts": 1, "model": "qwen3.5:9b-q8_0-64k", "at": "2026-10-12T19:39:44"}
+{"name": "rsm1", "out": "runner/src/main.rs", "check": "sh /tmp/kk-runner-chk/rsm1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T19:39:51"}

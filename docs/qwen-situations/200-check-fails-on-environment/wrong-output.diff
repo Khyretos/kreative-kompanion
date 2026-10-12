@@ -1,0 +1,12 @@
+# What the Coder left after two repair rounds fed with "cargo: not found" (rsa1: OVMS, rsa2: soucouyant).
+# The first drafts were right: `sha2 = "0.10"` and `mod selfupdate;`.
+--- a/runner/Cargo.toml
++++ b/runner/Cargo.toml
+-edition = "2024"
++edition = "2021"
++sha2 = "0.10"
+--- a/runner/src/main.rs
++mod selfupdate;
++    // Ensure cargo is in PATH for potential self-update operations
++    let mut path_dirs = std::env::var("PATH").unwrap_or_default().split(':').collect::<Vec<_>>();
++    ... (set_var("PATH", ...) block, 10 lines)

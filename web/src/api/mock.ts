@@ -288,7 +288,7 @@ const machines: MachineStats[] = [
     gpus: [{ name: "Arc A770", load: 0.71, vramUsedGb: 11.2, vramTotalGb: 16, watts: 162, tempC: 67, use: "Qwen3.5-9B (OVMS)" }],
   },
   {
-    id: "soucouyant", name: "soucouyant", os: "CachyOS", online: true, cpu: 0.58, ramUsedGb: 19, ramTotalGb: 32,
+    id: "soucouyant", name: "soucouyant", os: "CachyOS", online: true, runnerVersion: "0.5.0", runnerLatest: "0.6.0", cpu: 0.58, ramUsedGb: 19, ramTotalGb: 32,
     kompanionShare: 0.31, busy: "Steam is running", history: [180, 190, 260, 255, 270, 262, 258, 265, 270, 268, 266, 271],
     gpus: [{ name: "GPU", load: 0.64, vramUsedGb: 6.1, vramTotalGb: 8, watts: 141, tempC: 72, use: "Game (not Kompanion)" }],
   },
@@ -389,6 +389,7 @@ export class MockApi implements KompanionApi {
   async pairMachine(name: string) { return { id: "demo", name, token: "demo-token" }; }
   async pairCode() { return { code: "DEMO-C0DE", expiresAt: new Date(Date.now() + 900_000).toISOString() }; }
   async unpairMachine() {}
+  async updateRunner() {}
   async listGrants(machineId: string) { return structuredClone(grants[machineId] ?? []); }
   async addGrant(machineId: string, target: string, rights: string[], expiresHours?: number) {
     setTimeout(() => {

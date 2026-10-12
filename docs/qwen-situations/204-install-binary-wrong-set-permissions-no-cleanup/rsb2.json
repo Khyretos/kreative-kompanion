@@ -1,0 +1,14 @@
+[
+  {
+    "name": "rsb2",
+    "role": "worker/rust",
+    "out": "runner/src/selfupdate.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3000,
+    "context": ["runner/src/selfupdate_tests.rs"],
+    "focus": ["pub fn install_binary", "todo!()"],
+    "prompt": "In runner/src/selfupdate.rs replace the `todo!()` in `pub fn install_binary` with a working body; keep the signature and doc comment, touch nothing else, add no new functions, no `mod`, no tests and no `use` lines outside the function body. Steps: (1) `let new = target.with_file_name(format!(\"{}.new\", file name of target))` (the tests expect `kompanion-runner.new` next to `kompanion-runner`); (2) write `bytes` to it with std::fs::write, chmod 0o755 with std::fs::set_permissions and std::os::unix::fs::PermissionsExt; (3) run `std::process::Command::new(&new).arg(\"--version\").output()`; (4) it passes only if the command ran, exited successfully and stdout starts with \"kompanion-runner \"; (5) on pass `std::fs::rename(&new, target)` and return Ok(()); on ANY failure in steps 1-5 remove the .new file (ignore the remove error) and return Err(text) where text is a non-empty String describing the failure. Write the body so the cleanup happens in one place, e.g. do steps 1-5 in a closure or inner fn returning Result<(), String> and remove the .new file when it is Err. The function returns Result<(), String>; use map_err(|e| e.to_string()) on io errors. The tests in runner/src/selfupdate_tests.rs show the behaviour.",
+    "check": "sh /tmp/kk-runner-chk/rsb2.sh"
+  }
+]

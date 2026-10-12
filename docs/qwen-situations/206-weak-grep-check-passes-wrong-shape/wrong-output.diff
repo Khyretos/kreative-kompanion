@@ -1,0 +1,36 @@
+diff --git a/web/src/api/mock.ts b/web/src/api/mock.ts
+index c6c789f..66648d5 100644
+--- a/web/src/api/mock.ts
++++ b/web/src/api/mock.ts
+@@ -288,7 +288,7 @@ const machines: MachineStats[] = [
+     gpus: [{ name: "Arc A770", load: 0.71, vramUsedGb: 11.2, vramTotalGb: 16, watts: 162, tempC: 67, use: "Qwen3.5-9B (OVMS)" }],
+   },
+   {
+-    id: "soucouyant", name: "soucouyant", os: "CachyOS", online: true, cpu: 0.58, ramUsedGb: 19, ramTotalGb: 32,
++    id: "soucouyant", name: "soucouyant", os: "CachyOS", online: true, runnerVersion: "0.5.0", runnerLatest: "0.6.0", cpu: 0.58, ramUsedGb: 19, ramTotalGb: 32,
+     kompanionShare: 0.31, busy: "Steam is running", history: [180, 190, 260, 255, 270, 262, 258, 265, 270, 268, 266, 271],
+     gpus: [{ name: "GPU", load: 0.64, vramUsedGb: 6.1, vramTotalGb: 8, watts: 141, tempC: 72, use: "Game (not Kompanion)" }],
+   },
+@@ -624,6 +624,8 @@ export class MockApi implements KompanionApi {
+     if (target === "off") { soucouyantMode = "gaming"; soucouyantStopped = true; }
+     this.emit({ type: "changed", what: "gpus" });
+   }
++  async updateRunner() {}
++
+   async setGpuMode(machine: string, mode: import("../views/capabilities").GpuModeName) {
+     if (machine === "soucouyant") {
+       soucouyantMode = mode;
+diff --git a/web/src/views/machines.ts b/web/src/views/machines.ts
+index 3af964e..d7555cf 100644
+--- a/web/src/views/machines.ts
++++ b/web/src/views/machines.ts
+@@ -42,7 +42,8 @@ function machine(m: MachineStats): SafeHtml {
+       <div class="machine-head">
+         <span class="dot ok" aria-hidden="true"></span>
+         <strong>${m.name}</strong>${m.isServer ? html`<span class="chip this-server">this server</span>` : ""}${m.isServer && !m.online ? html`<span class="chip warn-chip">runner offline</span>` : ""}<span class="muted small">${m.os}${m.id !== "server" ? ` · runner ${m.runnerVersion ?? "before 0.4.5"}` : ""}</span>
+-        ${m.id !== "server" && m.runnerLatest && m.runnerVersion !== m.runnerLatest ? html`<span class="chip warn-chip" title="Pair a computer shows the one-line installer">update to ${m.runnerLatest}</span>` : ""}
++        ${m.id !== "server" && m.runnerLatest && m.runnerVersion !== m.runnerLatest ? html`<span class="chip warn-chip" title="Pair a computer shows the one-line installer">Update to ${m.runnerLatest}</span>` : ""}
++        ${m.id !== "server" ? html`<button class="icon-btn" data-action="update-runner" data-id="${m.id}" aria-label="Update runner on ${m.name}">${icon("arrow-up")}</button>` : ""}
+         ${m.id !== "server" ? html`<button class="icon-btn" data-action="unpair" data-id="${m.id}" aria-label="Unpair ${m.name}">${icon("trash")}</button>` : ""}
+         <span class="watts">${cpuKind ? `${pct(m.cpu)} CPU` : watts === undefined ? "" : `${watts} W`}</span>
+       </div>

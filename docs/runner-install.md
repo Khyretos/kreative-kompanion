@@ -114,6 +114,14 @@ Security note: the container never installs or starts anything on the host by
 itself (no Docker socket or host home in the container); this script runs on
 the host, by you.
 
+## Updating the runner
+
+From runner 0.6.0 on, Machines shows an "Update to" button with the new version number on a paired computer whose runner is older than the one the server ships. Pressing it queues a `self_update` job: the runner downloads `/download/kompanion-runner` and its `.sha256` from the server it is paired with, refuses the file when the digest does not match, writes it next to itself as `kompanion-runner.new`, runs `--version` on it, and only then replaces itself, reports the job and exits with status 4 so the systemd user unit (`Restart=on-failure`) starts the new version.
+
+A runner older than 0.6.0 cannot do this: rerun the one-line installer from Machines > Pair once.
+
+On the server's own computer, `tools/deploy.sh` calls `tools/sync_runner.sh` after `docker compose up`, which copies the newest `dist/kompanion-runner-<version>-x86_64-linux-musl` over `~/.local/bin/kompanion-runner` when that is newer and restarts the `kompanion-runner.service` user unit.
+
 ## What it reads
 
 `/proc/stat`, `/proc/meminfo`, `/proc/uptime`, `/proc/loadavg`, the root

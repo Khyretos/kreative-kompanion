@@ -1,0 +1,2 @@
+{"name": "rsd3", "out": "tools/deploy.sh", "mode": "patch", "gpu_seconds": 3.3, "tokens": 74, "prompt_tokens": 2851, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "shared/processes"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-12T19:43:10"}
+{"name": "rsd3", "out": "tools/deploy.sh", "check": "sh /tmp/kk-runner-chk/rsd3.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T19:43:10"}

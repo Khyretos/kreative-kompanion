@@ -1,0 +1,13 @@
+diff --git a/web/src/api/client.ts b/web/src/api/client.ts
+index c393b21..7538354 100644
+--- a/web/src/api/client.ts
++++ b/web/src/api/client.ts
+@@ -168,6 +168,8 @@ export interface KompanionApi {
+   saveSkill(layer: string, file: string, text: string, message: string): Promise<{ commit: string }>;
+   /** SK-03: moves one lesson line between the general and private layers (a commit in each repo). */
+   moveLesson(from: string, to: string, file: string, line: string): Promise<{ to: string; from: string }>;
++  /** W2: updates the runner script for a machine. */
++  updateRunner(runnerId: string, text: string): Promise<void>;
+   /** W4: whether the server offers voice, and its voices. */
+   voiceInfo(): Promise<{ enabled: boolean; voices: { id: string; label: string }[] }>;
+   /** Speech to text: a recording from the microphone; lang "" lets Whisper detect it. */

@@ -1,0 +1,2 @@
+{"name": "rsw3#fix1", "out": "web/src/api/http.ts", "mode": "patch", "gpu_seconds": 6.1, "tokens": 225, "prompt_tokens": 9129, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL"], "lines": 1, "attempts": 1, "model": "qwen3.5:9b-q8_0-64k", "at": "2026-10-12T19:30:29"}
+{"name": "rsw3", "out": "web/src/api/http.ts", "check": "sh /tmp/kk-runner-chk/rsw3.sh", "check_attempts": 3, "check_passed": false, "at": "2026-10-12T19:30:57", "check_errors": "error: web/src/api/http.ts: missing the expected text"}

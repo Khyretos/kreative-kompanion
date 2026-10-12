@@ -1,0 +1,13 @@
+[
+  {
+    "name": "rsdoc1",
+    "role": "worker/rust",
+    "out": "docs/runner-install.md",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "focus": ["## What it reads"],
+    "prompt": "In docs/runner-install.md insert a new section directly above the line `## What it reads` (the section, then one blank line, then `## What it reads`). Heading `## Updating the runner`. Write 3 short paragraphs, plain prose, no lists, in this order, using exactly these facts and no others:\n1. From runner 0.6.0 on, Machines shows an \"Update to <version>\" button on a paired computer whose runner is older than the one the server ships. Pressing it queues a `self_update` job: the runner downloads `/download/kompanion-runner` and its `.sha256` from the server it is paired with, refuses the file when the digest does not match, writes it next to itself as `kompanion-runner.new`, runs `--version` on it, and only then replaces itself, reports the job and exits with status 4 so the systemd user unit (`Restart=on-failure`) starts the new version.\n2. A runner older than 0.6.0 cannot do this: rerun the one-line installer from Machines > Pair once.\n3. On the server's own computer, `tools/deploy.sh` calls `tools/sync_runner.sh` after `docker compose up`, which copies the newest `dist/kompanion-runner-<version>-x86_64-linux-musl` over `~/.local/bin/kompanion-runner` when that is newer and restarts the `kompanion-runner.service` user unit.\nChange nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsdoc1.sh"
+  }
+]

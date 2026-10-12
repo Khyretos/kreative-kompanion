@@ -1,0 +1,14 @@
+[
+  {
+    "name": "rsb1",
+    "role": "worker/rust",
+    "out": "runner/src/selfupdate.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "context": ["runner/src/selfupdate_tests.rs"],
+    "focus": ["pub fn sha_ok", "todo!()"],
+    "prompt": "In runner/src/selfupdate.rs replace the `todo!()` inside `pub fn sha_ok` with a working body (keep the signature, the doc comment and the other function untouched). Take the first whitespace-separated word of `sha_text`, compare it case-insensitively with the lowercase hex SHA-256 of `bytes` (use `sha2::{Digest, Sha256}`; write the `use` inside the function body so no top-level line changes). An empty text or a word that is not that hex gives false. The tests in runner/src/selfupdate_tests.rs show the behaviour. Do not touch `install_binary`.",
+    "check": "sh /tmp/kk-runner-chk/rsb1.sh"
+  }
+]

@@ -1,0 +1,2 @@
+{"name": "rsc1", "out": "server/src/access/jobs.rs", "mode": "patch", "gpu_seconds": 6.1, "tokens": 151, "prompt_tokens": 5825, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/axum-api"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-12T19:28:22"}
+{"name": "rsc1", "out": "server/src/access/jobs.rs", "check": "sh /tmp/kk-runner-chk/rsc1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T19:29:08"}
