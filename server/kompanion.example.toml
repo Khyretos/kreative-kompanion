@@ -47,6 +47,9 @@ local = true
 # kind = "anthropic"
 # base_url = "https://api.anthropic.com"
 # api_key_env = "ANTHROPIC_API_KEY"
+# Prompt caching is on for this kind (cache_control ephemeral on every request). ttl = "1h" keeps the
+# cache an hour (writes cost 2x instead of 1.25x; reads 0.1x or less); extra_body can override it.
+# ttl = "1h"
 # [[provider]]
 # id = "openai"
 # name = "OpenAI"
@@ -67,6 +70,19 @@ orchestrator = { provider = "ollama", model = "qwen3.5:9b" }
 worker = { provider = "ollama", model = "qwen3.5:9b" }
 reviewer = { provider = "ollama", model = "qwen3.5:9b" }
 # overseer = { provider = "anthropic", model = "claude-sonnet-5-5" }
+
+# KG-04: escalation ladder. A task run its worker role cannot finish is retried by these rungs in
+# order (they plan and work; the reviewer stays) before the task asks the user. A strong model on any
+# provider is opt-in: add it here. Without [[ladder]] a failed run asks the user at once.
+# [[ladder]]
+# name = "Coder"
+# provider = "ollama"
+# model = "qwen3-coder"
+# [[ladder]]
+# name = "Claude"
+# provider = "anthropic"
+# model = "claude-sonnet-5-5"
+# fix_rounds = 2
 
 # OVR-01: the Overseer's default name, and whether it may add context to running tasks without
 # asking (off: it suggests, the user sends it). Each user can change both in Settings.

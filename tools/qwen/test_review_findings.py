@@ -249,6 +249,63 @@ class RepeatTest(unittest.TestCase):
         self.assertTrue(ledger["bbb"]["checked"])
         self.assertEqual(rf.blocking(rf.open_findings(STATE), ledger), [])
 
+    def test_gate_clears_a_repeat_of_a_checked_false_positive_by_title_and_path(self):
+        # The auto-merge gate never runs --triage: a reworded repeat has a new id and must not block.
+        ledger = {
+            "old": {
+                "title": "Missing Error Handling",
+                "path": "web/src/main.ts",
+                "verdict": "false_positive",
+                "checked": True,
+                "fixed": "",
+            },
+            "aaa": {"verdict": "bug", "checked": True, "fixed": "deadbee"},
+        }
+        self.assertEqual(rf.blocking(rf.open_findings(STATE), ledger), [])
+
+    def test_gate_does_not_clear_a_repeat_of_an_unchecked_or_bug_entry(self):
+        for entry in (
+            {"verdict": "false_positive", "checked": False},
+            {"verdict": "bug", "checked": True, "fixed": "deadbee"},
+        ):
+            ledger = {
+                "old": dict(
+                    entry, title="Missing Error Handling", path="web/src/main.ts"
+                ),
+                "aaa": {"verdict": "bug", "checked": True, "fixed": "deadbee"},
+            }
+            self.assertEqual(
+                [fid for fid, _ in rf.blocking(rf.open_findings(STATE), ledger)],
+                ["bbb"],
+            )
+
+    def test_gate_does_not_clear_the_same_title_on_another_file(self):
+        ledger = {
+            "old": {
+                "title": "Missing Error Handling",
+                "path": "web/src/other.ts",
+                "verdict": "false_positive",
+                "checked": True,
+            },
+            "aaa": {"verdict": "bug", "checked": True, "fixed": "deadbee"},
+        }
+        self.assertEqual(
+            [fid for fid, _ in rf.blocking(rf.open_findings(STATE), ledger)], ["bbb"]
+        )
+
+    def test_findings_in_the_qwen_log_are_ignored(self):
+        state = {
+            "findings": [
+                {
+                    "finding_id": "log1",
+                    "state": "ACTIVE",
+                    "path": "docs/qwen-log/kg-04.jsonl",
+                    "body": "**Hard-coded path**\n\nlog",
+                }
+            ]
+        }
+        self.assertEqual(rf.blocking(rf.open_findings(state), {}), [])
+
 
 class JobsTest(unittest.TestCase):
     def test_fix_jobs_only_checked_unfixed_bugs(self):
