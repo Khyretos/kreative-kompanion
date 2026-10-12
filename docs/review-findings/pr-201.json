@@ -1,4 +1,22 @@
 {
+  "0c999626c04a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/overseer.rs",
+    "reason": "Checked by Claude: create_tasks binds the name with .bind(&name) into `lower(name) = lower(?)`; PROJ-ARCHIVE only appended `AND archived_at IS NULL`, a constant. No user text is put into the SQL string.",
+    "title": "Potential SQL Injection",
+    "verdict": "false_positive"
+  },
+  "1c311331e2c3": {
+    "by": "repeat of 3602f3a068a9",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/projectpanel.ts",
+    "reason": "Checked by Claude: the Unarchive button only dispatches the project-unarchive action; archiveProject (web/src/main.ts:1851) awaits api.setProjectSettings and on any error (catch at main.ts:1878) puts archivedAt back from the value before the call and calls showError, which shows the toast. The spec asks for exactly this optimistic flow. The Coder's triage verdict was right; its reason (code not shown) was not.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "3602f3a068a9": {
     "by": "coder",
     "checked": true,
@@ -8,6 +26,15 @@
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
+  "3b9c5971c159": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/projects.rs",
+    "reason": "Checked by Claude (the Coder's answer did not parse, it defaulted to bug): settings() starts with `owned(&s, &id, &u).await?`, which returns NotFound unless the project belongs to the user, before any update including archived; archive_and_unarchive_a_project asserts the 404 for u2 and that archived_at is unchanged.",
+    "title": "Missing Authorization Check",
+    "verdict": "false_positive"
+  },
   "4a43e0ea3fc1": {
     "by": "coder",
     "checked": true,
@@ -15,6 +42,24 @@
     "path": "web/src/main.ts",
     "reason": "Checked by Claude: updating the store before the request is the optimistic update the spec requires (the project leaves the list in the same frame as the tap); on failure the catch at main.ts:1878 restores archivedAt on the current list (not a stale copy, lesson 224) and shows the error. There is no loading state by design. The Coder's triage verdict was right; its reason was not.",
     "title": "Potential Race Condition in State Update",
+    "verdict": "false_positive"
+  },
+  "89387e8c9c1e": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/tasks.ts",
+    "reason": "Checked by Claude: not a defect. A user has tens of projects, so one find per task is cheap, and the same list already calls s.projects.find per task for projectName in the same render. The Coder's verdict stands.",
+    "title": "Inefficient Filtering Logic",
+    "verdict": "false_positive"
+  },
+  "8e33dea57085": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "Checked by Claude: the toast lives in document.body; navigating away unloads the document and its timers, so nothing can leak across pages. Within the page each timer removes its own toast after 6 s and only clears archiveToast if it still points at it (lesson 224). The Coder's reason cited the wrong lines, the verdict is right.",
+    "title": "Potential Memory Leak",
     "verdict": "false_positive"
   }
 }
