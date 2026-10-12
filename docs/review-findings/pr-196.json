@@ -146,7 +146,7 @@
   "a3f497d6a298": {
     "by": "claude",
     "checked": true,
-    "fixed": "pending",
+    "fixed": "e7d845b",
     "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
     "reason": "The run-log README said 8 test cases; selfupdate_tests.rs has 9. Corrected to 9.",
     "title": "Misleading Test Claim",
