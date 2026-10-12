@@ -1,0 +1,13 @@
+[
+  {
+    "name": "gt-plan-metrics-fix",
+    "role": "worker/shell",
+    "out": "docs/plans/gate-tools.md",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "focus": ["PR-Agent | unmeasured"],
+    "prompt": "docs/plans/gate-tools.md now ends with the Metrics block but the check failed: AssertionError: file must end exactly with the block, one final newline (no extra blank line). The file currently ends with an extra blank line after the last table row `| PR-Agent | unmeasured |`. Remove the extra blank line at the very end so the file ends with `| PR-Agent | unmeasured |` followed by exactly one newline. Change nothing else.",
+    "check": "python3 chk/plan.py"
+  }
+]

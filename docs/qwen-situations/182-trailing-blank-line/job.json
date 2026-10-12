@@ -1,0 +1,24 @@
+[
+  {
+    "name": "gt-report-row",
+    "role": "worker/shell",
+    "out": "docs/ai-capability/report-2026-10-12.md",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "focus": ["| 183 | GATE-FIX", "| 177 | stray"],
+    "prompt": "In docs/ai-capability/report-2026-10-12.md insert exactly one new table line directly after the line that starts with `| 183 | GATE-FIX` and before the line that starts with `| 177 | stray`. The new line is, character for character:\n| 184 | GATE-TOOLS integration gate `tools` check | +175 / -2 (outside ledgers; 33 files incl. ledgers +211 / -2) | 26 lines drafted in 9 jobs (3 units x 3 runs), 25 kept; second Coder on soucouyant 9/9 as well | 131, 62,421, 31.86 M (session 88bde86a, 10:30-11:13Z) | Coder 65 GPU s, 1,866 output, 38,598 prompt tokens; soucouyant Coder 10-17 GPU s per 16-line file, tokens unmeasured; PR-Agent: unmeasured | CI green, review gate exit 0, 1 new lesson (180) |\nChange nothing else.",
+    "check": "python3 chk/row.py"
+  },
+  {
+    "name": "gt-plan-metrics",
+    "role": "worker/shell",
+    "out": "docs/plans/gate-tools.md",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "focus": ["Coder totals"],
+    "prompt": "Append the following block at the very end of docs/plans/gate-tools.md (after the last existing line, which is the `Coder totals ...` paragraph), keeping a blank line before it and a single final newline. Block, character for character:\n\n## Metrics (step 10)\n\n| item | value |\n|---|---|\n| Claude, session 88bde86a, 10:30-11:13Z | 131 answers, 62,421 output, 278 input, 31,855,641 cache read, 219,101 cache write |\n| Coder (OVMS) | 9 jobs, 65 GPU s, 1,866 output tokens, 38,598 prompt tokens |\n| Coder (soucouyant Ollama) | 9 jobs, 10-17 GPU s for the 16-line file, tokens unmeasured |\n| Lines | 26 drafted, 25 kept |\n| PR-Agent | unmeasured |\n\nChange nothing else.",
+    "check": "python3 chk/plan.py"
+  }
+]
