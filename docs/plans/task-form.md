@@ -26,3 +26,9 @@ Lines added in web/src: 191; written by Claude: 40 (parseDescription 18, filterD
 Splitting main.ts into one edit per job (after lesson 218) took the Coder from 3 failed attempts on a multi-edit job to 5 of 5 first-try passes.
 
 Lessons: 214 (deploy from a dirty checkout), 215 (precheck skipped new-file units), 216, 217, 218.
+
+## Merged, deployed and live check
+
+PR 199 merged by auto-merge at main 74821c9 once every CI check and review-gate / gate were green (the gate first held on two PR-Agent findings; both were false positives and are recorded in docs/review-findings/pr-199.json). Deployed with `COMPOSE_PROJECT_NAME=kreative-kompanion sh tools/deploy.sh` from a clean worktree at origin/main on kireserver (`~/Docker/Personal-projects/kk-deploy`, .env, kompanion.toml, docker-compose.override.yml, dist and import linked from the main checkout), per lesson 214. The container's bind mounts now point through that worktree, so keep it until the next deploy from a clean tree.
+
+Live check (127.0.0.1:8095, test user, project "OVR live check", 390 px, dark and light): a new task with Goal, two Steps and Done when, and a dependency picked by search + Enter, saved as `**Goal:** ...`, `**Steps**` 1-2, `**Done when:** ...` with `dependsOn` = the base task; both tasks deleted afterwards. 2 of 2 passed.
