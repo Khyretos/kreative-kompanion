@@ -1,68 +1,56 @@
 [
- {
-  "name": "nt-send-test",
-  "role": "worker/web",
-  "out": "web/src/core/desknotify.ts",
-  "precheck": false,
-  "mode": "patch",
-  "max_tokens": 3000,
-  "context": [
-   "web/tests/desknotify.spec.ts"
-  ],
-  "focus": [
-   "export async function enable",
-   "/** What to say for a state change"
-  ],
-  "prompt": "In web/src/core/desknotify.ts add a new exported function `sendTest` directly above the comment `/** What to say for a state change, or null when it is not worth a notification. */`. Signature: `export async function sendTest(): Promise<{ ok: boolean; detail: string }>`. It sends one notification with title \"Kompanion test\" and body \"If you can read this, notifications work.\", and it ignores the enabled() switch and the document focus. Tauri path (`(window as any).__TAURI__?.notification` exists): `await isPermissionGranted()`; when false `await requestPermission()` and check again; when still not granted return `{ ok: false, detail: \"Notifications are blocked: allow Kompanion in System Settings > Notifications.\" }`; then `await sendNotification({ title, body })` and return `{ ok: true, detail: \"Test notification sent through the desktop app.\" }`. Wrap the Tauri calls in try/catch: on an error call `console.error(\"Kompanion test notification failed\", e)` and return `{ ok: false, detail: \"Test notification failed: \" + message }` where message is `e instanceof Error ? e.message : String(e)`. Browser path: when `!(\"Notification\" in window)` return `{ ok: false, detail: \"This browser cannot show notifications.\" }`; when `Notification.permission` is not \"granted\" call `await Notification.requestPermission()` and when the result is not \"granted\" return `{ ok: false, detail: \"Notifications are blocked: allow them for this site in the browser's settings.\" }`; then `new Notification(title, { body, icon: \"/api/mail-logo.png\" })` in a try/catch like above and return `{ ok: true, detail: \"Test notification sent.\" }`. Change nothing else.",
-  "GREP": "__none__",
-  "PRECHECK": "grep -q 'export async function sendTest' web/src/core/desknotify.ts"
- },
- {
-  "name": "nt-log-failures",
-  "role": "worker/web",
-  "out": "web/src/core/desknotify.ts",
-  "precheck": false,
-  "mode": "patch",
-  "max_tokens": 2000,
-  "context": [],
-  "focus": [
-   "// Tauri path",
-   "sendNotification({ title, body })"
-  ],
-  "prompt": "In web/src/core/desknotify.ts, function `onTaskUpdate`: in its Tauri path the line `(window as any).__TAURI__.notification.sendNotification({ title, body });` ignores a failure of the plugin. Replace that single line by `Promise.resolve((window as any).__TAURI__.notification.sendNotification({ title, body })).catch((e: unknown) => console.error(\"Kompanion notification failed\", e));`. Change nothing else.",
-  "GREP": "__none__",
-  "PRECHECK": "grep -q 'Kompanion notification failed' web/src/core/desknotify.ts"
- },
- {
-  "name": "nt-settings-button",
-  "role": "worker/web",
-  "out": "web/src/views/settings.ts",
-  "precheck": false,
-  "mode": "patch",
-  "max_tokens": 2000,
-  "context": [],
-  "focus": [
-   "id=\"desk-notify\"",
-   "desk-notify-msg"
-  ],
-  "prompt": "In web/src/views/settings.ts, in the `<section class=\"desk-notify\">` (heading \"On this device\"): directly after the `<label>` that holds the checkbox `id=\"desk-notify\"` and before the `<p id=\"desk-notify-msg\" ...>` line add the line `<button type=\"button\" class=\"btn\" id=\"desk-notify-test\" data-action=\"desk-notify-test\">Send test notification</button>`. Change nothing else.",
-  "GREP": "__none__",
-  "PRECHECK": "grep -q 'desk-notify-test' web/src/views/settings.ts"
- },
- {
-  "name": "nt-main-action",
-  "role": "worker/web",
-  "out": "web/src/main.ts",
-  "precheck": false,
-  "mode": "patch",
-  "max_tokens": 2500,
-  "context": [
-   "web/src/core/desknotify.ts"
-  ],
-  "focus": [
-   "\"code-copy\": (el) => onCodeAction(el),"
-  ],
-  "prompt": "In web/src/main.ts, in the object passed to `onAction(shell, { ... })`, add a new entry directly above the line `\"code-copy\": (el) => onCodeAction(el),`: `\"desk-notify-test\": async () => { const r = await deskNotify.sendTest(); const msg = document.getElementById(\"desk-notify-msg\"); if (msg) msg.textContent = r.detail; },` (`deskNotify` is already imported as `import * as deskNotify from \"./core/desknotify\";`). Change nothing else.",
-  "GREP": "Test notification button"
- }
+  {
+    "name": "nt-send-test",
+    "role": "worker/web",
+    "out": "web/src/core/desknotify.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3000,
+    "context": ["web/tests/desknotify.spec.ts"],
+    "focus": [
+      "export async function enable",
+      "/** What to say for a state change"
+    ],
+    "prompt": "In web/src/core/desknotify.ts add a new exported function `sendTest` directly above the comment `/** What to say for a state change, or null when it is not worth a notification. */`. Signature: `export async function sendTest(): Promise<{ ok: boolean; detail: string }>`. It sends one notification with title \"Kompanion test\" and body \"If you can read this, notifications work.\", and it ignores the enabled() switch and the document focus. Tauri path (`(window as any).__TAURI__?.notification` exists): `await isPermissionGranted()`; when false `await requestPermission()` and check again; when still not granted return `{ ok: false, detail: \"Notifications are blocked: allow Kompanion in System Settings > Notifications.\" }`; then `await sendNotification({ title, body })` and return `{ ok: true, detail: \"Test notification sent through the desktop app.\" }`. Wrap the Tauri calls in try/catch: on an error call `console.error(\"Kompanion test notification failed\", e)` and return `{ ok: false, detail: \"Test notification failed: \" + message }` where message is `e instanceof Error ? e.message : String(e)`. Browser path: when `!(\"Notification\" in window)` return `{ ok: false, detail: \"This browser cannot show notifications.\" }`; when `Notification.permission` is not \"granted\" call `await Notification.requestPermission()` and when the result is not \"granted\" return `{ ok: false, detail: \"Notifications are blocked: allow them for this site in the browser's settings.\" }`; then `new Notification(title, { body, icon: \"/api/mail-logo.png\" })` in a try/catch like above and return `{ ok: true, detail: \"Test notification sent.\" }`. Change nothing else.",
+    "GREP": "__none__",
+    "PRECHECK": "grep -q 'export async function sendTest' web/src/core/desknotify.ts"
+  },
+  {
+    "name": "nt-log-failures",
+    "role": "worker/web",
+    "out": "web/src/core/desknotify.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2000,
+    "context": [],
+    "focus": ["// Tauri path", "sendNotification({ title, body })"],
+    "prompt": "In web/src/core/desknotify.ts, function `onTaskUpdate`: in its Tauri path the line `(window as any).__TAURI__.notification.sendNotification({ title, body });` ignores a failure of the plugin. Replace that single line by `Promise.resolve((window as any).__TAURI__.notification.sendNotification({ title, body })).catch((e: unknown) => console.error(\"Kompanion notification failed\", e));`. Change nothing else.",
+    "GREP": "__none__",
+    "PRECHECK": "grep -q 'Kompanion notification failed' web/src/core/desknotify.ts"
+  },
+  {
+    "name": "nt-settings-button",
+    "role": "worker/web",
+    "out": "web/src/views/settings.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2000,
+    "context": [],
+    "focus": ["id=\"desk-notify\"", "desk-notify-msg"],
+    "prompt": "In web/src/views/settings.ts, in the `<section class=\"desk-notify\">` (heading \"On this device\"): directly after the `<label>` that holds the checkbox `id=\"desk-notify\"` and before the `<p id=\"desk-notify-msg\" ...>` line add the line `<button type=\"button\" class=\"btn\" id=\"desk-notify-test\" data-action=\"desk-notify-test\">Send test notification</button>`. Change nothing else.",
+    "GREP": "__none__",
+    "PRECHECK": "grep -q 'desk-notify-test' web/src/views/settings.ts"
+  },
+  {
+    "name": "nt-main-action",
+    "role": "worker/web",
+    "out": "web/src/main.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "context": ["web/src/core/desknotify.ts"],
+    "focus": ["\"code-copy\": (el) => onCodeAction(el),"],
+    "prompt": "In web/src/main.ts, in the object passed to `onAction(shell, { ... })`, add a new entry directly above the line `\"code-copy\": (el) => onCodeAction(el),`: `\"desk-notify-test\": async () => { const r = await deskNotify.sendTest(); const msg = document.getElementById(\"desk-notify-msg\"); if (msg) msg.textContent = r.detail; },` (`deskNotify` is already imported as `import * as deskNotify from \"./core/desknotify\";`). Change nothing else.",
+    "GREP": "Test notification button"
+  }
 ]
