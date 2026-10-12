@@ -26,6 +26,15 @@
     "title": "Test Failures Indicate Logic Bugs",
     "verdict": "false_positive"
   },
+  "6c03b442a5a2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "repeat of fb176dda2a96: the `if not token` check below still exits 1",
+    "title": "Missing error handling for token retrieval",
+    "verdict": "false_positive"
+  },
   "776a2e2c8f19": {
     "by": "coder",
     "checked": true,
@@ -55,6 +64,24 @@
   },
   "9993fe318a4b": {
     "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "ROOT is derived from __file__, not a fixed path",
+    "title": "Hard-coded path dependency",
+    "verdict": "false_positive"
+  },
+  "a14a90d7ecab": {
+    "by": "repeat of 3c4bc34594ac",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "qwen-log holds the failed draft rounds of the Coder; the tests pass in CI",
+    "title": "Test Failures Indicate Logic Bug",
+    "verdict": "false_positive"
+  },
+  "a848925761f6": {
+    "by": "repeat of 9993fe318a4b",
     "checked": true,
     "fixed": "",
     "path": "tools/auto_merge.py",
