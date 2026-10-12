@@ -49,6 +49,8 @@ mod tasks;
 mod tasktree;
 mod planner;
 mod planner_web;
+mod scheduler;
+mod scheduler_web;
 mod thread;
 mod util;
 mod voice;
@@ -266,6 +268,7 @@ async fn main() -> anyhow::Result<()> {
         let _ = notify::PUBLIC_URL.set(u.trim_end_matches('/').to_string());
     }
     if state.config.features.gpus { gpus::spawn(state.clone()); }
+    scheduler::spawn(state.clone());
     // CHAT-03b: vectors for knowledge chunks, and the Open WebUI re-import when [knowledge] names its database.
     knowledge::spawn(state.db.clone(), state.http.clone(), state.config.knowledge.openwebui_db.clone().map(|p| (p, state.config.knowledge.openwebui_user.clone().unwrap_or_default())),
         state.config.knowledge.folders.iter().map(|f| (f.name.clone(), f.path.clone())).collect(),
@@ -315,6 +318,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/plans/{id}/apply", post(planner_web::apply))
         .route("/plans/{id}/dismiss", post(planner_web::dismiss))
         .route("/tasks/{id}/replan", post(planner_web::replan))
+        .route("/projects/{id}/scheduler", get(scheduler_web::get).put(scheduler_web::put))
+        .route("/projects/{id}/scheduler/tick", post(scheduler_web::tick))
+        .route("/tasks/{id}/budget", axum::routing::put(scheduler_web::set_budget))
         .route("/tasks/{id}/start", post(taskrun::start))
         .route("/tasks/{id}/stop", post(taskrun::stop))
         .route("/tasks/{id}/interject", post(overseer::interject))
