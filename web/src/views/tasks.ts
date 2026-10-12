@@ -5,6 +5,7 @@ import { activeProject, type AppState } from "../state";
 import type { Effort, Task, TaskEvent, TaskState } from "../api/types";
 import { icon } from "./icons";
 import { matchTask } from "../core/fuzzy";
+import { parseDescription } from "./taskdesc";
 import { renderProjectPanel } from "./projectpanel";
 import { hasTree, renderTree, treeFields, treeLinks } from "./tasktree";
 
@@ -113,12 +114,11 @@ function eventRow(e: TaskEvent): SafeHtml {
   }
 }
 
-export const TEMPLATE = "**Goal:** \n\n**Steps**\n1. \n\n**Done when:** ";
-
 /** Add or change a task: title, description (markdown), state. */
 function editor(t: Task | undefined, projectId: string, s: AppState): SafeHtml {
   const project = s.projects.find((p) => p.id === projectId);
   const state = t?.state ?? "queued";
+  const d = parseDescription(t?.description ?? "");
   return html`
     <div class="pane-head">
       <button class="icon-btn" data-action="cancel-task-edit" aria-label="Cancel">${icon("back")}</button>
@@ -131,11 +131,22 @@ function editor(t: Task | undefined, projectId: string, s: AppState): SafeHtml {
         <input id="task-title" name="title" value="${t?.title ?? ""}" maxlength="200" required>
       </div>
       <div class="field">
-        <label for="task-description">Description</label>
-        <textarea id="task-description" name="description" rows="14" required
-          aria-describedby="task-description-hint">${t?.description || TEMPLATE}</textarea>
-        <p class="hint" id="task-description-hint">Write a goal, numbered steps and when it is done. Markdown works.</p>
+        <label for="task-goal">Goal</label>
+        <textarea id="task-goal" name="goal" rows="2" required placeholder="What this task achieves">${d.goal}</textarea>
       </div>
+      <div class="field">
+        <label for="task-steps">Steps</label>
+        <textarea id="task-steps" name="steps" rows="4" aria-describedby="task-steps-hint">${d.steps}</textarea>
+        <p class="hint" id="task-steps-hint">One step per line; they are numbered for you.</p>
+      </div>
+      <div class="field">
+        <label for="task-done">Done when</label>
+        <textarea id="task-done" name="done" rows="2" required placeholder="How you can tell it is finished">${d.done}</textarea>
+      </div>
+      <details class="task-notes" ${d.notes ? "open" : ""}>
+        <summary>More (Markdown)</summary>
+        <textarea id="task-notes" name="notes" rows="6" aria-label="More (Markdown)">${d.notes}</textarea>
+      </details>
       ${treeFields(t, s.tasks.filter((x) => x.projectId === projectId))}
       <div class="field">
         <label for="task-state">State</label>

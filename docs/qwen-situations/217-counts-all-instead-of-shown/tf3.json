@@ -1,0 +1,12 @@
+[
+  {
+    "name": "tf3",
+    "role": "worker/web",
+    "out": "web/src/views/deppicker.ts",
+    "prompt": "Append two exported functions to the END of web/src/views/deppicker.ts (keep everything that is there). They work on the DOM that depPicker() renders: .dep-chip li elements (each with data-id, the hidden attribute when not chosen, and an <input name=\"deps\"> that is disabled when not chosen), .dep-option li elements (data-id, data-title = lower-case title, hidden when not shown), one .dep-none li, and the #dep-search input.\n\n/** Shows the options that are not chosen and contain the query (case-insensitive). */\nexport function filterDeps(picker: HTMLElement, query: string): void\n- q = query.trim().toLowerCase(); count the shown options.\n- for each picker.querySelectorAll<HTMLElement>(\".dep-option\") o: chosen = the chip picker.querySelector<HTMLElement>(`.dep-chip[data-id=\"${CSS.escape(o.dataset.id ?? \"\")}\"]`) exists and is not hidden; o.hidden = chosen || !(o.dataset.title ?? \"\").includes(q).\n- the .dep-none element: hidden = (shown > 0).\n\n/** Chooses (on) or drops (off) one task, then clears the search and puts the caret back in it. */\nexport function setDep(picker: HTMLElement, id: string, on: boolean): void\n- chip = picker.querySelector<HTMLElement>(`.dep-chip[data-id=\"${CSS.escape(id)}\"]`); return when there is none.\n- chip.hidden = !on; its input[name=\"deps\"]: disabled = !on.\n- the #dep-search input: value = \"\" and focus().\n- then filterDeps(picker, \"\").\nNo other changes; no new imports are needed.",
+    "context": [],
+    "check": "sh /tmp/kk-chk-tf/tf3.sh",
+    "precheck": false,
+    "mode": "patch"
+  }
+]

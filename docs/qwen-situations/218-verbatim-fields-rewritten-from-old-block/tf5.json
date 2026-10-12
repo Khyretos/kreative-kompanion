@@ -1,0 +1,13 @@
+[
+  {
+    "name": "tf5",
+    "role": "worker/web",
+    "out": "web/src/views/tasks.ts",
+    "prompt": "In web/src/views/tasks.ts the task editor (function editor) has one Description textarea prefilled with a literal template. Replace it with guided fields. Three edits:\n\n1. Add this import directly below the line `import { icon } from \"./icons\";`:\nimport { parseDescription } from \"./taskdesc\";\n\n2. Delete the line `export const TEMPLATE = \"**Goal:** \\n\\n**Steps**\\n1. \\n\\n**Done when:** \";` and the empty line after it (nothing uses it any more).\n\n3. In editor(): directly after `const state = t?.state ?? \"queued\";` add\n  const d = parseDescription(t?.description ?? \"\");\nand replace the whole Description field (the <div class=\"field\"> holding label for=\"task-description\", the textarea id=\"task-description\" and the hint paragraph, 6 lines) with:\n      <div class=\"field\">\n        <label for=\"task-goal\">Goal</label>\n        <textarea id=\"task-goal\" name=\"goal\" rows=\"2\" required placeholder=\"What this task achieves\">${d.goal}</textarea>\n      </div>\n      <div class=\"field\">\n        <label for=\"task-steps\">Steps</label>\n        <textarea id=\"task-steps\" name=\"steps\" rows=\"4\" aria-describedby=\"task-steps-hint\">${d.steps}</textarea>\n        <p class=\"hint\" id=\"task-steps-hint\">One step per line; they are numbered for you.</p>\n      </div>\n      <div class=\"field\">\n        <label for=\"task-done\">Done when</label>\n        <textarea id=\"task-done\" name=\"done\" rows=\"2\" required placeholder=\"How you can tell it is finished\">${d.done}</textarea>\n      </div>\n      <details class=\"task-notes\" ${d.notes ? \"open\" : \"\"}>\n        <summary>More (Markdown)</summary>\n        <textarea id=\"task-notes\" name=\"notes\" rows=\"6\" aria-label=\"More (Markdown)\">${d.notes}</textarea>\n      </details>\nparseDescription(md: string): { goal; steps; done; notes } is in web/src/views/taskdesc.ts. Change nothing else.",
+    "context": ["web/src/views/taskdesc.ts"],
+    "check": "sh /tmp/kk-chk-tf/tf5.sh",
+    "precheck": false,
+    "mode": "patch",
+    "focus": ["^import \\{ icon \\}", "TEMPLATE", "function editor\\("]
+  }
+]

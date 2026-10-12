@@ -2,7 +2,6 @@
 // project's Tasks pane (title + badges, details on click) and editable.
 import { test, expect, type Page } from "@playwright/test";
 
-const DESC = "**Goal:** a part of the release.\n\n**Steps**\n1. Do it.\n\n**Done when:** it works.";
 
 async function openProject(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -16,10 +15,15 @@ async function openProject(page: Page): Promise<void> {
 async function add(page: Page, title: string, kind: string, parent?: string, deps: string[] = []): Promise<void> {
   await page.click('[data-action="new-task"]');
   await page.fill("#task-title", title);
-  await page.fill("#task-description", DESC);
+  await page.fill("#task-goal", "a part of the release.");
+  await page.fill("#task-steps", "Do it.");
+  await page.fill("#task-done", "it works.");
   await page.selectOption("#task-kind", kind);
   if (parent) await page.selectOption("#task-parent", { label: parent });
-  for (const d of deps) await page.locator(".task-deps label", { hasText: d }).locator("input").check();
+  for (const d of deps) {
+    await page.fill("#dep-search", d);
+    await page.locator("#dep-options [role=option]:visible", { hasText: d }).click();
+  }
   await page.click('#task-editor button[type="submit"]');
   await expect(page.locator(".task-detail h3")).toHaveText(title);
   await page.click('[data-action="close-task"]');
@@ -74,12 +78,13 @@ test("the tree is editable: move, drop a dependency, delete a milestone", async 
   await page.click('.task-detail [data-action="edit-task"]');
   await expect(page.locator("#task-kind")).toHaveValue("task");
   await expect(page.locator("#task-parent option:checked")).toHaveText("Engine milestone");
-  await expect(page.locator(".task-deps label", { hasText: "Write docs" }).locator("input")).toBeChecked();
+  await expect(page.locator(".dep-chips .dep-chip:visible")).toHaveText(["Write docs"]);
   // A task can't depend on itself or sit under itself.
-  await expect(page.locator(".task-deps label", { hasText: "Ship build" })).toHaveCount(0);
+  await page.fill("#dep-search", "Ship build");
+  await expect(page.locator("#dep-options [role=option]:visible")).toHaveCount(0);
   await expect(page.locator("#task-parent option", { hasText: "Ship build" })).toHaveCount(0);
   await page.selectOption("#task-parent", "");
-  await page.locator(".task-deps label", { hasText: "Write docs" }).locator("input").uncheck();
+  await page.locator('.dep-chip [aria-label="Remove Write docs"]').click();
   await page.click('#task-editor button[type="submit"]');
   await page.click('[data-action="close-task"]');
   await expect(page.locator(".task-tree > ul.tree > li.tree-node", { hasText: "Ship build" })).toHaveCount(1);

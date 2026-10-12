@@ -3,6 +3,7 @@
 import { html, type SafeHtml } from "../core/html";
 import type { Task, TaskKind } from "../api/types";
 import { stateLabel } from "./tasks";
+import { depPicker } from "./deppicker";
 
 const KIND_LABELS: Record<TaskKind, string> = { goal: "Goal", milestone: "Milestone", task: "Task" };
 
@@ -89,10 +90,6 @@ export function treeFields(t: Task | undefined, tasks: Task[]): SafeHtml {
         ${parents.map((x) => html`<option value="${x.id}" ${x.id === t?.parentId ? "selected" : ""}>${x.title}</option>`)}
       </select>
     </div>
-    <fieldset class="field task-deps">
-      <legend>Depends on</legend>
-      ${others.length ? others.map((x) => html`<label><input type="checkbox" name="deps" value="${x.id}"
-        ${t?.dependsOn?.includes(x.id) ? "checked" : ""}> ${x.title}</label>`)
-        : html`<p class="muted small">No other tasks in this project yet.</p>`}
-    </fieldset>`;
+    ${depPicker(t?.dependsOn ?? [], others)}
+  `;
 }
