@@ -1,4 +1,31 @@
 {
+  "0552db78c8e2": {
+    "by": "repeat of 3be423bed617",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly validates that every LOD level from 0 up to the highest found is present by checking if the current level equals the previous level plus one. Checked against the code.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "05958209be56": {
+    "by": "repeat of 3776b44f38f4",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "0ed077642c22": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/plans/kg-11.md",
+    "reason": "The finding describes a known design limitation of the style check algorithm that is explicitly documented in the code's 'Not done' section, rather than identifying a defect or missing validation logic. Checked.",
+    "title": "Incomplete Implementation Note",
+    "verdict": "false_positive"
+  },
   "17d0e278fdb1": {
     "by": "coder",
     "checked": true,
@@ -98,6 +125,15 @@
     "title": "Hard-coded Engine Fallback",
     "verdict": "false_positive"
   },
+  "72c673c9a659": {
+    "by": "repeat of dc8478fc8a11",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code explicitly handles the case where parsing fails by defaulting to u32::MAX, which is a deliberate design choice to prevent crashes rather than an unhandled error.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "7f07dab6d849": {
     "by": "claude",
     "checked": true,
@@ -116,6 +152,15 @@
     "title": "Possible Issue",
     "verdict": "bug"
   },
+  "89add70a78c1": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract.rs",
+    "reason": "The regex pattern is a static string literal that is guaranteed to be valid at compile time, making the use of `expect` impossible to trigger in production. Checked.",
+    "title": "Potential Panic",
+    "verdict": "false_positive"
+  },
   "96dca424b6bb": {
     "by": "coder",
     "checked": true,
@@ -132,6 +177,24 @@
     "path": "docs/plans/kg-11.md",
     "reason": "Comment on the plan document: the integration (asset commit M6-12) is listed under \"Not done\", and the check stores nothing, so there is no partial state to roll back. Checked.",
     "title": "Missing Error Handling Details",
+    "verdict": "false_positive"
+  },
+  "9d70278d1283": {
+    "by": "repeat of e0fc82330f3d",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract.rs",
+    "reason": "The code is written in Rust, a memory-safe language that prevents panics from invalid memory access, and the functions are called within a controlled context where errors can be handled via return values rather than causing catastrophic failures. Checked: the readers use get() and checked slices.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "a8fcc29588b8": {
+    "by": "repeat of 270d23b3c156",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The use of `try_into().ok()?` after a successful `.get()` call is safe because the slice length is guaranteed to be sufficient for the target integer type, making the panic impossible in this specific context.",
+    "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
   "aeda0f725461": {
