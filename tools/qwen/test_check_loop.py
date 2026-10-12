@@ -43,6 +43,25 @@ class FixRounds(unittest.TestCase):
         self.assertIn("x.rs:5", calls[0]["prompt"])
         self.assertNotIn("other.rs", calls[0]["prompt"])
 
+    def test_a_check_that_never_passes_stops_after_three_attempts_in_total(self):
+        calls = []
+        pipeline.run_check = lambda cmd: (False, "error: tools/qwen/pipeline.py: bad")
+        pipeline.patch_job = lambda job, log: calls.append(job)
+        log = io.StringIO()
+        pipeline.check_loop(
+            {
+                "name": "j",
+                "out": "tools/qwen/pipeline.py",
+                "check": "x",
+                "role": "worker/python",
+            },
+            log,
+        )
+        rec = json.loads(log.getvalue())
+        self.assertEqual(rec["check_attempts"], 3)
+        self.assertEqual(len(calls), 2)
+        self.assertFalse(rec["check_passed"])
+
 
 if __name__ == "__main__":
     unittest.main()

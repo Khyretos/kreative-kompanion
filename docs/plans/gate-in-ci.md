@@ -13,11 +13,14 @@ This PR itself has no `review-gate / gate` status (the workflow runs from main):
 | unit | model | attempts | result | lines drafted / kept | lesson |
 |---|---|---|---|---|---|
 | ru1 status_for | OVMS Coder | 1 | passed, but 82 lines instead of 9 | 82 / 9 | 196 |
-| ru2 sweep | OVMS Coder | 4 (1 + 3 repairs) | failed, invented API names | 15 / 0 | 197 |
+| ru2 sweep | OVMS Coder | 4 (1 + 3 repairs; the pipeline still allowed 3 repairs, see lesson 199) | failed, invented API names | 15 / 0 | 197, 199 |
 | ru3 StatusClient | soucouyant qwen3.5 9B | 1 | passed | 52 / 52 | none |
 | ru4 main | soucouyant qwen3.5 9B | 1 | passed, one wrong index | 24 / 23 | 198 |
 | ru5 review-gate.yml | OVMS Coder | 1 | passed | 40 / 40 | none |
 | ru6 auto-merge.json | soucouyant qwen3.5 9B | 1 | passed | 1 / 1 | none |
+| ru9 check_loop cap (follow-up) | OVMS Coder | 1 | passed | 2 / 2 | 199 |
+
+Units that passed on attempt 1: 7 (ru1, ru3, ru4, ru5, ru6, ru7, ru8); ru1 and ru4 then needed Claude fixes (lessons 196, 198). ru7 and ru8 belong to PR 195.
 
 Local models: OVMS 6 calls, 132.5 GPU s, 30,520 prompt / 3,835 output tokens; soucouyant 3 calls, 36.8 GPU s, 20,295 prompt / 1,523 output tokens (docs/qwen-log/gate-in-ci-*.jsonl). Claude tokens: unmeasured (no per-task counter).
 Tests (written first, failing on the untouched tree): tools/test_review_status.py, 11 tests; black and isort applied.

@@ -1,0 +1,2 @@
+{"name": "ru9", "out": "tools/qwen/pipeline.py", "mode": "patch", "gpu_seconds": 9.1, "tokens": 245, "prompt_tokens": 4029, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "worker/python"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-12T19:10:15"}
+{"name": "ru9", "out": "tools/qwen/pipeline.py", "check": "sh /tmp/kk-gate-chk/ru9.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T19:10:15"}

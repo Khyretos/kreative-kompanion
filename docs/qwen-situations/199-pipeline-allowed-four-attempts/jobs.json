@@ -1,0 +1,14 @@
+[
+  {
+    "name": "ru9",
+    "role": "worker/python",
+    "out": "tools/qwen/pipeline.py",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1500,
+    "context": ["tools/qwen/test_check_loop.py"],
+    "focus": ["for n in range(1, 4):", "at most 3 rounds (Kees, 2026-10-05"],
+    "prompt": "In tools/qwen/pipeline.py function check_loop: change the line `    for n in range(1, 4):` to `    for n in range(1, 3):` (so a unit gets 3 attempts in total: the first run plus 2 repair rounds, Kees 2026-10-12). In the docstring of check_loop change `at most 3 rounds (Kees, 2026-10-05:` to `at most 2 rounds, 3 attempts in total (Kees, 2026-10-12; was 3 rounds, 2026-10-05:`. Change nothing else. The test in tools/qwen/test_check_loop.py shows the behaviour.",
+    "check": "sh /tmp/kk-gate-chk/ru9.sh"
+  }
+]
