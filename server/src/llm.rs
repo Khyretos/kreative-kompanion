@@ -47,6 +47,9 @@ pub enum Chunk {
     Usage {
         tokens_in: Option<i64>,
         tokens_out: Option<i64>,
+        /// Anthropic prompt cache: tokens written to / read from the cache (not in tokens_in).
+        cache_write: Option<i64>,
+        cache_read: Option<i64>,
     },
 }
 
@@ -143,16 +146,10 @@ fn authorize(req: reqwest::RequestBuilder, p: &ProviderConfig) -> reqwest::Reque
     }
 }
 
-/// Streams a chat completion as text chunks plus a final usage chunk.
-pub async fn stream_chat(
-    http: &reqwest::Client,
-    p: &ProviderConfig,
-    model: &str,
-    messages: &[ChatMessage],
-) -> Result<impl Stream<Item = Result<Chunk>> + Send + 'static> {
-    // GPU-02: while the A770 is with the studio, a call to Coder waits instead of failing.
-    crate::gpus::role::wait_for_coder(model).await;
-    let (url, body) = match p.kind {
+/// The request URL and JSON body for one streamed chat call. Anthropic gets top-level automatic
+/// prompt caching (KC-01); the provider's extra_body is merged last, so it can override it.
+fn request_body(p: &ProviderConfig, model: &str, messages: &[ChatMessage]) -> Result<(String, Value)> {
+    let (url, mut body) = match p.kind {
         ProviderKind::OpenaiCompatible => (
             join(&p.base_url, "chat/completions"),
             json!({
@@ -177,12 +174,15 @@ pub async fn stream_chat(
                     "system": system.join("\n\n"),
                     "messages": rest,
                     "stream": true,
+                    "cache_control": match p.ttl.as_deref() {
+                        Some(ttl) => json!({ "type": "ephemeral", "ttl": ttl }),
+                        None => json!({ "type": "ephemeral" }),
+                    },
                 }),
             )
         }
     };
 
-    let mut body = body;
     if let (Some(extra), Some(obj)) = (&p.extra_body, body.as_object_mut()) {
         for (k, v) in serde_json::to_value(extra)?
             .as_object()
@@ -192,6 +192,19 @@ pub async fn stream_chat(
             obj.insert(k.clone(), v.clone());
         }
     }
+    Ok((url, body))
+}
+
+/// Streams a chat completion as text chunks plus a final usage chunk.
+pub async fn stream_chat(
+    http: &reqwest::Client,
+    p: &ProviderConfig,
+    model: &str,
+    messages: &[ChatMessage],
+) -> Result<impl Stream<Item = Result<Chunk>> + Send + 'static> {
+    // GPU-02: while the A770 is with the studio, a call to Coder waits instead of failing.
+    crate::gpus::role::wait_for_coder(model).await;
+    let (url, body) = request_body(p, model, messages)?;
     let resp = authorize(http.post(url), p)
         .json(&body)
         .send()
@@ -255,6 +268,8 @@ fn parse_event(kind: &ProviderKind, v: &Value) -> Vec<Chunk> {
                 out.push(Chunk::Usage {
                     tokens_in: v["usage"]["prompt_tokens"].as_i64(),
                     tokens_out: v["usage"]["completion_tokens"].as_i64(),
+                    cache_write: None,
+                    cache_read: None,
                 });
             }
         }
@@ -267,10 +282,14 @@ fn parse_event(kind: &ProviderKind, v: &Value) -> Vec<Chunk> {
             Some("message_start") => out.push(Chunk::Usage {
                 tokens_in: v["message"]["usage"]["input_tokens"].as_i64(),
                 tokens_out: None,
+                cache_write: v["message"]["usage"]["cache_creation_input_tokens"].as_i64(),
+                cache_read: v["message"]["usage"]["cache_read_input_tokens"].as_i64(),
             }),
             Some("message_delta") => out.push(Chunk::Usage {
                 tokens_in: None,
                 tokens_out: v["usage"]["output_tokens"].as_i64(),
+                cache_write: None,
+                cache_read: None,
             }),
             _ => {}
         },
@@ -323,8 +342,73 @@ mod tests {
             &parse_event(&ProviderKind::OpenaiCompatible, &v)[..],
             [Chunk::Usage {
                 tokens_in: Some(5),
-                tokens_out: Some(2)
+                tokens_out: Some(2),
+                ..
             }]
+        ));
+    }
+
+    fn provider(kind: ProviderKind) -> ProviderConfig {
+        ProviderConfig {
+            id: "p".into(),
+            name: "P".into(),
+            kind,
+            base_url: "http://x/v1".into(),
+            local: false,
+            api_key_env: None,
+            extra_body: None,
+            effort: Default::default(),
+            ttl: None,
+        }
+    }
+
+    fn msgs() -> Vec<ChatMessage> {
+        let m = |role: &str, content: &str| ChatMessage {
+            role: role.into(),
+            content: content.into(),
+            images: vec![],
+        };
+        vec![m("system", "Be brief."), m("user", "Hi")]
+    }
+
+    #[test]
+    fn anthropic_body_asks_for_prompt_caching_and_openai_does_not() {
+        let (_, body) = request_body(&provider(ProviderKind::Anthropic), "claude", &msgs()).unwrap();
+        assert_eq!(body["cache_control"], json!({"type": "ephemeral"}));
+        let (_, body) = request_body(&provider(ProviderKind::OpenaiCompatible), "m", &msgs()).unwrap();
+        assert!(body.get("cache_control").is_none());
+    }
+
+    #[test]
+    fn anthropic_ttl_from_the_provider_and_extra_body_override() {
+        let mut p = provider(ProviderKind::Anthropic);
+        p.ttl = Some("1h".into());
+        let (_, body) = request_body(&p, "claude", &msgs()).unwrap();
+        assert_eq!(body["cache_control"], json!({"type": "ephemeral", "ttl": "1h"}));
+        p.extra_body = Some(toml::from_str("cache_control = { type = \"ephemeral\" }").unwrap());
+        let (_, body) = request_body(&p, "claude", &msgs()).unwrap();
+        assert_eq!(body["cache_control"], json!({"type": "ephemeral"}));
+    }
+
+    #[test]
+    fn parses_anthropic_cache_usage() {
+        let v: Value = serde_json::from_str(
+            r#"{"type":"message_start","message":{"usage":{"input_tokens":12,"cache_creation_input_tokens":100,"cache_read_input_tokens":50}}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            &parse_event(&ProviderKind::Anthropic, &v)[..],
+            [Chunk::Usage {
+                tokens_in: Some(12),
+                tokens_out: None,
+                cache_write: Some(100),
+                cache_read: Some(50)
+            }]
+        ));
+        let v: Value = serde_json::from_str(r#"{"type":"message_delta","usage":{"output_tokens":7}}"#).unwrap();
+        assert!(matches!(
+            &parse_event(&ProviderKind::Anthropic, &v)[..],
+            [Chunk::Usage { tokens_out: Some(7), cache_write: None, cache_read: None, .. }]
         ));
     }
 

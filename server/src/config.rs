@@ -317,6 +317,9 @@ pub struct ProviderConfig {
     /// `[provider.effort.high] extra_body = { chat_template_kwargs = { enable_thinking = true } }`.
     #[serde(default)]
     pub effort: std::collections::HashMap<String, EffortMapping>,
+    /// KC-01: how long Anthropic keeps the cached prompt, "5m" (default) or "1h" (costs more to write).
+    #[serde(default)]
+    pub ttl: Option<String>,
 }
 
 /// One effort level on one provider: fields merged over extra_body, and/or another model.
