@@ -1,0 +1,6 @@
+  if (Notification.permission === "denied") {
+    await Notification.requestPermission();
+    if (Notification.permission !== "denied" && Notification.permission !== "granted") {
+      return { ok: false, detail: "Notifications are blocked: allow them for this site in the browser's settings." };
+    }
+  }
