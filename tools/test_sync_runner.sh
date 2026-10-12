@@ -5,7 +5,8 @@ cd "$(dirname "$0")/.." || exit 1
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 fail() {
-    echo "FAIL: $1"; exit 1
+    echo "FAIL: $1"
+    exit 1
 }
 mkbin() {
     printf '#!/bin/sh\necho kompanion-runner %s\n' "$2" >"$1"
