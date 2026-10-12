@@ -153,6 +153,9 @@ pub async fn webhook(State(s): State<AppState>, headers: HeaderMap, body: Bytes)
     
     let _ = crate::tasks::history(&s.db, &task_id, &user_id, "forge", json!({ "state": { "from": current, "to": to }, "pr": url, "action": action })).await;
     let _ = crate::tasks::mark_dirty(&s.db, &task_id).await;
+    if to == "done" {
+        crate::statesum::refresh_for_task(s.db.clone(), task_id.clone(), user_id.clone());
+    }
     crate::notify::task_changed(s.db.clone(), user_id.clone(), task_id.clone(), task_title, current, to.to_string());
     s.bus.send(&user_id, Event::Changed { what: "tasks", machine_id: None });
     

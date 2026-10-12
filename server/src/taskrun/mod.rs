@@ -339,6 +339,9 @@ async fn finish(s: &AppState, r: &Run, state: &str, step: &str) {
         .execute(&s.db)
         .await;
     s.bus.send(&r.user_id, Event::Changed { what: "tasks", machine_id: None });
+    if state == "done" {
+        crate::statesum::refresh_for_task(s.db.clone(), r.task_id.clone(), r.user_id.clone());
+    }
     if state != "done" {
         crate::planner_web::spawn_replan(s.clone(), r.user_id.clone(), r.task_id.clone(), step.to_string());
     }

@@ -103,8 +103,8 @@ type TaskRow = (String, String, String, String, String, f64, String);
 /// the user, failed, in review, the next three queued) with their step; done tasks only as a count
 /// and the last few titles. Bounded to about `max` characters.
 pub async fn scan(db: &SqlitePool, user_id: &str, max: usize) -> Scan {
-    let projects: Vec<(String, String, String)> = sqlx::query_as(
-        "SELECT id, name, description FROM projects WHERE user_id = ? ORDER BY updated_at DESC LIMIT 30",
+    let projects: Vec<(String, String, String, String)> = sqlx::query_as(
+        "SELECT id, name, description, state_summary FROM projects WHERE user_id = ? ORDER BY updated_at DESC LIMIT 30",
     )
     .bind(user_id)
     .fetch_all(db)
@@ -118,13 +118,13 @@ pub async fn scan(db: &SqlitePool, user_id: &str, max: usize) -> Scan {
     .fetch_all(db)
     .await
     .unwrap_or_default();
-    let mut out = Scan { projects: projects.iter().map(|(id, n, _)| (id.clone(), n.clone())).collect(), ..Default::default() };
+    let mut out = Scan { projects: projects.iter().map(|(id, n, _, _)| (id.clone(), n.clone())).collect(), ..Default::default() };
     if projects.is_empty() {
         out.text = "No projects yet.".into();
         return out;
     }
     let mut text = String::new();
-    for (pid, name, description) in &projects {
+    for (pid, name, description, summary) in &projects {
         let mine: Vec<&TaskRow> = tasks.iter().filter(|t| &t.1 == pid).collect();
         let counts: Vec<String> = LABELS
             .iter()
@@ -139,6 +139,11 @@ pub async fn scan(db: &SqlitePool, user_id: &str, max: usize) -> Scan {
             block.push_str(&format!("{}\n", about.trim()));
         }
         block.push_str(&format!("Tasks: {}\n", if counts.is_empty() { "none".into() } else { counts.join(", ") }));
+        // KG-07: what is left and the last merge, from the stored project state summary.
+        for line in summary.lines().filter(|l| l.starts_with("Left:") || l.starts_with("Last merged:")) {
+            block.push_str(line);
+            block.push('\n');
+        }
         let mut queued = 0;
         let mut refs = Vec::new();
         for (id, _, title, state, step, progress, at) in &mine {
@@ -191,6 +196,7 @@ pub fn prompt(name: &str, interject: bool, scan: &Scan, now: &str) -> String {
     format!(
         "You are {name}, the Overseer of Kreative Kompanion. You see all of the user's projects and tasks: the scan \
 below was taken just now ({now} UTC). Answer from the scan and never invent tasks, states or progress.\n\n\
+When asked what is left, answer from the \"Left:\" line of that project; do not count tasks yourself.\n\n\
 When asked for a status: lead with what needs the user (needs you, failed), then what is running and its step, \
 then what is next. Short lines, the task titles in bold, no task references like T3 in the text.\n\n\
 When the user plans a project or a feature with you: ask at most one question when something vital is missing, \
