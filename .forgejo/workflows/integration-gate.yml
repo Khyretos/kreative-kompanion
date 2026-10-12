@@ -7,6 +7,7 @@ enable-email-notifications: false
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: integration-gate
@@ -16,6 +17,12 @@ jobs:
   gate:
     runs-on: kireserver
     timeout-minutes: 60
+    # The bare runner image has no web/node_modules and no cargo: the web check runs npm ci itself and the
+    # server check runs in a rust container on the runner's Docker (tools/gate-server.sh).
+    env:
+      TOKEN: ${{ github.token }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,7 +30,7 @@ jobs:
       - name: Fetch the gate tag
         run: git fetch origin 'refs/tags/gate-ok:refs/tags/gate-ok' || true
       - name: Gate
-        run: python3 tools/integration_gate.py
+        run: python3 tools/integration_gate.py ${{ github.event_name == 'workflow_dispatch' && '--force' || '' }}
       - name: Move the tag
         if: success()
         run: git push -f origin gate-ok || true

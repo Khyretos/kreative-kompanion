@@ -128,5 +128,23 @@ class Gate(unittest.TestCase):
         self.assertLessEqual(len(g.tail("x\n" * 5000)), 1500)
 
 
+class ConfiguredChecks(unittest.TestCase):
+    """The checks in .forgejo/integration-gate.json must carry a real exit code (2026-10-12: `| tail` hid it)."""
+
+    def test_no_check_hides_its_exit_code(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".forgejo", "integration-gate.json")) as f:
+            checks = json.load(f)["checks"]
+        self.assertTrue(checks)
+        for c in checks:
+            self.assertNotIn("|", c["cmd"], c["name"])
+
+    def test_web_check_installs_its_dependencies(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".forgejo", "integration-gate.json")) as f:
+            web = [c for c in json.load(f)["checks"] if c["name"] == "web"][0]
+        self.assertIn("npm ci", web["cmd"])
+
+
 if __name__ == "__main__":
     unittest.main()

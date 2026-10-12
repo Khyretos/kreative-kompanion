@@ -1,0 +1,20 @@
+{
+  "0e3fb769b50d": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/integration-gate.json",
+    "reason": "The finding describes a potential operational risk related to CI timeout configurations rather than a defect in the code logic itself that a test could expose. Checked by Claude: run_check has a 3600 s timeout and the job 60 minutes, as before; nothing new.",
+    "title": "Potential Timeout Risk",
+    "verdict": "false_positive"
+  },
+  "cfee7847b90c": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/integration-gate.json",
+    "reason": "The finding describes a potential CI performance or log readability issue rather than a logical defect in the code that would cause a test to fail incorrectly. Checked by Claude: run_check keeps the full output in memory and the failure task tails it to 1500 characters, so dropping 'tail' loses nothing.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  }
+}
