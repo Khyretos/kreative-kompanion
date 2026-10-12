@@ -277,5 +277,41 @@
     "reason": "Case 4 is labelled \"no runner installed, or an empty dist\"; it checks that nothing is changed. The reviewer read it as the \"already newest\" case, which is case 2.",
     "title": "Flawed Test Case for Empty Dist",
     "verdict": "false_positive"
+  },
+  "4ce7f54c5286": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/access/jobs.rs",
+    "reason": "The diff does add \"self_update\" to the allowed list as intended (the reviewer's own text says so after re-reading); creating the job stays owner-only through the machine ownership check.",
+    "title": "Missing Tool Validation",
+    "verdict": "false_positive"
+  },
+  "63ec02fe56ed": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "Already fixed in b796fe7: the README now says 9 cases.",
+    "title": "Incorrect Test Count",
+    "verdict": "false_positive"
+  },
+  "677aa0c068f0": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "Same as 63ec02fe56ed, already fixed (9 cases).",
+    "title": "Inaccurate Documentation",
+    "verdict": "false_positive"
+  },
+  "953331f01403": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "The test files are part of this PR (runner/src/selfupdate_tests.rs, tools/test_sync_runner.sh, web/tests/runnersync.spec.ts, tools/e2e_runner_update.py); the reviewer only saw a diff chunk without them.",
+    "title": "Misleading Test Summary",
+    "verdict": "false_positive"
   }
 }
