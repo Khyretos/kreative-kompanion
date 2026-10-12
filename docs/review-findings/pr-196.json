@@ -1,4 +1,13 @@
 {
+  "004e7f983b5b": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "The code uses a `done` closure that explicitly calls `std::process::exit()` for all error cases, ensuring the runner terminates immediately after reporting any failure, including those from the self-update logic.",
+    "title": "Missing Error Handling for Self-Update",
+    "verdict": "false_positive"
+  },
   "0067585272ec": {
     "by": "claude",
     "checked": true,
@@ -6,6 +15,15 @@
     "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
     "reason": "This file is the Coder's wrong draft, stored on purpose as the situation record of lesson 205; the real function is in runner/src/selfupdate.rs and is covered by its tests.",
     "title": "Incomplete Update Logic",
+    "verdict": "false_positive"
+  },
+  "299bcd54ad35": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
+    "reason": "The finding describes compilation errors and warnings that are clearly visible in the provided log output, but the claim that these constitute a 'bug' requiring a verdict is incorrect because the code shown does not contain any functional logic to evaluate; it only contains error messages indicating the build failed.",
+    "title": "Compilation Failure",
     "verdict": "false_positive"
   },
   "3308d992833a": {
@@ -80,6 +98,33 @@
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
+  "6fbbb3494d54": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "docs/lessons-learned.md",
+    "reason": "unparsed model answer, Claude decides",
+    "title": "Incomplete Entry",
+    "verdict": "bug"
+  },
+  "877c6aeee16c": {
+    "by": "repeat of cdac423e7d54",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "base_url comes from the paired config (cfg.server, https or localhost only) and is defined a few lines above the job loop; the end-to-end run uses it.",
+    "title": "Hard-coded URL",
+    "verdict": "false_positive"
+  },
+  "92fa989496c1": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The code correctly handles the race condition by retrying up to 20 times with a sleep interval before failing, which is an appropriate strategy for transient file-lock issues during binary replacement.",
+    "title": "Race Condition in Binary Replacement",
+    "verdict": "false_positive"
+  },
   "9b57cbd2ffaf": {
     "by": "claude",
     "checked": true,
@@ -97,6 +142,42 @@
     "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
     "title": "Potential Deadlock / Resource Leak",
     "verdict": "false_positive"
+  },
+  "a3f497d6a298": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "unparsed model answer, Claude decides",
+    "title": "Misleading Test Claim",
+    "verdict": "bug"
+  },
+  "a8049e2eb6e2": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "docs/qwen-situations/202-grep-check-quote-bug-repairs-add-junk/wrong-output.diff",
+    "reason": "The finding correctly identifies that the provided diff content is irrelevant to the current PR scope, but this is a metadata/context error rather than a code defect that a test could expose.",
+    "title": "Incorrect Diff Content",
+    "verdict": "false_positive"
+  },
+  "ab1ebb099b1b": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The hardcoded retry limit is a deliberate design choice to prevent infinite loops during self-update, and the specific error handling for EBUSY (error 26) with a short sleep indicates an intentional strategy rather than an arbitrary magic number.",
+    "title": "Hardcoded Magic Number",
+    "verdict": "false_positive"
+  },
+  "b8a8fcb553b1": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
+    "reason": "The build log explicitly shows compilation errors (E0277, E0425) and unused variable warnings that prevent the code from compiling, indicating a real defect in the submitted changes.",
+    "title": "Build Failure",
+    "verdict": "bug"
   },
   "bd8da2cb46c4": {
     "by": "claude",
@@ -132,6 +213,15 @@
     "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
     "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
     "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e81b6fcdc16c": {
+    "by": "repeat of 4c8f0a623ac6",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
     "verdict": "false_positive"
   },
   "e8f7cd33ea6c": {
