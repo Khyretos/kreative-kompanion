@@ -31,7 +31,7 @@ fn ogg(b: &[u8]) -> Result<(u32, u16), String> {
     }
 }
 
-pub fn check_audio(assets: &[Asset]) -> Vec<Issue> {
+pub fn check_audio(assets: &[&Asset]) -> Vec<Issue> {
     let mut issues = Vec::new();
     for a in assets.iter().filter(|a| a.path.ends_with(".wav") || a.path.ends_with(".ogg")) {
         let parsed = if a.path.ends_with(".wav") { wav(&a.bytes) } else { ogg(&a.bytes) };

@@ -45,7 +45,7 @@ impl Profile {
 pub fn validate(p: &Profile, assets: &[Asset]) -> Vec<Issue> {
     let segment = Regex::new(r"^[a-z0-9][a-z0-9_]*(\.[a-z0-9]+)?$").expect("segment pattern");
     let mut issues = Vec::new();
-    let mut named: Vec<&Asset> = Vec::new();
+    let mut ok: Vec<&Asset> = Vec::new();
     for a in assets {
         if !a.path.split('/').all(|s| segment.is_match(s)) {
             issues.push(Issue::new(&a.path, "name", "names must be lowercase snake_case (a-z, 0-9, _), without spaces, capitals or '..'"));
@@ -56,9 +56,8 @@ pub fn validate(p: &Profile, assets: &[Asset]) -> Vec<Issue> {
             issues.push(Issue::new(&a.path, "type", format!("'.{ext}' is not an accepted type for {} (png, ogg, wav, glb, json)", p.name)));
             continue;
         }
-        named.push(a);
+        ok.push(a);
     }
-    let ok: Vec<Asset> = named.iter().map(|a| Asset { path: a.path.clone(), bytes: a.bytes.clone() }).collect();
     issues.extend(crate::assetimage::check_images(&ok));
     issues.extend(crate::assetaudio::check_audio(&ok));
     issues.extend(crate::assetmodel::check_models(&ok));

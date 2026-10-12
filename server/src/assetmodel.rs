@@ -34,7 +34,7 @@ fn triangles(b: &[u8]) -> Result<u64, String> {
     Ok(total)
 }
 
-pub fn check_models(assets: &[Asset]) -> Vec<Issue> {
+pub fn check_models(assets: &[&Asset]) -> Vec<Issue> {
     let lod = Regex::new(r"^(.*)_lod(\d+)\.glb$").expect("lod pattern");
     let mut issues = Vec::new();
     let mut groups: BTreeMap<String, Vec<(u32, &str, u64)>> = BTreeMap::new();

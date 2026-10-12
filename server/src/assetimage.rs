@@ -107,7 +107,7 @@ fn frame_problem(f: &Value, w: u64, h: u64, names: &mut HashSet<String>) -> Opti
 }
 
 /// Header rules for every PNG; atlas rules for `*_atlas.png` and every .json.
-pub fn check_images(assets: &[Asset]) -> Vec<Issue> {
+pub fn check_images(assets: &[&Asset]) -> Vec<Issue> {
     let mut issues = Vec::new();
     for a in assets.iter().filter(|a| a.path.ends_with(".png")) {
         let head = header(&a.bytes);
