@@ -12,7 +12,9 @@ import integration_gate as g  # noqa: E402
 
 
 def git(cwd, *a):
-    return subprocess.run(["git", *a], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(
+        ["git", *a], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout.strip()
 
 
 def make_repo(tmp):
@@ -33,7 +35,14 @@ def merge_commit(tmp, n, title):
     git(tmp, "add", "-A")
     git(tmp, "commit", "-qm", f"work {n}")
     git(tmp, "checkout", "-q", "main")
-    git(tmp, "merge", "--no-ff", "-qm", f"Merge pull request '{title}' (#{n}) from b{n} into main", f"b{n}")
+    git(
+        tmp,
+        "merge",
+        "--no-ff",
+        "-qm",
+        f"Merge pull request '{title}' (#{n}) from b{n} into main",
+        f"b{n}",
+    )
 
 
 class Gate(unittest.TestCase):
@@ -62,18 +71,30 @@ class Gate(unittest.TestCase):
 
     def test_passing_checks_move_the_tag_and_make_no_task(self):
         merge_commit(self.tmp, 1, "[A-1] one")
-        cfg = {"every": 1, "checks": [{"name": "build", "cmd": "true"}, {"name": "tests", "cmd": "echo 'tests: 12 passed'"}]}
+        cfg = {
+            "every": 1,
+            "checks": [
+                {"name": "build", "cmd": "true"},
+                {"name": "tests", "cmd": "echo 'tests: 12 passed'"},
+            ],
+        }
         out = g.run_gate(self.tmp, cfg, "gate-ok", baseline={"tests": 12})
         self.assertTrue(out["ok"])
         self.assertIsNone(out["task"])
-        self.assertEqual(git(self.tmp, "rev-parse", "gate-ok"), git(self.tmp, "rev-parse", "HEAD"))
+        self.assertEqual(
+            git(self.tmp, "rev-parse", "gate-ok"), git(self.tmp, "rev-parse", "HEAD")
+        )
 
     def test_a_broken_merge_becomes_a_task_with_the_commit_range(self):
         merge_commit(self.tmp, 1, "[A-1] one")
         merge_commit(self.tmp, 2, "[A-2] breaks the build")
         head = git(self.tmp, "rev-parse", "--short", "HEAD")
         base = git(self.tmp, "rev-parse", "--short", "gate-ok")
-        cfg = {"every": 1, "project": "kreative-kompanion", "checks": [{"name": "build", "cmd": "echo boom >&2; exit 3"}]}
+        cfg = {
+            "every": 1,
+            "project": "kreative-kompanion",
+            "checks": [{"name": "build", "cmd": "echo boom >&2; exit 3"}],
+        }
         out = g.run_gate(self.tmp, cfg, "gate-ok", baseline={})
         self.assertFalse(out["ok"])
         t = out["task"]
@@ -86,7 +107,10 @@ class Gate(unittest.TestCase):
 
     def test_a_drop_below_the_baseline_fails(self):
         merge_commit(self.tmp, 1, "[A-1] one")
-        cfg = {"every": 1, "checks": [{"name": "tests", "cmd": "echo 'tests: 10 passed'"}]}
+        cfg = {
+            "every": 1,
+            "checks": [{"name": "tests", "cmd": "echo 'tests: 10 passed'"}],
+        }
         out = g.run_gate(self.tmp, cfg, "gate-ok", baseline={"tests": 12})
         self.assertFalse(out["ok"])
         self.assertIn("10 < baseline 12", out["task"]["description"])

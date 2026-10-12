@@ -4,6 +4,9 @@
   "checks": [
     { "name": "server", "cmd": "cd server && cargo test 2>&1 | tail -5" },
     { "name": "web", "cmd": "cd web && npx tsc --noEmit" },
-    { "name": "tools", "cmd": "python3 -m unittest discover -s tools -p 'test_*.py' 2>&1 | tail -5" }
+    {
+      "name": "tools",
+      "cmd": "python3 -m unittest discover -s tools -p 'test_*.py' 2>&1 | tail -5"
+    }
   ]
 }
