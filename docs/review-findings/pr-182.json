@@ -1,0 +1,110 @@
+{
+  "17d0e278fdb1": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract_tests.rs",
+    "reason": "The code compiles and runs correctly because the helper function `tone` is defined in the same scope as its usage, contrary to the finding's claim that it would cause a compilation error.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "54d49592773a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The use of `try_into().ok()?` after a successful `.get()` call is safe because the slice length is guaranteed to be sufficient for the target integer type, making the panic impossible in this specific context.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "692c7d27ca5a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract_web.rs",
+    "reason": "The ? on the sqlx query turns a database error into an ApiError (500) like every other handler here; the no-row case is a 404. Nothing to change.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "6cbb8685e922": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract_web.rs",
+    "reason": "decode only turns base64 into bytes; validate() checks the extension and every format from the bytes, and nothing is executed or stored. Checked.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "72a1abf6888e": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/main.rs",
+    "reason": "The provided code only shows module declarations and route registrations in main.rs, lacking the actual implementation of assetcontract_web::check where the fallback logic would reside.",
+    "title": "Hard-coded Engine Fallback",
+    "verdict": "false_positive"
+  },
+  "96dca424b6bb": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/main.rs",
+    "reason": "Axum automatically returns a 413 Payload Too Large error when the body limit is exceeded, preventing the handler from running and thus avoiding any silent failures or crashes.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "aeda0f725461": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "c227dc1821fc": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The finding incorrectly identifies a resource leak and performance issue, but the code safely handles large inputs by rejecting them early after parsing the header, and Rust's slice operations do not cause memory leaks or allocation failures as described.",
+    "title": "Potential Resource Leak",
+    "verdict": "false_positive"
+  },
+  "dadf006f82a4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The code explicitly rejects 0x0 dimensions as invalid, which is a deliberate and correct validation choice for image processing tools that require non-zero dimensions.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "dc8478fc8a11": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code explicitly handles the case where parsing fails by defaulting to u32::MAX, which is a deliberate design choice to prevent crashes rather than an unhandled error.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "ea128a936fee": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly enforces a strict decrease in triangle count by flagging any case where the current LOD has more than or equal triangles to the previous one, which aligns with the requirement that higher LOD levels must have strictly fewer triangles.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  },
+  "fb13a22ba7ae": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The finding incorrectly labels a strict validation rule requiring strictly decreasing triangle counts as a bug, when it is actually an intentional design choice to enforce proper LOD hierarchy.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  }
+}
