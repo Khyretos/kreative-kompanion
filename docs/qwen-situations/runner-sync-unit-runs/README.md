@@ -24,4 +24,4 @@ One Coder draft per unit, retried with its own check errors, at most 3 attempts 
 | rsw6   | main.ts action                              | OVMS  | 1                       | Coder                                         |
 | rsdoc1 | docs/runner-install.md section              | souc  | 1                       | Coder, Claude reworded one phrase, lesson 209 |
 
-Tests (written by Claude first): `runner/src/selfupdate_tests.rs` (8 cases incl. a local HTTP server and a concurrent-fork stress test), `tools/test_sync_runner.sh`, `web/tests/runnersync.spec.ts`, `tools/e2e_runner_update.py` (fake server, real runner binary). Lessons 200 to 209.
+Tests (written by Claude first): `runner/src/selfupdate_tests.rs` (8 cases incl. a local HTTP server and a concurrent-fork stress test), `tools/test_sync_runner.sh`, `web/tests/runnersync.spec.ts`, `tools/e2e_runner_update.py` (fake server, real runner binary). Lessons 200 to 210.
