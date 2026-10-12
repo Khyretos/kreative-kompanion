@@ -1,0 +1,29 @@
+{
+  "575b7b242fe7": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "Test failures confirm that the auto-merge logic incorrectly returns 'wait' instead of the expected 'merged', 'blocked', or other statuses under specific conditions.",
+    "title": "Test Failures Indicate Logic Bugs",
+    "verdict": "bug"
+  },
+  "776a2e2c8f19": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "unparsed model answer, Claude decides",
+    "title": "Hardcoded Path Dependency",
+    "verdict": "bug"
+  },
+  "9498996cb9ca": {
+    "by": "coder",
+    "checked": false,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "The provided code snippet does not contain the `gate` function or any `subprocess.run` calls, so the reviewer's claim about missing error handling in those specific lines cannot be verified against the shown code.",
+    "title": "Missing Error Handling for Git Operations",
+    "verdict": "false_positive"
+  }
+}

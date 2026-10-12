@@ -245,6 +245,13 @@ def make_gate(read_token: str, api: str, repo: str) -> Callable[[int], int]:
     """gate(n): main's review_findings.py run against a checkout of the PR head (its ledger)."""
 
     def gate(n: int) -> int:
+        try:
+            return run(n)
+        except subprocess.CalledProcessError as e:
+            print(f"PR #{n}: review gate could not run: {e}", file=sys.stderr)
+            return 3
+
+    def run(n: int) -> int:
         git = ["git", "-C", ROOT]
         subprocess.run(
             git + ["fetch", "-q", "origin", f"+refs/pull/{n}/head:refs/pr/{n}"],
