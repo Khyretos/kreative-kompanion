@@ -4,6 +4,7 @@ mod assets;
 mod api;
 mod auth;
 mod capabilities;
+mod capmatrix;
 mod config;
 mod costs;
 mod contrast;
@@ -322,6 +323,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/tasks/{id}/replan", post(planner_web::replan))
         .route("/projects/{id}/scheduler", get(scheduler_web::get).put(scheduler_web::put))
         .route("/projects/{id}/scheduler/tick", post(scheduler_web::tick))
+        .route("/capabilities", get(capmatrix::get))
+        .route("/capabilities/bench", post(capmatrix::bench))
         .route("/tasks/{id}/budget", axum::routing::put(scheduler_web::set_budget))
         .route("/mcp-grants", get(mcp_grants::list).post(mcp_grants::create))
         .route("/mcp-grants/{id}", axum::routing::delete(mcp_grants::revoke))
