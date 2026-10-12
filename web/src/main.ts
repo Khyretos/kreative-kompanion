@@ -780,7 +780,7 @@ function wire(shell: HTMLElement): void {
   api.onEvent(applyEvent);
 
   onAction(shell, {
-    "desk-notify-test": async () => { const r = await deskNotify.sendTest(); const msg = document.getElementById("desk-notify-msg"); if (msg) msg.textContent = r.detail; },
+    "desk-notify-test": async () => { const msg = document.getElementById("desk-notify-msg"); const r = await deskNotify.sendTest((left) => { if (msg) msg.textContent = `Switch to another app now: the test notification comes in ${left}...`; }); if (msg) msg.textContent = r.detail; },
     "code-copy": (el) => onCodeAction(el),
     "code-wrap": (el) => onCodeAction(el),
     "code-download": (el) => onCodeAction(el),

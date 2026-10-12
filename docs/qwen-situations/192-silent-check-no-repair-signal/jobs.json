@@ -1,0 +1,31 @@
+[
+  {
+    "name": "nd-send-test",
+    "role": "worker/web",
+    "out": "web/src/core/desknotify.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3000,
+    "context": ["web/tests/desknotify.spec.ts"],
+    "focus": [
+      "export async function sendTest",
+      "const title = \"Kompanion test\";"
+    ],
+    "prompt": "In web/src/core/desknotify.ts change `sendTest`: (1) the signature becomes `export async function sendTest(onTick?: (secondsLeft: number) => void): Promise<{ ok: boolean; detail: string }> {`; (2) as the very first statements of the body (before `const title`), add a countdown: `const total: number = (window as any).__kkTestDelaySeconds ?? 5;` then `for (let left = total; left > 0; left--) { onTick?.(left); await new Promise<void>((resolve) => setTimeout(resolve, 1000)); }`. The countdown lets the user switch to another app before the notification is sent (macOS shows no banner for the frontmost app). Change nothing else.",
+    "GREP": "button sends one|desktop app the test|plugin failure|denied permission",
+    "PRECHECK": "grep -q 'onTick' web/src/core/desknotify.ts"
+  },
+  {
+    "name": "nd-main-tick",
+    "role": "worker/web",
+    "out": "web/src/main.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "context": ["web/src/core/desknotify.ts", "web/tests/desknotify.spec.ts"],
+    "focus": ["\"desk-notify-test\": async () => {"],
+    "prompt": "In web/src/main.ts replace the whole line of the `\"desk-notify-test\"` entry of the `onAction(shell, {...})` object by this entry (same indentation): `\"desk-notify-test\": async () => { const msg = document.getElementById(\"desk-notify-msg\"); const r = await deskNotify.sendTest((left) => { if (msg) msg.textContent = `Switch to another app now: the test notification comes in ${left}...`; }); if (msg) msg.textContent = r.detail; },`. Change nothing else.",
+    "GREP": "Test notification button",
+    "PRECHECK": "grep -q 'Switch to another app now' web/src/main.ts"
+  }
+]

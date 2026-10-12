@@ -71,7 +71,8 @@ test.describe("Desk notifications", () => {
 });
 
 test.describe("Test notification button", () => {
-  async function openSettings(page: import("@playwright/test").Page) {
+  async function openSettings(page: import("@playwright/test").Page, delaySeconds = 0) {
+    await page.addInitScript((s) => { (window as any).__kkTestDelaySeconds = s; }, delaySeconds);
     await page.goto("/?demo");
     await page.click("button.found-server");
     await page.click('[data-action="settings"]');
@@ -148,5 +149,27 @@ test.describe("Test notification button", () => {
     await openSettings(page);
     await page.click("#desk-notify-test");
     await expect(page.locator("#desk-notify-msg")).toContainText("blocked");
+  });
+
+  test("the test waits and counts down so the user can switch to another app", async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as any).__notes = [];
+      class FakeNotification {
+        constructor(title: string, options?: { body?: string }) {
+          (window as any).__notes.push({ title, body: options?.body ?? "" });
+        }
+        close() {}
+      }
+      (window as any).Notification = FakeNotification;
+      (window as any).Notification.permission = "granted";
+    });
+    await openSettings(page, 2);
+    await page.click("#desk-notify-test");
+    await expect(page.locator("#desk-notify-msg")).toContainText("Switch to another app now");
+    await expect(page.locator("#desk-notify-msg")).toContainText("2");
+    expect(await page.evaluate(() => (window as any).__notes.length)).toBe(0);
+    await expect(page.locator("#desk-notify-msg")).toContainText("1");
+    await expect(page.locator("#desk-notify-msg")).toContainText("Test notification sent", { timeout: 5000 });
+    expect(await page.evaluate(() => (window as any).__notes.length)).toBe(1);
   });
 });
