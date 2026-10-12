@@ -1,29 +1,65 @@
 {
-  "575b7b242fe7": {
+  "3c4bc34594ac": {
     "by": "coder",
-    "checked": false,
+    "checked": true,
     "fixed": "",
     "path": "docs/qwen-log/ci-auto-merge.jsonl",
-    "reason": "Test failures confirm that the auto-merge logic incorrectly returns 'wait' instead of the expected 'merged', 'blocked', or other statuses under specific conditions.",
+    "reason": "qwen-log holds the failed draft rounds of the Coder; the tests pass in CI",
+    "title": "Test Failures Indicate Logic Bug",
+    "verdict": "false_positive"
+  },
+  "4c2a7eb3b4fe": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "_get raises OSError on any non-200 and main() catches it",
+    "title": "Missing error handling for API calls",
+    "verdict": "false_positive"
+  },
+  "575b7b242fe7": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "same: failed draft rounds in the qwen-log",
     "title": "Test Failures Indicate Logic Bugs",
-    "verdict": "bug"
+    "verdict": "false_positive"
   },
   "776a2e2c8f19": {
     "by": "coder",
-    "checked": false,
+    "checked": true,
     "fixed": "",
     "path": "tools/qwen/review_findings.py",
-    "reason": "unparsed model answer, Claude decides",
+    "reason": "PR_AGENT_ENV default path is unchanged old code; the diff only adds FORGEJO_TOKEN",
     "title": "Hardcoded Path Dependency",
-    "verdict": "bug"
+    "verdict": "false_positive"
   },
   "9498996cb9ca": {
     "by": "coder",
-    "checked": false,
+    "checked": true,
+    "fixed": "756785f",
+    "path": "tools/auto_merge.py",
+    "reason": "a failing git fetch/worktree would abort the whole sweep",
+    "title": "Missing Error Handling for Git Operations",
+    "verdict": "bug"
+  },
+  "9993fe318a4b": {
+    "by": "coder",
+    "checked": true,
     "fixed": "",
     "path": "tools/auto_merge.py",
-    "reason": "The provided code snippet does not contain the `gate` function or any `subprocess.run` calls, so the reviewer's claim about missing error handling in those specific lines cannot be verified against the shown code.",
-    "title": "Missing Error Handling for Git Operations",
+    "reason": "ROOT is derived from __file__, not a fixed path",
+    "title": "Hard-coded path dependency",
+    "verdict": "false_positive"
+  },
+  "fb176dda2a96": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "the existing check below still exits 1 when no token is found",
+    "title": "Potential security risk: Token fallback logic",
     "verdict": "false_positive"
   }
 }
