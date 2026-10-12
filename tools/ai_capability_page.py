@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the AI capability Artifact page from the newest docs/ai-capability/report-*.md (step 11).
-Usage: ai_capability_page.py OUT.html   (publish OUT.html with the Artifact tool, same path = same URL)"""
+Usage: ai_capability_page.py OUT.html   (publish OUT.html with the Artifact tool, same path = same URL)
+"""
 
 import glob
 import html
