@@ -1,0 +1,290 @@
+{
+  "0552db78c8e2": {
+    "by": "repeat of 3be423bed617",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly validates that every LOD level from 0 up to the highest found is present by checking if the current level equals the previous level plus one. Checked against the code.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "05958209be56": {
+    "by": "repeat of 3776b44f38f4",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "0ed077642c22": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/plans/kg-11.md",
+    "reason": "The finding describes a known design limitation of the style check algorithm that is explicitly documented in the code's 'Not done' section, rather than identifying a defect or missing validation logic. Checked.",
+    "title": "Incomplete Implementation Note",
+    "verdict": "false_positive"
+  },
+  "17d0e278fdb1": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract_tests.rs",
+    "reason": "The code compiles and runs correctly because the helper function `tone` is defined in the same scope as its usage, contrary to the finding's claim that it would cause a compilation error.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "270d23b3c156": {
+    "by": "repeat of 54d49592773a",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The use of `try_into().ok()?` after a successful `.get()` call is safe because the slice length is guaranteed to be sufficient for the target integer type, making the panic impossible in this specific context.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "3776b44f38f4": {
+    "by": "repeat of 4eba22e47659",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "3a6a6940854c": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The code already validates that width and height are non-zero immediately after reading them, so defaulting to 0 does not bypass the validation logic. Checked against the code.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "3be423bed617": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly validates that every LOD level from 0 up to the highest found is present by checking if the current level equals the previous level plus one. Checked against the code.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "46cad9186c42": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The Vorbis id packet is 0x01 + \"vorbis\" (7 bytes) + u32 version (4), so the channel byte is at +11 and the rate at +12; offset 27 is the Ogg page header size. Matches the ogg() test fixture and the spec.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "4eba22e47659": {
+    "by": "repeat of aeda0f725461",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "54d49592773a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The use of `try_into().ok()?` after a successful `.get()` call is safe because the slice length is guaranteed to be sufficient for the target integer type, making the panic impossible in this specific context.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "692c7d27ca5a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract_web.rs",
+    "reason": "The ? on the sqlx query turns a database error into an ApiError (500) like every other handler here; the no-row case is a 404. Nothing to change.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "6cbb8685e922": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract_web.rs",
+    "reason": "decode only turns base64 into bytes; validate() checks the extension and every format from the bytes, and nothing is executed or stored. Checked.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "72a1abf6888e": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/main.rs",
+    "reason": "The provided code only shows module declarations and route registrations in main.rs, lacking the actual implementation of assetcontract_web::check where the fallback logic would reside.",
+    "title": "Hard-coded Engine Fallback",
+    "verdict": "false_positive"
+  },
+  "72c673c9a659": {
+    "by": "repeat of dc8478fc8a11",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code explicitly handles the case where parsing fails by defaulting to u32::MAX, which is a deliberate design choice to prevent crashes rather than an unhandled error.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "7f07dab6d849": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/plans/kg-11.md",
+    "reason": "Comment on the plan document: the integration (asset commit M6-12) is listed under \"Not done\", and the check stores nothing, so there is no partial state to roll back. Checked.",
+    "title": "Incomplete Implementation Plan",
+    "verdict": "false_positive"
+  },
+  "85d2fc4f20e9": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "f0ac96d",
+    "path": "server/src/assetcontract.rs",
+    "reason": "validate cloned every asset byte buffer before the format checks; they now take references.",
+    "title": "Possible Issue",
+    "verdict": "bug"
+  },
+  "89add70a78c1": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract.rs",
+    "reason": "The regex pattern is a static string literal that is guaranteed to be valid at compile time, making the use of `expect` impossible to trigger in production. Checked.",
+    "title": "Potential Panic",
+    "verdict": "false_positive"
+  },
+  "96dca424b6bb": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/main.rs",
+    "reason": "Axum automatically returns a 413 Payload Too Large error when the body limit is exceeded, preventing the handler from running and thus avoiding any silent failures or crashes.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "99ed9318b01d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/plans/kg-11.md",
+    "reason": "Comment on the plan document: the integration (asset commit M6-12) is listed under \"Not done\", and the check stores nothing, so there is no partial state to roll back. Checked.",
+    "title": "Missing Error Handling Details",
+    "verdict": "false_positive"
+  },
+  "9d70278d1283": {
+    "by": "repeat of e0fc82330f3d",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract.rs",
+    "reason": "The code is written in Rust, a memory-safe language that prevents panics from invalid memory access, and the functions are called within a controlled context where errors can be handled via return values rather than causing catastrophic failures. Checked: the readers use get() and checked slices.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "a8fcc29588b8": {
+    "by": "repeat of 270d23b3c156",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The use of `try_into().ok()?` after a successful `.get()` call is safe because the slice length is guaranteed to be sufficient for the target integer type, making the panic impossible in this specific context.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "aeda0f725461": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "b26543763b7a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The code already validates JSON validity and the presence of a 'frames' array before attempting to parse frame details, preventing the described failure modes. Checked against the code.",
+    "title": "Potential Logic Flaw",
+    "verdict": "false_positive"
+  },
+  "c227dc1821fc": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The finding incorrectly identifies a resource leak and performance issue, but the code safely handles large inputs by rejecting them early after parsing the header, and Rust's slice operations do not cause memory leaks or allocation failures as described.",
+    "title": "Potential Resource Leak",
+    "verdict": "false_positive"
+  },
+  "c960acc6436d": {
+    "by": "repeat of d93166d34d3c",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly enforces a strict decrease in triangle count by flagging any case where the current LOD has more than or equal triangles to the previous one, which aligns with the requirement that higher LOD levels must have strictly fewer triangles.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  },
+  "d93166d34d3c": {
+    "by": "repeat of ea128a936fee",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly enforces a strict decrease in triangle count by flagging any case where the current LOD has more than or equal triangles to the previous one, which aligns with the requirement that higher LOD levels must have strictly fewer triangles.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  },
+  "dadf006f82a4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The code explicitly rejects 0x0 dimensions as invalid, which is a deliberate and correct validation choice for image processing tools that require non-zero dimensions.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "dc8478fc8a11": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code explicitly handles the case where parsing fails by defaulting to u32::MAX, which is a deliberate design choice to prevent crashes rather than an unhandled error.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e0fc82330f3d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract.rs",
+    "reason": "The code is written in Rust, a memory-safe language that prevents panics from invalid memory access, and the functions are called within a controlled context where errors can be handled via return values rather than causing catastrophic failures. Checked: the readers use get() and checked slices.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "ea128a936fee": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly enforces a strict decrease in triangle count by flagging any case where the current LOD has more than or equal triangles to the previous one, which aligns with the requirement that higher LOD levels must have strictly fewer triangles.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  },
+  "fb13a22ba7ae": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The finding incorrectly labels a strict validation rule requiring strictly decreasing triangle counts as a bug, when it is actually an intentional design choice to enforce proper LOD hierarchy.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  }
+}
