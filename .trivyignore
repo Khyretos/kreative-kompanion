@@ -1,7 +1,0 @@
-# Lint decisions Kees took (LINT-01, .forgejo/lint-decisions.json). Each entry expires,
-# so trivy reports it again on that date and we check whether it can be fixed by then.
-#
-# glib 0.18.5 (desktop/src-tauri/Cargo.lock): Tauri 2.12 / tao 0.37 still pin gtk-rs 0.18,
-# so glib 0.20 is out of reach; Kompanion's code never uses glib::VariantStrIter.
-# Kees, 2026-10-08: accept until Tauri moves (issue #146).
-GHSA-wrw7-89jp-8q8g exp:2027-01-08

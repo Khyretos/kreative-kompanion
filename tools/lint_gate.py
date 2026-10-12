@@ -112,9 +112,10 @@ def call(method, url, token, body=None):
 
 
 def open_issues(decisions, api, token):
-    """One issue per waiting decision; an existing one (open or closed) is kept.
-    A decided item's open issue gets the decision as a comment and is closed."""
+    """One issue per waiting decision; an existing one (open or closed) is kept."""
     for d in decisions:
+        if d.get("decided"):
+            continue
         title = f"Lint decision: {d['id']}"
         query = urllib.parse.urlencode({"state": "all", "type": "issues", "q": title})
         found = [
@@ -122,18 +123,6 @@ def open_issues(decisions, api, token):
             for i in call("GET", f"{api}/issues?{query}", token)
             if i["title"] == title
         ]
-        if d.get("decided"):
-            for issue in [i for i in found if i["state"] == "open"]:
-                url = f"{api}/issues/{issue['number']}"
-                call(
-                    "POST",
-                    url + "/comments",
-                    token,
-                    {"body": f"Decided: {d['decided']}"},
-                )
-                call("PATCH", url, token, {"state": "closed"})
-                print(f"{title}: decided, closed issue #{issue['number']}")
-            continue
         if found:
             print(f"{title}: issue #{found[0]['number']} exists")
             continue
