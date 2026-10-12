@@ -1,0 +1,119 @@
+{
+  "3c4bc34594ac": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "qwen-log holds the failed draft rounds of the Coder; the tests pass in CI",
+    "title": "Test Failures Indicate Logic Bug",
+    "verdict": "false_positive"
+  },
+  "4c2a7eb3b4fe": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "_get raises OSError on any non-200 and main() catches it",
+    "title": "Missing error handling for API calls",
+    "verdict": "false_positive"
+  },
+  "575b7b242fe7": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "same: failed draft rounds in the qwen-log",
+    "title": "Test Failures Indicate Logic Bugs",
+    "verdict": "false_positive"
+  },
+  "6c03b442a5a2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "repeat of fb176dda2a96: the `if not token` check below still exits 1",
+    "title": "Missing error handling for token retrieval",
+    "verdict": "false_positive"
+  },
+  "776a2e2c8f19": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "PR_AGENT_ENV default path is unchanged old code; the diff only adds FORGEJO_TOKEN",
+    "title": "Hardcoded Path Dependency",
+    "verdict": "false_positive"
+  },
+  "77f972a5c37c": {
+    "by": "repeat of 3c4bc34594ac",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "qwen-log holds the failed draft rounds of the Coder; the tests pass in CI",
+    "title": "Test Failures Indicate Logic Bug",
+    "verdict": "false_positive"
+  },
+  "9498996cb9ca": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "756785f",
+    "path": "tools/auto_merge.py",
+    "reason": "a failing git fetch/worktree would abort the whole sweep",
+    "title": "Missing Error Handling for Git Operations",
+    "verdict": "bug"
+  },
+  "9993fe318a4b": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "ROOT is derived from __file__, not a fixed path",
+    "title": "Hard-coded path dependency",
+    "verdict": "false_positive"
+  },
+  "a14a90d7ecab": {
+    "by": "repeat of 3c4bc34594ac",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "qwen-log holds the failed draft rounds of the Coder; the tests pass in CI",
+    "title": "Test Failures Indicate Logic Bug",
+    "verdict": "false_positive"
+  },
+  "a848925761f6": {
+    "by": "repeat of 9993fe318a4b",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "ROOT is derived from __file__, not a fixed path",
+    "title": "Hard-coded path dependency",
+    "verdict": "false_positive"
+  },
+  "bb4036a40ff2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "REVIEW_REPO already falls back to the script's own checkout (the `or` branch)",
+    "title": "Missing fallback for REVIEW_REPO",
+    "verdict": "false_positive"
+  },
+  "bc3b923f109b": {
+    "by": "repeat of 9993fe318a4b",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "ROOT is derived from __file__, not a fixed path",
+    "title": "Hard-coded path dependency",
+    "verdict": "false_positive"
+  },
+  "fb176dda2a96": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "the existing check below still exits 1 when no token is found",
+    "title": "Potential security risk: Token fallback logic",
+    "verdict": "false_positive"
+  }
+}

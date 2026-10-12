@@ -1,0 +1,13 @@
+{
+  "base": "main",
+  "opt_out_label": "no-auto-merge",
+  "own_context": "auto-merge /",
+  "required": [
+    "build / skills",
+    "build / runner",
+    "build / web",
+    "build / server",
+    "build / web-live",
+    "lint / megalinter"
+  ]
+}

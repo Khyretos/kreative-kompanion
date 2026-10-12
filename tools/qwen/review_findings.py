@@ -22,7 +22,10 @@ import re
 import sys
 import urllib.request
 
-REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# REVIEW_REPO: a checkout of the PR head (CI-MERGE runs main's script against it).
+REPO = os.environ.get("REVIEW_REPO") or os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 # Import pipeline only inside the triage function to avoid config needs for tests.
 # pylint: disable=import-outside-toplevel
@@ -374,8 +377,8 @@ def main():
     )
 
     # Read token
-    token = None
-    if os.path.exists(env_file):
+    token = os.environ.get("FORGEJO_TOKEN")
+    if not token and os.path.exists(env_file):
         with open(env_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
