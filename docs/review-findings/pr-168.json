@@ -1,0 +1,47 @@
+{
+  "66ba4f8c0a43": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/scheduler_web.rs",
+    "reason": "The code correctly uses parameterized queries with .bind() for all user-supplied inputs, preventing SQL injection, and the finding's concern about string interpolation is not present in the provided snippet.",
+    "title": "Potential SQL Injection",
+    "verdict": "false_positive"
+  },
+  "7ec9839fcb13": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/scheduler_web.rs",
+    "reason": "The finding incorrectly identifies a race condition where budget validation fails to check effort limits, but the code correctly validates that all budget values are at least 1 and updates the database atomically within a single transaction.",
+    "title": "Race Condition in Budget Validation",
+    "verdict": "false_positive"
+  },
+  "93b1e1b7603f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/scheduler_web.rs",
+    "reason": "The code correctly propagates errors from `scheduler::tick_project` because the function returns an `ApiResult`, and any internal failure within `tick_project` would be converted into an HTTP error response by the framework rather than being silently ignored.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "b80fe6da14b1": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/scheduler.rs",
+    "reason": "The code explicitly handles the case where a task or project configuration is missing by returning or using default values, which is a valid design choice to prevent crashes rather than a bug.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "dd908bd7a925": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/scheduler.rs",
+    "reason": "The code correctly implements the requirement that tasks with a specific machine request must be assigned to that exact machine if available, and skipping them when it is taken is the intended behavior rather than a bug.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  }
+}
