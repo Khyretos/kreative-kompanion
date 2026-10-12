@@ -8,6 +8,7 @@
     "build / web",
     "build / server",
     "build / web-live",
-    "lint / megalinter"
+    "lint / megalinter",
+    "review-gate / gate"
   ]
 }

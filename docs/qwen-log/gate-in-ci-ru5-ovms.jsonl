@@ -1,0 +1,2 @@
+{"name": "ru5", "out": ".forgejo/workflows/review-gate.yml", "gpu_seconds": 31.4, "tokens": 945, "prompt_tokens": 6663, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "shared/processes"], "lines": 40, "model": "Coder", "at": "2026-10-12T18:51:35"}
+{"name": "ru5", "out": ".forgejo/workflows/review-gate.yml", "check": "sh /tmp/kk-gate-chk/ru5.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T18:51:35"}

@@ -1,0 +1,2 @@
+{"name": "ru6", "out": ".forgejo/auto-merge.json", "mode": "patch", "gpu_seconds": 3.0, "tokens": 125, "prompt_tokens": 2219, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL"], "lines": 1, "attempts": 1, "model": "qwen3.5:9b-q8_0-64k", "at": "2026-10-12T18:51:06"}
+{"name": "ru6", "out": ".forgejo/auto-merge.json", "check": "sh /tmp/kk-gate-chk/ru6.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T18:51:06"}

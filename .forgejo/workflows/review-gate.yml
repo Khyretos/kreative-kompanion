@@ -1,0 +1,40 @@
+# GATE-IN-CI: post the review gate (tools/qwen/review_findings.py) of every open PR as the commit status "review-gate / gate" so a PR cannot look mergeable before the gate passes; the status is required in .forgejo/auto-merge.json.
+name: review-gate
+enable-email-notifications: false
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, labeled, unlabeled]
+  issue_comment:
+    types: [created, edited]
+  schedule:
+    - cron: "*/10 * * * *"
+
+concurrency:
+  group: review-gate
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    # A comment on an issue (not a PR) has nothing to gate.
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request
+    runs-on: kireserver
+    timeout-minutes: 15
+    container:
+      image: node:22 # has python3 and git
+    env:
+      FORGEJO_API: ${{ github.server_url }}/api/v1
+      REPO: ${{ github.repository }}
+      READ_TOKEN: ${{ github.token }}
+      STATUS_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+    steps:
+      - name: Check out main (plain git; trusted code, never the PR's)
+        run: |
+          git init -q . && git config core.autocrlf false
+          git remote add origin "${{ github.server_url }}/${{ github.repository }}"
+          git config http.extraHeader "Authorization: token ${{ github.token }}"
+          git fetch -q origin main && git checkout -q -B main FETCH_HEAD
+      - name: Post the review gate status
+        run: |
+          [ -f tools/review_status_io.py ] || { echo 'tools/review_status_io.py is not on main yet: nothing to do'; exit 0; }
+          if [ -z "$STATUS_TOKEN" ]; then echo 'secret AUTO_MERGE_TOKEN is not set: nothing posted'; exit 0; fi
+          python3 tools/review_status_io.py
