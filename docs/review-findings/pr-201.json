@@ -1,0 +1,20 @@
+{
+  "3602f3a068a9": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/projectpanel.ts",
+    "reason": "Checked by Claude: the Unarchive button only dispatches the project-unarchive action; archiveProject (web/src/main.ts:1851) awaits api.setProjectSettings and on any error (catch at main.ts:1878) puts archivedAt back from the value before the call and calls showError, which shows the toast. The spec asks for exactly this optimistic flow. The Coder's triage verdict was right; its reason (code not shown) was not.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "4a43e0ea3fc1": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "Checked by Claude: updating the store before the request is the optimistic update the spec requires (the project leaves the list in the same frame as the tap); on failure the catch at main.ts:1878 restores archivedAt on the current list (not a stale copy, lesson 224) and shows the error. There is no loading state by design. The Coder's triage verdict was right; its reason was not.",
+    "title": "Potential Race Condition in State Update",
+    "verdict": "false_positive"
+  }
+}
