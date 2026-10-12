@@ -18,4 +18,4 @@ Situation docs/qwen-situations/193-coder-adds-its-own-test-module/ (with every r
 
 ## Live rerun
 
-(added after the deploy)
+Deployed 15:44Z (main d065c8a). Fox platformer, test user, project "OVR live check": plan in 129 s, no failure; 6 code tasks with dependencies, 3 asset tasks (sprite, sfx, music) linked to their code tasks; the 3 assets had no source (3 `no_source` issues) which GAMEPLAN-SOURCES fixes.

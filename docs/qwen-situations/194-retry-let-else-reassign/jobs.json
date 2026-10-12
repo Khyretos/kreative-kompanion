@@ -1,0 +1,26 @@
+[
+  {
+    "name": "gp-fill-sources",
+    "role": "worker/rust",
+    "out": "server/src/gameplan.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3500,
+    "context": ["server/src/gameplan_tests.rs"],
+    "focus": ["pub fn fill_sources"],
+    "prompt": "In server/src/gameplan.rs replace the body of `pub fn fill_sources` (currently `todo!()`). For every task in `plan.asset_tasks` that has no `library_id` and no `workflow`: find the output its kind needs with `output_of_kind(&task.kind)` (skip the task when None); choose the workflow: first the one in `workflows` whose `name` equals the task's kind lower-cased and whose `output` equals that output, otherwise the first workflow in `workflows` whose `output` equals it; skip the task when there is none. Set `task.workflow = Some(name)`; when that workflow has a parameter named \"prompt\" insert `\"prompt\"` = the task's `title` as a JSON string into `task.params` (use `Value::String(task.title.clone())`). Push the task's key onto the result and return the keys in plan order. Do NOT add tests or modules: the tests are in gameplan_tests.rs. Change nothing else.",
+    "CHECKFILTERS": "an_asset_without another_image nothing_is_filled"
+  },
+  {
+    "name": "gp-call-fill",
+    "role": "worker/rust",
+    "out": "server/src/gameplan.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "context": ["server/src/gameplan_tests.rs"],
+    "focus": ["prefer_library(&mut plan"],
+    "prompt": "In server/src/gameplan.rs, function `generate`: directly after the line `prefer_library(&mut plan, library);` add the line `fill_sources(&mut plan, workflows);`. Do NOT add tests or modules. Change nothing else.",
+    "CHECKFILTERS": "generate_fills_missing the_model_is_asked_again library_assets_are_swapped_in after_three_bad_rounds"
+  }
+]
