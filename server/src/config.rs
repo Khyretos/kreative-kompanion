@@ -31,6 +31,10 @@ pub struct Config {
     pub gpus: Vec<GpuConfig>,
     #[serde(default, rename = "provider")]
     pub providers: Vec<ProviderConfig>,
+    /// KG-04: `[[ladder]]` rungs a task run escalates to, in order, when the worker role cannot finish
+    /// it (a strong model on any provider is opt-in: add it here). None: the run asks the user at once.
+    #[serde(default, rename = "ladder")]
+    pub ladder: Vec<LadderRung>,
     #[serde(default)]
     pub roles: HashMap<String, RoleDefault>,
     /// Single sign-on with an OpenID Connect provider such as Keycloak.
@@ -297,6 +301,25 @@ fn default_oidc_label() -> String {
 pub enum ProviderKind {
     OpenaiCompatible,
     Anthropic,
+}
+
+/// One escalation rung (KG-04): another model that retries a task the one below could not finish.
+#[derive(Debug, Clone, Deserialize)]
+pub struct LadderRung {
+    /// Shown in the task's notes; the model name when not set.
+    #[serde(default)]
+    pub name: Option<String>,
+    pub provider: String,
+    pub model: String,
+    /// Fix rounds this rung may use (at most what the effort level allows); None keeps the level's.
+    #[serde(default)]
+    pub fix_rounds: Option<i64>,
+}
+
+impl LadderRung {
+    pub fn label(&self) -> String {
+        self.name.clone().unwrap_or_else(|| self.model.clone())
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

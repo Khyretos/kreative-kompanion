@@ -201,7 +201,13 @@ pub async fn run_report(s: &AppState, user_id: &str, run_id: &str) -> ApiResult<
     
     let summary_val = summary(&steps, &calls, &rounds.as_array().map(|v| v.as_slice()).unwrap_or(&[]), &status);
     
+    let ladder: String = sqlx::query_scalar("SELECT ladder FROM runs WHERE id = ?")
+        .bind(&run_id)
+        .fetch_one(&s.db)
+        .await
+        .unwrap_or_default();
     Ok(json!({
+        "ladder": serde_json::from_str::<Value>(&ladder).unwrap_or(json!([])),
         "summary": summary_val,
         "runId": run_id,
         "task": { "id": task_id, "title": title },
