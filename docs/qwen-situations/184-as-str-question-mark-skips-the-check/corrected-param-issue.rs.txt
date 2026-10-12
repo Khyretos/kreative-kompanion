@@ -1,0 +1,35 @@
+pub fn param_issue(p: &WfParam, v: &Value) -> Option<String> {
+    match p.kind.as_str() {
+        "number" => {
+            if !v.is_number() {
+                return Some(format!("Parameter {} must be a number.", p.name));
+            }
+            let num = v.as_f64().unwrap();
+            if let Some(m) = p.min {
+                if num < m {
+                    return Some(format!("Parameter {} must be between {} and {}.", p.name, p.min.unwrap_or_default(), p.max.unwrap_or_default()));
+                }
+            }
+            if let Some(m) = p.max {
+                if num > m {
+                    return Some(format!("Parameter {} must be between {} and {}.", p.name, p.min.unwrap_or_default(), p.max.unwrap_or_default()));
+                }
+            }
+            None
+        }
+        "choice" => {
+            let shown = v.as_str().map(String::from).unwrap_or_else(|| v.to_string());
+            if v.as_str().is_some_and(|s| p.choices.iter().any(|c| c == s)) {
+                return None;
+            }
+            Some(format!("Parameter {} must be one of {}; \"{}\" is not allowed.", p.name, p.choices.join(", "), shown))
+        }
+        "text" => {
+            if !v.is_string() {
+                return Some(format!("Parameter {} must be text.", p.name));
+            }
+            None
+        }
+        _ => None,
+    }
+}

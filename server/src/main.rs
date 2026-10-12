@@ -58,6 +58,7 @@ mod studio;
 mod skillrepo;
 mod tasks;
 mod tasktree;
+mod gameplan;
 mod planner;
 mod planner_web;
 mod scheduler;

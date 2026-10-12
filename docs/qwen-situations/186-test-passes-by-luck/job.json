@@ -1,0 +1,17 @@
+{
+ "name": "gp-prefer",
+ "role": "worker/rust",
+ "out": "server/src/gameplan.rs",
+ "precheck": false,
+ "mode": "patch",
+ "max_tokens": 3500,
+ "context": [
+  "server/src/gameplan_tests.rs",
+  "server/src/planner.rs"
+ ],
+ "prompt": "In server/src/gameplan.rs replace the body of `pub fn prefer_library` (currently `todo!()`). For every asset task of `plan.asset_tasks` that has a `workflow` and no `library_id`: look for library assets with the same `kind` (compare lower-cased) that share at least one tag with the task's `tags` (tags compare lower-cased); count the shared tags per library asset; take the one with the most shared tags, and on a tie the one with the smallest `id` (string order). When one is found set the task's `library_id` to Some(its id), `workflow` to None and clear `params`, and push the task's key onto the result. Return the keys in plan order. Tasks that already use the library or have no match are left alone. Change nothing else.",
+ "CHECKFILTERS": "library_assets_are_preferred_over_generating nothing_is_swapped_without_a_match",
+ "focus": [
+  "pub fn prefer_library"
+ ]
+}
