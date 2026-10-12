@@ -66,7 +66,7 @@ API, with two throwaway projects made through POST /api/overseer/tasks:
 
 Browser (Playwright on the live app with the test session, 1280 px dark and 390 px light): "Show archived (3)" shows the archived rows; Unarchive from the menu drops the count to 2 at once; Archive shows the "Archived … Undo" toast; no reload and no sideways scroll. The menu button is 44 px at 390 px.
 
-Found live and fixed in the follow-up PR (lesson 225): the fade-in on archived rows replayed on every sidebar re-render, so they flickered faint, and at 390 px the chip and the count left the name about 50 px ("Archi…"). The animation is gone, the count is hidden on archived rows and their name wraps. Coder unit p1 drafted it first try, identical to the reference.
+Found live and fixed in the follow-up PR (lesson 225): the fade-in on archived rows replayed on every sidebar re-render, so they flickered faint, and at 390 px the chip and the count left the name about 50 px ("Archi…"). The animation is gone, the count is hidden on archived rows and their name wraps. Coder unit p1 drafted it first try, identical to the reference. My p1 prompt asked for a second `.project.archived .project-name` rule, which stylelint refuses (no-duplicate-selectors); Coder unit p2 merged the two rules first try.
 
 ## Metrics
 
