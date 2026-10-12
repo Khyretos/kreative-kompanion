@@ -156,7 +156,13 @@ class ConfiguredChecks(unittest.TestCase):
         with open(path) as f:
             script = f.read()
         # the runner image has no Pillow, numpy or ffmpeg: the script installs them and runs every test
-        for word in ("docker run", "ffmpeg", "python3-pil", "python3-numpy", "unittest discover -s tools"):
+        for word in (
+            "docker run",
+            "ffmpeg",
+            "python3-pil",
+            "python3-numpy",
+            "unittest discover -s tools",
+        ):
             self.assertIn(word, script)
         self.assertNotIn("| tail", script)
         subprocess.run(["sh", "-n", path], check=True)
