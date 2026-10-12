@@ -340,6 +340,7 @@ async fn finish(s: &AppState, r: &Run, state: &str, step: &str) {
         .await;
     s.bus.send(&r.user_id, Event::Changed { what: "tasks", machine_id: None });
     if state == "done" {
+        let _ = crate::capmatrix::record(&s.db, &r.worker.provider_id, &r.worker.model_id, crate::capmatrix::task_type(&r.title, &r.description), true).await;
         crate::statesum::refresh_for_task(s.db.clone(), r.task_id.clone(), r.user_id.clone());
     }
     if state != "done" {
@@ -568,6 +569,17 @@ async fn run(s: AppState, mut r: Run) {
     let mut used = vec![(r.worker.provider_id.clone(), r.worker.model_id.clone())];
     let mut tried: Vec<ladder::Tried> = Vec::new();
     let (mut name, mut reason) = ("Worker role".to_string(), "worker role".to_string());
+    // KG-08: a worker role the capability matrix knows to fail this task type is skipped for a rung it knows to pass.
+    let ttype = crate::capmatrix::task_type(&r.title, &r.description);
+    let matrix = crate::capmatrix::load(&s.db).await;
+    if let Some(start) = crate::capmatrix::pick_start(&used[0], &rungs, ttype, &matrix, |p| s.config.provider(p).is_some()) {
+        let line = format!("The capability matrix says {} rarely finishes {ttype} tasks alone; starting with {} ({}).", r.worker.model_id, start.label(), start.model);
+        note(&s, &r, &line).await;
+        use_rung(&mut r, start);
+        used.push((start.provider.clone(), start.model.clone()));
+        name = start.label();
+        reason = format!("capability matrix ({ttype})");
+    }
     loop {
         let tokens_before = crate::scheduler::tokens_used(&s, &r.run_id).await;
         let rung_began = std::time::Instant::now();
@@ -575,6 +587,7 @@ async fn run(s: AppState, mut r: Run) {
             Outcome::Failed(why) => why,
             Outcome::Ended => return,
         };
+        let _ = crate::capmatrix::record(&s.db, &r.worker.provider_id, &r.worker.model_id, ttype, false).await;
         tried.push(ladder::Tried {
             rung: tried.len(),
             name: name.clone(),
