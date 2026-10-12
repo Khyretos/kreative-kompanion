@@ -545,7 +545,7 @@ def check_loop(job, log):
             break
         mine = own_errors(errors, out)
         if not mine:
-            break
+            mine = f"These errors do not name {out}. Fix {out} if it is the cause.\n\n{errors}"
         fix = {k: v for k, v in job.items() if k not in ("check", "focus", "context")}
         fix.update(
             name=f"{job['name']}#fix{n}",
