@@ -189,7 +189,12 @@ def main(argv=None):
             f,
             indent=2,
         )
-    print(out["task"]["title"] + f"\ntask written to {a.task_out}")
+    print(
+        out["task"]["title"]
+        + "\n"
+        + out["task"]["description"]
+        + f"\ntask written to {a.task_out}"
+    )
     return 1
 
 
