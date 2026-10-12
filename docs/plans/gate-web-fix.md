@@ -35,5 +35,7 @@ The first run of the gate (KG-09) on the KG-11 merge (main 08da2ad, Forgejo task
 ## Metrics (step 10)
 
 Config-only change, so no Coder draft went through pipeline.py (step 4 skipped, not zero).
-Claude for this PR (from 09:17Z, to the first push): 26 answers, 11,515 output tokens, 3.0 M cache read.
-Local models, review and CI rounds: filled in when the PR is green.
+Claude from 09:17Z to the green PR: 45 answers, 21,432 output tokens, 5.84 M cache read (includes STU-N2 prep).
+Local models: PR-Agent found nothing on the head (prompt tokens unmeasured); no Coder use. Review and CI: 1 push,
+CI 7/7 green on the first head (ee0430c), review gate exit 0, 0 findings, 0 fix rounds. Time: about 5 minutes of waiting
+on CI out of roughly 25 minutes.
