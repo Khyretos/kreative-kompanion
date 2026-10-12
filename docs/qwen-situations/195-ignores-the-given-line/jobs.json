@@ -1,0 +1,17 @@
+[
+  {
+    "name": "tf-screenshot",
+    "role": "worker/web",
+    "out": "web/tests/tasktree.spec.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "context": [],
+    "focus": [
+      "await tree.screenshot({ path: `test-results/kg01-tree-${scheme}-390.png` });"
+    ],
+    "prompt": "In web/tests/tasktree.spec.ts, test `the tree fits a 390 px phone in ${scheme} mode`: the app re-renders the tree between the visibility check and the screenshot, so `tree.screenshot` fails with \"Element is not attached to the DOM\". Replace the single line `await tree.screenshot({ path: `test-results/kg01-tree-${scheme}-390.png` });` by `await expect(async () => {\\n      await page.locator(\".task-tree\").screenshot({ path: `test-results/kg01-tree-${scheme}-390.png` });\\n    }).toPass({ timeout: 5000 });` (the locator is looked up again on every try). Change nothing else.",
+    "GREP": "x",
+    "PRECHECK": ""
+  }
+]
