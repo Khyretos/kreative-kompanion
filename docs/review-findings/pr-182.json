@@ -17,6 +17,15 @@
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
+  "3776b44f38f4": {
+    "by": "repeat of 4eba22e47659",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
   "3a6a6940854c": {
     "by": "claude",
     "checked": true,
@@ -89,6 +98,15 @@
     "title": "Hard-coded Engine Fallback",
     "verdict": "false_positive"
   },
+  "7f07dab6d849": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/plans/kg-11.md",
+    "reason": "Comment on the plan document: the integration (asset commit M6-12) is listed under \"Not done\", and the check stores nothing, so there is no partial state to roll back. Checked.",
+    "title": "Incomplete Implementation Plan",
+    "verdict": "false_positive"
+  },
   "85d2fc4f20e9": {
     "by": "claude",
     "checked": true,
@@ -105,6 +123,15 @@
     "path": "server/src/main.rs",
     "reason": "Axum automatically returns a 413 Payload Too Large error when the body limit is exceeded, preventing the handler from running and thus avoiding any silent failures or crashes.",
     "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "99ed9318b01d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/plans/kg-11.md",
+    "reason": "Comment on the plan document: the integration (asset commit M6-12) is listed under \"Not done\", and the check stores nothing, so there is no partial state to roll back. Checked.",
+    "title": "Missing Error Handling Details",
     "verdict": "false_positive"
   },
   "aeda0f725461": {
@@ -132,6 +159,15 @@
     "path": "server/src/assetaudio.rs",
     "reason": "The finding incorrectly identifies a resource leak and performance issue, but the code safely handles large inputs by rejecting them early after parsing the header, and Rust's slice operations do not cause memory leaks or allocation failures as described.",
     "title": "Potential Resource Leak",
+    "verdict": "false_positive"
+  },
+  "c960acc6436d": {
+    "by": "repeat of d93166d34d3c",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly enforces a strict decrease in triangle count by flagging any case where the current LOD has more than or equal triangles to the previous one, which aligns with the requirement that higher LOD levels must have strictly fewer triangles.",
+    "title": "Logic Error",
     "verdict": "false_positive"
   },
   "d93166d34d3c": {
