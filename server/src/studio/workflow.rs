@@ -67,6 +67,14 @@ pub struct StudioMeta {
     /// STU-R2: a refine step works on a picture the user sends ([inputs] source); type pickers leave it out.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub refine: bool,
+    /// STU-N2: a cast scene type holds this many people (vn-cast-2/3/4); the Studio shows the first as one
+    /// "cast" type and picks the matching workflow by the number of people.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub cast: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 /// STU-01: a preset changes a base workflow's parameter: its template and/or default.
@@ -740,6 +748,40 @@ licence = "CreativeML OpenRAIL-M"
             assert!(pos.contains("no helmet, face visible") && neg.contains("helmet, headwear") && face.contains("detailed face"), "{name}");
             let (pos, neg, face) = text("none");
             assert!(!pos.contains("helmet") && !neg.contains("helmet") && face.contains("detailed face"), "{name}: {pos}");
+        }
+    }
+
+    /// STU-N2: a cast scene gives every person their own strip and prompt, keeps the adult guard on each, and the
+    /// strips cover the whole picture with a small overlap.
+    #[test]
+    fn cast_scenes_give_each_person_a_strip_and_keep_the_guard() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        for n in 2..=4u32 {
+            let name = format!("vn-cast-{n}");
+            let w = all.iter().find(|(x, _)| *x == name).unwrap().1.as_ref().unwrap();
+            assert_eq!(w.studio.as_ref().unwrap().cast, n, "{name}");
+            let g: Value = serde_json::from_str(&std::fs::read_to_string(dir.join(&name).join(&w.graph)).unwrap()).unwrap();
+            let mut given = m(json!({"prompt": "a rooftop", "rating": "general"}));
+            for i in 1..=n {
+                given.insert(format!("person{i}"), json!(format!("person number {i}")));
+            }
+            let (g, _) = w.fill(&g, &given).unwrap();
+            let mut edge = 0.0f64;
+            for i in 1..=n {
+                let enc = g[(30 + i).to_string()]["inputs"]["text"].as_str().unwrap();
+                assert!(enc.contains(&format!("person number {i}")) && enc.contains("adult, mature"), "{name} person {i}: {enc}");
+                let area = &g[(40 + i).to_string()]["inputs"];
+                let (x, width) = (area["x"].as_f64().unwrap(), area["width"].as_f64().unwrap());
+                assert!(i == 1 && x == 0.0 || x < edge && x > edge - 0.2, "{name} strip {i} overlaps the previous one by a little: x {x}, edge {edge}");
+                edge = x + width;
+            }
+            assert!((edge - 1.0).abs() < 0.001, "{name}: the strips end at {edge}");
+            let neg = g["5"]["inputs"]["text"].as_str().unwrap();
+            assert!(neg.contains("child, loli, shota, underage"), "{name}: {neg}");
+            assert!(g["4"]["inputs"]["text"].as_str().unwrap().contains("adult, mature"), "{name}");
+            // the sampler gets the combined conditioning, not the scene alone
+            assert_eq!(g["7"]["inputs"]["positive"], json!([format!("{}", 50 + n), 0]), "{name}");
         }
     }
 

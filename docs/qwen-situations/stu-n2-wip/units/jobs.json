@@ -1,0 +1,126 @@
+[
+ {
+  "name": "cast-rust-meta",
+  "role": "worker/rust",
+  "out": "server/src/studio/workflow.rs",
+  "focus": [
+   "pub struct StudioMeta",
+   "pub refine: bool"
+  ],
+  "precheck": false,
+  "max_tokens": 1500,
+  "prompt": "In server/src/studio/workflow.rs, struct `StudioMeta`: add a new last field after `refine`: `pub cast: u32,` with the doc comment `/// STU-N2: a cast scene type holds this many people (vn-cast-2/3/4); the Studio shows the first as one \"cast\" type and picks the matching workflow by the number of people.` and the attribute `#[serde(default, skip_serializing_if = \"is_zero\")]`. Directly after the closing brace of the struct add `fn is_zero(n: &u32) -> bool {\\n    *n == 0\\n}`. Change nothing else.",
+  "check": "docker run --rm -v /tmp/kk-n2c:/src -v kk-n2-target:/cache/target -v kompanion-cargo-registry:/usr/local/cargo/registry -e CARGO_TARGET_DIR=/cache/target -e CARGO_BUILD_JOBS=8 -e CFLAGS=\"-Du_int8_t=uint8_t -Du_int16_t=uint16_t -Du_int64_t=uint64_t\" -w /src/server rust:1-alpine sh -c \"apk add --no-cache -q musl-dev git && cargo test --locked cast_scenes\"",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-http",
+  "role": "worker/web",
+  "out": "web/src/api/http.ts",
+  "focus": [
+   "async studioTypes"
+  ],
+  "precheck": false,
+  "max_tokens": 3000,
+  "prompt": "In web/src/api/http.ts method `studioTypes`: (1) in the type of the `studio` field of the request generic, add `cast?: number` after `refine?: boolean`; (2) in the object returned by the `.map(...)`, after `helmet: !!w.params?.some((p) => p.name === \"helmet\")` add two properties: `cast: w.studio!.cast === 2 ? true : undefined` and `hidden: (w.studio!.cast ?? 0) > 2 ? true : undefined`. Change nothing else; keep every other character of those lines.",
+  "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'hidden: (w.studio!.cast' web/src/api/http.ts",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-studio-view",
+  "role": "worker/web",
+  "out": "web/src/views/studio.ts",
+  "focus": [
+   "export interface StudioType",
+   "export function renderStudioMake",
+   "studio-prompt\"",
+   "class=\"studio-pick\""
+  ],
+  "precheck": false,
+  "max_tokens": 3500,
+  "prompt": "In web/src/views/studio.ts make these edits: (1) add `import { castPanel } from \"./studio-cast-panel\";` after the line importing `icon` from \"./icons\"; (2) in `interface StudioType` add two optional fields at the end: `cast?: boolean; hidden?: boolean`; (3) `renderStudioMake` gets a last parameter `cast: string[] = [\"\", \"\"]` after `helmet = \"\"`; (4) replace `const chosen = types.find((t) => t.name === form.type) ?? types[0];` with two lines: `const shown = types.filter((t) => !t.hidden);` and `const chosen = shown.find((t) => t.name === form.type) ?? shown[0];`; (5) in the studio-pick div use `shown.map(` instead of `types.map(`; (6) the label of #studio-prompt says `\"Place and mood\"` when `chosen?.cast` (between the audio text and the default \"What should it show?\"); (7) right before the line that starts with `${audio === \"music\" ? html`<label for=\"studio-lyrics\">` insert a line `${chosen?.cast ? castPanel(cast) : \"\"}` with the same indentation. Change nothing else.",
+  "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'castPanel(cast)' web/src/views/studio.ts",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-mock",
+  "role": "worker/web",
+  "out": "web/src/api/mock.ts",
+  "focus": [
+   "name: \"video\", label: \"Video\""
+  ],
+  "precheck": false,
+  "max_tokens": 2500,
+  "prompt": "In web/src/api/mock.ts, in the array returned by `studioTypes`, right after the line with `name: \"video\", label: \"Video\"` add a comment line `// STU-N2: the cast scene is one card; the 3 and 4 people workflows are picked by the number of people.` and three entries: `{ name: \"vn-cast-2\", label: \"VN scene, cast\", hint: \"Two to four named characters, each with their own look\", sizes: [\"wide\"], order: 22, ratings: [\"general\", \"sensitive\", \"questionable\", \"explicit\"], adultRatings: [\"questionable\", \"explicit\"], negative: \"\", cast: true },` then `{ name: \"vn-cast-3\", label: \"VN scene, 3 people\", hint: \"\", sizes: [\"wide\"], order: 23, hidden: true },` then `{ name: \"vn-cast-4\", label: \"VN scene, 4 people\", hint: \"\", sizes: [\"wide\"], order: 24, hidden: true },`. Change nothing else.",
+  "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'vn-cast-3' web/src/api/mock.ts",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-main-state",
+  "role": "worker/web",
+  "out": "web/src/main.ts",
+  "focus": [
+   "^import .*views/studio",
+   "^let studioHelmet",
+   "renderStudioMake\\(s.studioTypes"
+  ],
+  "precheck": false,
+  "max_tokens": 3000,
+  "prompt": "In web/src/main.ts: (1) after the line `import { renderStudioMake, renderStudioLibrary } from \"./views/studio\";` add `import { castNew, castAdd, castRemove, castMove, castType, castParams, castProblem } from \"./views/studio-cast\";`; (2) after the line `let studioHelmet = \"\";` (keep its comment) add `let studioCast = castNew(); // STU-N2: the people of a cast scene, left to right`; (3) in the call `renderStudioMake(s.studioTypes, ..., studioNegative, studioHelmet)` add `studioCast` as a last argument. Change nothing else.",
+  "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'studioHelmet, studioCast' web/src/main.ts",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-main-actions",
+  "role": "worker/web",
+  "out": "web/src/main.ts",
+  "focus": [
+   "\"studio-size\": \\(el\\)"
+  ],
+  "precheck": false,
+  "max_tokens": 3000,
+  "prompt": "In web/src/main.ts, in the object of click actions, directly before the line `\"studio-size\": (el) =>` add three entries, each on one line and ending with a comma: `\"studio-cast-add\": () => { studioCast = castAdd(studioCast); store.set({ studioForm: { ...store.get().studioForm } }); },`; `\"studio-cast-remove\": (el) => { studioCast = castRemove(studioCast, Number(el.dataset.index)); store.set({ studioForm: { ...store.get().studioForm } }); },`; `\"studio-cast-move\": (el) => { studioCast = castMove(studioCast, Number(el.dataset.index), Number(el.dataset.dir) < 0 ? -1 : 1); store.set({ studioForm: { ...store.get().studioForm } }); },`. Same indentation as the studio-size line. Change nothing else.",
+  "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'studio-cast-move' web/src/main.ts",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-main-input",
+  "role": "worker/web",
+  "out": "web/src/main.ts",
+  "focus": [
+   "el.id === \"studio-helmet\""
+  ],
+  "precheck": false,
+  "max_tokens": 2000,
+  "prompt": "In web/src/main.ts, in the `input` event listener, directly after the line `if (el.id === \"studio-helmet\") { studioHelmet = el.value; return; }` add two lines: `const person = /^studio-person-(\\d)$/.exec(el.id);` and `if (person) { studioCast[Number(person[1])] = el.value; return; }` (same indentation). Change nothing else.",
+  "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'studio-person-' web/src/main.ts",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-main-make",
+  "role": "worker/web",
+  "out": "web/src/main.ts",
+  "focus": [
+   "Describe what to make",
+   "api.studioMake\\(f.type"
+  ],
+  "precheck": false,
+  "max_tokens": 3500,
+  "prompt": "In web/src/main.ts, in the studio form submit handler: (1) replace the line `if (!prompt) { store.set({ studioForm: { ...f, count, error: \"Describe what to make.\" } }); return; }` and the following line `const chosen = store.get().studioTypes?.find((t) => t.name === f.type);` by three lines in this order: `const chosen = store.get().studioTypes?.find((t) => t.name === f.type);` then `const problem = chosen?.cast ? castProblem(prompt, studioCast) : prompt ? \"\" : \"Describe what to make.\";` then `if (problem) { store.set({ studioForm: { ...f, count, error: problem } }); return; }`; (2) in the `api.studioMake(` call use `chosen?.cast ? castType(studioCast.length) : f.type` instead of the first argument `f.type`, and replace the last argument `chosen?.helmet && studioHelmet.trim() ? { helmet_desc: studioHelmet.trim() } : undefined` by `chosen?.cast ? castParams(studioCast) : chosen?.helmet && studioHelmet.trim() ? { helmet_desc: studioHelmet.trim() } : undefined`. Change nothing else.",
+  "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'castType(studioCast.length)' web/src/main.ts",
+  "mode": "patch"
+ },
+ {
+  "name": "cast-css",
+  "role": "worker/web",
+  "out": "web/src/views/studio.css",
+  "focus": [
+   "^\\.studio-options"
+  ],
+  "precheck": false,
+  "max_tokens": 2500,
+  "prompt": "In web/src/views/studio.css, directly before the line that starts with `.studio-options {` add this block of rules, one rule per line: a comment `/* STU-N2: the Cast panel (two to four people, left to right). */`; `.studio-cast` as a bordered box: `border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.75rem 0.75rem; margin: 0; display: grid; gap: 0.6rem; min-width: 0;`; `.studio-cast legend` bold, colour var(--fg-strong), `padding: 0 0.35rem`; `.studio-cast-person` a wrapping flex row (`gap: 0.35rem 0.5rem; align-items: center`); `.studio-cast-person label[for], .studio-cast-person textarea` get `flex-basis: 100%`; `.studio-cast button` small (font-size 0.8rem, padding 0.2rem 0.6rem, var(--radius), background var(--surface-2), colour var(--fg-strong), 1px solid var(--line) border, cursor pointer); `.studio-cast button:hover` border-color var(--accent); `.studio-cast button:focus-visible` outline 2px solid var(--accent) with outline-offset 2px; `.studio-cast > button` justify-self start. Use only these CSS variables, no colours.",
+  "check": "grep -q 'studio-cast-person' web/src/views/studio.css && grep -q 'studio-cast button:focus-visible' web/src/views/studio.css",
+  "mode": "patch"
+ }
+]

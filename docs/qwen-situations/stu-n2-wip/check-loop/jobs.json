@@ -1,0 +1,15 @@
+[
+ {
+  "name": "check-loop-repair",
+  "role": "worker/python",
+  "mode": "patch",
+  "out": "tools/qwen/pipeline.py",
+  "focus": [
+   "^def check_loop"
+  ],
+  "precheck": false,
+  "max_tokens": 2000,
+  "prompt": "In tools/qwen/pipeline.py function `check_loop`: the repair round is skipped when none of the check's errors name the edited file (a failing unit test prints its own file name, not the file under repair), so the loop ends with `break` and the model never sees the error. Change only the three lines\n        mine = own_errors(errors, out)\n        if not mine:\n            break\nso that when `own_errors` finds nothing, `mine` becomes the whole `errors` text with one line in front of it that says these errors do not name the file and the file should be fixed if it is the cause (use an f-string with `out`), and the loop goes on to the repair round instead of breaking. When `own_errors` finds something, behave exactly as before. Change nothing else.",
+  "check": "python3 -m py_compile tools/qwen/pipeline.py && python3 tools/qwen/test_check_loop.py"
+ }
+]

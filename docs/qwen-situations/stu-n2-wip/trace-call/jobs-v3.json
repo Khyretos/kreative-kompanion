@@ -1,0 +1,16 @@
+[
+ {
+  "name": "trace-call",
+  "role": "worker/python",
+  "mode": "patch",
+  "out": "tools/qwen/pipeline.py",
+  "focus": [
+   "^def ask\\(system, user, max_tokens\\)",
+   "choice\\[\"message\"\\]\\[\"content\"\\],"
+  ],
+  "precheck": false,
+  "max_tokens": 2500,
+  "prompt": "In tools/qwen/pipeline.py add a new function `trace_call(system, user, answer, completion_tokens)` directly above `def ask(system, user, max_tokens):`. When the environment variable KK_TRACE_DIR is not set or empty it returns None and writes nothing. Otherwise it creates that directory (os.makedirs with exist_ok=True), writes ONE json file there per call and returns the file path. The file name is time.strftime('%Y%m%dT%H%M%S') + '-' + str(time.time_ns() % 10**9).zfill(9) + '.json' (time, json and os are already imported; add no import). The file holds the object {\"model\": getattr(LANE, \"model\", \"\"), \"system\": system, \"user\": user, \"answer\": answer, \"completion_tokens\": completion_tokens} written with json.dump(..., ensure_ascii=False, indent=1) and encoding utf-8. Then change the end of `ask`: its last statement is a `return (` with a tuple whose first item is the line `choice[\"message\"][\"content\"],`. Use ONE edit block that SEARCHes exactly these three lines (copied from the file) and REPLACES them with the call line followed by the same three lines:\n    return (\n        choice[\"message\"][\"content\"],\n        time.time() - t,\nThe new line goes BEFORE `return (` at the same indentation as it: `    trace_call(system, user, choice[\"message\"][\"content\"], v.get(\"usage\", {}).get(\"completion_tokens\", 0))`. Never write `// ...` in an edit block (it only marks skipped lines in the excerpt). Do not wrap or change the return value. Change nothing else.",
+  "check": "python3 -m py_compile tools/qwen/pipeline.py && python3 tools/qwen/test_trace.py"
+ }
+]

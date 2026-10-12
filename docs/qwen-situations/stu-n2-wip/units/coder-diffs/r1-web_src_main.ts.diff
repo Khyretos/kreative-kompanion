@@ -1,0 +1,63 @@
+--- /tmp/base.tmp	2026-10-12 12:28:22.363777159 +0200
++++ /tmp/claude-1000/-media-development/63e7bfbc-ab5d-426c-8a46-35181f730b00/scratchpad/r1/web/src/main.ts	2026-10-12 12:13:04.000000000 +0200
+@@ -31,6 +31,7 @@
+ import { renderCapabilities, type GpuModeName } from "./views/capabilities";
+ import { renderKnowledge } from "./views/knowledge";
+ import { renderStudioMake, renderStudioLibrary } from "./views/studio";
++import { castNew, castAdd, castRemove, castMove } from "./views/studio-cast";
+ 
+ // STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
+ let studioPrompt = "";
+@@ -41,6 +42,7 @@
+ let studioFaceWeight = "";
+ let studioNegative = ""; // STU-N1: the Leave out words, kept like the prompt
+ let studioHelmet = ""; // STU-C3: the helmet description (empty: no helmet pair)
++let studioCast = castNew(); // STU-N2: the people of a cast scene, left to right
+ const studioSides: Record<string, "on" | "off"> = {}; // STU-C3: which side each helmet pair shows
+ import { ALL_FEATURES } from "./api/types";
+ import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
+@@ -338,7 +340,7 @@
+     if (s.section !== prev.section || firstRender) mount($("#studio"), h`<div class="studio">
+       ${pageHead("Studio", "Describe it, pick a type and a size; Kompanion picks the GPU.")}
+       <div id="studio-make"></div><div id="studio-lib"></div></div>`);
+-    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight, studioNegative, studioHelmet));
++    if (changed(s, prev, ["studioTypes", "studioForm", "section"]) || firstRender) mount($("#studio-make"), renderStudioMake(s.studioTypes, s.studioForm, studioPrompt, studioLyrics, studioSeconds, studioRating, s.isAdult, studioFace?.name ?? "", studioFaceWeight, studioNegative, studioHelmet, studioCast));
+     if (changed(s, prev, ["studioTypes", "studioRuns", "section", "projects", "studioSent", "studioPicked", "studioHidden"]) || firstRender) mount($("#studio-lib"), renderStudioLibrary(s.studioTypes, s.studioRuns, s.projects, s.studioSent, s.studioPicked, s.studioHidden, studioSides));
+   }
+ 
+@@ -847,6 +849,9 @@
+       if (card) card.dataset.side = side;
+       el.parentElement?.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === el)));
+     },
++    "studio-cast-add": () => { studioCast = castAdd(studioCast); store.set({ studioForm: { ...store.get().studioForm } }); },
++    "studio-cast-remove": (el) => { studioCast = castRemove(studioCast, Number(el.dataset.index)); store.set({ studioForm: { ...store.get().studioForm } }); },
++    "studio-cast-move": (el) => { studioCast = castMove(studioCast, Number(el.dataset.index), Number(el.dataset.dir) < 0 ? -1 : 1); store.set({ studioForm: { ...store.get().studioForm } }); },
+     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
+     // A finished image, large, in a dialog that closes on Escape or a click.
+     "studio-open": (el) => {
+@@ -1429,12 +1434,13 @@
+       const prompt = studioPrompt.trim();
+       const four = studioForm.elements.namedItem("four") as HTMLInputElement | null;
+       const count = four?.checked ? 4 : 1;
+-      if (!prompt) { store.set({ studioForm: { ...f, count, error: "Describe what to make." } }); return; }
+-      const chosen = store.get().studioTypes?.find((t) => t.name === f.type);
++    const chosen = store.get().studioTypes?.find((t) => t.name === f.type);
++    const problem = chosen?.cast ? castNew().castProblem(studioCast.length.toString(), studioCast) : prompt ? "" : "Describe what to make.";
++      if (problem) { store.set({ studioForm: { ...f, count, error: problem } }); return; }
+       store.set({ studioForm: { ...f, count, busy: true, error: undefined } });
+       const made = chosen?.audio
+         ? api.studioAudio(chosen.audio, prompt, studioLyrics, Number(studioSeconds) || chosen.seconds?.default || 4)
+-        : api.studioMake(f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined, chosen?.face && studioFace ? { file: studioFace, weight: Number(studioFaceWeight || "0.85") } : undefined, chosen?.negative !== undefined ? studioNegative.trim() : undefined, chosen?.helmet && studioHelmet.trim() ? { helmet_desc: studioHelmet.trim() } : undefined);
++        : api.studioMake(chosen?.cast ? studioCast.length : f.type, prompt, f.size, count, chosen?.ratings?.length ? (studioForm.elements.namedItem("rating") as HTMLSelectElement | null)?.value : undefined, chosen?.cast ? studioCast : chosen?.helmet && studioHelmet.trim() ? { helmet_desc: studioHelmet.trim() } : undefined, chosen?.negative !== undefined ? studioNegative.trim() : undefined, chosen?.helmet && studioHelmet.trim() ? { helmet_desc: studioHelmet.trim() } : undefined);
+       void made
+         .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
+         .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
+@@ -1605,6 +1611,8 @@
+     if (el.id === "studio-lyrics") { studioLyrics = el.value; return; }
+     if (el.id === "studio-negative") { studioNegative = el.value; return; }
+     if (el.id === "studio-helmet") { studioHelmet = el.value; return; }
++    const person = /^studio-person-(\d)$/.exec(el.id);
++    if (person) { studioCast[Number(person[1])] = el.value; return; }
+     if (el.id === "studio-seconds") { studioSeconds = el.value; return; }
+     if (el.id === "studio-rating") { studioRating = el.value; return; }
+     if (el.id === "studio-face") { studioFace = el.files?.[0]; store.set({ studioForm: { ...store.get().studioForm } }); return; }

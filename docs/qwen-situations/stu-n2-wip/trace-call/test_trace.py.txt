@@ -1,0 +1,39 @@
+"""Run: python3 tools/qwen/test_trace.py  (KK_TRACE_DIR makes pipeline.py keep every prompt and answer, R0.7)."""
+
+import glob
+import json
+import os
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pipeline  # noqa: E402
+
+
+class TraceCall(unittest.TestCase):
+    def test_nothing_is_written_without_the_variable(self):
+        os.environ.pop("KK_TRACE_DIR", None)
+        self.assertIsNone(pipeline.trace_call("sys", "usr", "ans", 7))
+
+    def test_one_json_file_per_call_with_prompt_and_answer(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.environ["KK_TRACE_DIR"] = os.path.join(d, "sub")
+            try:
+                a = pipeline.trace_call("system text", "user text", "answer text", 5)
+                b = pipeline.trace_call("s2", "u2", "a2 é", 6)
+            finally:
+                os.environ.pop("KK_TRACE_DIR")
+            files = sorted(glob.glob(os.path.join(d, "sub", "*.json")))
+            self.assertEqual(len(files), 2)
+            self.assertNotEqual(a, b)
+            rec = json.load(open(a, encoding="utf-8"))
+            self.assertEqual(rec["system"], "system text")
+            self.assertEqual(rec["user"], "user text")
+            self.assertEqual(rec["answer"], "answer text")
+            self.assertEqual(rec["completion_tokens"], 5)
+            self.assertEqual(json.load(open(b, encoding="utf-8"))["answer"], "a2 é")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,24 @@
+--- /tmp/base.tmp	2026-10-12 12:28:22.364777199 +0200
++++ /tmp/claude-1000/-media-development/63e7bfbc-ab5d-426c-8a46-35181f730b00/scratchpad/r1/web/src/views/studio.css	2026-10-12 12:13:26.000000000 +0200
+@@ -33,12 +33,15 @@
+ .studio-neg > summary, .studio-helmet > summary { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; list-style: none; font-weight: 600; color: var(--fg-strong); border-radius: var(--radius); }
+ .studio-neg > summary::-webkit-details-marker, .studio-helmet > summary::-webkit-details-marker { display: none; }
+ .studio-neg > summary::before, .studio-helmet > summary::before { content: "▸"; color: var(--accent); display: inline-block; transition: transform 0.15s; }
+-.studio-neg[open] > summary::before, .studio-helmet[open] > summary::before { transform: rotate(90deg); }
+-.studio-neg > summary:focus-visible, .studio-helmet > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+-.studio-neg textarea, .studio-helmet input { margin-top: 0.4rem; }
+-.studio-helmet label { display: block; margin-top: 0.4rem; }
+-.studio-neg p, .studio-helmet p { margin: 0.25rem 0 0; overflow-wrap: anywhere; }
+-@media (prefers-reduced-motion: reduce) { .studio-neg > summary::before, .studio-helmet > summary::before { transition: none; } }
++/* STU-N2: the Cast panel (two to four people, left to right). */
++.studio-cast { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.75rem 0.75rem; margin: 0; display: grid; gap: 0.6rem; min-width: 0; }
++.studio-cast legend { font-weight: bold; color: var(--fg-strong); padding: 0 0.35rem; }
++.studio-cast-person { display: flex; gap: 0.35rem 0.5rem; align-items: center; }
++.studio-cast-person label[for], .studio-cast-person textarea { flex-basis: 100%; }
++.studio-cast button { font-size: 0.8rem; padding: 0.2rem 0.6rem; border-radius: var(--radius); background: var(--surface-2); color: var(--fg-strong); border: 1px solid var(--line); cursor: pointer; }
++.studio-cast button:hover { border-color: var(--accent); }
++.studio-cast button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
++.studio-cast > button { justify-self: start; }
+ .studio-options { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+ .studio-count { display: inline-flex; gap: 0.35rem; align-items: center; }
+ .studio-runs { list-style: none; padding: 0; margin: 0.5rem 0 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); }

@@ -1,0 +1,16 @@
+[
+ {
+  "name": "trace-call",
+  "role": "worker/python",
+  "mode": "patch",
+  "out": "tools/qwen/pipeline.py",
+  "focus": [
+   "^def ask\\(system, user, max_tokens\\)",
+   "^def strip\\("
+  ],
+  "precheck": false,
+  "max_tokens": 2500,
+  "prompt": "In tools/qwen/pipeline.py add a new function `trace_call(system, user, answer, completion_tokens)` directly above `def ask(system, user, max_tokens):`. When the environment variable KK_TRACE_DIR is not set or empty it returns None and writes nothing. Otherwise it creates that directory (os.makedirs with exist_ok=True), writes ONE json file there per call and returns the file path. The file name is a sortable timestamp plus a counter that makes every call unique, for example time.strftime('%Y%m%dT%H%M%S') + '-' + a zero padded 4 digit counter from a module level itertools.count (define `_TRACE_COUNT = itertools.count(1)` above the function and add `import itertools` with the other imports at the top of the file), ending in .json. The file holds the object {\"model\": getattr(LANE, \"model\", \"\"), \"system\": system, \"user\": user, \"answer\": answer, \"completion_tokens\": completion_tokens} written with json.dump(..., ensure_ascii=False, indent=1) and encoding utf-8. Then in `ask`, right before the final `return (` statement, add the call `trace_call(system, user, choice[\"message\"][\"content\"], v.get(\"usage\", {}).get(\"completion_tokens\", 0))`. Change nothing else.",
+  "check": "python3 -m py_compile tools/qwen/pipeline.py && python3 tools/qwen/test_trace.py"
+ }
+]
