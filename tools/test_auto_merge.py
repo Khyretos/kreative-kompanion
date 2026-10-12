@@ -48,7 +48,9 @@ def statuses(**state_by_name):
     return out
 
 
-GREEN = statuses(build__server="success", build__web="success", lint__megalinter="success")
+GREEN = statuses(
+    build__server="success", build__web="success", lint__megalinter="success"
+)
 
 
 class Skips(unittest.TestCase):
@@ -65,7 +67,9 @@ class Skips(unittest.TestCase):
         self.assertIsNone(am.skip_reason(pr(title="[X-02] wipe the cache"), CFG))
 
     def test_opt_out_label_is_skipped(self):
-        self.assertIsNotNone(am.skip_reason(pr(labels=[{"name": "no-auto-merge"}]), CFG))
+        self.assertIsNotNone(
+            am.skip_reason(pr(labels=[{"name": "no-auto-merge"}]), CFG)
+        )
         self.assertIsNone(am.skip_reason(pr(labels=[{"name": "bug"}]), CFG))
 
     def test_fork_and_other_base_are_skipped(self):
@@ -83,7 +87,9 @@ class Checks(unittest.TestCase):
         self.assertEqual(am.check_state(GREEN, CFG)[0], "ok")
 
     def test_own_context_is_ignored(self):
-        own = GREEN + [{"context": "auto-merge / merge (pull_request)", "status": "pending"}]
+        own = GREEN + [
+            {"context": "auto-merge / merge (pull_request)", "status": "pending"}
+        ]
         self.assertEqual(am.check_state(own, CFG)[0], "ok")
 
     def test_missing_required_check_waits(self):
@@ -93,17 +99,23 @@ class Checks(unittest.TestCase):
         self.assertIn("build / web", why)
 
     def test_pending_check_waits(self):
-        s = statuses(build__server="pending", build__web="success", lint__megalinter="success")
+        s = statuses(
+            build__server="pending", build__web="success", lint__megalinter="success"
+        )
         self.assertEqual(am.check_state(s, CFG)[0], "wait")
 
     def test_failed_check_blocks_and_names_it(self):
-        s = statuses(build__server="failure", build__web="success", lint__megalinter="success")
+        s = statuses(
+            build__server="failure", build__web="success", lint__megalinter="success"
+        )
         state, why = am.check_state(s, CFG)
         self.assertEqual(state, "blocked")
         self.assertIn("build / server", why)
 
     def test_error_state_blocks(self):
-        s = statuses(build__server="error", build__web="success", lint__megalinter="success")
+        s = statuses(
+            build__server="error", build__web="success", lint__megalinter="success"
+        )
         self.assertEqual(am.check_state(s, CFG)[0], "blocked")
 
     def test_failure_beats_pending(self):
@@ -238,18 +250,24 @@ class Process(unittest.TestCase):
 
     def test_merge_conflict_409_waits_405_blocks(self):
         self.assertEqual(
-            am.process(7, FakeApi({7: pr()}, merge_status=409), CFG, gate_returning(0))[0],
+            am.process(7, FakeApi({7: pr()}, merge_status=409), CFG, gate_returning(0))[
+                0
+            ],
             "wait",
         )
         self.assertEqual(
-            am.process(7, FakeApi({7: pr()}, merge_status=405), CFG, gate_returning(0))[0],
+            am.process(7, FakeApi({7: pr()}, merge_status=405), CFG, gate_returning(0))[
+                0
+            ],
             "blocked",
         )
 
     def test_sweep_handles_every_open_pr(self):
         api = FakeApi({1: pr(number=1), 2: pr(number=2, draft=True), 3: pr(number=3)})
         results = am.sweep(api, CFG, gate_returning(0))
-        self.assertEqual({n: r[0] for n, r in results.items()}, {1: "merged", 2: "skip", 3: "merged"})
+        self.assertEqual(
+            {n: r[0] for n, r in results.items()}, {1: "merged", 2: "skip", 3: "merged"}
+        )
         self.assertEqual([n for n, _ in api.merged], [1, 3])
 
 

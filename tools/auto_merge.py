@@ -12,7 +12,6 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-
 # Default configuration
 DEFAULTS = {
     "required": [
@@ -75,12 +74,10 @@ def skip_reason(pr: Dict[str, Any], cfg: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def check_state(
-    statuses: List[Dict[str, str]], cfg: Dict[str, Any]
-) -> Tuple[str, str]:
+def check_state(statuses: List[Dict[str, str]], cfg: Dict[str, Any]) -> Tuple[str, str]:
     """Check commit statuses and return state and reason."""
     required = set(cfg["required"])
-    
+
     # Filter out own_context and strip trailing ' (event)'
     filtered_statuses: Dict[str, str] = {}
     for s in statuses:
@@ -89,7 +86,7 @@ def check_state(
         # Ignore own_context
         if ctx.startswith(cfg["own_context"]):
             continue
-            
+
         # Last entry wins
         filtered_statuses[ctx] = s.get("status", "")
 
@@ -131,7 +128,7 @@ def process(
     # Get initial PR data and SHA
     pr = api.pull(n)
     initial_sha = pr["head"]["sha"]
-    
+
     # Skip check
     reason = skip_reason(pr, cfg)
     if reason:
@@ -201,7 +198,10 @@ class Forgejo:
         req = urllib.request.Request(
             self.base + path,
             json.dumps(body).encode() if body is not None else None,
-            {"Authorization": "token " + self.token, "Content-Type": "application/json"},
+            {
+                "Authorization": "token " + self.token,
+                "Content-Type": "application/json",
+            },
             method=method,
         )
         try:
@@ -246,13 +246,25 @@ def make_gate(read_token: str, api: str, repo: str) -> Callable[[int], int]:
 
     def gate(n: int) -> int:
         git = ["git", "-C", ROOT]
-        subprocess.run(git + ["fetch", "-q", "origin", f"+refs/pull/{n}/head:refs/pr/{n}"], check=True)
+        subprocess.run(
+            git + ["fetch", "-q", "origin", f"+refs/pull/{n}/head:refs/pr/{n}"],
+            check=True,
+        )
         tree = tempfile.mkdtemp(prefix=f"pr{n}-")
         try:
-            subprocess.run(git + ["worktree", "add", "-q", "--detach", tree, f"refs/pr/{n}"], check=True)
+            subprocess.run(
+                git + ["worktree", "add", "-q", "--detach", tree, f"refs/pr/{n}"],
+                check=True,
+            )
             env = {k: v for k, v in os.environ.items() if k != "MERGE_TOKEN"}
             env.update(FORGEJO_API=api, FORGEJO_TOKEN=read_token, REVIEW_REPO=tree)
-            cmd = [sys.executable, os.path.join(ROOT, "tools", "qwen", "review_findings.py"), str(n), "--repo", repo]
+            cmd = [
+                sys.executable,
+                os.path.join(ROOT, "tools", "qwen", "review_findings.py"),
+                str(n),
+                "--repo",
+                repo,
+            ]
             return subprocess.run(cmd, env=env, check=False).returncode
         finally:
             subprocess.run(git + ["worktree", "remove", "--force", tree], check=False)
@@ -267,7 +279,9 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None)
     parser = argparse.ArgumentParser(description="Merge pull requests that are ready.")
     parser.add_argument("--pr", type=int, help="one PR (default: every open PR)")
     parser.add_argument("--dry-run", action="store_true", help="decide, do not merge")
-    parser.add_argument("--config", default=os.path.join(ROOT, ".forgejo", "auto-merge.json"))
+    parser.add_argument(
+        "--config", default=os.path.join(ROOT, ".forgejo", "auto-merge.json")
+    )
     args = parser.parse_args(argv)
 
     api, repo = env.get("FORGEJO_API"), env.get("REPO")
@@ -282,7 +296,11 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None)
     cfg = load_config(args.config)
     forgejo = Forgejo(api, repo, merge_token or read_token)
     reader = Forgejo(api, repo, read_token)
-    forgejo.pull, forgejo.statuses, forgejo.open_pulls = reader.pull, reader.statuses, reader.open_pulls
+    forgejo.pull, forgejo.statuses, forgejo.open_pulls = (
+        reader.pull,
+        reader.statuses,
+        reader.open_pulls,
+    )
     gate = make_gate(read_token, api, repo)
     try:
         if args.pr:
