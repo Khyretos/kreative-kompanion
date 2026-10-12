@@ -141,3 +141,21 @@ for (const scheme of ["light", "dark"] as const) {
     await page.locator("#left").screenshot({ path: `test-results/projarchive-desktop-${scheme}.png` });
   });
 }
+
+// Live check 2026-10-13: the fade-in replayed on every sidebar re-render (the sidebar is remounted), so archived
+// rows flickered faint whenever anything changed; and at 390 px the chip and the done/total count left the name
+// only a few letters.
+test("archived rows do not fade in again on a re-render, and keep room for their name", async ({ page }) => {
+  await openDemo(page, 390, 844);
+  await page.locator('[data-action="pane"][data-pane="left"]').first().click().catch(() => undefined);
+  await archive(page, "p-nohboard");
+  await page.locator('#left [data-action="archived-toggle"]').click();
+  const row = page.locator("#left .project.archived").first();
+  await expect(row).toBeVisible();
+  for (const el of [row, page.locator("#left .project.archived .project-row").first()]) {
+    expect(await el.evaluate((e) => getComputedStyle(e).animationName)).toBe("none");
+  }
+  await expect(row.locator(".nav-meta")).toBeHidden();
+  const name = row.locator(".project-name");
+  expect(await name.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+});

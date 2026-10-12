@@ -308,8 +308,8 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
 .archived-toggle[aria-pressed="true"] { color: var(--accent-strong); }
 .archived-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); font-size: 0.88rem; }
 .archived-bar > span { flex: 1; }
-@media (prefers-reduced-motion: no-preference) { .project.archived, .archived-bar { animation: kk-archive-in 0.18s ease-out; } }
-@keyframes kk-archive-in { from { opacity: 0; transform: translateY(-2px); } }
+.project.archived .nav-meta { display: none; }
+.project.archived .project-name { white-space: normal; overflow-wrap: anywhere; }
 .task-desc { font-size: 0.9rem; line-height: 1.55; margin-bottom: 1rem; }
 .task-desc ol, .task-desc ul { padding-left: 1.25rem; }
 .task-desc ol { list-style: decimal; }

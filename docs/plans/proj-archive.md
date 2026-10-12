@@ -52,3 +52,30 @@ Spec: kreative-kompanion-tasks/proj-archive-spec.md (queue thread 9, 2026-10-12/
 Totals: 27 units, 40 Coder jobs (drafts and repair rounds), 514 GPU seconds, 12,931 output tokens, 336,856 prompt tokens. 20 units passed as drafted, 5 were corrected by Claude (s3b, w2c, w4d, w6 and small leftovers in w5e), 2 failures were Claude's check faults (s3b run 1, s5a). Tests, checks, the spec and the lesson texts were written by Claude.
 
 Logs: docs/qwen-situations/proj-archive-unit-runs/ (job files, gzipped logs, checks.tar.gz).
+
+## Live check (2026-10-13, `http://127.0.0.1:8095`, test user, after deploying 3c9e09d)
+
+API, with two throwaway projects made through POST /api/overseer/tasks:
+
+1. Archive A: 204, the list shows its archivedAt, B stays active.
+2. Archive A again: 204, the first date is kept.
+3. A task proposed by the name "Archive check A" went to a new project, not the archived one.
+4. Unarchive A: 204, archivedAt is null.
+5. PATCH archived on a project of another user: 404.
+6. All throwaways archived again (there is no delete route), so they stay out of the test user's sidebar.
+
+Browser (Playwright on the live app with the test session, 1280 px dark and 390 px light): "Show archived (3)" shows the archived rows; Unarchive from the menu drops the count to 2 at once; Archive shows the "Archived … Undo" toast; no reload and no sideways scroll. The menu button is 44 px at 390 px.
+
+Found live and fixed in the follow-up PR (lesson 225): the fade-in on archived rows replayed on every sidebar re-render, so they flickered faint, and at 390 px the chip and the count left the name about 50 px ("Archi…"). The animation is gone, the count is hidden on archived rows and their name wraps. Coder unit p1 drafted it first try, identical to the reference.
+
+## Metrics
+
+| What | Number |
+| --- | --- |
+| Claude, whole thread (PR 200 merge, PROJ-ARCHIVE, follow-up, lessons) | 202 answers, 136,279 output, 406 input, 54.7 M cache read, 0.33 M cache write |
+| Coder (OVMS), 28 units | 41 jobs, 518.9 GPU s, 13,035 output and 343,167 prompt tokens (summary line in docs/qwen-log/proj-archive.jsonl) |
+| Coder lines | about 132 product lines changed in PR 201; Claude rewrote about 17 of them (s3b 7, w6 3, w5e 4, w2c 1, w4d 1, w4a 1), so about 87 % kept |
+| Units | 21 passed as drafted (incl. p1), 5 corrected by Claude, 2 failed on Claude's checks |
+| Other local model use | PR-Agent describe + 3 review rounds on OVMS (round 1 lost to an OVMS restart); Coder triage of 6 findings, all false positives, 1 answer did not parse |
+| Review and CI | CI 9/9 green on every push; the gate needed 2 ledger commits (7 findings, all false positives) |
+| Waiting | about 25 min on the review gate (OVMS restart during the review plus two review rounds); the rest was Coder and test runs |

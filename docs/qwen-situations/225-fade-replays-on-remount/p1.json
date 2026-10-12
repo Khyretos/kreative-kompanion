@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-p1",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/styles.css",
+    "focus": ["PROJ-ARCHIVE", "kk-archive-in"],
+    "prompt": "In web/src/styles.css, the PROJ-ARCHIVE block has two problems found in the live check.\n1. Delete these two lines completely (the sidebar is re-rendered often, so this fade replays and archived rows flicker faint):\n@media (prefers-reduced-motion: no-preference) { .project.archived, .archived-bar { animation: kk-archive-in 0.18s ease-out; } }\n@keyframes kk-archive-in { from { opacity: 0; transform: translateY(-2px); } }\n2. In their place add two rules so an archived project's name is readable at phone width: hide its done/total count, and let the name wrap instead of being cut with an ellipsis:\n.project.archived .nav-meta { display: none; }\n.project.archived .project-name { white-space: normal; overflow-wrap: anywhere; }\nThe answer is exactly one SEARCH/REPLACE block: SEARCH = those two old lines, REPLACE = the two new rules. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/p1.sh",
+    "precheck": false
+  }
+]
