@@ -15,7 +15,9 @@ function store(v: "0" | "1"): void {
   try { localStorage.setItem("kk-desk-notify", v); } catch { /* not remembered */ }
 }
 
-export async function sendTest(): Promise<{ ok: boolean; detail: string }> {
+export async function sendTest(onTick?: (secondsLeft: number) => void): Promise<{ ok: boolean; detail: string }> {
+  const total: number = (window as any).__kkTestDelaySeconds ?? 5;
+  for (let left = total; left > 0; left--) { onTick?.(left); await new Promise<void>((resolve) => setTimeout(resolve, 1000)); }
   const title = "Kompanion test";
   const body = "If you can read this, notifications work.";
 
