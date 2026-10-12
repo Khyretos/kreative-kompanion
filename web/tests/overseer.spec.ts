@@ -67,6 +67,7 @@ test.describe("Overseer (OVR-01)", () => {
     await page.goto("/?demo");
     await page.click("button.found-server");
     await page.click('[data-action="project"][data-id="p-kk"]');
+    await page.click('#right .ov-sec[data-sec="settings"] [data-action="overview-sec"]');
     const box = page.locator("#project-overseer");
     await expect(box).not.toBeChecked();
     await box.check();

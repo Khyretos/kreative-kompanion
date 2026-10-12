@@ -9,6 +9,7 @@ async function openDemo(page: Page): Promise<void> {
 /** kk-engine selected: its Tasks tab shows the project panel. */
 async function openProject(page: Page): Promise<void> {
   await page.click('[data-action="project"][data-id="p-kk"]');
+  await page.click('#right .ov-sec[data-sec="settings"] [data-action="overview-sec"]');
   await expect(page.locator("#project-type")).toBeVisible();
 }
 
