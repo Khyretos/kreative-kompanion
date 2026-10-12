@@ -1,0 +1,23 @@
+pub async fn propose(State(s): State<AppState>, Extension(u): Extension<User>, Path(project): Path<String>, Json(b): Json<DescribeBody>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let description = b.description.trim();
+    if description.len() < 10 {
+        return Err(ApiError::BadRequest("Describe the game in a sentence or two.".into()));
+    }
+    let row: Option<(String, String)> = sqlx::query_as("SELECT name, description FROM projects WHERE id = ? AND user_id = ?").bind(&project).bind(&u.id).fetch_optional(&s.db).await?;
+    let (name, about) = row.ok_or(ApiError::NotFound)?;
+    let dev = crate::devsettings_web::brief_of(&s.db, &project, &u.id).await;
+    let state = crate::statesum::summary_of(&s.db, &project, &u.id).await;
+    let library = gameplan::library_of(&s.db, &u.id, &project).await;
+    let workflows = {
+        let loaded: Vec<(String, crate::studio::workflow::Workflow)> = crate::studio::workflow::load_all(&s.config.studio.workflows_dir).into_iter().filter_map(|(n, r)| r.ok().map(|w| (n, w))).collect();
+        let mut infos = gameplan::wf_infos(&loaded);
+        infos.extend(gameplan::audio_infos());
+        infos
+    };
+    let user_msg = gameplan::user_message(&name, &about, &dev, &state, &library, &workflows, description);
+    let system = gameplan::system_text(&Limits::default());
+    let (game, left) = plan_with_model(&s, &u.id, &system, &user_msg, &library, &workflows).await?;
+    let id = planner::store_proposal(&s.db, &u.id, &project, None, "plan", description, &gameplan::to_plan(&game)).await?;
+    s.bus.send(&u.id, Event::Changed { what: "tasks", machine_id: None });
+    Ok((StatusCode::CREATED, Json(json!({ "id": id, "kind": "plan", "gamePlan": game, "plan": gameplan::to_plan(&game), "issues": left }))))
+}

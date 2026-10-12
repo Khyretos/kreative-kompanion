@@ -1,0 +1,1 @@
+{"name": "gp-web-model", "out": "server/src/gameplan_web.rs", "check": "sh /tmp/kk-m611/ctest.sh /tmp/kk-m611/gp-web-model-ovms-r1 kk-m611-ovms-r1 --no-run", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T16:29:03"}

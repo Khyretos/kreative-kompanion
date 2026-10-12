@@ -370,6 +370,147 @@ where
     last.ok_or(last_err)
 }
 
+/// Studio workflows as planning info: "image" output (the "video" workflow makes video), parameters typed
+/// number / text / choice; seed parameters are left out.
+pub fn wf_infos(workflows: &[(String, crate::studio::workflow::Workflow)]) -> Vec<WfInfo> {
+    workflows.iter().map(|(name, w)| {
+        let output = if name == "video" { "video".into() } else { "image".into() };
+        let params = w.params.iter()
+            .filter(|p| p.kind != "seed")
+            .map(|p| {
+                let kind = match p.kind.as_str() {
+                    "string" => "text".into(),
+                    "int" | "float" => "number".into(),
+                    "choice" => "choice".into(),
+                    _ => "text".into(),
+                };
+                WfParam {
+                    name: p.name.clone(),
+                    kind,
+                    choices: p.choices.clone(),
+                    min: p.min,
+                    max: p.max,
+                }
+            })
+            .collect();
+        WfInfo { name: name.clone(), output, params }
+    }).collect()
+}
+
+/// The audio kinds ("music", "sfx") as planning info.
+pub fn audio_infos() -> Vec<WfInfo> {
+    vec![
+        WfInfo {
+            name: "music".into(),
+            output: "audio".into(),
+            params: vec![
+                WfParam { name: "prompt".into(), kind: "text".into(), choices: vec![], min: None, max: None },
+                WfParam { name: "lyrics".into(), kind: "text".into(), choices: vec![], min: None, max: None },
+                WfParam { name: "seconds".into(), kind: "number".into(), choices: vec![], min: Some(5.0), max: Some(240.0) },
+            ],
+        },
+        WfInfo {
+            name: "sfx".into(),
+            output: "audio".into(),
+            params: vec![
+                WfParam { name: "prompt".into(), kind: "text".into(), choices: vec![], min: None, max: None },
+                WfParam { name: "seconds".into(), kind: "number".into(), choices: vec![], min: Some(1.0), max: Some(30.0) },
+            ],
+        },
+    ]
+}
+
+/// The project's linked, present library assets with lower-case tags (tag names, then subject words).
+pub async fn library_of(db: &sqlx::SqlitePool, user_id: &str, project_id: &str) -> Vec<LibAsset> {
+    let rows: Vec<(i64, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT a.id, a.name, a.category, a.ai_subject FROM project_asset pa JOIN asset a ON a.id = pa.asset_id JOIN projects p ON p.id = pa.project_id WHERE pa.project_id = ? AND p.user_id = ? AND a.missing_since IS NULL ORDER BY a.id",
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_all(db)
+    .await
+    .unwrap_or_default();
+
+    let mut out: Vec<LibAsset> = Vec::new();
+    for (id, name, category, subject) in rows {
+        let tag_names: Vec<String> = sqlx::query_scalar(
+            "SELECT n.name FROM asset_tag t JOIN asset_tagname n ON n.id = t.tag_id WHERE t.asset_id = ? ORDER BY n.name",
+        )
+        .bind(id)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default();
+
+        let mut tags: Vec<String> = tag_names.into_iter().map(|s| s.to_lowercase()).collect();
+        if let Some(subj) = subject {
+            let mut new_tags = Vec::new();
+            for word in subj.split_whitespace() {
+                let lower = word.to_lowercase();
+                if !tags.contains(&lower) {
+                    new_tags.push(lower);
+                }
+            }
+            tags.extend(new_tags);
+        }
+
+        out.push(LibAsset {
+            id: id.to_string(),
+            name,
+            kind: category,
+            tags,
+        });
+    }
+    out
+}
+
+/// The user message for the planning model.
+pub fn user_message(project: &str, description: &str, dev: &str, state: &str, library: &[LibAsset], workflows: &[WfInfo], game: &str) -> String {
+    let mut s = String::new();
+    s.push_str(&format!("Project: {}\n", project));
+    s.push_str(description);
+    s.push('\n');
+    s.push_str(dev);
+    s.push_str(state);
+    if library.is_empty() {
+        s.push_str("Library assets: none\n");
+    } else {
+        s.push_str("Library assets (reuse these before generating new ones, give their id as library_id):\n");
+        for a in library {
+            let tags = a.tags.join(", ");
+            s.push_str(&format!("- id {}: {} ({}) tags: {}\n", a.id, a.name, a.kind, tags));
+        }
+    }
+    s.push_str("\nWorkflows (an asset task names one of these and parameters inside the limits):\n");
+    for w in workflows {
+        let mut params = Vec::new();
+        for p in &w.params {
+            let mut parts = vec![format!("{} {}", p.name, p.kind)];
+            if let (Some(min), Some(max)) = (p.min, p.max) {
+                parts.push(format!(" {}-{}", min, max));
+            }
+            if !p.choices.is_empty() {
+                parts.pop();
+                let rest: Vec<String> = p.choices.iter().skip(1).map(|c| c.as_str().to_string()).collect();
+                parts.push(format!(" one of {}/{}", p.choices[0], rest.join("/")));
+            }
+            params.push(parts.join(" "));
+        }
+        s.push_str(&format!("- {} ({}): {}\n", w.name, w.output, params.join("; ")));
+    }
+    s.push_str(&format!("Game: {}\n", game));
+    s
+}
+
+/// The system text for the planning model, with the sizing limits filled in.
+pub fn system_text(lim: &Limits) -> String {
+    let mut s = "You plan games. Split the game described by the user into code tasks and asset tasks. A code task is one change someone would notice, touches at most ".to_string();
+    s.push_str(&lim.max_files.to_string());
+    s.push_str(" files and changes at most ");
+    s.push_str(&lim.max_lines.to_string());
+    s.push_str(" lines: split anything bigger. Every code task has a unique short key, title, goal, steps, files, a lines estimate, a done_when that can be checked (a test, a build, a visible fact) and depends_on (keys of code tasks that come first). An asset task has a unique key, title, a kind (sprite, image, tileset, background, audio, music, sfx, video or model), tags (lower-case words that describe it), and exactly one source: library_id of a library asset from the list (reuse the library before making anything new) or a workflow from the list with params inside the limits given. List in needed_by the keys of the code tasks that use the asset. Answer only with the JSON plan with the lists code_tasks and asset_tasks.");
+    s.to_string()
+}
+
 #[cfg(test)]
 #[path = "gameplan_tests.rs"]
 mod tests;

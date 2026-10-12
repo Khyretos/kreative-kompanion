@@ -1,0 +1,34 @@
+//! M6-11: POST /api/projects/{id}/game-plan. A game described in words becomes a pending proposal (code tasks and
+//! asset tasks as a KG-02 plan); nothing is created until the user applies it through POST /api/plans/{id}/apply.
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
+use serde::Deserialize;
+use serde_json::{Value, json};
+
+use crate::{
+    AppState, api,
+    auth::User,
+    error::{ApiError, ApiResult},
+    events::Event,
+    gameplan::{self, GamePlan, LibAsset, WfInfo},
+    llm,
+    planner::{self, Issue, Limits},
+};
+
+#[derive(Deserialize)]
+pub struct DescribeBody {
+    description: String,
+}
+
+/// One planning run on the user's orchestrator model, schema-constrained, with the rule-fixing rounds.
+async fn plan_with_model(s: &AppState, user_id: &str, system: &str, user: &str, library: &[LibAsset], workflows: &[WfInfo]) -> ApiResult<(GamePlan, Vec<Issue>)> {
+    todo!()
+}
+
+/// POST /api/projects/{id}/game-plan: the game in words becomes a pending proposal.
+pub async fn propose(State(s): State<AppState>, Extension(u): Extension<User>, Path(project): Path<String>, Json(b): Json<DescribeBody>) -> ApiResult<(StatusCode, Json<Value>)> {
+    todo!()
+}

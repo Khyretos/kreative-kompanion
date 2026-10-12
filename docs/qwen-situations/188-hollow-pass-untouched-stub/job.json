@@ -1,0 +1,12 @@
+{
+  "name": "gp-web-model",
+  "role": "worker/rust",
+  "out": "server/src/gameplan_web.rs",
+  "precheck": false,
+  "mode": "patch",
+  "max_tokens": 4000,
+  "context": ["server/src/planner_web.rs", "server/src/gameplan.rs"],
+  "prompt": "In server/src/gameplan_web.rs replace the body of `async fn plan_with_model` (currently `todo!()`). Copy `plan_with_model` of server/src/planner_web.rs (in the context) but call `gameplan::generate` and use `gameplan::schema()` for the schema: get the role with `api::user_role(s, user_id, \"orchestrator\")` (BadRequest \"Set the orchestrator model first.\" when None), the provider from `s.config.provider(&role.provider_id)`, `crate::effort::apply` for the model, the same `ask` closure (llm::chat_json first, then llm::chat_with_tools_full without schema when that fails) and finish with `gameplan::generate(ask, system, user, &Limits::default(), library, workflows).await.map_err(|e| ApiError::BadRequest(format!(\"Planning failed: {e}\")))`. Change nothing else.",
+  "CHECKFILTERS": "@NOTODO",
+  "focus": ["async fn plan_with_model"]
+}

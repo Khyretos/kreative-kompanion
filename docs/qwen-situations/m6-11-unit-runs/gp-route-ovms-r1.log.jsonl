@@ -1,0 +1,2 @@
+{"name": "gp-route", "out": "server/src/main.rs", "mode": "patch", "gpu_seconds": 5.1, "tokens": 134, "prompt_tokens": 6312, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/axum-api"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-12T16:25:55"}
+{"name": "gp-route", "out": "server/src/main.rs", "check": "sh /tmp/kk-m611/ctest.sh /tmp/kk-m611/gp-route-ovms-r1 kk-m611-ovms-r1 --no-run", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T16:26:47"}

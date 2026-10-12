@@ -340,3 +340,141 @@ fn the_schema_asks_for_both_task_lists() {
     }
     assert!(s["properties"]["code_tasks"]["items"]["properties"]["done_when"].is_object());
 }
+
+// ---- wiring: what the planner knows about workflows and the library, and the model message ----
+
+fn workflow_from(toml_text: &str) -> crate::studio::workflow::Workflow {
+    toml::from_str(toml_text).expect("a workflow file")
+}
+
+const SPRITE_TOML: &str = r#"
+title = "Sprite"
+description = "One game object on a plain background."
+outputs = ["20"]
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "a chest"
+
+[[param]]
+name = "steps"
+type = "int"
+default = 20
+min = 1
+max = 60
+
+[[param]]
+name = "size"
+type = "choice"
+default = "square"
+choices = ["square", "tall", "wide"]
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+"#;
+
+#[test]
+fn studio_workflows_become_planning_info() {
+    let list = vec![("sprite".to_string(), workflow_from(SPRITE_TOML)), ("video".to_string(), workflow_from(SPRITE_TOML))];
+    let infos = wf_infos(&list);
+    assert_eq!(infos.len(), 2);
+    let sprite = &infos[0];
+    assert_eq!(sprite.name, "sprite");
+    assert_eq!(sprite.output, "image");
+    assert_eq!(infos[1].output, "video", "the video workflow makes video");
+    let names: Vec<&str> = sprite.params.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, vec!["prompt", "steps", "size"], "seeds are not for the planner");
+    assert_eq!(sprite.params[0].kind, "text");
+    assert_eq!((sprite.params[1].kind.as_str(), sprite.params[1].min, sprite.params[1].max), ("number", Some(1.0), Some(60.0)));
+    assert_eq!(sprite.params[2].kind, "choice");
+    assert_eq!(sprite.params[2].choices, vec!["square", "tall", "wide"]);
+}
+
+#[test]
+fn the_audio_kinds_are_workflows_too() {
+    let infos = audio_infos();
+    let names: Vec<&str> = infos.iter().map(|w| w.name.as_str()).collect();
+    assert_eq!(names, vec!["music", "sfx"]);
+    assert!(infos.iter().all(|w| w.output == "audio"));
+    let sfx = &infos[1];
+    let seconds = sfx.params.iter().find(|p| p.name == "seconds").unwrap();
+    assert_eq!((seconds.kind.as_str(), seconds.min, seconds.max), ("number", Some(1.0), Some(30.0)));
+    assert!(infos[0].params.iter().any(|p| p.name == "lyrics" && p.kind == "text"));
+    assert!(sfx.params.iter().any(|p| p.name == "prompt"));
+}
+
+async fn wire_db() -> sqlx::SqlitePool {
+    let opts = sqlx::sqlite::SqliteConnectOptions::new().in_memory(true).foreign_keys(true);
+    let db = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect_with(opts).await.unwrap();
+    sqlx::migrate!().run(&db).await.unwrap();
+    for (u, p) in [("u1", "p1"), ("u2", "p2")] {
+        sqlx::query("INSERT INTO users (id, name, password_hash, created_at) VALUES (?, ?, 'x', '2026')").bind(u).bind(u).execute(&db).await.unwrap();
+        sqlx::query("INSERT INTO projects (id, name, updated_at, user_id) VALUES (?, ?, '2026', ?)").bind(p).bind(p).bind(u).execute(&db).await.unwrap();
+    }
+    sqlx::query("INSERT INTO asset_pack (id, key, name, kind) VALUES (1, 'k', 'Pack', 'folder')").execute(&db).await.unwrap();
+    db
+}
+
+async fn add_asset(db: &sqlx::SqlitePool, id: i64, name: &str, category: &str, subject: Option<&str>, missing: bool, project: Option<&str>, tags: &[&str]) {
+    sqlx::query("INSERT INTO asset (id, pack_id, path, name, ext, size, category, rule, ai_subject, missing_since) VALUES (?, 1, ?, ?, 'png', 1, ?, 'test', ?, ?)")
+        .bind(id)
+        .bind(format!("p/{name}"))
+        .bind(name)
+        .bind(category)
+        .bind(subject)
+        .bind(if missing { Some("2026") } else { None })
+        .execute(db)
+        .await
+        .unwrap();
+    if let Some(p) = project {
+        sqlx::query("INSERT INTO project_asset (project_id, asset_id, added_at) VALUES (?, ?, '2026')").bind(p).bind(id).execute(db).await.unwrap();
+    }
+    for t in tags {
+        sqlx::query("INSERT OR IGNORE INTO asset_tagname (kind, name) VALUES ('custom', ?)").bind(t).execute(db).await.unwrap();
+        sqlx::query("INSERT INTO asset_tag (asset_id, tag_id, by) VALUES (?, (SELECT id FROM asset_tagname WHERE name = ?), 'kees')").bind(id).bind(t).execute(db).await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn the_library_is_the_projects_linked_assets() {
+    let db = wire_db().await;
+    add_asset(&db, 5, "fox_idle.png", "sprite", Some("Red fox"), false, Some("p1"), &["Fox", "pixel"]).await;
+    add_asset(&db, 6, "jump.wav", "audio", Some("jump sound"), false, Some("p1"), &[]).await;
+    add_asset(&db, 7, "gone.png", "sprite", None, true, Some("p1"), &[]).await;
+    add_asset(&db, 8, "other.png", "sprite", None, false, Some("p2"), &[]).await;
+    add_asset(&db, 9, "unlinked.png", "sprite", None, false, None, &[]).await;
+    let lib = library_of(&db, "u1", "p1").await;
+    let ids: Vec<&str> = lib.iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(ids, vec!["5", "6"], "only linked, present assets of this project");
+    assert_eq!((lib[0].name.as_str(), lib[0].kind.as_str()), ("fox_idle.png", "sprite"));
+    let mut tags = lib[0].tags.clone();
+    tags.sort();
+    assert_eq!(tags, vec!["fox", "pixel", "red"], "tag names and subject words, lower case");
+    assert_eq!(lib[1].tags, vec!["jump", "sound"]);
+    assert!(library_of(&db, "u2", "p1").await.is_empty(), "another user's view of the project is empty");
+}
+
+#[test]
+fn the_model_message_lists_what_exists() {
+    let lib = vec![LibAsset { id: "5".into(), name: "fox_idle.png".into(), kind: "sprite".into(), tags: vec!["fox".into()] }];
+    let wf = vec![WfInfo { name: "sfx".into(), output: "audio".into(), params: vec![WfParam { name: "seconds".into(), kind: "number".into(), choices: vec![], min: Some(1.0), max: Some(30.0) }] }];
+    let msg = user_message("Fox run", "A platformer.", "Engine: kk-engine.\n", "State: nothing yet.\n", &lib, &wf, "A fox jumps over pits.");
+    for needle in ["Fox run", "A platformer.", "kk-engine", "State: nothing yet.", "A fox jumps over pits."] {
+        assert!(msg.contains(needle), "{needle}");
+    }
+    assert!(msg.contains("5") && msg.contains("fox_idle.png") && msg.contains("sprite") && msg.contains("fox"), "{msg}");
+    assert!(msg.contains("sfx") && msg.contains("audio") && msg.contains("seconds") && msg.contains("1") && msg.contains("30"), "{msg}");
+    let none = user_message("P", "D", "", "", &[], &wf, "G");
+    assert!(none.contains("Library assets: none"), "{none}");
+}
+
+#[test]
+fn the_system_text_names_the_limits() {
+    let s = system_text(&Limits { max_files: 4, max_lines: 120 });
+    assert!(s.contains("4 files") && s.contains("120 lines"), "{s}");
+    assert!(!s.contains("{files}") && !s.contains("{lines}"));
+    assert!(s.contains("library_id") && s.contains("needed_by"));
+}

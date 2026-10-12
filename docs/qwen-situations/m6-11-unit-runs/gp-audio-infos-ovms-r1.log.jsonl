@@ -1,0 +1,2 @@
+{"name": "gp-audio-infos", "out": "server/src/gameplan.rs", "mode": "patch", "gpu_seconds": 16.5, "tokens": 342, "prompt_tokens": 16419, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-12T16:06:17"}
+{"name": "gp-audio-infos", "out": "server/src/gameplan.rs", "check": "sh /tmp/kk-m611/ctest.sh /tmp/kk-m611/gp-audio-infos-ovms-r1 kk-m611-ovms-r1 the_audio_kinds_are_workflows_too", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T16:06:41"}
