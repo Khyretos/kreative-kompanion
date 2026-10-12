@@ -7,6 +7,12 @@ mod capabilities;
 mod capmatrix;
 mod config;
 mod costs;
+mod assetaudio;
+mod assetcontract;
+mod assetcontract_web;
+mod assetimage;
+mod assetmodel;
+mod assetstyle;
 mod devsettings;
 mod devsettings_web;
 mod contrast;
@@ -329,6 +335,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/model-capabilities", get(capmatrix::get))
         .route("/model-capabilities/bench", post(capmatrix::bench))
         .route("/projects/{id}/state", get(statesum::get))
+        .route("/projects/{id}/asset-check", post(assetcontract_web::check).layer(axum::extract::DefaultBodyLimit::max(40 * 1024 * 1024)))
         .route("/projects/{id}/dev-settings", get(devsettings_web::get).put(devsettings_web::put))
         .route("/projects/{id}/dev-settings/run/{kind}", post(devsettings_web::run))
         .route("/tasks/{id}/budget", axum::routing::put(scheduler_web::set_budget))
