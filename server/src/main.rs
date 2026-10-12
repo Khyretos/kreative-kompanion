@@ -28,6 +28,7 @@ mod mail;
 mod mailhtml;
 mod mcp;
 mod mcp_grants;
+mod repomem;
 mod chat_tools;
 mod chat_files;
 mod chat_attach;

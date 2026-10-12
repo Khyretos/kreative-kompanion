@@ -472,6 +472,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     let started = Instant::now();
     let mut text = String::new();
     let (mut tokens_in, mut tokens_out) = (None, None);
+    let (mut cache_write, mut cache_read) = (None, None);
     let mut error: Option<String> = None;
 
     // Try the role's model, once more after a pause, then another provider the
@@ -551,9 +552,13 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
                         Ok(Chunk::Usage {
                             tokens_in: i,
                             tokens_out: o,
+                            cache_write: cw,
+                            cache_read: cr,
                         }) => {
                             tokens_in = i.or(tokens_in);
                             tokens_out = o.or(tokens_out);
+                            cache_write = cw.or(cache_write);
+                            cache_read = cr.or(cache_read);
                         }
                         Err(e) => {
                             error = Some(format!("{e:#}"));
@@ -642,7 +647,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     let request = json!({ "messages": convo, "extra_body": sent_extra });
     let _ = sqlx::query(
         "INSERT INTO calls (user_id, id, chat_id, role, provider_id, model_id, reason, request, response,
-         tokens_in, tokens_out, ms, error, at, effort) VALUES (?, ?, ?, 'orchestrator', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         tokens_in, tokens_out, ms, error, at, effort, cache_write, cache_read) VALUES (?, ?, ?, 'orchestrator', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&user_id)
     .bind(util::new_id())
@@ -658,6 +663,8 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     .bind(&error)
     .bind(util::now())
     .bind(effort.as_str())
+    .bind(cache_write)
+    .bind(cache_read)
     .execute(&s.db)
     .await;
 }
@@ -950,10 +957,12 @@ pub async fn calls(
         Option<String>,
         String,
         Option<String>,
+        Option<i64>,
+        Option<i64>,
     );
     let rows: Vec<Row> =
         sqlx::query_as(
-            "SELECT id, chat_id, role, provider_id, model_id, reason, request, response, tokens_in, tokens_out, ms, error, at, effort
+            "SELECT id, chat_id, role, provider_id, model_id, reason, request, response, tokens_in, tokens_out, ms, error, at, effort, cache_write, cache_read
              FROM calls WHERE user_id = ?3 AND (?1 IS NULL OR chat_id = ?1) ORDER BY at DESC LIMIT ?2",
         )
         .bind(&q.chat)
@@ -963,11 +972,12 @@ pub async fn calls(
         .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, chat_id, role, provider, model, reason, request, response, ti, to, ms, error, at, effort)| {
+            .map(|(id, chat_id, role, provider, model, reason, request, response, ti, to, ms, error, at, effort, cw, cr)| {
                 json!({
                     "id": id, "chatId": chat_id, "role": role, "provider": provider, "model": model,
                     "reason": reason, "request": serde_json::from_str::<Value>(&request).unwrap_or(Value::Null),
                     "response": response, "tokensIn": ti, "tokensOut": to, "ms": ms, "error": error, "at": at, "effort": effort,
+                    "cacheWrite": cw, "cacheRead": cr,
                 })
             })
             .collect(),
