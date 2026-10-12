@@ -187,6 +187,65 @@ mod tests {
         AppState::for_tests(toml::from_str("").unwrap(), db)
     }
 
+    fn body(v: Value) -> Json<SettingsBody> {
+        Json(serde_json::from_value(v).unwrap())
+    }
+
+    /// PROJ-OVERVIEW: name, description, about and links are checked, trimmed and saved; a Windshift
+    /// project keeps its name and description (they are edited in Windshift).
+    #[tokio::test]
+    async fn overview_fields_are_checked_and_saved() {
+        let db = db().await;
+        let s = state(db.clone());
+        let mut events = s.bus.subscribe();
+        let patch = |v: Value| settings(State(s.clone()), Extension(user("u1")), Path("p1".into()), body(v));
+        patch(json!({
+            "name": " Forest ", "description": " A calm game ", "about": "# Why\nBecause.",
+            "links": [{ "label": " Repo ", "url": " https://git.example.com/k/forest " }, { "label": "Site", "url": "http://forest.test" }],
+        }))
+        .await
+        .unwrap();
+        assert!(matches!(events.try_recv(), Ok((ref u, crate::events::Event::Changed { what: "projects", .. })) if u == "u1"));
+        let row: (String, String, String, String) = sqlx::query_as("SELECT name, description, about, links FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!((row.0.as_str(), row.1.as_str(), row.2.as_str()), ("Forest", "A calm game", "# Why\nBecause."));
+        let links: Value = serde_json::from_str(&row.3).unwrap();
+        assert_eq!(links, json!([{ "label": "Repo", "url": "https://git.example.com/k/forest" }, { "label": "Site", "url": "http://forest.test" }]));
+        // An empty list clears the links; an empty about clears it.
+        patch(json!({ "links": [], "about": "" })).await.unwrap();
+        let row: (String, String) = sqlx::query_as("SELECT about, links FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!(row, (String::new(), "[]".into()));
+        // Refused, and nothing changes.
+        let link = |label: &str, url: &str| json!({ "links": [{ "label": label, "url": url }] });
+        let eleven: Vec<Value> = (0..11).map(|i| json!({ "label": format!("L{i}"), "url": "https://a.test" })).collect();
+        for bad in [
+            json!({ "name": "  " }),
+            json!({ "name": "x".repeat(81) }),
+            json!({ "description": "two\nlines" }),
+            json!({ "description": "x".repeat(201) }),
+            json!({ "about": "x".repeat(20_001) }),
+            json!({ "links": eleven }),
+            link("Bad", "javascript:alert(1)"),
+            link("Ftp", "ftp://files.test"),
+            link("Space", "https://a.test/x y"),
+            link("", "https://a.test"),
+            link(&"x".repeat(61), "https://a.test"),
+        ] {
+            assert!(matches!(patch(bad.clone()).await, Err(ApiError::BadRequest(_))), "{bad}");
+        }
+        let name: String = sqlx::query_scalar("SELECT name FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!(name, "Forest");
+        // 80 characters, 200 characters and 20,000 bytes are still fine.
+        patch(json!({ "name": "é".repeat(80), "description": "d".repeat(200), "about": "a".repeat(20_000) })).await.unwrap();
+        // Windshift projects: name and description are read-only here, about and links are not.
+        sqlx::query("UPDATE projects SET kind = 'windshift' WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert!(matches!(patch(json!({ "name": "Renamed" })).await, Err(ApiError::BadRequest(m)) if m.contains("Windshift")));
+        assert!(matches!(patch(json!({ "description": "New" })).await, Err(ApiError::BadRequest(m)) if m.contains("Windshift")));
+        patch(json!({ "about": "Still editable." })).await.unwrap();
+        // Someone else's project: not found.
+        let other = settings(State(s.clone()), Extension(user("u2")), Path("p1".into()), body(json!({ "about": "x" })));
+        assert!(matches!(other.await, Err(ApiError::NotFound)));
+    }
+
     #[test]
     fn folders_must_be_absolute() {
         assert_eq!(clean_folder(" /home/k/app/ ").unwrap(), "/home/k/app");
@@ -199,9 +258,7 @@ mod tests {
     async fn type_and_repo_are_saved_and_checked() {
         let db = db().await;
         let s = state(db.clone());
-        let body = |t: Option<&str>, f: Option<&str>, m: Option<&str>| {
-            Json(SettingsBody { ptype: t.map(Into::into), repo_folder: f.map(Into::into), repo_machine_id: m.map(Into::into), overseer: None, archived: None })
-        };
+        let body = |t: Option<&str>, f: Option<&str>, m: Option<&str>| body(json!({ "type": t, "repoFolder": f, "repoMachineId": m }));
         settings(State(s.clone()), Extension(user("u1")), Path("p1".into()), body(Some("programming"), Some("/home/k/app/"), Some("m1")))
             .await
             .unwrap();
@@ -238,7 +295,7 @@ mod tests {
                 State(s.clone()),
                 Extension(user(who)),
                 Path("p1".into()),
-                Json(SettingsBody { ptype: None, repo_folder: None, repo_machine_id: None, overseer: None, archived: Some(on) }),
+                body(json!({ "archived": on })),
             )
         };
         let archived_at = || async { sqlx::query_scalar::<_, Option<String>>("SELECT archived_at FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap() };
