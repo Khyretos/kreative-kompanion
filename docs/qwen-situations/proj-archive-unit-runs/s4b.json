@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s4b",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/scheduler.rs",
+    "focus": ["pub fn spawn\\("],
+    "prompt": "In server/src/scheduler.rs, fn spawn loops over projects with `SELECT id, user_id FROM projects WHERE scheduler LIKE '%\\\"enabled\\\":true%'`. Archived projects (column `archived_at` not NULL) must be skipped: append ` AND archived_at IS NULL` to the end of that SQL string, keeping the LIKE filter exactly as it is. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s4b.sh",
+    "precheck": false
+  }
+]

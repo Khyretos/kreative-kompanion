@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w2b",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/api/http.ts",
+    "focus": ["setProjectSettings"],
+    "prompt": "In web/src/api/http.ts, method setProjectSettings takes `change: { type?: Project[\"type\"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }` and PATCHes it to /projects/{id}/settings. Add `archived?: boolean` as the last member of that change type (the server takes `archived: true|false`); the body is sent as it is. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w2b.sh",
+    "precheck": false
+  }
+]

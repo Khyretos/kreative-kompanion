@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w4c",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/sidebar.ts",
+    "focus": ["<h2 class=\"label\">Chats</h2>"],
+    "prompt": "In web/src/views/sidebar.ts, right after the Projects list closes (the `</ul>` directly before `<h2 class=\"label\">Chats</h2>`), add the toggle that shows archived projects, only when there are any (`archived` is the list of archived projects defined above in renderSidebar):\n      ${archived.length ? html`<button class=\"nav-item archived-toggle\" data-action=\"archived-toggle\" aria-pressed=\"${s.showArchived ? \"true\" : \"false\"}\">${icon(\"archive\")} Show archived (${archived.length})</button>` : \"\"} Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w4c.sh",
+    "precheck": false
+  }
+]

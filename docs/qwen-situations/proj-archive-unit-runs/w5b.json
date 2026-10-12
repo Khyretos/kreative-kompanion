@@ -1,0 +1,13 @@
+[
+  {
+    "name": "pa-w5b",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "focus": ["search: \\(el\\) => openSearchPalette"],
+    "prompt": "In web/src/main.ts, the click action map (`\"chat-menu\": ...`, `\"chat-archive\": ...`, `search: (el) => openSearchPalette(el),`) gets the project menu actions. Directly above the line `search: (el) => openSearchPalette(el),` add:\n    \"project-menu\": (el) => store.set({ projectMenuId: store.get().projectMenuId === el.dataset.id ? undefined : el.dataset.id }),\n    \"project-archive\": (el) => archiveProject(el.dataset.id ?? \"\", true),\n    \"project-unarchive\": (el) => archiveProject(el.dataset.id ?? \"\", false),\n    \"archived-toggle\": () => {\n      const on = !store.get().showArchived;\n      try { localStorage.setItem(\"kk-show-archived\", on ? \"1\" : \"0\"); } catch { /* private window: this tab only */ }\n      store.set({ showArchived: on });\n    },\n(archiveProject(id, on) already exists in this file.) Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w5b.sh",
+    "precheck": false,
+    "max_tokens": 3000
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s2b",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/api.rs",
+    "focus": ["pub async fn projects\\("],
+    "prompt": "In server/src/api.rs, fn projects (GET /api/projects) selects the user's projects. Add the column `archived_at` to the end of its SELECT column list (after `overseer`), so the list carries every project's archive date. Keep the WHERE and ORDER BY as they are: archived projects are still returned (the app filters them). Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s2b.sh",
+    "precheck": false
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "name": "pa-w8",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/styles.css",
+    "focus": ["\\.chat-more \\{", "\\.project-head \\{"],
+    "context": [],
+    "prompt": "Append a new block at the very END of web/src/styles.css (add nothing anywhere else) with the styles for archiving projects in the sidebar. Use only the existing custom properties (var(--muted), var(--line), var(--radius), var(--surface-2), var(--accent-strong)). Rules, with these exact selectors:\n- a comment `/* PROJ-ARCHIVE: the options menu on each project, the archived group and its toggle */`\n- `.project-row`: position relative, display flex, align-items center, gap 0.15rem, border-radius 6px (the menu is placed under it).\n- `.project-row > .project-head`: flex 1, min-width 0.\n- `.project-more`: flex none, width 2rem, height 2rem, color var(--muted). Always visible (no hover-only opacity).\n- inside `@media (max-width: 760px), (hover: none)`: `.project-more` width and height 2.75rem (44 px touch target).\n- `.project.archived .project-name`: color var(--muted), font-weight 500.\n- `.project:not(.archived) + .project.archived`: margin-top 0.35rem, padding-top 0.5rem, border-top 1px solid var(--line) (separates the archived group).\n- `.archived-chip`: font-size 0.7rem, flex none.\n- `.archived-toggle`: align-items center, color var(--muted), font-size 0.85rem.\n- `.archived-toggle[aria-pressed=\"true\"]`: color var(--accent-strong).\n- `.archived-bar`: display flex, align-items center, gap 0.5rem, margin-bottom 0.75rem, padding 0.5rem 0.75rem, border 1px solid var(--line), border-radius var(--radius), background var(--surface-2), font-size 0.88rem.\n- `.archived-bar > span`: flex 1.\n- inside `@media (prefers-reduced-motion: no-preference)`: `.project.archived, .archived-bar` get `animation: kk-archive-in 0.18s ease-out;`\n- `@keyframes kk-archive-in { from { opacity: 0; transform: translateY(-2px); } }`\nTo append, use one SEARCH block holding the last lines of the file and a REPLACE block with those same lines followed by the new block.",
+    "check": "sh /tmp/kk-arch-chk/w8.sh",
+    "precheck": false
+  }
+]

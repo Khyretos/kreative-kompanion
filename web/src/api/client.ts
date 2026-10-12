@@ -74,7 +74,7 @@ export interface KompanionApi {
 
   listProjects(): Promise<Project[]>;
   /** A project's type, and for programming projects its repo folder and computer ("" clears). */
-  setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }): Promise<void>;
+  setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean; archived?: boolean }): Promise<void>;
   /** Library assets attached to a game project. */
   getDevSettings(projectId: string): Promise<import("./types").DevSettingsView>;
   putDevSettings(projectId: string, s: Omit<import("./types").DevSettings, "last">): Promise<void>;

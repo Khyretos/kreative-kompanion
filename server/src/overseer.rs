@@ -104,7 +104,7 @@ type TaskRow = (String, String, String, String, String, f64, String);
 /// and the last few titles. Bounded to about `max` characters.
 pub async fn scan(db: &SqlitePool, user_id: &str, max: usize) -> Scan {
     let projects: Vec<(String, String, String, String)> = sqlx::query_as(
-        "SELECT id, name, description, state_summary FROM projects WHERE user_id = ? ORDER BY updated_at DESC LIMIT 30",
+        "SELECT id, name, description, state_summary FROM projects WHERE user_id = ? AND archived_at IS NULL ORDER BY updated_at DESC LIMIT 30",
     )
     .bind(user_id)
     .fetch_all(db)
@@ -382,7 +382,7 @@ pub async fn create_tasks(
     let name: String = b.project.trim().chars().take(80).collect();
     let existing: Option<String> = match &b.project_id {
         Some(id) => sqlx::query_scalar("SELECT id FROM projects WHERE id = ? AND user_id = ?").bind(id).bind(&u.id).fetch_optional(&s.db).await?,
-        None => sqlx::query_scalar("SELECT id FROM projects WHERE user_id = ? AND lower(name) = lower(?)").bind(&u.id).bind(&name).fetch_optional(&s.db).await?,
+        None => sqlx::query_scalar("SELECT id FROM projects WHERE user_id = ? AND lower(name) = lower(?) AND archived_at IS NULL").bind(&u.id).bind(&name).fetch_optional(&s.db).await?,
     };
     let project_id = match existing {
         Some(id) => id,

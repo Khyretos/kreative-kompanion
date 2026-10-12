@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s4a",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/scheduler.rs",
+    "focus": ["pub async fn tick_project"],
+    "prompt": "In server/src/scheduler.rs, fn tick_project reads the project's scheduler config with `SELECT scheduler FROM projects WHERE id = ? AND user_id = ?`. An archived project (column `archived_at` is not NULL) must start nothing: add `AND archived_at IS NULL` to that WHERE clause, so an archived project reads no config and the function returns early with no started tasks. Do not touch tasks that are already running. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s4a.sh",
+    "precheck": false
+  }
+]

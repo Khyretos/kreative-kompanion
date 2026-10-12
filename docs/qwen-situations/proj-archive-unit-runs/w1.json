@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w1",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/api/types.ts",
+    "focus": ["export interface Project \\{"],
+    "prompt": "In web/src/api/types.ts, interface Project gets one new last field after the `overseer?: boolean; ...` line:\n  archivedAt?: string | null; // PROJ-ARCHIVE: when it was archived; absent or null = active\nThe server sends it as `archivedAt` (null for active projects). Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w1.sh",
+    "precheck": false
+  }
+]

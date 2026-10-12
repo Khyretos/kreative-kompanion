@@ -345,9 +345,10 @@ function render(s: AppState, prev: AppState): void {
   }
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
-    "chatMenuId", "movingChatId", "renamingChatId", "server", "userName", "logoVersion", "section", "allTasksShown", "openTaskId"])) {
+    "chatMenuId", "movingChatId", "renamingChatId", "server", "userName", "logoVersion", "section", "allTasksShown", "openTaskId",
+    "projectMenuId", "showArchived"])) {
     remount($("#left"), renderSidebar(s));
-    const menu = document.querySelector<HTMLElement>(".chat-row.menu-open .menu");
+    const menu = document.querySelector<HTMLElement>(".chat-row.menu-open .menu, .project.menu-open .menu");
     if (menu) placeMenu(menu);
   }
   if (s.renamingChatId && s.renamingChatId !== prev.renamingChatId) {
@@ -391,7 +392,7 @@ function render(s: AppState, prev: AppState): void {
   }
   lastPcKey = pcKey;
   const rightKeys: (keyof AppState)[] = s.rightTab === "tasks"
-    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines"]
+    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines", "showArchived"]
     : s.rightTab === "access" ? ["rightTab", "grants", "accessHistory", "machines"]
     : s.rightTab === "activity" ? ["rightTab", "activity", "activityFilter", "weeklyCosts"]
     : ["rightTab", "machines", "today", "machinesRefresh", "tasks", "pairing", "gpuOpen", "gpuPins", "cardStyle"];
@@ -1073,6 +1074,14 @@ function wire(shell: HTMLElement): void {
       if (c && confirm(`Delete "${c.title}" and its messages? This can't be undone.`)) removeChat(c.id);
       else store.set({ chatMenuId: undefined });
     },
+    "project-menu": (el) => store.set({ projectMenuId: store.get().projectMenuId === el.dataset.id ? undefined : el.dataset.id }),
+    "project-archive": (el) => archiveProject(el.dataset.id ?? "", true),
+    "project-unarchive": (el) => archiveProject(el.dataset.id ?? "", false),
+    "archived-toggle": () => {
+      const on = !store.get().showArchived;
+      try { localStorage.setItem("kk-show-archived", on ? "1" : "0"); } catch { /* private window: this tab only */ }
+      store.set({ showArchived: on });
+    },
     search: (el) => openSearchPalette(el),
     // Opens the task detail from anywhere (sidebar, chat, task list): back to the chat
     // section, Tasks tab, and the right panel shown even when it was collapsed.
@@ -1421,6 +1430,7 @@ function wire(shell: HTMLElement): void {
     if (store.get().effortMenuOpen && !t.closest(".effort")) store.set({ effortMenuOpen: false });
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
+    if (store.get().projectMenuId && !t.closest(".menu, .project-more")) store.set({ projectMenuId: undefined });
   });
   // Rename in place: Enter saves, leaving the field saves too.
   const saveRename = (form: HTMLFormElement) => {
@@ -1833,6 +1843,44 @@ async function loadAccess(): Promise<void> {
     const grants = Object.fromEntries(machines.map((m, i) => [m.id, lists[i]]));
     store.set({ grants, accessHistory: await api.accessHistory() });
   } catch (e) { showError(e); }
+}
+
+// PROJ-ARCHIVE: the project leaves (or rejoins) the list in the same frame, then the server is told;
+// on an error it comes back and a toast says why. Archiving shows "Archived <name> · Undo" for about 6 s.
+let archiveToast: HTMLElement | undefined;
+async function archiveProject(id: string, on: boolean): Promise<void> {
+  const before = store.get().projects;
+  const p = before.find((x) => x.id === id);
+  if (!p) return;
+  archiveToast?.remove();
+  store.set({ projectMenuId: undefined, projects: before.map((x) => x.id === id ? { ...x, archivedAt: on ? (x.archivedAt ?? new Date().toISOString()) : null } : x) });
+  if (on) {
+    const toast = document.createElement("div");
+    toast.className = "toast project-undo";
+    toast.setAttribute("role", "status");
+    const text = document.createElement("span");
+    text.textContent = `Archived ${p.name}`;
+    const undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "btn small";
+    undo.textContent = "Undo";
+    undo.addEventListener("click", () => void archiveProject(id, false));
+    toast.append(text, undo);
+    document.body.append(toast);
+    archiveToast = toast;
+    setTimeout(() => {
+      toast.remove();
+      if (archiveToast === toast) archiveToast = undefined;
+    }, 6000);
+  }
+  try {
+    await api.setProjectSettings(id, { archived: on });
+  } catch (e) {
+    archiveToast?.remove();
+    archiveToast = undefined;
+    store.set({ projects: store.get().projects.map((x) => x.id === id ? { ...x, archivedAt: p.archivedAt } : x) });
+    showError(e);
+  }
 }
 
 async function changeChat(id: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: Effort }): Promise<void> {

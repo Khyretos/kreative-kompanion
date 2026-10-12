@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w2a",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/api/client.ts",
+    "focus": ["setProjectSettings"],
+    "prompt": "In web/src/api/client.ts, the KompanionApi method setProjectSettings takes `change: { type?: Project[\"type\"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }`. Add `archived?: boolean` as the last member of that change type, so it reads `{ type?: Project[\"type\"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean; archived?: boolean }`. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w2a.sh",
+    "precheck": false
+  }
+]

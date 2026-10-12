@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s3b",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/projects.rs",
+    "focus": ["pub async fn settings\\(", "UPDATE projects SET overseer"],
+    "prompt": "In server/src/projects.rs, fn settings handles PATCH /api/projects/{id}/settings. Directly after the `if let Some(on) = b.overseer { ... }` block and before the `s.bus.send(...)` line, add handling for the new field `b.archived: Option<bool>`:\n- Some(true): set `archived_at` to now (`util::now()`), but keep the first date when the project is already archived (use `COALESCE(archived_at, ?)` in the UPDATE).\n- Some(false): set `archived_at = NULL`.\n- None: do nothing.\nUse sqlx::query(...).bind(...).execute(&s.db).await? like the other updates in this function, with `WHERE id = ?`. The owner check at the top and the Changed event at the end stay as they are. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s3b.sh",
+    "precheck": false
+  }
+]

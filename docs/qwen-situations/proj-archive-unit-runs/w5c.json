@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w5c",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "focus": ["A click anywhere outside an open chat menu"],
+    "prompt": "In web/src/main.ts, the document click listener commented `// A click anywhere outside an open chat menu closes it.` ends with `if (store.get().chatMenuId && !t.closest(\".menu, .chat-more\")) store.set({ chatMenuId: undefined, movingChatId: undefined });`. Directly after that line add the same for the project menu:\n    if (store.get().projectMenuId && !t.closest(\".menu, .project-more\")) store.set({ projectMenuId: undefined }); Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w5c.sh",
+    "precheck": false
+  }
+]

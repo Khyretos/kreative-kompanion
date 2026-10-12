@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w6",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/tasks.ts",
+    "focus": ["const list = scope ==="],
+    "prompt": "In web/src/views/tasks.ts, renderTasks has `const list = scope === \"project\" ? s.tasks.filter((t) => t.projectId === project!.id) : s.tasks;`. With scope \"all\", tasks of archived projects (their project has archivedAt set) must be left out unless s.showArchived is on. Replace that line with:\n  // PROJ-ARCHIVE: \"All\" leaves out the tasks of archived projects unless \"Show archived\" is on.\n  const listed = (t: Task) => s.showArchived || !s.projects.find((p) => p.id === t.projectId)?.archivedAt;\n  const list = scope === \"project\" ? s.tasks.filter((t) => t.projectId === project!.id) : s.tasks.filter(listed); Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w6.sh",
+    "precheck": false
+  }
+]

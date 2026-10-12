@@ -1,0 +1,11 @@
+[
+  {
+    "name": "pa-s1",
+    "role": "worker/rust",
+    "out": "server/migrations/0131_project_archived.sql",
+    "context": ["server/migrations/0130_project_settings.sql"],
+    "prompt": "Write a new SQLite migration file server/migrations/0131_project_archived.sql for the PROJ-ARCHIVE task. It adds one nullable column to the existing `projects` table: `archived_at`, type TEXT, no default (NULL means the project is active; the value is the moment it was archived, an ISO timestamp). Start the file with a one-line `--` comment saying what the column is for, like the other migrations do. Only SQL, nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s1.sh",
+    "precheck": false
+  }
+]

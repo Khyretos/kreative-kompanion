@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w5a",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "focus": ["remount\\(\\$\\(\"#left\"\\), renderSidebar"],
+    "prompt": "In web/src/main.ts, the render function re-renders the sidebar when one of a list of state keys changed: `if (changed(s, prev, [\"chats\", ... \"allTasksShown\", \"openTaskId\"])) {` then `remount($(\"#left\"), renderSidebar(s));` then `const menu = document.querySelector<HTMLElement>(\".chat-row.menu-open .menu\");` and `if (menu) placeMenu(menu);`.\n1. Add the two keys \"projectMenuId\" and \"showArchived\" at the end of that key list, on a new line (the list ends `\"openTaskId\",` newline `\"projectMenuId\", \"showArchived\"])) {`).\n2. Change the querySelector string to `\".chat-row.menu-open .menu, .project.menu-open .menu\"` so the project menu is placed the same way. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w5a.sh",
+    "precheck": false
+  }
+]

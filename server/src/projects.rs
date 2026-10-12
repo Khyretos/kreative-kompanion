@@ -39,6 +39,8 @@ pub struct SettingsBody {
     repo_machine_id: Option<String>,
     /// OVR-01b: the Overseer answers every chat of this project.
     overseer: Option<bool>,
+    /// PROJ-ARCHIVE: true archives the project (the first date is kept), false unarchives it.
+    archived: Option<bool>,
 }
 
 /// PATCH /projects/{id}/settings: the type, and for programming projects the repo.
@@ -74,6 +76,13 @@ pub async fn settings(
     }
     if let Some(on) = b.overseer {
         sqlx::query("UPDATE projects SET overseer = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(archived) = b.archived {
+        if archived {
+            sqlx::query("UPDATE projects SET archived_at = COALESCE(archived_at, ?) WHERE id = ?").bind(util::now()).bind(&id).execute(&s.db).await?;
+        } else {
+            sqlx::query("UPDATE projects SET archived_at = NULL WHERE id = ?").bind(&id).execute(&s.db).await?;
+        }
     }
     s.bus.send(&u.id, Event::Changed { what: "projects", machine_id: None });
     Ok(StatusCode::NO_CONTENT)
@@ -191,7 +200,7 @@ mod tests {
         let db = db().await;
         let s = state(db.clone());
         let body = |t: Option<&str>, f: Option<&str>, m: Option<&str>| {
-            Json(SettingsBody { ptype: t.map(Into::into), repo_folder: f.map(Into::into), repo_machine_id: m.map(Into::into), overseer: None })
+            Json(SettingsBody { ptype: t.map(Into::into), repo_folder: f.map(Into::into), repo_machine_id: m.map(Into::into), overseer: None, archived: None })
         };
         settings(State(s.clone()), Extension(user("u1")), Path("p1".into()), body(Some("programming"), Some("/home/k/app/"), Some("m1")))
             .await
@@ -211,6 +220,49 @@ mod tests {
         let row: (Option<String>, Option<String>) =
             sqlx::query_as("SELECT repo_folder, repo_machine_id FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
         assert_eq!(row, (None, None));
+    }
+
+    /// PROJ-ARCHIVE: archive keeps its first date, unarchive clears it, only the owner may, the list
+    /// carries `archivedAt`, a running task keeps running, and every change is announced.
+    #[tokio::test]
+    async fn archive_and_unarchive_a_project() {
+        let db = db().await;
+        let s = state(db.clone());
+        let mut events = s.bus.subscribe();
+        sqlx::query("INSERT INTO tasks (id, project_id, title, description, state, updated_at, user_id) VALUES ('t1', 'p1', 'T', 'd', 'running', '2026', 'u1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let archive = |on: bool, who: &str| {
+            settings(
+                State(s.clone()),
+                Extension(user(who)),
+                Path("p1".into()),
+                Json(SettingsBody { ptype: None, repo_folder: None, repo_machine_id: None, overseer: None, archived: Some(on) }),
+            )
+        };
+        let archived_at = || async { sqlx::query_scalar::<_, Option<String>>("SELECT archived_at FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap() };
+        archive(true, "u1").await.unwrap();
+        assert!(archived_at().await.is_some(), "archiving sets the date");
+        assert!(matches!(events.try_recv(), Ok((ref u, crate::events::Event::Changed { what: "projects", .. })) if u == "u1"));
+        // A second archive keeps the first date.
+        sqlx::query("UPDATE projects SET archived_at = '2026-10-01T09:00:00Z' WHERE id = 'p1'").execute(&db).await.unwrap();
+        archive(true, "u1").await.unwrap();
+        assert_eq!(archived_at().await.as_deref(), Some("2026-10-01T09:00:00Z"));
+        // The list carries it as archivedAt.
+        let Json(list) = crate::api::projects(State(s.clone()), Extension(user("u1"))).await.unwrap();
+        assert_eq!(serde_json::to_value(&list[0]).unwrap()["archivedAt"], "2026-10-01T09:00:00Z");
+        // Someone else's project: not found, nothing changes.
+        assert!(matches!(archive(false, "u2").await, Err(ApiError::NotFound)));
+        assert!(archived_at().await.is_some());
+        // Archiving never stops a running task.
+        let st: String = sqlx::query_scalar("SELECT state FROM tasks WHERE id = 't1'").fetch_one(&db).await.unwrap();
+        assert_eq!(st, "running");
+        // Unarchive clears it.
+        archive(false, "u1").await.unwrap();
+        assert_eq!(archived_at().await, None);
+        let Json(list) = crate::api::projects(State(s), Extension(user("u1"))).await.unwrap();
+        assert!(serde_json::to_value(&list[0]).unwrap()["archivedAt"].is_null());
     }
 
     #[tokio::test]

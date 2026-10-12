@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w3b",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/state.ts",
+    "focus": ["new Store<AppState>", "taskFilter: \"\""],
+    "prompt": "In web/src/state.ts, the initial store object (`export const store = new Store<AppState>({ ... })`): directly after the line `taskFilter: \"\",` add\n  showArchived: (() => { try { return localStorage.getItem(\"kk-show-archived\") === \"1\"; } catch { return false; } })(),\nlike the collapsedGroups line below it reads localStorage inside try/catch (private windows throw). Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w3b.sh",
+    "precheck": false
+  }
+]

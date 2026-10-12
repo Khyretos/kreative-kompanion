@@ -75,6 +75,8 @@ export interface AppState {
   assetPick: { project: string; q: string; items: import("./views/projectpanel").PickResult[]; busy: boolean }; // the picker
   activeProjectId?: string; // project picked in the sidebar (tasks pane, new chats)
   chatMenuId?: string; // chat whose options menu is open
+  projectMenuId?: string; // PROJ-ARCHIVE: project whose options menu is open
+  showArchived?: boolean; // PROJ-ARCHIVE: archived projects shown in the sidebar, remembered on this device
   movingChatId?: string; // chat whose "Move to project" list is open
   effortMenuOpen?: boolean; // the composer's effort menu (EF-01)
   draftEffort?: Effort; // effort picked before the chat exists
@@ -106,6 +108,7 @@ export const store = new Store<AppState>({
   expandedProjects: new Set(),
   allTasksShown: new Set(),
   taskFilter: "",
+  showArchived: (() => { try { return localStorage.getItem("kk-show-archived") === "1"; } catch { return false; } })(),
   collapsedGroups: (() => { try { return new Set<string>(JSON.parse(localStorage.getItem("kk-task-groups") ?? "[]")); } catch { return new Set<string>(); } })(),
   voicePrefs: loadVoicePrefs(),
   recording: "idle",
