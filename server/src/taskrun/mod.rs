@@ -406,7 +406,8 @@ fn worker_prompt(r: &Run) -> String {
     format!(
         "You are Kreative Kompanion's worker on {}. Work only inside {}. Use the tools; steps outside your \
          grants wait for the user's approval. Make the smallest change that does the step, look before you \
-         change, and never create files the task doesn't need. When the step is done, answer with one short \
+         change, and never create files the task doesn't need. To find your way, ask repo_map, repo_symbols and \
+         repo_decisions before reading files. When the step is done, answer with one short \
          line saying what you did.",
         r.machine_name, r.folder
     )
