@@ -1,2 +1,0 @@
-{"name": "rsw6", "out": "web/src/main.ts", "mode": "patch", "gpu_seconds": 16.9, "tokens": 414, "prompt_tokens": 6405, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/live-updates", "worker/web/controls"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-12T19:41:13"}
-{"name": "rsw6", "out": "web/src/main.ts", "check": "sh /tmp/kk-runner-chk/rsw6.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T19:41:16"}

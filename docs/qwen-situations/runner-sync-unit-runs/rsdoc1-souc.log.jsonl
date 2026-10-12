@@ -1,2 +1,0 @@
-{"name": "rsdoc1", "out": "docs/runner-install.md", "mode": "patch", "gpu_seconds": 18.9, "tokens": 722, "prompt_tokens": 13101, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/processes-files", "shared/processes"], "lines": 1, "attempts": 2, "model": "qwen3.5:9b-q8_0-64k", "at": "2026-10-12T19:47:37"}
-{"name": "rsdoc1", "out": "docs/runner-install.md", "check": "sh /tmp/kk-runner-chk/rsdoc1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T19:47:38"}

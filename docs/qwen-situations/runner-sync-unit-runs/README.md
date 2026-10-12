@@ -1,6 +1,6 @@
 # RUNNER-SYNC unit runs (2026-10-12)
 
-One Coder draft per unit, retried with its own check errors, at most 3 attempts in total (Kees, 14:24Z); OVMS (kireserver) and the soucouyant Ollama in parallel on different units. `<unit>-<model>.log.jsonl` is the pipeline log (draft line and every check attempt with its errors). Files with `-void-check-bug` are runs voided because Claude's own check script was wrong (lessons 200 and 202); they are kept for the record, not counted. Jobs: `docs/qwen-situations/<lesson>/…json`. Totals: `docs/qwen-log/runner-sync.jsonl` (last line, summary.py).
+One Coder draft per unit, retried with its own check errors, at most 3 attempts in total (Kees, 14:24Z); OVMS (kireserver) and the soucouyant Ollama in parallel on different units. `<unit>-<model>.log.jsonl.gz` (gzip, so the review bot does not read stored failures as code) is the pipeline log (draft line and every check attempt with its errors). Files with `-void-check-bug` are runs voided because Claude's own check script was wrong (lessons 200 and 202); they are kept for the record, not counted. Jobs: `docs/qwen-situations/<lesson>/…json`. Totals: `docs/qwen-log/runner-sync.jsonl` (last line, summary.py).
 
 | Unit   | Job                                                         | Model | Attempts                | Result                                        |
 | ------ | ----------------------------------------------------------- | ----- | ----------------------- | --------------------------------------------- |

@@ -1,2 +1,0 @@
-{"name": "rsg1", "out": "tools/qwen/review_findings.py", "mode": "patch", "gpu_seconds": 5.3, "tokens": 79, "prompt_tokens": 7470, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "worker/python"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-12T20:05:59"}
-{"name": "rsg1", "out": "tools/qwen/review_findings.py", "check": "sh /tmp/kk-runner-chk/rsg1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T20:05:59"}

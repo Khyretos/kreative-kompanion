@@ -1,2 +1,0 @@
-{"name": "rsw1", "out": "web/src/api/mock.ts", "mode": "patch", "gpu_seconds": 9.0, "tokens": 430, "prompt_tokens": 5575, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/playwright"], "lines": 1, "attempts": 1, "model": "qwen3.5:9b-q8_0-64k", "at": "2026-10-12T19:33:24"}
-{"name": "rsw1", "out": "web/src/api/mock.ts", "check": "sh /tmp/kk-runner-chk/rsw1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T19:33:31"}

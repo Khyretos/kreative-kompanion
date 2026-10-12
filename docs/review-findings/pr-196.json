@@ -313,5 +313,41 @@
     "reason": "The test files are part of this PR (runner/src/selfupdate_tests.rs, tools/test_sync_runner.sh, web/tests/runnersync.spec.ts, tools/e2e_runner_update.py); the reviewer only saw a diff chunk without them.",
     "title": "Misleading Test Summary",
     "verdict": "false_positive"
+  },
+  "45822f4f1f67": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/202-grep-check-quote-bug-repairs-add-junk/wrong-output.diff",
+    "title": "Wrong Diff Content",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
+  },
+  "9cb15e5c4e7b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
+    "title": "Compilation Errors",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
+  },
+  "b30c41b85ce3": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/206-weak-grep-check-passes-wrong-shape/wrong-output.diff",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
+  },
+  "b54884dbbffb": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/lessons-learned.md",
+    "title": "Incorrect Line Numbers",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
   }
 }
