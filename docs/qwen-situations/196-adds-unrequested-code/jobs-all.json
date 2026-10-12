@@ -1,40 +1,33 @@
 [
- {
-  "name": "ru1",
-  "role": "worker/python",
-  "out": "tools/review_status.py",
-  "precheck": false,
-  "context": [
-   "tools/test_review_status.py"
-  ],
-  "max_tokens": 1500,
-  "prompt": "Create tools/review_status.py (a new file, compact, about 40 lines). Module docstring: 'GATE-IN-CI: post the review gate result of every open PR as the commit status review-gate / gate.' Then ONE function `status_for(code)` returning (state, description): exit code 0 -> ('success', 'review findings are all handled'); 2 -> ('pending', 'PR-Agent is still reviewing the head'); 1 -> ('failure', 'review findings are open or unchecked'); any other code -> ('error', 'the review gate could not run (exit %d)' % code). Descriptions must be under 140 characters. Do not write sweep or anything else yet; the tests in tools/test_review_status.py class StatusFor show the exact behaviour.",
-  "check": "sh /tmp/kk-gate-chk/ru1.sh"
- },
- {
-  "name": "ru2",
-  "role": "worker/python",
-  "out": "tools/review_status.py",
-  "precheck": false,
-  "mode": "patch",
-  "context": [
-   "tools/test_review_status.py"
-  ],
-  "max_tokens": 1500,
-  "prompt": "In tools/review_status.py add the function `sweep(api, gate)` after status_for, with a docstring. For each pull in api.open_pulls(): skip it when its title matches the regex r'\\s*(\\[wip\\]|wip\\b|draft\\b)' (case-insensitive; a missing title counts as empty); otherwise code = gate(pull['number']), but when gate raises OSError or subprocess.CalledProcessError use code = 3 (add `import re` and `import subprocess` at the top); state, description = status_for(code); call api.post_status(pull['head']['sha'], state, description); record results[number] = state. Return the results dict {number: state}. The tests in tools/test_review_status.py class Sweep show the exact behaviour.",
-  "check": "sh /tmp/kk-gate-chk/ru2.sh"
- },
- {
-  "name": "ru3",
-  "role": "worker/python",
-  "out": "tools/review_status_io.py",
-  "precheck": false,
-  "context": [
-   "tools/test_review_status.py",
-   "tools/auto_merge.py"
-  ],
-  "max_tokens": 2000,
-  "prompt": "Create tools/review_status_io.py (new file, compact). Docstring: 'GATE-IN-CI: Forgejo client that posts the commit status review-gate / gate.' Imports json, urllib.request, urllib.error. Constant CONTEXT = 'review-gate / gate'. ONE class `StatusClient` modelled on class Forgejo in tools/auto_merge.py: __init__(self, api, repo, token) sets self.base = api.rstrip('/') + '/repos/' + repo and self.token; method open_pulls(self) copied from Forgejo.open_pulls (GET /pulls?state=open&limit=50&page=N, stop on an empty page; raise OSError on a non-200); method post_status(self, sha, state, description) POSTs JSON {state, context: CONTEXT, description} to self.base + '/statuses/' + sha with header Authorization 'token <token>' and Content-Type application/json via urllib.request.urlopen(req, timeout=30), raising OSError('POST status: HTTP %d') on an HTTPError. Do NOT write main. See class Posting in tools/test_review_status.py.",
-  "check": "sh /tmp/kk-gate-chk/ru3.sh"
- }
+  {
+    "name": "ru1",
+    "role": "worker/python",
+    "out": "tools/review_status.py",
+    "precheck": false,
+    "context": ["tools/test_review_status.py"],
+    "max_tokens": 1500,
+    "prompt": "Create tools/review_status.py (a new file, compact, about 40 lines). Module docstring: 'GATE-IN-CI: post the review gate result of every open PR as the commit status review-gate / gate.' Then ONE function `status_for(code)` returning (state, description): exit code 0 -> ('success', 'review findings are all handled'); 2 -> ('pending', 'PR-Agent is still reviewing the head'); 1 -> ('failure', 'review findings are open or unchecked'); any other code -> ('error', 'the review gate could not run (exit %d)' % code). Descriptions must be under 140 characters. Do not write sweep or anything else yet; the tests in tools/test_review_status.py class StatusFor show the exact behaviour.",
+    "check": "sh /tmp/kk-gate-chk/ru1.sh"
+  },
+  {
+    "name": "ru2",
+    "role": "worker/python",
+    "out": "tools/review_status.py",
+    "precheck": false,
+    "mode": "patch",
+    "context": ["tools/test_review_status.py"],
+    "max_tokens": 1500,
+    "prompt": "In tools/review_status.py add the function `sweep(api, gate)` after status_for, with a docstring. For each pull in api.open_pulls(): skip it when its title matches the regex r'\\s*(\\[wip\\]|wip\\b|draft\\b)' (case-insensitive; a missing title counts as empty); otherwise code = gate(pull['number']), but when gate raises OSError or subprocess.CalledProcessError use code = 3 (add `import re` and `import subprocess` at the top); state, description = status_for(code); call api.post_status(pull['head']['sha'], state, description); record results[number] = state. Return the results dict {number: state}. The tests in tools/test_review_status.py class Sweep show the exact behaviour.",
+    "check": "sh /tmp/kk-gate-chk/ru2.sh"
+  },
+  {
+    "name": "ru3",
+    "role": "worker/python",
+    "out": "tools/review_status_io.py",
+    "precheck": false,
+    "context": ["tools/test_review_status.py", "tools/auto_merge.py"],
+    "max_tokens": 2000,
+    "prompt": "Create tools/review_status_io.py (new file, compact). Docstring: 'GATE-IN-CI: Forgejo client that posts the commit status review-gate / gate.' Imports json, urllib.request, urllib.error. Constant CONTEXT = 'review-gate / gate'. ONE class `StatusClient` modelled on class Forgejo in tools/auto_merge.py: __init__(self, api, repo, token) sets self.base = api.rstrip('/') + '/repos/' + repo and self.token; method open_pulls(self) copied from Forgejo.open_pulls (GET /pulls?state=open&limit=50&page=N, stop on an empty page; raise OSError on a non-200); method post_status(self, sha, state, description) POSTs JSON {state, context: CONTEXT, description} to self.base + '/statuses/' + sha with header Authorization 'token <token>' and Content-Type application/json via urllib.request.urlopen(req, timeout=30), raising OSError('POST status: HTTP %d') on an HTTPError. Do NOT write main. See class Posting in tools/test_review_status.py.",
+    "check": "sh /tmp/kk-gate-chk/ru3.sh"
+  }
 ]
