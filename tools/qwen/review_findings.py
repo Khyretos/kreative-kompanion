@@ -27,6 +27,9 @@ REPO = os.environ.get("REVIEW_REPO") or os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
 
+# Findings on generated drafting logs are never about the change itself.
+IGNORED_PATHS = ("docs/qwen-log/",)
+
 # Import pipeline only inside the triage function to avoid config needs for tests.
 # pylint: disable=import-outside-toplevel
 
@@ -122,19 +125,41 @@ def title(finding: dict) -> str:
     return first_line.strip()
 
 
+def repeat_of(finding: dict, ledger: dict):
+    """Id of a checked false positive with the same title on the same file, else None.
+
+    Every push reviews again and the model words the same point anew (new id), so the gate
+    and --triage both treat such a repeat as already handled.
+    """
+    return next(
+        (
+            k
+            for k, e in ledger.items()
+            if e.get("checked")
+            and e.get("verdict") == "false_positive"
+            and e.get("title") == title(finding)
+            and e.get("path") == finding.get("path")
+        ),
+        None,
+    )
+
+
 def blocking(findings: list, ledger: dict) -> list:
     """Return a list of (finding_id, why) for each non-cleared finding.
 
-    A finding is cleared if:
+    Findings in IGNORED_PATHS never block. A finding is cleared if:
       - verdict is "false_positive" and checked is True, OR
       - verdict is "bug", checked is True and fixed is set (non-empty).
     """
     results = []
     for f in findings:
         fid = f["finding_id"]
+        if f.get("path", "").startswith(IGNORED_PATHS):
+            continue
         entry = ledger.get(fid)
         if entry is None:
-            results.append((fid, "not triaged"))
+            if repeat_of(f, ledger) is None:
+                results.append((fid, "not triaged"))
             continue
 
         checked = entry.get("checked", False)
@@ -293,17 +318,7 @@ def triage(pr: dict, findings: list, ledger: dict, repo_root: str):
         fid = f["finding_id"]
         # Every push reviews again and the model words the same point anew (new id): a
         # repeat of a checked false positive on the same file keeps that verdict.
-        same = next(
-            (
-                k
-                for k, e in ledger.items()
-                if e.get("checked")
-                and e.get("verdict") == "false_positive"
-                and e.get("title") == title(f)
-                and e.get("path") == f["path"]
-            ),
-            None,
-        )
+        same = repeat_of(f, ledger)
         if same:
             ledger[fid] = dict(ledger[same], by=f"repeat of {same}")
             print(f"{fid} false_positive: {title(f)} ({f['path']}) - repeat of {same}")
