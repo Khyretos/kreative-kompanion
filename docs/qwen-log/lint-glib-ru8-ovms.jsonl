@@ -1,0 +1,2 @@
+{"name": "ru8", "out": ".forgejo/lint-decisions.json", "mode": "patch", "gpu_seconds": 3.9, "tokens": 94, "prompt_tokens": 2269, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-12T18:59:01"}
+{"name": "ru8", "out": ".forgejo/lint-decisions.json", "check": "sh /tmp/kk-gate-chk/ru8.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T18:59:01"}
