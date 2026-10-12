@@ -1,0 +1,137 @@
+{
+  "10824172b0fe": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "2aa245ae0438": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): dep_cycle gets the plan edges (which already contain this task own edges) plus its filtered dependency list, so a loop through any known key is found; unknown and self deps are reported separately. Test: a_dependency_loop_is_reported.",
+    "title": "Logic Error in Loop Detection",
+    "verdict": "false_positive"
+  },
+  "2aee21b683d1": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "2c0daabeb76f": {
+    "by": "repeat of c49271faab70",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): every query in planner.rs is a sqlx query with bound parameters (planner.rs insert_task and insert_deps use .bind); text from the model is never put into SQL.",
+    "title": "Potential SQL Injection",
+    "verdict": "false_positive"
+  },
+  "3172ee927b2f": {
+    "by": "repeat of 10824172b0fe",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "3548b25ea31c": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/taskrun/mod.rs",
+    "reason": "False positive (Claude checked): an automatic re-plan only stores a pending proposal, nothing runs until the user applies it, and spawn_replan skips a task that already has a pending re-plan and tasks the user stopped. No loop.",
+    "title": "Potential Infinite Loop",
+    "verdict": "false_positive"
+  },
+  "3dba29d7e60c": {
+    "by": "repeat of 10824172b0fe",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "786d5434b99c": {
+    "by": "repeat of 2aee21b683d1",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "7f5cb3b185c7": {
+    "by": "repeat of 2aee21b683d1",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): insert_deps runs once per apply on rows created in the same transaction; each task's dependency list is sorted and deduplicated first, so no (task_id, depends_on) pair repeats (task_deps primary key would also refuse it). Test: applying_a_plan_builds_goal_milestones_tasks_and_deps.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "85990cecd653": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner_web.rs",
+    "reason": "False positive (Claude checked): the handler logs the failed proposal save and returns before marking the task, so no task is left waiting without a proposal.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "b00cf6293a33": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/main.rs",
+    "reason": "False positive (Claude checked): the handlers return ApiResult, so errors become 400/404 responses like every other route; same auth layer as the task routes.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "c49271faab70": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "False positive (Claude checked): every query in planner.rs is a sqlx query with bound parameters (planner.rs insert_task and insert_deps use .bind); text from the model is never put into SQL.",
+    "title": "Potential SQL Injection",
+    "verdict": "false_positive"
+  },
+  "d3dd01656bd7": {
+    "by": "repeat of 10824172b0fe",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "Repeat of the insert_deps note: deduplicated per task, primary key on task_deps.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "d3fcba7c74ed": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/migrations/0123_plan_proposals.sql",
+    "reason": "False positive (Claude checked): every query filters by project_id (indexed with state) or by the proposal id (primary key); no query lists by user alone.",
+    "title": "Missing Index for User Queries",
+    "verdict": "false_positive"
+  },
+  "d80b49c44319": {
+    "by": "repeat of 2aee21b683d1",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/planner.rs",
+    "reason": "Repeat of the insert_deps note: deduplicated per task, primary key on task_deps.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  }
+}

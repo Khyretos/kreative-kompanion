@@ -47,6 +47,8 @@ mod studio;
 mod skillrepo;
 mod tasks;
 mod tasktree;
+mod planner;
+mod planner_web;
 mod thread;
 mod util;
 mod voice;
@@ -308,6 +310,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/tasks/order", axum::routing::put(tasks::reorder))
         .route("/tasks/{id}", patch(tasks::update).delete(tasks::delete))
         .route("/tasks/{id}/events", get(tasks::events))
+        .route("/projects/{id}/plan", post(planner_web::propose))
+        .route("/projects/{id}/plans", get(planner_web::list))
+        .route("/plans/{id}/apply", post(planner_web::apply))
+        .route("/plans/{id}/dismiss", post(planner_web::dismiss))
+        .route("/tasks/{id}/replan", post(planner_web::replan))
         .route("/tasks/{id}/start", post(taskrun::start))
         .route("/tasks/{id}/stop", post(taskrun::stop))
         .route("/tasks/{id}/interject", post(overseer::interject))

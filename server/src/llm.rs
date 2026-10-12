@@ -361,13 +361,33 @@ pub async fn chat_with_tools_full(
     messages: &[Value],
     tools: &Value,
 ) -> Result<(Value, Value)> {
+    chat_full(http, p, model, messages, tools, None).await
+}
+
+/// KG-02: one answer constrained by a JSON schema (response_format), for the planner.
+pub async fn chat_json(http: &reqwest::Client, p: &ProviderConfig, model: &str, messages: &[Value], schema: &Value) -> Result<(Value, Value)> {
+    let format = json!({ "type": "json_schema", "json_schema": { "name": "plan", "schema": schema } });
+    chat_full(http, p, model, messages, &json!([]), Some(&format)).await
+}
+
+async fn chat_full(
+    http: &reqwest::Client,
+    p: &ProviderConfig,
+    model: &str,
+    messages: &[Value],
+    tools: &Value,
+    response_format: Option<&Value>,
+) -> Result<(Value, Value)> {
     anyhow::ensure!(matches!(p.kind, ProviderKind::OpenaiCompatible), "this provider can't use tools");
     // GPU-02: see stream_chat.
     crate::gpus::role::wait_for_coder(model).await;
-    let mut body = json!({ "model": model, "messages": messages, "max_tokens": 2048 });
+    let mut body = json!({ "model": model, "messages": messages, "max_tokens": if response_format.is_some() { 8192 } else { 2048 } });
     // No tools (plans, reviews): leave the key out; some servers reject an empty list.
     if tools.as_array().is_some_and(|t| !t.is_empty()) {
         body["tools"] = tools.clone();
+    }
+    if let Some(f) = response_format {
+        body["response_format"] = f.clone();
     }
     if let (Some(extra), Some(obj)) = (&p.extra_body, body.as_object_mut()) {
         for (k, v) in serde_json::to_value(extra)?.as_object().into_iter().flatten() {
