@@ -1,0 +1,29 @@
+# KG-09: after every N merged tasks (.forgejo/integration-gate.json "every") run the full checks and compare
+# with docs/integration-baseline.json. A pass moves the tag gate-ok; a failure writes gate-task.json (an import
+# file for `kompanion-server import`) with the commit range, and fails the job.
+# The screenshot/playtest script of a project is one more entry in "checks".
+name: integration-gate
+enable-email-notifications: false
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: integration-gate
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: kireserver
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch the gate tag
+        run: git fetch origin 'refs/tags/gate-ok:refs/tags/gate-ok' || true
+      - name: Gate
+        run: python3 tools/integration_gate.py
+      - name: Move the tag
+        if: success()
+        run: git push -f origin gate-ok || true
