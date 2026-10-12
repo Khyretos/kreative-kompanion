@@ -22,11 +22,15 @@ class FixRounds(unittest.TestCase):
         pipeline.run_check = lambda cmd: next(results)
         pipeline.patch_job = lambda job, log: calls.append(job)
         log = io.StringIO()
-        pipeline.check_loop({"name": "j", "out": out, "check": "x", "role": "worker/python"}, log)
+        pipeline.check_loop(
+            {"name": "j", "out": out, "check": "x", "role": "worker/python"}, log
+        )
         return calls, json.loads(log.getvalue())
 
     def test_errors_that_do_not_name_the_file_still_get_a_repair_round(self):
-        calls, rec = self.run_loop("EE\nAttributeError: module 'pipeline' has no attribute 'trace_call'")
+        calls, rec = self.run_loop(
+            "EE\nAttributeError: module 'pipeline' has no attribute 'trace_call'"
+        )
         self.assertEqual(len(calls), 1)
         self.assertIn("no attribute 'trace_call'", calls[0]["prompt"])
         self.assertTrue(rec["check_passed"])
