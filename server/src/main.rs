@@ -53,6 +53,7 @@ mod tasktree;
 mod planner;
 mod planner_web;
 mod scheduler;
+mod statesum;
 mod scheduler_web;
 mod thread;
 mod util;
@@ -325,6 +326,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/projects/{id}/scheduler/tick", post(scheduler_web::tick))
         .route("/model-capabilities", get(capmatrix::get))
         .route("/model-capabilities/bench", post(capmatrix::bench))
+        .route("/projects/{id}/state", get(statesum::get))
         .route("/tasks/{id}/budget", axum::routing::put(scheduler_web::set_budget))
         .route("/mcp-grants", get(mcp_grants::list).post(mcp_grants::create))
         .route("/mcp-grants/{id}", axum::routing::delete(mcp_grants::revoke))

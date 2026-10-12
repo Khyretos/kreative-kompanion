@@ -73,7 +73,8 @@ pub async fn propose(State(s): State<AppState>, Extension(u): Extension<User>, P
     let (name, description) = row.ok_or(ApiError::NotFound)?;
     let existing: Vec<(String, String, String)> = sqlx::query_as("SELECT kind, title, state FROM tasks WHERE project_id = ? AND user_id = ? ORDER BY position LIMIT 60").bind(&project).bind(&u.id).fetch_all(&s.db).await?;
     let list: String = existing.iter().map(|(k, t, st)| format!("- {k}: {t} ({st})")).collect::<Vec<_>>().join("\n");
-    let user = format!("Project: {name}\n{description}\n\nExisting tasks (do not repeat finished work):\n{}\n\nGoal: {goal}", if list.is_empty() { "none".into() } else { list });
+    let state = crate::statesum::summary_of(&s.db, &project, &u.id).await;
+    let user = format!("Project: {name}\n{description}\n\n{state}\n\nExisting tasks (do not repeat finished work):\n{}\n\nGoal: {goal}", if list.is_empty() { "none".into() } else { list });
     let (plan, left) = plan_with_model(&s, &u.id, &system(PLAN_SYSTEM, &Limits::default()), &user).await?;
     let id = planner::store_proposal(&s.db, &u.id, &project, b.goal_id.as_deref().filter(|g| !g.is_empty()), "plan", goal, &plan).await?;
     s.bus.send(&u.id, Event::Changed { what: "tasks", machine_id: None });
@@ -136,7 +137,8 @@ pub async fn replan_task(s: &AppState, user_id: &str, task_id: &str, reason: &st
     let siblings: Vec<(String, String)> = sqlx::query_as("SELECT title, state FROM tasks WHERE project_id = ? AND user_id = ? AND kind = 'task' AND id <> ? ORDER BY position LIMIT 40").bind(&project).bind(user_id).bind(task_id).fetch_all(&s.db).await?;
     let others: String = siblings.iter().map(|(t, st)| format!("- {t} ({st})")).collect::<Vec<_>>().join("\n");
     let why = if reason.trim().is_empty() { "unknown" } else { reason.trim() };
-    let user = format!("Task: {title}\nState: {state}, last step: {step}\nWhat went wrong or what is new: {why}\n\n{description}\n\nOther tasks of the project:\n{}", if others.is_empty() { "none".into() } else { others });
+    let overview = crate::statesum::summary_of(&s.db, &project, user_id).await;
+    let user = format!("{overview}\n\nTask: {title}\nState: {state}, last step: {step}\nWhat went wrong or what is new: {why}\n\n{description}\n\nOther tasks of the project:\n{}", if others.is_empty() { "none".into() } else { others });
     let (plan, left) = plan_with_model(s, user_id, &system(REPLAN_SYSTEM, &Limits::default()), &user).await?;
     let id = planner::store_proposal(&s.db, user_id, &project, Some(task_id), "replan", why, &plan).await?;
     s.bus.send(user_id, Event::Changed { what: "tasks", machine_id: None });
