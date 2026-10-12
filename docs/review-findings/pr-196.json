@@ -1,10 +1,10 @@
 {
   "004e7f983b5b": {
-    "by": "coder",
-    "checked": false,
+    "by": "claude",
+    "checked": true,
     "fixed": "",
     "path": "runner/src/main.rs",
-    "reason": "The code uses a `done` closure that explicitly calls `std::process::exit()` for all error cases, ensuring the runner terminates immediately after reporting any failure, including those from the self-update logic.",
+    "reason": "On a failed update the arm sets output to the error and falls through to the normal post_result, then the loop continues; exiting is only wanted after a successful swap (exit 4).",
     "title": "Missing Error Handling for Self-Update",
     "verdict": "false_positive"
   },
@@ -18,11 +18,11 @@
     "verdict": "false_positive"
   },
   "299bcd54ad35": {
-    "by": "coder",
-    "checked": false,
+    "by": "claude",
+    "checked": true,
     "fixed": "",
     "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
-    "reason": "The finding describes compilation errors and warnings that are clearly visible in the provided log output, but the claim that these constitute a 'bug' requiring a verdict is incorrect because the code shown does not contain any functional logic to evaluate; it only contains error messages indicating the build failed.",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
     "title": "Compilation Failure",
     "verdict": "false_positive"
   },
@@ -99,13 +99,13 @@
     "verdict": "false_positive"
   },
   "6fbbb3494d54": {
-    "by": "coder",
-    "checked": false,
+    "by": "claude",
+    "checked": true,
     "fixed": "",
     "path": "docs/lessons-learned.md",
-    "reason": "unparsed model answer, Claude decides",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
     "title": "Incomplete Entry",
-    "verdict": "bug"
+    "verdict": "false_positive"
   },
   "877c6aeee16c": {
     "by": "repeat of cdac423e7d54",
@@ -117,11 +117,11 @@
     "verdict": "false_positive"
   },
   "92fa989496c1": {
-    "by": "coder",
-    "checked": false,
+    "by": "claude",
+    "checked": true,
     "fixed": "",
     "path": "runner/src/selfupdate.rs",
-    "reason": "The code correctly handles the race condition by retrying up to 20 times with a sleep interval before failing, which is an appropriate strategy for transient file-lock issues during binary replacement.",
+    "reason": "The retry is bounded (20 tries of 50 ms) and only repeats on ETXTBSY; any other error returns at once, and the concurrent-fork stress test passes repeatedly.",
     "title": "Race Condition in Binary Replacement",
     "verdict": "false_positive"
   },
@@ -144,40 +144,40 @@
     "verdict": "false_positive"
   },
   "a3f497d6a298": {
-    "by": "coder",
-    "checked": false,
-    "fixed": "",
+    "by": "claude",
+    "checked": true,
+    "fixed": "pending",
     "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
-    "reason": "unparsed model answer, Claude decides",
+    "reason": "The run-log README said 8 test cases; selfupdate_tests.rs has 9. Corrected to 9.",
     "title": "Misleading Test Claim",
     "verdict": "bug"
   },
   "a8049e2eb6e2": {
-    "by": "coder",
-    "checked": false,
+    "by": "claude",
+    "checked": true,
     "fixed": "",
     "path": "docs/qwen-situations/202-grep-check-quote-bug-repairs-add-junk/wrong-output.diff",
-    "reason": "The finding correctly identifies that the provided diff content is irrelevant to the current PR scope, but this is a metadata/context error rather than a code defect that a test could expose.",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
     "title": "Incorrect Diff Content",
     "verdict": "false_positive"
   },
   "ab1ebb099b1b": {
-    "by": "coder",
-    "checked": false,
+    "by": "claude",
+    "checked": true,
     "fixed": "",
     "path": "runner/src/selfupdate.rs",
-    "reason": "The hardcoded retry limit is a deliberate design choice to prevent infinite loops during self-update, and the specific error handling for EBUSY (error 26) with a short sleep indicates an intentional strategy rather than an arbitrary magic number.",
+    "reason": "A local retry bound with a comment next to it; a constant would add nothing.",
     "title": "Hardcoded Magic Number",
     "verdict": "false_positive"
   },
   "b8a8fcb553b1": {
-    "by": "coder",
-    "checked": false,
+    "by": "claude",
+    "checked": true,
     "fixed": "",
     "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
-    "reason": "The build log explicitly shows compilation errors (E0277, E0425) and unused variable warnings that prevent the code from compiling, indicating a real defect in the submitted changes.",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
     "title": "Build Failure",
-    "verdict": "bug"
+    "verdict": "false_positive"
   },
   "bd8da2cb46c4": {
     "by": "claude",
