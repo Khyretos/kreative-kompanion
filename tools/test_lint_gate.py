@@ -116,6 +116,25 @@ class Gate(unittest.TestCase):
         ):
             self.assertIn(part, body)
 
+    def test_decided_item_closes_its_open_issue(self):
+        calls = []
+
+        def fake(method, url, token, body=None):
+            calls.append((method, url, body))
+            return [
+                {"title": "Lint decision: trivy-glib", "number": 146, "state": "open"}
+            ]
+
+        real, lint_gate.call = lint_gate.call, fake
+        try:
+            lint_gate.open_issues([dict(GLIB, decided="Accept")], "API", "t")
+        finally:
+            lint_gate.call = real
+        self.assertEqual(
+            calls[1], ("POST", "API/issues/146/comments", {"body": "Decided: Accept"})
+        )
+        self.assertEqual(calls[2], ("PATCH", "API/issues/146", {"state": "closed"}))
+
     def test_missing_report_fails(self):
         os.environ["REPORTS"] = self.dir
         try:
