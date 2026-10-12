@@ -156,6 +156,8 @@ struct Run {
     picked: crate::effort::Effort,
     protected: Vec<String>,
     tests_may_change: bool,
+    /// KG-03: the limits of a run the scheduler started (None: a run started by hand).
+    budget: Option<crate::scheduler::Budget>,
 }
 
 impl Run {
@@ -176,6 +178,14 @@ pub async fn start(
     Path(id): Path<String>,
     Json(b): Json<StartBody>,
 ) -> ApiResult<StatusCode> {
+    start_task(&s, &u.id, &id, b, false).await?;
+    Ok(StatusCode::ACCEPTED)
+}
+
+/// Starts a task on a computer; `scheduled` (KG-03) puts it under its time and token budget.
+pub async fn start_task(s: &AppState, user_id: &str, id: &str, b: StartBody, scheduled: bool) -> ApiResult<()> {
+    let (s, id) = (s.clone(), id.to_string());
+    let u = User { id: user_id.to_string(), name: String::new() };
     let task: Option<(String, String, String, String, String)> =
         sqlx::query_as("SELECT title, description, project_id, state, effort FROM tasks WHERE id = ? AND user_id = ?")
             .bind(&id)
@@ -266,11 +276,13 @@ pub async fn start(
     if let Some(cmd) = &check {
         protected.extend(protect::check_files(cmd));
     }
+    let budget = if scheduled { Some(crate::scheduler::budget_of(&s, &id).await) } else { None };
     let r = Run {
         user_id: u.id.clone(), task_id: id, title, description, chat_id, machine_id: b.machine_id,
         machine_name, folder, check, orchestrator, worker, reviewer, run_id, effort, picked: crate::effort::Effort::Auto,
         protected,
         tests_may_change: b.tests_may_change,
+        budget,
     };
     let _ = sqlx::query(
         "UPDATE runs SET protected = ?, tests_may_change = ?, effort = ? WHERE id = ?",
@@ -282,7 +294,7 @@ pub async fn start(
     .execute(&s.db)
     .await;
     tokio::spawn(run(s.clone(), r));
-    Ok(StatusCode::ACCEPTED)
+    Ok(())
 }
 
 async fn note(s: &AppState, r: &Run, text: &str) {
@@ -497,7 +509,33 @@ async fn edits_since(s: &AppState, r: &Run, since: &str) -> String {
         .join("\n\n")
 }
 
+/// KG-03: ends a scheduled run that has used up its time or token budget. True when it ended.
+async fn out_of_budget(s: &AppState, r: &Run, began: std::time::Instant) -> bool {
+    let Some(b) = &r.budget else { return false };
+    let minutes = (began.elapsed().as_secs() / 60) as i64;
+    let Some(why) = crate::scheduler::exceeded(b, minutes, crate::scheduler::tokens_used(s, &r.run_id).await) else { return false };
+    note(s, r, &format!("Stopping: {why}.")).await;
+    finish(s, r, "needs_input", &why).await;
+    true
+}
+
+/// KG-03: a task is done only when its check command exits 0. A failed check goes back to the
+/// worker as a finding; a check that cannot be run at all leaves the task needing the user.
+async fn check_gate(s: &AppState, r: &Run, review: &mut parse::Review) -> Option<String> {
+    let cmd = r.check.as_ref()?;
+    match crate::scheduler::run_check(s, &r.user_id, &r.machine_id, &r.folder, cmd, std::time::Duration::from_secs(1800)).await {
+        crate::scheduler::Verdict::Pass => None,
+        crate::scheduler::Verdict::Fail(out) => {
+            review.ok = false;
+            review.findings.push(format!("The check command `{cmd}` failed:\n{out}"));
+            None
+        }
+        crate::scheduler::Verdict::NotRun(why) => Some(why),
+    }
+}
+
 async fn run(s: AppState, mut r: Run) {
+    let began = std::time::Instant::now();
     let started = util::now();
     crate::thread::post_run(&s, &r.run_id, &format!("Started **{}** on {}.", r.title, r.machine_name)).await;
     STOPPED.lock().unwrap().remove(&r.task_id); // a stop from an earlier run doesn't count
@@ -609,7 +647,7 @@ async fn run(s: AppState, mut r: Run) {
     // 2. The steps.
     let n = steps.len();
     for (i, step) in steps.iter().enumerate() {
-        if held_or_stopped(&s, &r).await {
+        if held_or_stopped(&s, &r).await || out_of_budget(&s, &r, began).await {
             return;
         }
         progress(&s, &r, i as f64 / n as f64 * 0.8, &format!("Step {}/{n}: {}", i + 1, step.what)).await;
@@ -645,9 +683,9 @@ async fn run(s: AppState, mut r: Run) {
     let fix_skills = crate::skills::text_with(&skills_root, &lessons_dir, &used);
     let review_skills = crate::skills::text_with(&skills_root, &lessons_dir, &[vec!["reviewer/SKILL".to_string()], used.clone()].concat());
     // 3. Check and review, with fix rounds.
-    let rounds = r.effort_for(&r.worker).fix_rounds();
+    let rounds = crate::scheduler::fix_rounds(r.effort_for(&r.worker).fix_rounds(), r.budget.and_then(|b| b.rounds));
     for round in 1..=rounds {
-        if held_or_stopped(&s, &r).await {
+        if held_or_stopped(&s, &r).await || out_of_budget(&s, &r, began).await {
             return;
         }
         progress(&s, &r, 0.85, &format!("review, round {round}")).await;
@@ -699,6 +737,12 @@ async fn run(s: AppState, mut r: Run) {
                 "Changed test files: {}. The task may not change tests: undo that and fix the code instead.",
                 changed.join(", ")
             ));
+        }
+        if review.ok
+            && let Some(why) = check_gate(&s, &r, &mut review).await
+        {
+            note(&s, &r, &format!("Not done: {why}.")).await;
+            return finish(&s, &r, "needs_input", &format!("check could not run: {why}")).await;
         }
         let _ = sqlx::query("UPDATE runs SET rounds = json_insert(rounds, '$[#]', json(?)) WHERE id = ?")
             .bind(json!({ "round": round, "ok": review.ok, "findings": review.findings }).to_string())
@@ -757,7 +801,7 @@ mod tests {
         let r = Run {
             user_id: "u".into(), task_id: "t".into(), title: "T".into(), description: "D".into(), chat_id: "c".into(),
             machine_id: "m".into(), machine_name: "soucouyant".into(), folder: "/home/k/app".into(), check: None,
-            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false,
+            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, budget: None,
         };
         let p = worker_prompt(&r);
         assert!(p.contains("/home/k/app") && p.contains("soucouyant"));
