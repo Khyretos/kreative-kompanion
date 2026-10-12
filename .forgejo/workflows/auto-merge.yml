@@ -44,5 +44,6 @@ jobs:
           git fetch -q origin main && git checkout -q -B main FETCH_HEAD
       - name: Merge what is ready
         run: |
+          [ -f tools/auto_merge.py ] || { echo "tools/auto_merge.py is not on main yet (the PR that adds it): nothing to do"; exit 0; }
           if [ -z "$MERGE_TOKEN" ]; then echo "secret AUTO_MERGE_TOKEN is not set: dry run only"; python3 tools/auto_merge.py --dry-run; exit 0; fi
           python3 tools/auto_merge.py
