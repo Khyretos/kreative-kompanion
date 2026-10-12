@@ -16,4 +16,4 @@ Situation docs/qwen-situations/194-retry-let-else-reassign/. No Claude correctio
 
 ## Live rerun
 
-Result is added after the deploy.
+Deployed 16:29Z (main 20b17f0). Fox platformer description, test user, project "OVR live check": plan in 30 s, **no issues**; 4 code tasks with dependencies (engine, physics, level map, audio), 3 asset tasks with sources: fox sprite -> workflow `sprite`, jump sound -> `sfx`, background music -> `music`, each with its title as the prompt and linked to the code tasks that need it. A pending proposal, nothing created until applied.
