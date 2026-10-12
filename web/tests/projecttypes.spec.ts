@@ -64,3 +64,45 @@ test.describe("Project types", () => {
     await expect(hit.locator('[data-action="attach-asset"]')).toBeVisible();
   });
 });
+
+test.describe("Project settings: build and test (KG-10)", () => {
+  test.beforeEach(async ({ page }) => {
+    await openDemo(page);
+    await openProject(page);
+  });
+
+  for (const type of ["programming", "game"] as const) {
+    test(`a ${type} project keeps preset, commands and the last test result`, async ({ page }) => {
+      await page.selectOption("#project-type", type);
+      const form = page.locator("form.project-dev");
+      await expect(form).toBeVisible();
+      await expect(page.locator("form.project-repo")).toBeVisible(); // the same repo form for both types
+      await form.locator("#dev-preset").selectOption(type === "game" ? "game" : "software");
+      await expect(form.locator('input[name="build"]')).not.toHaveValue("");
+      if (type === "game") await expect(form.locator('input[name="engine"]')).toHaveValue("kk-engine");
+      await form.locator('input[name="test"]').fill("make check");
+      await form.locator('button[type="submit"]').click();
+      await expect(form.locator('input[name="test"]')).toHaveValue("make check");
+      // Running needs a computer and folder.
+      await expect(form.locator('[data-action="dev-run"][data-kind="test"]')).toBeDisabled();
+      const repo = page.locator("form.project-repo");
+      await repo.locator('select[name="machine"]').selectOption({ label: "soucouyant" });
+      await repo.locator('input[name="folder"]').fill("/home/kees/projects/app");
+      await repo.locator('button[type="submit"]').click();
+      await expect(form.locator('[data-action="dev-run"][data-kind="test"]')).toBeEnabled();
+      await form.locator('[data-action="dev-run"][data-kind="test"]').click();
+      await expect(form.locator('.dev-result[data-kind="test"]')).toContainText("Passed");
+    });
+  }
+
+  test("a chat project has no build settings and the form fits at phone width", async ({ page }) => {
+    await expect(page.locator("form.project-dev")).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.selectOption("#project-type", "game");
+    const form = page.locator("form.project-dev");
+    await expect(form).toBeVisible();
+    const box = await form.boundingBox();
+    expect(box!.width).toBeLessThanOrEqual(390);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+});

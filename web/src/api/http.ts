@@ -103,6 +103,15 @@ export class HttpApi implements KompanionApi {
   setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }) {
     return this.request<void>("PATCH", `/projects/${encodeURIComponent(projectId)}/settings`, change);
   }
+  getDevSettings(projectId: string) {
+    return this.request<import("./types").DevSettingsView>("GET", `/projects/${encodeURIComponent(projectId)}/dev-settings`);
+  }
+  putDevSettings(projectId: string, s: Omit<import("./types").DevSettings, "last">) {
+    return this.request<void>("PUT", `/projects/${encodeURIComponent(projectId)}/dev-settings`, s);
+  }
+  runDevCommand(projectId: string, kind: "build" | "test" | "run") {
+    return this.request<void>("POST", `/projects/${encodeURIComponent(projectId)}/dev-settings/run/${kind}`);
+  }
   projectAssets(projectId: string) {
     return this.request<import("../views/projectpanel").ProjectAsset[]>("GET", `/projects/${encodeURIComponent(projectId)}/assets`);
   }

@@ -74,6 +74,9 @@ export interface KompanionApi {
   /** A project's type, and for programming projects its repo folder and computer ("" clears). */
   setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }): Promise<void>;
   /** Library assets attached to a game project. */
+  getDevSettings(projectId: string): Promise<import("./types").DevSettingsView>;
+  putDevSettings(projectId: string, s: Omit<import("./types").DevSettings, "last">): Promise<void>;
+  runDevCommand(projectId: string, kind: "build" | "test" | "run"): Promise<void>;
   projectAssets(projectId: string): Promise<import("../views/projectpanel").ProjectAsset[]>;
   attachAsset(projectId: string, assetId: number): Promise<void>;
   detachAsset(projectId: string, assetId: number): Promise<void>;

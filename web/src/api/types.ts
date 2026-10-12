@@ -43,6 +43,19 @@ export interface Project {
   overseer?: boolean; // OVR-01b: the Overseer answers every chat of this project
 }
 
+/** KG-10: repo commands for any project type. */
+export interface DevSettings {
+  preset: string; // "", "software" or "game"
+  engine: string;
+  build: string;
+  test: string;
+  run: string;
+  deploy: string;
+  screenshots: string;
+  last: Record<string, { ok: boolean; at: string; summary: string }>;
+}
+export interface DevSettingsView { settings: DevSettings; presets: DevSettings[]; repoMachineId: string | null; repoFolder: string | null }
+
 export interface Chat {
   id: string;
   title: string;

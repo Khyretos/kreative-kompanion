@@ -333,6 +333,14 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
 .project-repo { display: grid; gap: 0.45rem; font-size: 0.85rem; }
 .project-repo label { display: grid; gap: 0.2rem; }
 .project-repo .btn { justify-self: start; }
+.project-dev { display: grid; gap: 0.45rem; font-size: 0.85rem; margin-top: 0.6rem; }
+.project-dev label { display: grid; gap: 0.2rem; }
+.project-dev input, .project-dev select { min-width: 0; }
+.dev-actions { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; align-items: center; }
+.dev-run { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; min-width: 0; }
+.dev-result { overflow-wrap: anywhere; }
+.dev-result.ok { color: var(--good); }
+.dev-result.bad { color: var(--bad); }
 .project-assets { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
 .project-asset { position: relative; }
 .project-asset .task-main { grid-template-columns: 2.5rem minmax(0, 1fr); align-items: center; column-gap: 0.6rem; padding-right: 2.4rem; cursor: default; }

@@ -69,6 +69,7 @@ export interface AppState {
   weeklyCosts?: import("./api/types").WeeklyCosts; // TEN-05, shown on the Activity tab
   cardStyle?: import("./core/cardtypes").CardStyle; // card colours and labels per action type (Settings)
   projectAssets: Record<string, import("./views/projectpanel").ProjectAsset[]>; // game projects, loaded when shown
+  devSettings: Record<string, import("./api/types").DevSettingsView>; // KG-10, loaded when a game or programming project shows
   taskFilter: string; // the task list's live search
   collapsedGroups: Set<string>; // task list groups the user closed ("Finished"), remembered on this device
   assetPick: { project: string; q: string; items: import("./views/projectpanel").PickResult[]; busy: boolean }; // the picker
@@ -110,6 +111,7 @@ export const store = new Store<AppState>({
   recording: "idle",
   speaking: false,
   projectAssets: {},
+  devSettings: {},
   assetPick: { project: "", q: "", items: [], busy: false },
   isAdmin: false,
   isAdult: false,

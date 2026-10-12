@@ -7,6 +7,8 @@ mod capabilities;
 mod capmatrix;
 mod config;
 mod costs;
+mod devsettings;
+mod devsettings_web;
 mod contrast;
 mod effort;
 mod error;
@@ -327,6 +329,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/model-capabilities", get(capmatrix::get))
         .route("/model-capabilities/bench", post(capmatrix::bench))
         .route("/projects/{id}/state", get(statesum::get))
+        .route("/projects/{id}/dev-settings", get(devsettings_web::get).put(devsettings_web::put))
+        .route("/projects/{id}/dev-settings/run/{kind}", post(devsettings_web::run))
         .route("/tasks/{id}/budget", axum::routing::put(scheduler_web::set_budget))
         .route("/mcp-grants", get(mcp_grants::list).post(mcp_grants::create))
         .route("/mcp-grants/{id}", axum::routing::delete(mcp_grants::revoke))

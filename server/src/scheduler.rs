@@ -220,7 +220,10 @@ pub async fn tick_project(s: &AppState, user_id: &str, project_id: &str) -> Vec<
         .await
         .ok()
         .flatten();
-    let cfg = Config::parse(&cfg_text.unwrap_or_default());
+    let mut cfg = Config::parse(&cfg_text.unwrap_or_default());
+    if cfg.enabled {
+        crate::devsettings_web::fill_scheduler(&s.db, project_id, user_id, &mut cfg).await;
+    }
     if !cfg.enabled || cfg.machines.is_empty() {
         return vec![];
     }
