@@ -35,6 +35,24 @@
     "title": "Possible Issue",
     "verdict": "false_positive"
   },
+  "46cad9186c42": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The Vorbis id packet is 0x01 + \"vorbis\" (7 bytes) + u32 version (4), so the channel byte is at +11 and the rate at +12; offset 27 is the Ogg page header size. Matches the ogg() test fixture and the spec.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "4eba22e47659": {
+    "by": "repeat of aeda0f725461",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
   "54d49592773a": {
     "by": "coder",
     "checked": true,
@@ -116,6 +134,15 @@
     "title": "Potential Resource Leak",
     "verdict": "false_positive"
   },
+  "d93166d34d3c": {
+    "by": "repeat of ea128a936fee",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly enforces a strict decrease in triangle count by flagging any case where the current LOD has more than or equal triangles to the previous one, which aligns with the requirement that higher LOD levels must have strictly fewer triangles.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  },
   "dadf006f82a4": {
     "by": "coder",
     "checked": true,
@@ -131,6 +158,15 @@
     "fixed": "",
     "path": "server/src/assetmodel.rs",
     "reason": "The code explicitly handles the case where parsing fails by defaulting to u32::MAX, which is a deliberate design choice to prevent crashes rather than an unhandled error.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e0fc82330f3d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetcontract.rs",
+    "reason": "The code is written in Rust, a memory-safe language that prevents panics from invalid memory access, and the functions are called within a controlled context where errors can be handled via return values rather than causing catastrophic failures. Checked: the readers use get() and checked slices.",
     "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
