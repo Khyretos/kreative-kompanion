@@ -1,0 +1,28 @@
+"""GATE-IN-CI: post the review gate result of every open PR as the commit status review-gate / gate."""
+
+import re
+import subprocess
+
+
+def status_for(code):
+    if code == 0:
+        return ("success", "review findings are all handled")
+    if code == 2:
+        return ("pending", "PR-Agent is still reviewing the head")
+    if code == 1:
+        return ("failure", "review findings are open or unchecked")
+    return ("error", "the review gate could not run (exit %d)" % code)
+
+
+def sweep(api, gate_func):
+    """Run the gate on every open PR and post the result."""
+    results = {}
+    for pr in api.list_prs():
+        try:
+            code = gate_func(pr.number)
+            results[pr.head] = code
+            api.set_status(pr.head, status_for(code))
+        except Exception:
+            pass
+    return results
+

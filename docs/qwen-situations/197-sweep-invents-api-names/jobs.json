@@ -1,0 +1,24 @@
+[
+  {
+    "name": "ru2",
+    "role": "worker/python",
+    "out": "tools/review_status.py",
+    "precheck": false,
+    "mode": "patch",
+    "context": ["tools/test_review_status.py"],
+    "max_tokens": 1500,
+    "prompt": "In tools/review_status.py add the function `sweep(api, gate)` after status_for, with a docstring. For each pull in api.open_pulls(): skip it when its title matches the regex r'\\s*(\\[wip\\]|wip\\b|draft\\b)' (case-insensitive; a missing title counts as empty); otherwise code = gate(pull['number']), but when gate raises OSError or subprocess.CalledProcessError use code = 3 (add `import re` and `import subprocess` at the top); state, description = status_for(code); call api.post_status(pull['head']['sha'], state, description); record results[number] = state. Return the results dict {number: state}. The tests in tools/test_review_status.py class Sweep show the exact behaviour.",
+    "check": "sh /tmp/kk-gate-chk/ru2.sh"
+  },
+  {
+    "name": "ru4",
+    "role": "worker/python",
+    "out": "tools/review_status_io.py",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2000,
+    "context": ["tools/auto_merge.py", "tools/review_status.py"],
+    "prompt": "In tools/review_status_io.py add `import importlib.util`, `import os`, `import sys` at the top and, at the end of the file, ONE function `main(argv=None, env=None)` plus the usual `if __name__ == \"__main__\": sys.exit(main())`. main: env = os.environ when None; api = env.get('FORGEJO_API'), repo = env.get('REPO'), token = env.get('STATUS_TOKEN'); when any is missing print 'FORGEJO_API, REPO and STATUS_TOKEN are required' to stderr and return 1. Otherwise load tools/auto_merge.py and tools/review_status.py (both in the same directory as this file) with importlib.util.spec_from_file_location (the pattern at the top of tools/test_auto_merge.py), client = StatusClient(api, repo, token), read_token = env.get('READ_TOKEN') or token, gate = auto_merge.make_gate(read_token, api, repo), results = review_status.sweep(client, gate); print one line 'PR #<n>: <state>' per result sorted by number; return 0. Keep it under 25 lines.",
+    "check": "sh /tmp/kk-gate-chk/ru4.sh"
+  }
+]

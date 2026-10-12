@@ -10,7 +10,7 @@ Usage: pipeline.py jobs.json [log.jsonl]
 Writes the final code to each job's "out" and one log line per job
 (seconds on the GPU, tokens). Code fences are stripped from the output.
 Supports "check": "<shell command>" which runs after the job; if it fails,
-the pipeline retries up to 3 times with a patch job fixing the errors.
+the pipeline retries with a patch job fixing the errors, up to 3 attempts in total (Kees, 2026-10-12).
 Each check is tried once before any job runs; jobs whose check already fails
 are skipped as a spec error ("precheck": false turns that off).
 """
@@ -535,12 +535,12 @@ def own_errors(errors, out):
 
 def check_loop(job, log):
     """job["check"]: a build command run after the job; on failure the errors go back to
-    the model as a patch job for the same file, at most 3 rounds (Kees, 2026-10-05: half of
+    the model as a patch job for the same file, at most 2 rounds, 3 attempts in total (Kees, 2026-10-12; was 3 rounds, 2026-10-05: half of
     SK-02's fix rounds were Claude relaying compiler errors by hand)."""
     cmd, out = job["check"], job["out"]
     passed, errors = run_check(cmd)
     runs = 1
-    for n in range(1, 4):
+    for n in range(1, 3):
         if passed:
             break
         mine = own_errors(errors, out)

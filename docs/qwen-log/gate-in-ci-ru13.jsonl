@@ -1,0 +1,4 @@
+{"name": "ru1", "out": "tools/review_status.py", "gpu_seconds": 44.6, "tokens": 1334, "prompt_tokens": 8660, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "worker/python", "shared/processes"], "lines": 82, "model": "Coder", "at": "2026-10-12T18:48:02"}
+{"name": "ru1", "out": "tools/review_status.py", "check": "sh /tmp/kk-gate-chk/ru1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T18:48:02"}
+{"name": "ru3", "out": "tools/review_status_io.py", "gpu_seconds": 24.3, "tokens": 949, "prompt_tokens": 11502, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "worker/python", "shared/processes"], "lines": 52, "model": "qwen3.5:9b-q8_0-64k", "at": "2026-10-12T18:47:42"}
+{"name": "ru3", "out": "tools/review_status_io.py", "check": "sh /tmp/kk-gate-chk/ru3.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T18:47:42"}
