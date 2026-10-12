@@ -1,0 +1,13 @@
+[
+  {
+    "name": "pa-w5e",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "focus": ["async function changeChat", "STU-D1: hide the runs at once"],
+    "context": [],
+    "prompt": "In web/src/main.ts, add a new function directly above the comment line `// STU-D1: hide the runs at once, delete them for real after 10 seconds unless Undo is pressed.` (keep that comment and everything after it). It archives or unarchives a project optimistically, like changeChat does for chats, and shows an Undo toast built like studioDeleteLater's toast:\n\n// PROJ-ARCHIVE: the project leaves (or rejoins) the list in the same frame, then the server is told;\n// on an error it comes back and a toast says why. Archiving shows \"Archived <name> \u00b7 Undo\" for about 6 s.\nlet archiveToast: HTMLElement | undefined;\nasync function archiveProject(id: string, on: boolean): Promise<void> {\n  - `const before = store.get().projects;` and `const p = before.find((x) => x.id === id);` return when there is no p.\n  - `archiveToast?.remove();`\n  - `store.set({ projectMenuId: undefined, projects: before.map(...) })` where the project with this id gets `archivedAt: on ? (x.archivedAt ?? new Date().toISOString()) : null` and the others stay the same objects.\n  - when `on`: create a div with className \"toast project-undo\" and role \"status\", a span with textContent `Archived ${p.name}`, and a button (type \"button\", className \"btn small\", text \"Undo\") whose click removes the toast and calls `void archiveProject(id, false)`; append both, append the toast to document.body, store it in archiveToast, and remove it after 6000 ms with setTimeout.\n  - then `try { await api.setProjectSettings(id, { archived: on }); } catch (e) { ... }`: on error remove archiveToast, put the project's archivedAt back to `p.archivedAt` (map over `store.get().projects`), and call `showError(e)`.\n}\nNothing calls it yet (a later change adds the menu actions). Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w5e.sh",
+    "precheck": false
+  }
+]

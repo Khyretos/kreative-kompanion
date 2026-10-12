@@ -168,6 +168,18 @@ async fn a_disabled_scheduler_starts_nothing() {
     assert_eq!(state_of(&s, "t").await.0, "queued");
 }
 
+/// PROJ-ARCHIVE: an archived project starts nothing and leaves its queued tasks alone.
+#[tokio::test]
+async fn an_archived_project_starts_nothing() {
+    let s = state().await;
+    enable(&s, "make test").await;
+    add_task(&s, "t", "queued", None).await;
+    sqlx::query("UPDATE projects SET archived_at = '2026-10-12T20:00:00Z' WHERE id = 'p'").execute(&s.db).await.unwrap();
+    assert!(tick_project(&s, "u", "p").await.is_empty());
+    let (st, step) = state_of(&s, "t").await;
+    assert_eq!(st, "queued", "the task is not held either: {step}");
+}
+
 #[tokio::test]
 async fn a_task_without_a_check_is_held_not_started() {
     let s = state().await;

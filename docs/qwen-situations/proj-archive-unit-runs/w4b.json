@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w4b",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/sidebar.ts",
+    "focus": ["<li class=\"project \\$"],
+    "prompt": "In web/src/views/sidebar.ts, each project in the Projects list is `<li class=\"project ${open ? \"open\" : \"\"}\">` holding the `<button class=\"project-head ...\" data-action=\"project\" ...>...</button>` and then the open list. Give each project an options menu like the chat rows have:\n1. The li class becomes `project ${open ? \"open\" : \"\"} ${p.archivedAt ? \"archived\" : \"\"} ${s.projectMenuId === p.id ? \"menu-open\" : \"\"}`.\n2. Wrap the project-head button in `<div class=\"project-row\">` ... `</div>`; inside that div, after the project-head button, add the menu button and the menu:\n            <button class=\"icon-btn project-more\" data-action=\"project-menu\" data-id=\"${p.id}\" aria-label=\"Options for ${p.name}\"\n              aria-haspopup=\"menu\" aria-expanded=\"${s.projectMenuId === p.id ? \"true\" : \"false\"}\">${icon(\"more\")}</button>\n            ${s.projectMenuId === p.id ? html`\n              <div class=\"menu\" role=\"menu\">\n                ${p.archivedAt\n                  ? html`<button role=\"menuitem\" data-action=\"project-unarchive\" data-id=\"${p.id}\">${icon(\"archive\")} Unarchive</button>`\n                  : html`<button role=\"menuitem\" data-action=\"project-archive\" data-id=\"${p.id}\">${icon(\"archive\")} Archive project</button>`}\n              </div>` : \"\"}\n3. Inside the project-head button, directly after `<span class=\"project-name\">${p.name}</span>`, add `${p.archivedAt ? html`<span class=\"chip archived-chip\">Archived</span>` : \"\"}`.\nThe badges, the done/total count and the open list stay as they are. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w4b.sh",
+    "precheck": false
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s2a",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/api.rs",
+    "focus": ["pub struct Project \\{"],
+    "prompt": "In server/src/api.rs, struct Project (derives Serialize and sqlx::FromRow, serde camelCase) gets one new LAST field after `pub overseer: bool,`:\n    /// PROJ-ARCHIVE: when it was archived; None = active.\n    #[sqlx(default)]\n    pub archived_at: Option<String>,\nChange nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s2a.sh",
+    "precheck": false
+  }
+]

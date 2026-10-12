@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s5b",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overseer.rs",
+    "focus": ["pub async fn create_tasks", "lower\\(name\\)"],
+    "prompt": "In server/src/overseer.rs, fn create_tasks finds the project for proposed tasks: by id when `b.project_id` is given, otherwise by name with `SELECT id FROM projects WHERE user_id = ? AND lower(name) = lower(?)`. A name must never find an archived project (column `archived_at` not NULL): add `AND archived_at IS NULL` to the end of the by-name query only. The by-id query stays as it is (an archived project named by id is still reached). Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s5b.sh",
+    "precheck": false
+  }
+]

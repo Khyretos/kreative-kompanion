@@ -3,7 +3,7 @@
 import { html, type SafeHtml } from "../core/html";
 import { relTime } from "../core/time";
 import type { AppState } from "../state";
-import type { Chat, Task } from "../api/types";
+import type { Chat, Project, Task } from "../api/types";
 import { icon } from "./icons";
 import { logoUrl } from "../core/logo";
 
@@ -32,7 +32,7 @@ export function renderSidebar(s: AppState): SafeHtml {
             <button role="menuitem" data-action="chat-rename" data-id="${c.id}">${icon("edit")} Rename</button>
             ${s.movingChatId === c.id ? html`
               <div class="submenu" role="group" aria-label="Move to project">
-                ${s.projects.map((p) => html`<button role="menuitem" data-action="chat-move" data-id="${c.id}" data-project="${p.id}"
+                ${s.projects.filter((p) => s.showArchived || !p.archivedAt).map((p) => html`<button role="menuitem" data-action="chat-move" data-id="${c.id}" data-project="${p.id}"
                   ${p.id === c.projectId ? "disabled" : ""}>${icon("folder")} ${p.name}</button>`)}
                 ${c.projectId ? html`<button role="menuitem" data-action="chat-move" data-id="${c.id}" data-project="">No project</button>` : ""}
               </div>` : html`<button role="menuitem" data-action="chat-move-open" data-id="${c.id}">${icon("folder")} Move to project…</button>`}
@@ -48,7 +48,11 @@ export function renderSidebar(s: AppState): SafeHtml {
   const running = (ts: Task[]) => ts.filter((t) => t.state === "running" || t.state === "in_review").length;
 
   const pinned = s.chats.filter((c) => c.pinned);
-  const projects = [...s.projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  // PROJ-ARCHIVE: archived projects are hidden unless "Show archived" is on; then they come last.
+  const newest = (a: Project, b: Project) => b.updatedAt.localeCompare(a.updatedAt);
+  const active = s.projects.filter((p) => !p.archivedAt).sort(newest);
+  const archived = s.projects.filter((p) => p.archivedAt).sort(newest);
+  const projects = s.showArchived ? [...active, ...archived] : active;
   // The Chats list shows every chat (project chats with a badge), newest first.
   const loose = s.chats.filter((c) => !c.pinned);
 
@@ -77,14 +81,24 @@ export function renderSidebar(s: AppState): SafeHtml {
           const done = ts.length - shown.filter((t) => t.state !== "done").length;
           const thread = s.chats.find((c) => c.projectId === p.id && c.thread);
           return html`
-          <li class="project ${open ? "open" : ""}">
-            <button class="project-head ${s.activeProjectId === p.id ? "active" : ""}" data-action="project" data-id="${p.id}"
-              aria-expanded="${open ? "true" : "false"}" title="${p.description}">
-              ${icon(open ? "chevron-down" : "chevron-right")}${icon("folder")}<span class="project-name">${p.name}</span>
-              ${n ? html`<span class="badge attn" title="${n} waiting for you">${n}</span>` : ""}
-              ${r ? html`<span class="badge run" title="${r} running">${r}</span>` : ""}
-              ${ts.length ? html`<span class="nav-meta">${done}/${ts.length}</span>` : ""}
-            </button>
+          <li class="project ${open ? "open" : ""} ${p.archivedAt ? "archived" : ""} ${s.projectMenuId === p.id ? "menu-open" : ""}">
+            <div class="project-row">
+              <button class="project-head ${s.activeProjectId === p.id ? "active" : ""}" data-action="project" data-id="${p.id}"
+                aria-expanded="${open ? "true" : "false"}" title="${p.description}">
+                ${icon(open ? "chevron-down" : "chevron-right")}${icon("folder")}<span class="project-name">${p.name}</span>${p.archivedAt ? html`<span class="chip archived-chip">Archived</span>` : ""}
+                ${n ? html`<span class="badge attn" title="${n} waiting for you">${n}</span>` : ""}
+                ${r ? html`<span class="badge run" title="${r} running">${r}</span>` : ""}
+                ${ts.length ? html`<span class="nav-meta">${done}/${ts.length}</span>` : ""}
+              </button>
+              <button class="icon-btn project-more" data-action="project-menu" data-id="${p.id}" aria-label="Options for ${p.name}"
+                aria-haspopup="menu" aria-expanded="${s.projectMenuId === p.id ? "true" : "false"}">${icon("more")}</button>
+              ${s.projectMenuId === p.id ? html`
+                <div class="menu" role="menu">
+                  ${p.archivedAt
+                    ? html`<button role="menuitem" data-action="project-unarchive" data-id="${p.id}">${icon("archive")} Unarchive</button>`
+                    : html`<button role="menuitem" data-action="project-archive" data-id="${p.id}">${icon("archive")} Archive project</button>`}
+                </div>` : ""}
+            </div>
             ${open ? html`
               <ul>
                 <li><button class="nav-item thread-row ${thread && s.activeChatId === thread.id ? "active" : ""}" data-action="open-thread" data-project="${p.id}"
@@ -105,6 +119,7 @@ export function renderSidebar(s: AppState): SafeHtml {
           </li>`;
         })}
       </ul>
+      ${archived.length ? html`<button class="nav-item archived-toggle" data-action="archived-toggle" aria-pressed="${s.showArchived ? "true" : "false"}">${icon("archive")} Show archived (${archived.length})</button>` : ""}
       <h2 class="label">Chats</h2>
       <ul class="loose">${loose.map((c) => chatRow(c, true))}</ul>
     </nav>

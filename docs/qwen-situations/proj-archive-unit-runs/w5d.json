@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w5d",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "focus": ["const rightKeys"],
+    "prompt": "In web/src/main.ts, `const rightKeys` lists for the tasks tab the state keys that re-render the right pane; that array ends with `\"taskFilter\", \"collapsedGroups\", \"machines\"]`. Add \"showArchived\" at its end, so it ends `\"taskFilter\", \"collapsedGroups\", \"machines\", \"showArchived\"]`. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w5d.sh",
+    "precheck": false
+  }
+]

@@ -427,7 +427,7 @@ export class MockApi implements KompanionApi {
   async testMail() { throw new Error("The demo can't send mail."); }
   async login() {}
   async listProjects() { return structuredClone(projects); }
-  async setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }) {
+  async setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean; archived?: boolean }) {
     const p = projects.find((x) => x.id === projectId);
     if (!p) throw new Error("No such project.");
     if (change.repoFolder !== undefined && change.repoFolder && !change.repoFolder.startsWith("/")) {
@@ -437,6 +437,7 @@ export class MockApi implements KompanionApi {
     if (change.repoFolder !== undefined) p.repoFolder = change.repoFolder.replace(/\/+$/, "") || null;
     if (change.repoMachineId !== undefined) p.repoMachineId = change.repoMachineId || null;
     if (change.overseer !== undefined) p.overseer = change.overseer;
+    if (change.archived !== undefined) p.archivedAt = change.archived ? (p.archivedAt ?? new Date().toISOString()) : null;
     setTimeout(() => this.emit({ type: "changed", what: "projects" }), 50);
   }
   async getDevSettings(projectId: string) {

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w3a",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/state.ts",
+    "focus": ["chatMenuId\\?: string"],
+    "prompt": "In web/src/state.ts, interface AppState: directly after the line `chatMenuId?: string; // chat whose options menu is open` add two optional fields:\n  projectMenuId?: string; // PROJ-ARCHIVE: project whose options menu is open\n  showArchived?: boolean; // PROJ-ARCHIVE: archived projects shown in the sidebar, remembered on this device Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w3a.sh",
+    "precheck": false
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s5a",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overseer.rs",
+    "focus": ["pub async fn scan\\("],
+    "prompt": "In server/src/overseer.rs, fn scan lists the user's projects for the Overseer with `SELECT id, name, description, state_summary FROM projects WHERE user_id = ? ORDER BY updated_at DESC LIMIT 30`. Archived projects (column `archived_at` not NULL) must leave the Overseer's view: add `AND archived_at IS NULL` after `user_id = ?` in that query. Their tasks then drop out too, because tasks are only shown per listed project. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s5a.sh",
+    "precheck": false
+  }
+]

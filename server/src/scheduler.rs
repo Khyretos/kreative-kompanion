@@ -213,13 +213,15 @@ static TICK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// One round for one project: starts what is ready. Returns the (task, computer) pairs started.
 pub async fn tick_project(s: &AppState, user_id: &str, project_id: &str) -> Vec<(String, String)> {
     let _one_at_a_time = TICK.lock().await;
-    let cfg_text: Option<String> = sqlx::query_scalar("SELECT scheduler FROM projects WHERE id = ? AND user_id = ?")
-        .bind(project_id)
-        .bind(user_id)
-        .fetch_optional(&s.db)
-        .await
-        .ok()
-        .flatten();
+    let cfg_text: Option<String> = sqlx::query_scalar(
+        "SELECT scheduler FROM projects WHERE id = ? AND user_id = ? AND archived_at IS NULL",
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_optional(&s.db)
+    .await
+    .ok()
+    .flatten();
     let mut cfg = Config::parse(&cfg_text.unwrap_or_default());
     if cfg.enabled {
         crate::devsettings_web::fill_scheduler(&s.db, project_id, user_id, &mut cfg).await;
@@ -328,7 +330,7 @@ pub fn spawn(s: AppState) {
         loop {
             tokio::time::sleep(EVERY).await;
             let projects: Vec<(String, String)> =
-                sqlx::query_as("SELECT id, user_id FROM projects WHERE scheduler LIKE '%\"enabled\":true%'").fetch_all(&s.db).await.unwrap_or_default();
+                sqlx::query_as("SELECT id, user_id FROM projects WHERE scheduler LIKE '%\"enabled\":true%' AND archived_at IS NULL").fetch_all(&s.db).await.unwrap_or_default();
             for (project, user) in projects {
                 let started = tick_project(&s, &user, &project).await;
                 for (task, machine) in started {

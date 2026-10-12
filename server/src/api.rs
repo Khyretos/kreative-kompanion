@@ -48,6 +48,9 @@ pub struct Project {
     /// OVR-01b: the Overseer answers every chat of this project.
     #[sqlx(default)]
     pub overseer: bool,
+    /// PROJ-ARCHIVE: when it was archived; None = active.
+    #[sqlx(default)]
+    pub archived_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -123,7 +126,7 @@ pub async fn projects(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Project>>> {
     let rows = sqlx::query_as(
-        "SELECT id, name, description, updated_at, kind, ptype, repo_folder, repo_machine_id, overseer FROM projects
+        "SELECT id, name, description, updated_at, kind, ptype, repo_folder, repo_machine_id, overseer, archived_at FROM projects
          WHERE user_id = ? ORDER BY updated_at DESC",
     )
     .bind(&u.id)

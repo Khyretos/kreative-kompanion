@@ -41,6 +41,7 @@ export interface Project {
   repoFolder?: string | null;
   repoMachineId?: string | null;
   overseer?: boolean; // OVR-01b: the Overseer answers every chat of this project
+  archivedAt?: string | null; // PROJ-ARCHIVE: when it was archived; absent or null = active
 }
 
 /** KG-10: repo commands for any project type. */

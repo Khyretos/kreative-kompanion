@@ -204,4 +204,23 @@ mod tests {
         assert!(changed_since(&db, &mut last).await); // every import counts, even an identical one
         std::fs::remove_file(path).ok();
     }
+
+    /// PROJ-ARCHIVE: a re-import (Windshift sync) never brings an archived project back.
+    #[tokio::test]
+    async fn an_import_keeps_the_archive_date() {
+        let db = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!().run(&db).await.unwrap();
+        sqlx::query("INSERT INTO users (id, name, password_hash, created_at) VALUES ('u1', 'kees', 'x', '2026')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let path = std::env::temp_dir().join(format!("kk-import-archived-{}.json", std::process::id()));
+        std::fs::write(&path, r#"{"projects":[{"id":"p1","name":"P","description":"d","tasks":[]}]}"#).unwrap();
+        run(&db, path.to_str().unwrap(), Some("kees")).await.unwrap();
+        sqlx::query("UPDATE projects SET archived_at = '2026-10-12T20:00:00Z' WHERE id = 'p1'").execute(&db).await.unwrap();
+        run(&db, path.to_str().unwrap(), Some("kees")).await.unwrap();
+        let at: Option<String> = sqlx::query_scalar("SELECT archived_at FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!(at.as_deref(), Some("2026-10-12T20:00:00Z"));
+        std::fs::remove_file(path).ok();
+    }
 }

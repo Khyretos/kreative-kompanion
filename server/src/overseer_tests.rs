@@ -121,3 +121,42 @@ fn a_proposed_task_becomes_a_valid_new_task_body() {
         assert!(text.starts_with(&format!("**Goal:** {}", if d.is_empty() { title } else { d })));
     }
 }
+
+/// PROJ-ARCHIVE: archived projects and their tasks leave the Overseer's scan.
+#[tokio::test]
+async fn archived_projects_leave_the_scan() {
+    let db = SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+    sqlx::migrate!().run(&db).await.unwrap();
+    sqlx::query("INSERT INTO users (id, name, password_hash, created_at) VALUES ('u1', 'kees', 'x', '2026')").execute(&db).await.unwrap();
+    sqlx::query("INSERT INTO projects (id, name, description, updated_at, user_id, archived_at) VALUES ('p1', 'Game', '', '2026-10-08', 'u1', NULL), ('p2', 'Old', '', '2026-10-09', 'u1', '2026-10-10T00:00:00Z')")
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO tasks (id, project_id, title, state, updated_at, user_id) VALUES ('h', 'p2', 'Hidden work', 'running', '2026', 'u1')").execute(&db).await.unwrap();
+    let s = scan(&db, "u1", 8000).await;
+    assert!(!s.text.contains("## Old") && !s.text.contains("Hidden work"), "{}", s.text);
+    assert_eq!(s.projects, vec![("p1".to_string(), "Game".to_string())]);
+    assert!(s.tasks.is_empty());
+}
+
+#[tokio::test]
+async fn a_task_proposed_by_name_never_reaches_an_archived_project() {
+    let db = SqlitePoolOptions::new().max_connections(1).connect("sqlite::memory:").await.unwrap();
+    sqlx::migrate!().run(&db).await.unwrap();
+    sqlx::query("INSERT INTO users (id, name, password_hash, created_at) VALUES ('u1', 'kees', 'x', '2026')").execute(&db).await.unwrap();
+    sqlx::query("INSERT INTO projects (id, name, description, updated_at, user_id, archived_at) VALUES ('p2', 'Old', '', '2026-10-09', 'u1', '2026-10-10T00:00:00Z')")
+        .execute(&db)
+        .await
+        .unwrap();
+    // A name finds active projects only, so the task goes to a new project; by id it still lands.
+    let mut config: crate::config::Config = toml::from_str("").unwrap();
+    config.roles.clear();
+    let st = AppState::for_tests(config, db.clone());
+    let u = User { id: "u1".into(), name: "kees".into() };
+    let body = |v: Value| Json(serde_json::from_value::<NewTasks>(v).unwrap());
+    let one = json!([{ "title": "Polish", "description": "Make it shine." }]);
+    let (_, Json(r)) = create_tasks(State(st.clone()), Extension(u.clone()), body(json!({ "project": "old", "tasks": one }))).await.unwrap();
+    assert_ne!(r["projectId"], "p2", "a name never reaches an archived project");
+    let (_, Json(r)) = create_tasks(State(st), Extension(u), body(json!({ "project": "Old", "projectId": "p2", "tasks": one }))).await.unwrap();
+    assert_eq!(r["projectId"], "p2", "by id it still does");
+}

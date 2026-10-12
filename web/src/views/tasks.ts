@@ -314,7 +314,9 @@ export function renderTasks(s: AppState): SafeHtml {
   if (open) return detail(open, s);
 
   const scope = project && s.taskScope === "project" ? "project" : "all";
-  const list = scope === "project" ? s.tasks.filter((t) => t.projectId === project!.id) : s.tasks;
+  // PROJ-ARCHIVE: "All" leaves out the tasks of archived projects unless "Show archived" is on.
+  const listed = (t: Task) => s.showArchived || !s.projects.find((p) => p.id === t.projectId)?.archivedAt;
+  const list = scope === "project" ? s.tasks.filter((t) => t.projectId === project!.id) : s.tasks.filter(listed);
   const shown = s.taskFilter.trim() ? list.filter((t) => matchTask(s.taskFilter, t, stateLabel(t.state))) : list;
   const search = html`<div class="search-input">
       ${icon("search")}

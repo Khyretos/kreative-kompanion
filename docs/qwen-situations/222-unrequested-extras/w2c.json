@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w2c",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/api/mock.ts",
+    "focus": ["async setProjectSettings"],
+    "prompt": "In web/src/api/mock.ts (the demo API), method setProjectSettings must accept and apply the new `archived` field:\n1. Its change type `{ type?: Project[\"type\"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean }` gets `archived?: boolean` as the last member.\n2. Directly after the line `if (change.overseer !== undefined) p.overseer = change.overseer;` add one line: when change.archived is not undefined, set `p.archivedAt` to the existing `p.archivedAt` or `new Date().toISOString()` when archived is true (keep the first date), and to null when it is false.\nThe setTimeout emit stays after it. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w2c.sh",
+    "precheck": false
+  }
+]

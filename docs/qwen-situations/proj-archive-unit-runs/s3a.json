@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-s3a",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/projects.rs",
+    "focus": ["pub struct SettingsBody"],
+    "prompt": "In server/src/projects.rs, struct SettingsBody (the body of PATCH /api/projects/{id}/settings) gets one new last field after `overseer: Option<bool>,`:\n    /// PROJ-ARCHIVE: true archives the project (the first date is kept), false unarchives it.\n    archived: Option<bool>,\nChange nothing else.",
+    "check": "sh /tmp/kk-arch-chk/s3a.sh",
+    "precheck": false
+  }
+]

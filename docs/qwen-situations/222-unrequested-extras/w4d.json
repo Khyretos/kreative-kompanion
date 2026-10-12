@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w4d",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/sidebar.ts",
+    "focus": ["data-action=\"chat-move\""],
+    "prompt": "In web/src/views/sidebar.ts, a chat's \"Move to project\" submenu lists `${s.projects.map((p) => html`<button role=\"menuitem\" data-action=\"chat-move\" ...`. Leave archived projects (p.archivedAt set) out of that list unless s.showArchived is on: change `s.projects.map(` there to `s.projects.filter((p) => s.showArchived || !p.archivedAt).map(`. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w4d.sh",
+    "precheck": false
+  }
+]

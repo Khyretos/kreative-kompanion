@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w7",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/projectpanel.ts",
+    "focus": ["export function renderProjectPanel"],
+    "prompt": "In web/src/views/projectpanel.ts, renderProjectPanel returns `<section class=\"project-panel\" aria-label=\"Project settings\">` with the project type first. When the project is archived (p.archivedAt set), the panel must start with a bar saying so, with an Unarchive button. Add as the first child of that section:\n      ${p.archivedAt ? html`<div class=\"archived-bar\" role=\"status\">${icon(\"archive\")}<span>Archived</span>\n        <button class=\"btn small\" data-action=\"project-unarchive\" data-id=\"${p.id}\">Unarchive</button></div>` : \"\"} Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w7.sh",
+    "precheck": false
+  }
+]

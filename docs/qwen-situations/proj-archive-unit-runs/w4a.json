@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pa-w4a",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/sidebar.ts",
+    "focus": ["const projects = \\[", "import type \\{ Chat"],
+    "prompt": "In web/src/views/sidebar.ts, renderSidebar builds `const projects = [...s.projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));`. Archived projects (p.archivedAt set) must be hidden unless s.showArchived is on, and then come after the active ones. Replace that one line with:\n  // PROJ-ARCHIVE: archived projects are hidden unless \"Show archived\" is on; then they come last.\n  const newest = (a: Project, b: Project) => b.updatedAt.localeCompare(a.updatedAt);\n  const active = s.projects.filter((p) => !p.archivedAt).sort(newest);\n  const archived = s.projects.filter((p) => p.archivedAt).sort(newest);\n  const projects = s.showArchived ? [...active, ...archived] : active;\nand add `Project` to the type import from \"../api/types\" (it becomes `import type { Chat, Project, Task } from \"../api/types\";`). `archived` is used by a later change. Change nothing else.",
+    "check": "sh /tmp/kk-arch-chk/w4a.sh",
+    "precheck": false
+  }
+]
