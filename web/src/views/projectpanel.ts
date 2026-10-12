@@ -1,7 +1,7 @@
 // Project settings at the top of the Tasks pane: the type, and per type its extra part
 // (programming: repo folder and computer; game: attached library assets and a picker).
 import { html, type SafeHtml } from "../core/html";
-import type { Project } from "../api/types";
+import type { DevSettingsView, Project } from "../api/types";
 import { icon } from "./icons";
 
 export type ProjectType = "chat" | "game" | "programming";
@@ -26,6 +26,7 @@ export interface PickResult {
 }
 
 export interface PanelOptions {
+  dev?: DevSettingsView; // KG-10: build/test/run/deploy settings, undefined while loading
   machines: { id: string; name: string }[];
   assets: ProjectAsset[] | undefined;
   pick: { q: string; items: PickResult[]; busy: boolean };
@@ -70,6 +71,39 @@ function repoForm(p: Project, o: PanelOptions): SafeHtml {
     </form>`;
 }
 
+function devForm(p: Project, d: DevSettingsView | undefined): SafeHtml {
+  if (!d) return html`<p class="muted small">Loading…</p>`;
+  const s = d.settings;
+  const field = (name: "engine" | "build" | "test" | "run" | "deploy" | "screenshots", label: string, hint: string): SafeHtml =>
+    html`<label>${label} <input name="${name}" value="${s[name]}" placeholder="${hint}" autocomplete="off" spellcheck="false"></label>`;
+  const result = (kind: "build" | "test" | "run"): SafeHtml => {
+    const r = s.last[kind];
+    return r ? html`<span class="dev-result ${r.ok ? "ok" : "bad"}" data-kind="${kind}">${r.ok ? "Passed" : "Failed"} · ${r.summary.split("\n").pop() ?? ""}</span>` : html``;
+  };
+  const runnable = !!d.repoMachineId && !!d.repoFolder;
+  const runBtn = (kind: "build" | "test" | "run"): SafeHtml =>
+    html`<span class="dev-run"><button class="btn small" type="button" data-action="dev-run" data-project="${p.id}" data-kind="${kind}" ${runnable && s[kind].trim() ? "" : "disabled"}>${kind === "build" ? "Build" : kind === "test" ? "Test" : "Run"} now</button>${result(kind)}</span>`;
+  return html`
+    <form class="project-dev" data-id="${p.id}">
+      <h3 class="label">Build and test</h3>
+      <label>Start from <select name="preset" id="dev-preset">
+        <option value="">None</option>
+        ${d.presets.map((x) => html`<option value="${x.preset}" ${x.preset === s.preset ? "selected" : ""}>${x.preset === "game" ? "Game (kk-engine)" : "Software"}</option>`)}
+      </select></label>
+      ${field("engine", "Engine", "kk-engine")}
+      ${field("build", "Build", "make")}
+      ${field("test", "Test", "make test")}
+      ${field("run", "Run", "./app --headless")}
+      ${field("deploy", "Deploy", "sh deploy.sh")}
+      ${field("screenshots", "Screenshot folder", "screenshots")}
+      <div class="dev-actions">
+        <button class="btn small primary" type="submit">Save</button>
+        ${runBtn("build")} ${runBtn("test")} ${runBtn("run")}
+      </div>
+      <p class="muted small">${runnable ? "Commands run in the repo folder under this project's grants. The test command also checks scheduled tasks." : "Pick the computer and folder above to run them."}</p>
+    </form>`;
+}
+
 function gameAssets(p: Project, o: PanelOptions): SafeHtml {
   const list = o.assets === undefined
     ? html`<p class="muted small">Loading…</p>`
@@ -101,6 +135,8 @@ export function renderProjectPanel(p: Project, o: PanelOptions): SafeHtml {
       <label class="project-overseer" title="Every chat in this project is answered by the Overseer, which sees all your projects and tasks. The project thread stays as it is.">
         <input type="checkbox" id="project-overseer" data-id="${p.id}" ${p.overseer ? "checked" : ""}>${icon("eye")}<span>Overseer always on in this project</span>
       </label>
-      ${type === "programming" ? repoForm(p, o) : type === "game" ? gameAssets(p, o) : ""}
+      ${type === "programming" || type === "game" ? repoForm(p, o) : ""}
+      ${type === "game" ? gameAssets(p, o) : ""}
+      ${type === "programming" || type === "game" ? devForm(p, o.dev) : ""}
     </section>`;
 }

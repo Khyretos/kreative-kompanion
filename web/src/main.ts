@@ -389,7 +389,7 @@ function render(s: AppState, prev: AppState): void {
   }
   lastPcKey = pcKey;
   const rightKeys: (keyof AppState)[] = s.rightTab === "tasks"
-    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines"]
+    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines"]
     : s.rightTab === "access" ? ["rightTab", "grants", "accessHistory", "machines"]
     : s.rightTab === "activity" ? ["rightTab", "activity", "activityFilter", "weeklyCosts"]
     : ["rightTab", "machines", "today", "machinesRefresh", "tasks", "pairing", "gpuOpen", "gpuPins", "cardStyle"];
@@ -406,6 +406,7 @@ function render(s: AppState, prev: AppState): void {
   }
   const shownProject = s.rightTab === "tasks" && s.taskScope === "project" ? activeProject(s) : undefined;
   if (shownProject?.type === "game" && !(shownProject.id in s.projectAssets)) void loadProjectAssets(shownProject.id);
+  if ((shownProject?.type === "game" || shownProject?.type === "programming") && !(shownProject.id in s.devSettings)) void loadDevSettings(shownProject.id);
   if (!editing && changed(s, prev, rightKeys)) {
     remount($("#right"), s.rightTab === "tasks" ? renderTasks(s) : s.rightTab === "activity" ? h`
       <div class="pane-head">${paneTabs(s)}
@@ -617,6 +618,20 @@ function setVoicePrefs(change: Partial<VoicePrefs>): void {
   if (!voicePrefs.readAloud) reader.stop();
 }
 
+// KG-10: build/test/run settings of a game or programming project; reloaded on "projects" events (results arrive that way).
+const devLoads = new Set<string>();
+async function loadDevSettings(projectId: string): Promise<void> {
+  if (devLoads.has(projectId)) return;
+  devLoads.add(projectId);
+  try {
+    store.set({ devSettings: { ...store.get().devSettings, [projectId]: await api.getDevSettings(projectId) } });
+  } catch (e) {
+    showError(e);
+  } finally {
+    devLoads.delete(projectId);
+  }
+}
+
 // Game projects: their attached assets load when the panel first shows, and again on
 // "project-assets" events. One load at a time per project.
 const assetLoads = new Set<string>();
@@ -703,6 +718,7 @@ function refetch(what: string): void {
       else if (what === "access") await loadAccess();
       if ((what === "access" || what === "machines" || what === "gpus") && store.get().section === "capabilities") loadCapabilities();
       if (what === "studio") store.set({ studioRuns: await api.studioMine() });
+      if (what === "projects") for (const id of Object.keys(store.get().devSettings)) void loadDevSettings(id);
       if (what === "project-assets") for (const id of Object.keys(store.get().projectAssets)) void loadProjectAssets(id);
       if ((what === "access" || what === "actions") && s.rightTab === "activity") store.set({ activity: await api.listActivity() });
       else if (what === "actions" && s.activeChatId) {
@@ -1053,6 +1069,11 @@ function wire(shell: HTMLElement): void {
       // To .shell itself (resize.ts listens there; `shell` here is the outer root).
       $(".shell").dispatchEvent(new CustomEvent("kk-expand", { detail: "right" }));
     },
+    "dev-run": (el) => {
+      const project = el.dataset.project ?? "", kind = (el.dataset.kind ?? "test") as "build" | "test" | "run";
+      (el as HTMLButtonElement).disabled = true;
+      return api.runDevCommand(project, kind).catch(showError);
+    },
     "attach-asset": (el) => {
       const project = el.dataset.project ?? "", id = Number(el.dataset.id);
       const s = store.get();
@@ -1263,6 +1284,14 @@ function wire(shell: HTMLElement): void {
       return;
     }
     // OVR-01b: the Overseer answers every chat of this project.
+    // KG-10: choosing a preset fills the fields (the user still saves).
+    if (fid === "dev-preset") {
+      const form = (ev.target as HTMLElement).closest("form.project-dev") as HTMLFormElement | null;
+      const view = form ? store.get().devSettings[form.dataset.id ?? ""] : undefined;
+      const preset = view?.presets.find((x) => x.preset === (ev.target as HTMLSelectElement).value);
+      if (form && preset) for (const k of ["engine", "build", "test", "run", "deploy", "screenshots"] as const) (form.elements.namedItem(k) as HTMLInputElement).value = preset[k];
+      return;
+    }
     if (fid === "project-overseer") {
       const box = ev.target as HTMLInputElement;
       const id = box.dataset.id ?? "", overseer = box.checked;
@@ -1409,6 +1438,16 @@ function wire(shell: HTMLElement): void {
       void made
         .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
         .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
+      return;
+    }
+    const devForm = (ev.target as HTMLElement).closest("form.project-dev") as HTMLFormElement | null;
+    if (devForm) {
+      ev.preventDefault();
+      const id = devForm.dataset.id ?? "";
+      const data = new FormData(devForm);
+      const get = (k: string): string => String(data.get(k) ?? "").trim();
+      const settings = { preset: get("preset"), engine: get("engine"), build: get("build"), test: get("test"), run: get("run"), deploy: get("deploy"), screenshots: get("screenshots") };
+      void busyWhile(devForm, api.putDevSettings(id, settings)).then(() => loadDevSettings(id), showError);
       return;
     }
     const repoForm = (ev.target as HTMLElement).closest("form.project-repo") as HTMLFormElement | null;

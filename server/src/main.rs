@@ -6,6 +6,8 @@ mod auth;
 mod capabilities;
 mod config;
 mod costs;
+mod devsettings;
+mod devsettings_web;
 mod contrast;
 mod effort;
 mod error;
@@ -324,6 +326,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/projects/{id}/scheduler", get(scheduler_web::get).put(scheduler_web::put))
         .route("/projects/{id}/scheduler/tick", post(scheduler_web::tick))
         .route("/projects/{id}/state", get(statesum::get))
+        .route("/projects/{id}/dev-settings", get(devsettings_web::get).put(devsettings_web::put))
+        .route("/projects/{id}/dev-settings/run/{kind}", post(devsettings_web::run))
         .route("/tasks/{id}/budget", axum::routing::put(scheduler_web::set_budget))
         .route("/mcp-grants", get(mcp_grants::list).post(mcp_grants::create))
         .route("/mcp-grants/{id}", axum::routing::delete(mcp_grants::revoke))

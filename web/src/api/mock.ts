@@ -4,7 +4,7 @@ import { AUDIO_TYPES } from "./http";
 import type { AccessEvent, GrantView } from "../views/access";
 import type { KompanionApi, Lesson, ServerEvent } from "./client";
 import type { PcAction } from "./client";
-import type { TaskState, AdminSettings, DaySummary, MachineStats, Chat, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task } from "./types";
+import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task } from "./types";
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 const grants: Record<string, GrantView[]> = {
@@ -17,6 +17,12 @@ const grants: Record<string, GrantView[]> = {
 };
 const actions: PcAction[] = [];
 const projectAssets: Record<string, import("../views/projectpanel").ProjectAsset[]> = {};
+const emptyDev = (): DevSettings => ({ preset: "", engine: "", build: "", test: "", run: "", deploy: "", screenshots: "", last: {} });
+const DEV_PRESETS: DevSettings[] = [
+  { ...emptyDev(), preset: "software", build: "make", test: "make test" },
+  { ...emptyDev(), preset: "game", engine: "kk-engine", build: "cmake --build build", test: "ctest --test-dir build --output-on-failure", screenshots: "screenshots" },
+];
+const devSettings: Record<string, DevSettings> = {};
 const history: AccessEvent[] = [];
 
 const now = Date.now();
@@ -431,6 +437,24 @@ export class MockApi implements KompanionApi {
     if (change.repoMachineId !== undefined) p.repoMachineId = change.repoMachineId || null;
     if (change.overseer !== undefined) p.overseer = change.overseer;
     setTimeout(() => this.emit({ type: "changed", what: "projects" }), 50);
+  }
+  async getDevSettings(projectId: string) {
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) throw new Error("No such project.");
+    return structuredClone({ settings: devSettings[projectId] ?? emptyDev(), presets: DEV_PRESETS, repoMachineId: p.repoMachineId ?? null, repoFolder: p.repoFolder ?? null });
+  }
+  async putDevSettings(projectId: string, s: Omit<DevSettings, "last">) {
+    for (const c of [s.build, s.test, s.run, s.deploy]) if (c.length > 500 || /[\n\0]/.test(c)) throw new Error("A command is one line of at most 500 characters.");
+    devSettings[projectId] = { ...s, last: devSettings[projectId]?.last ?? {} };
+    setTimeout(() => this.emit({ type: "changed", what: "projects" }), 50);
+  }
+  async runDevCommand(projectId: string, kind: "build" | "test" | "run") {
+    const d = devSettings[projectId];
+    if (!d || !d[kind].trim()) throw new Error(`Set a ${kind} command first.`);
+    setTimeout(() => {
+      d.last[kind] = { ok: true, at: new Date().toISOString(), summary: "passed" };
+      this.emit({ type: "changed", what: "projects" });
+    }, 300);
   }
   async projectAssets(projectId: string) { return structuredClone(projectAssets[projectId] ?? []); }
   async attachAsset(projectId: string, assetId: number) {

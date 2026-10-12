@@ -327,6 +327,7 @@ export function renderTasks(s: AppState): SafeHtml {
         ${renderProjectPanel(project!, {
           machines: s.machines.filter((m) => m.id !== "server").map((m) => ({ id: m.id, name: m.name })),
           assets: s.projectAssets[project!.id],
+          dev: s.devSettings[project!.id],
           pick: s.assetPick.project === project!.id ? s.assetPick : { q: "", items: [], busy: false },
           thumb,
         })}
