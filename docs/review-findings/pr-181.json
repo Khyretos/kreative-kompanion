@@ -1,0 +1,38 @@
+{
+  "0c48d0fa3d74": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/devsettings.rs",
+    "reason": "Checked by Claude: Commands are shell commands by design and run only as a shell job on the project's computer under its grant (same as KG-03 check commands); '..' in a command is not a path access. validate() already refuses newlines and NUL.",
+    "title": "Potential Security Issue",
+    "verdict": "false_positive"
+  },
+  "7e18fd88658c": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "Checked by Claude: loadDevSettings clears devLoads in its finally block (main.ts), so the Set never grows.",
+    "title": "Potential Resource Leak",
+    "verdict": "false_positive"
+  },
+  "84cba591ab6a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/projectpanel.ts",
+    "reason": "Checked by Claude: d comes from our own API typed as DevSettingsView; same render pattern as the other project panels, and devForm returns a Loading line while d is undefined.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "f7690669c1fc": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/devsettings.rs",
+    "reason": "Checked by Claude: Commands are shell text, the screenshot folder is a path: each is validated for what it is (500 char cap on commands, relative path without '..' on the folder).",
+    "title": "Missing Validation for Command Length",
+    "verdict": "false_positive"
+  }
+}
