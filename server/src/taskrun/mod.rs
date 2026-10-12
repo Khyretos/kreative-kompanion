@@ -4,6 +4,7 @@
 //! command runs, and a reviewer reads the result. Up to 3 fix rounds (1 at Low effort), then the
 //! task needs the user. Everything shows in the task's own chat.
 //! (Claude rewrote the loop after two failed model drafts; parse.rs is the model's.)
+pub mod ladder;
 pub mod parse;
 pub mod protect;
 
@@ -158,6 +159,8 @@ struct Run {
     tests_may_change: bool,
     /// KG-03: the limits of a run the scheduler started (None: a run started by hand).
     budget: Option<crate::scheduler::Budget>,
+    /// KG-04: the fix rounds the current ladder rung may use (None: the effort level's).
+    rung_rounds: Option<i64>,
 }
 
 impl Run {
@@ -283,6 +286,7 @@ pub async fn start_task(s: &AppState, user_id: &str, id: &str, b: StartBody, sch
         protected,
         tests_may_change: b.tests_may_change,
         budget,
+        rung_rounds: None,
     };
     let _ = sqlx::query(
         "UPDATE runs SET protected = ?, tests_may_change = ?, effort = ? WHERE id = ?",
@@ -555,6 +559,81 @@ async fn run(s: AppState, mut r: Run) {
         return finish(&s, &r, "needs_input", "folder not found").await;
     }
 
+    // KG-04: the worker role first; when it cannot finish, the next `[[ladder]]` rung tries, and
+    // the user is asked only after the last one.
+    let rungs = s.config.ladder.clone();
+    let mut used = vec![(r.worker.provider_id.clone(), r.worker.model_id.clone())];
+    let mut tried: Vec<ladder::Tried> = Vec::new();
+    let (mut name, mut reason) = ("Worker role".to_string(), "worker role".to_string());
+    loop {
+        let tokens_before = crate::scheduler::tokens_used(&s, &r.run_id).await;
+        let rung_began = std::time::Instant::now();
+        let why = match attempt(&s, &mut r, began, &started).await {
+            Outcome::Failed(why) => why,
+            Outcome::Ended => return,
+        };
+        tried.push(ladder::Tried {
+            rung: tried.len(),
+            name: name.clone(),
+            provider: r.worker.provider_id.clone(),
+            model: r.worker.model_id.clone(),
+            reason: reason.clone(),
+            tokens: crate::scheduler::tokens_used(&s, &r.run_id).await - tokens_before,
+            minutes: (rung_began.elapsed().as_secs() / 60) as i64,
+            rounds: rounds_for(&r) as i64,
+            outcome: why.clone(),
+        });
+        let _ = sqlx::query("UPDATE runs SET ladder = ? WHERE id = ?")
+            .bind(serde_json::to_string(&tried).unwrap_or_default())
+            .bind(&r.run_id)
+            .execute(&s.db)
+            .await;
+        let Some(next) = ladder::next_rung(&rungs, &used, |p| s.config.provider(p).is_some()) else {
+            if tried.len() > 1 {
+                note(&s, &r, &ladder::ask_user_text(&tried)).await;
+            }
+            return finish(&s, &r, "needs_input", &why).await;
+        };
+        let line = format!("{} did not finish ({why}). Trying {} ({}).", name, next.label(), next.model);
+        note(&s, &r, &line).await;
+        crate::thread::post_run(&s, &r.run_id, &format!("**{}**: {line}", r.title)).await;
+        use_rung(&mut r, next);
+        used.push((next.provider.clone(), next.model.clone()));
+        name = next.label();
+        reason = format!("after: {why}");
+    }
+}
+
+/// How one try at a task ended (KG-04): finished or ended for good (stopped, out of budget, needs the
+/// user for a reason another model cannot fix), or failed in a way the next rung may fix.
+enum Outcome {
+    Ended,
+    Failed(String),
+}
+
+/// Ends the run for good and says so.
+async fn end(s: &AppState, r: &Run, state: &str, step: &str) -> Outcome {
+    finish(s, r, state, step).await;
+    Outcome::Ended
+}
+
+/// Fix rounds one try may use: the effort level's, capped by the scheduler budget and the rung.
+fn rounds_for(r: &Run) -> usize {
+    let cap = [r.budget.and_then(|b| b.rounds), r.rung_rounds].into_iter().flatten().min();
+    crate::scheduler::fix_rounds(r.effort_for(&r.worker).fix_rounds(), cap)
+}
+
+/// The next rung plans and works the task; the reviewer stays the one that judged the rung before.
+fn use_rung(r: &mut Run, rung: &crate::config::LadderRung) {
+    for role in [&mut r.orchestrator, &mut r.worker] {
+        role.provider_id = rung.provider.clone();
+        role.model_id = rung.model.clone();
+    }
+    r.rung_rounds = rung.fix_rounds;
+}
+
+/// Plans, works the steps and reviews with fix rounds, with the roles the run has now.
+async fn attempt(s: &AppState, r: &mut Run, began: std::time::Instant, started: &str) -> Outcome {
     // 1. Plan.
     let skills_root = crate::skills::dir();
     let areas = crate::skills::areas(&skills_root);
@@ -587,13 +666,13 @@ async fn run(s: AppState, mut r: Run) {
         Ok(t) => t,
         Err(e) => {
             note(&s, &r, &format!("Planning failed: {e}")).await;
-            return finish(&s, &r, "needs_input", "planning failed").await;
+            return Outcome::Failed("planning failed".into());
         }
     };
     let steps = parse::plan(&plan_text);
     if steps.is_empty() {
         note(&s, &r, "I couldn't make a plan; the task description may need more detail.").await;
-        return finish(&s, &r, "needs_input", "no plan").await;
+        return Outcome::Failed("no plan".into());
     }
     // Each step gets the cards for its area and its words, within the budget for the worker's model.
     let notes = crate::skills::notes_for(&skills_root, &r.worker.model_id);
@@ -649,7 +728,7 @@ async fn run(s: AppState, mut r: Run) {
     let n = steps.len();
     for (i, step) in steps.iter().enumerate() {
         if held_or_stopped(&s, &r).await || out_of_budget(&s, &r, began).await {
-            return;
+            return Outcome::Ended;
         }
         progress(&s, &r, i as f64 / n as f64 * 0.8, &format!("Step {}/{n}: {}", i + 1, step.what)).await;
         let added = take_notes(&r.task_id);
@@ -662,14 +741,14 @@ async fn run(s: AppState, mut r: Run) {
                 note(&s, &r, &format!("Step {}: {line}", i + 1)).await;
                 crate::thread::post_run(&s, &r.run_id, &format!("**{}**, step {}/{n} done: {line}", r.title, i + 1)).await;
             },
-            Err(_) if stopped_here(&s, &r).await => return,
+            Err(_) if stopped_here(&s, &r).await => return Outcome::Ended,
             Err(why) => {
                 if pcagent::hit_step_limit(&why) {
                     note(&s, &r, &format!("Step {} used all its tool calls; the check decides.", i + 1)).await;
                     continue;
                 }
                 note(&s, &r, &format!("Step {} stopped: {why}", i + 1)).await;
-                return finish(&s, &r, "needs_input", &format!("step {} needs you", i + 1)).await;
+                return Outcome::Failed(format!("step {} needs you", i + 1));
             }
         }
     }
@@ -684,10 +763,10 @@ async fn run(s: AppState, mut r: Run) {
     let fix_skills = crate::skills::text_with(&skills_root, &lessons_dir, &used);
     let review_skills = crate::skills::text_with(&skills_root, &lessons_dir, &[vec!["reviewer/SKILL".to_string()], used.clone()].concat());
     // 3. Check and review, with fix rounds.
-    let rounds = crate::scheduler::fix_rounds(r.effort_for(&r.worker).fix_rounds(), r.budget.and_then(|b| b.rounds));
+    let rounds = rounds_for(r);
     for round in 1..=rounds {
         if held_or_stopped(&s, &r).await || out_of_budget(&s, &r, began).await {
-            return;
+            return Outcome::Ended;
         }
         progress(&s, &r, 0.85, &format!("review, round {round}")).await;
         let check_text = match &r.check {
@@ -727,7 +806,7 @@ async fn run(s: AppState, mut r: Run) {
             Ok(t) => parse::review(&t),
             Err(e) => {
                 note(&s, &r, &format!("The review failed: {e}")).await;
-                return finish(&s, &r, "needs_input", "review failed").await;
+                return end(&s, &r, "needs_input", "review failed").await;
             }
         };
         // A changed test can't pass review, whatever the reviewer said (RUN-01).
@@ -743,7 +822,7 @@ async fn run(s: AppState, mut r: Run) {
             && let Some(why) = check_gate(&s, &r, &mut review).await
         {
             note(&s, &r, &format!("Not done: {why}.")).await;
-            return finish(&s, &r, "needs_input", &format!("check could not run: {why}")).await;
+            return end(&s, &r, "needs_input", &format!("check could not run: {why}")).await;
         }
         let _ = sqlx::query("UPDATE runs SET rounds = json_insert(rounds, '$[#]', json(?)) WHERE id = ?")
             .bind(json!({ "round": round, "ok": review.ok, "findings": review.findings }).to_string())
@@ -752,7 +831,7 @@ async fn run(s: AppState, mut r: Run) {
             .await;
         if review.ok {
             note(&s, &r, "Review: looks good.").await;
-            return finish(&s, &r, "done", &format!("done after {round} round(s)")).await;
+            return end(&s, &r, "done", &format!("done after {round} round(s)")).await;
         }
         let findings = review.findings.iter().map(|f| format!("- {f}")).collect::<Vec<_>>().join("\n");
         note(&s, &r, &format!("Review, round {round}:\n{findings}")).await;
@@ -772,21 +851,25 @@ async fn run(s: AppState, mut r: Run) {
             .unwrap_or(None);
             let tried = refused.is_some_and(|(n,)| n > 0);
             let why = if changed.is_empty() && !tried { "review failed 3 times" } else { "the task may not change tests" };
-            return finish(&s, &r, "needs_input", why).await;
+            if changed.is_empty() && !tried {
+                return Outcome::Failed(why.into());
+            }
+            return end(&s, &r, "needs_input", why).await;
         }
         match work_with(&s, &r, r.effort_for(&r.worker).tool_rounds() * 2, format!("The task:\n{}\n\nFix these review findings, then answer with one short line:\n{findings}", cut(&r.description, 3000)), &fix_skills).await {
             Ok(line) => note(&s, &r, &format!("Fix {round}: {line}")).await,
-            Err(_) if stopped_here(&s, &r).await => return,
+            Err(_) if stopped_here(&s, &r).await => return Outcome::Ended,
             Err(why) => {
                 if pcagent::hit_step_limit(&why) {
                     note(&s, &r, &format!("Fix {round} used all its tool calls; checking again.")).await;
                     continue;
                 }
                 note(&s, &r, &format!("The fix stopped: {why}")).await;
-                return finish(&s, &r, "needs_input", "fix needs you").await;
+                return Outcome::Failed("fix needs you".into());
             }
         }
     }
+    Outcome::Ended
 }
 
 #[cfg(test)]
@@ -802,10 +885,27 @@ mod tests {
         let r = Run {
             user_id: "u".into(), task_id: "t".into(), title: "T".into(), description: "D".into(), chat_id: "c".into(),
             machine_id: "m".into(), machine_name: "soucouyant".into(), folder: "/home/k/app".into(), check: None,
-            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, budget: None,
+            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, budget: None, rung_rounds: None,
         };
         let p = worker_prompt(&r);
         assert!(p.contains("/home/k/app") && p.contains("soucouyant"));
+    }
+
+    #[test]
+    fn a_rung_takes_over_planning_and_work_but_not_the_review_and_caps_the_fix_rounds() {
+        let mut r = Run {
+            user_id: "u".into(), task_id: "t".into(), title: "T".into(), description: "D".into(), chat_id: "c".into(),
+            machine_id: "m".into(), machine_name: "x".into(), folder: "/f".into(), check: None,
+            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::High, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, budget: None, rung_rounds: None,
+        };
+        let before = rounds_for(&r);
+        assert!(before >= 2);
+        let rung = crate::config::LadderRung { name: None, provider: "anthropic".into(), model: "claude".into(), fix_rounds: Some(1) };
+        use_rung(&mut r, &rung);
+        assert_eq!((r.worker.provider_id.as_str(), r.worker.model_id.as_str()), ("anthropic", "claude"));
+        assert_eq!(r.orchestrator.model_id, "claude");
+        assert_eq!(r.reviewer.model_id, "m");
+        assert_eq!(rounds_for(&r), 1);
     }
 
     #[test]
