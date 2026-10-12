@@ -364,6 +364,31 @@ pub fn fill_titles(plan: &mut GamePlan, description: &str) {
     }
 }
 
+/// Gives an asset task without a source the workflow named like its kind, else the first workflow with the
+/// output its kind needs; the asset's title becomes the `prompt` parameter when the workflow has one. Returns the
+/// keys that were filled, in plan order.
+pub fn fill_sources(plan: &mut GamePlan, workflows: &[WfInfo]) -> Vec<String> {
+    let mut result = Vec::new();
+    for task in &mut plan.asset_tasks {
+        if task.library_id.is_some() || task.workflow.is_some() {
+            continue;
+        }
+        let out = output_of_kind(&task.kind);
+        let Some(out) = out else { continue };
+        let mut found = workflows.iter().find(|w| w.name.eq_ignore_ascii_case(&task.kind) && w.output == out);
+        if found.is_none() {
+            found = workflows.iter().find(|w| w.output == out);
+        }
+        let Some(found) = found else { continue };
+        task.workflow = Some(found.name.clone());
+        if found.params.iter().any(|p| p.name == "prompt") {
+            task.params.insert("prompt".into(), Value::String(task.title.clone()));
+        }
+        result.push(task.key.clone());
+    }
+    result
+}
+
 /// Asks the model for a game plan, up to 3 rounds while the answer breaks a rule.
 pub async fn generate<F, Fut>(mut ask: F, system: &str, user: &str, lim: &Limits, library: &[LibAsset], workflows: &[WfInfo]) -> Result<(GamePlan, Vec<Issue>), String>
 where
@@ -381,6 +406,7 @@ where
         match parse(&text) {
             Ok(mut plan) => {
                 prefer_library(&mut plan, library);
+                fill_sources(&mut plan, workflows);
                 let found = all_issues(&plan, lim, library, workflows);
                 if found.is_empty() {
                     return Ok((plan, found));

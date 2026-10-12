@@ -516,3 +516,68 @@ async fn the_last_answer_is_in_the_error_when_no_plan_comes() {
     assert!(err.contains("code_tasks"), "{err}");
     assert!(err.contains("Last answer: ") && err.contains("asset_tasks"), "{err}");
 }
+
+fn no_source(key: &str, kind: &str) -> AssetTask {
+    AssetTask { key: key.into(), title: format!("{key} title"), kind: kind.into(), tags: vec![], library_id: None, workflow: None, params: Map::new(), depends_on: vec![], needed_by: vec![] }
+}
+
+fn plan_with_assets(assets: Vec<AssetTask>) -> GamePlan {
+    let mut p = good();
+    p.asset_tasks = assets;
+    p
+}
+
+fn many_workflows() -> Vec<WfInfo> {
+    let mut w = workflows();
+    w.push(WfInfo { name: "sfx".into(), output: "audio".into(), params: vec![WfParam { name: "prompt".into(), kind: "text".into(), choices: vec![], min: None, max: None }, WfParam { name: "seconds".into(), kind: "number".into(), choices: vec![], min: Some(1.0), max: Some(30.0) }] });
+    w.push(WfInfo { name: "music".into(), output: "audio".into(), params: vec![] });
+    w
+}
+
+#[test]
+fn an_asset_without_a_source_gets_the_workflow_of_its_kind() {
+    let mut p = plan_with_assets(vec![no_source("jump", "sfx"), no_source("fox", "sprite"), no_source("bgm", "music")]);
+    let done = fill_sources(&mut p, &many_workflows());
+    assert_eq!(done, vec!["jump".to_string(), "fox".to_string(), "bgm".to_string()]);
+    assert_eq!(p.asset_tasks[0].workflow.as_deref(), Some("sfx"));
+    assert_eq!(p.asset_tasks[1].workflow.as_deref(), Some("sprite"));
+    assert_eq!(p.asset_tasks[2].workflow.as_deref(), Some("music"));
+    // the prompt is the asset's title where the workflow has a prompt parameter
+    assert_eq!(p.asset_tasks[0].params["prompt"], json!("jump title"));
+    assert_eq!(p.asset_tasks[1].params["prompt"], json!("fox title"));
+    assert!(p.asset_tasks[2].params.is_empty(), "music has no prompt parameter here");
+}
+
+#[test]
+fn another_image_kind_takes_the_first_image_workflow() {
+    let mut p = plan_with_assets(vec![no_source("ground", "tileset")]);
+    assert_eq!(fill_sources(&mut p, &many_workflows()), vec!["ground".to_string()]);
+    assert_eq!(p.asset_tasks[0].workflow.as_deref(), Some("sprite"));
+}
+
+#[test]
+fn nothing_is_filled_when_no_workflow_fits_or_a_source_exists() {
+    let mut p = plan_with_assets(vec![no_source("mesh", "model"), no_source("odd", "hologram")]);
+    let mut keep = no_source("lib", "sprite");
+    keep.library_id = Some("a12".into());
+    let mut made = no_source("gen", "sprite");
+    made.workflow = Some("sprite".into());
+    p.asset_tasks.push(keep.clone());
+    p.asset_tasks.push(made.clone());
+    assert!(fill_sources(&mut p, &many_workflows()).is_empty());
+    assert!(p.asset_tasks[0].workflow.is_none() && p.asset_tasks[1].workflow.is_none());
+    assert_eq!(p.asset_tasks[2], keep);
+    assert_eq!(p.asset_tasks[3], made);
+}
+
+#[tokio::test]
+async fn generate_fills_missing_sources_before_the_checks() {
+    let text = GOOD.replace(r#""library_id": null, "workflow": "sprite", "params": {"prompt": "a gold coin", "steps": 30, "size": "square"}"#, r#""library_id": null, "workflow": null, "params": {}"#);
+    assert_ne!(text, GOOD);
+    let text: &'static str = Box::leak(text.into_boxed_str());
+    let (_, ask) = ask_with(vec![text]);
+    let (plan, left) = generate(ask, "s", "u", &Limits::default(), &library(), &workflows()).await.unwrap();
+    assert!(left.is_empty(), "{left:?}");
+    assert_eq!(plan.asset_tasks[1].workflow.as_deref(), Some("sprite"));
+    assert_eq!(plan.asset_tasks[1].params["prompt"], json!("Coin sprite"));
+}
