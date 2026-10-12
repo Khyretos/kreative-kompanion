@@ -104,6 +104,7 @@ export function renderSettings(s: AppState): SafeHtml {
       <section class="desk-notify">
         <h3 class="label">On this device</h3>
         <label><input type="checkbox" id="desk-notify" ${deskNotifyOn() ? "checked" : ""}> Desktop notifications when a task needs me, failed or is done, while Kompanion is in the background</label>
+        <button type="button" class="btn" id="desk-notify-test" data-action="desk-notify-test">Send test notification</button>
         <p id="desk-notify-msg" class="small muted" role="status"></p>
       </section>
       ${s.isAdmin ? html`<section>

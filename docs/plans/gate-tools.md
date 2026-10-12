@@ -15,3 +15,13 @@ After: `tools/gate-tools.sh` runs every test under tools/ in a node:22 container
 Claude's own mistakes (lessons 181 and the log/test rows in docs/lessons-learned.md): first plan was to narrow the tools list to what the runner can run (coordinator stopped it), and a new test wrote gate-task.json into the working directory.
 
 Coder totals (docs/qwen-log/gate-tools-fix.jsonl): 9 jobs, 65 GPU s, 1,866 output tokens, 38,598 prompt tokens. Situations: docs/qwen-situations/180-comment-copies-example-claim/.
+
+## Metrics (step 10)
+
+| item | value |
+|---|---|
+| Claude, session 88bde86a, 10:30-11:13Z | 131 answers, 62,421 output, 278 input, 31,855,641 cache read, 219,101 cache write |
+| Coder (OVMS) | 9 jobs, 65 GPU s, 1,866 output tokens, 38,598 prompt tokens |
+| Coder (soucouyant Ollama) | 9 jobs, 10-17 GPU s for the 16-line file, tokens unmeasured |
+| Lines | 26 drafted, 25 kept |
+| PR-Agent | unmeasured |
