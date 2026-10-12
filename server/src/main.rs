@@ -27,6 +27,7 @@ mod llm;
 mod mail;
 mod mailhtml;
 mod mcp;
+mod mcp_grants;
 mod repomem;
 mod chat_tools;
 mod chat_files;
@@ -322,6 +323,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/projects/{id}/scheduler", get(scheduler_web::get).put(scheduler_web::put))
         .route("/projects/{id}/scheduler/tick", post(scheduler_web::tick))
         .route("/tasks/{id}/budget", axum::routing::put(scheduler_web::set_budget))
+        .route("/mcp-grants", get(mcp_grants::list).post(mcp_grants::create))
+        .route("/mcp-grants/{id}", axum::routing::delete(mcp_grants::revoke))
         .route("/tasks/{id}/start", post(taskrun::start))
         .route("/tasks/{id}/stop", post(taskrun::stop))
         .route("/tasks/{id}/interject", post(overseer::interject))

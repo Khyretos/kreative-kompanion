@@ -169,4 +169,4 @@ pub async fn status(http: &reqwest::Client, servers: &[McpServerConfig]) -> Vec<
 
 #[cfg(test)]
 #[path = "mcp_tests.rs"]
-mod tests;
+pub(crate) mod tests;
