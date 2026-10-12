@@ -35,6 +35,15 @@
     "title": "Hardcoded Path Dependency",
     "verdict": "false_positive"
   },
+  "77f972a5c37c": {
+    "by": "repeat of 3c4bc34594ac",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-log/ci-auto-merge.jsonl",
+    "reason": "qwen-log holds the failed draft rounds of the Coder; the tests pass in CI",
+    "title": "Test Failures Indicate Logic Bug",
+    "verdict": "false_positive"
+  },
   "9498996cb9ca": {
     "by": "coder",
     "checked": true,
@@ -46,6 +55,24 @@
   },
   "9993fe318a4b": {
     "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/auto_merge.py",
+    "reason": "ROOT is derived from __file__, not a fixed path",
+    "title": "Hard-coded path dependency",
+    "verdict": "false_positive"
+  },
+  "bb4036a40ff2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/review_findings.py",
+    "reason": "REVIEW_REPO already falls back to the script's own checkout (the `or` branch)",
+    "title": "Missing fallback for REVIEW_REPO",
+    "verdict": "false_positive"
+  },
+  "bc3b923f109b": {
+    "by": "repeat of 9993fe318a4b",
     "checked": true,
     "fixed": "",
     "path": "tools/auto_merge.py",
