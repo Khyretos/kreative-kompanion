@@ -14,9 +14,9 @@ repo with a failing check and a "done when"; a run is a normal task run with the
 After a run per fixture, send the results for the model:
 
 ```bash
-curl -s -X POST "$KOMPANION/api/capabilities/bench" -H "Cookie: $SESSION" -H 'content-type: application/json' \
+curl -s -X POST "$KOMPANION/api/model-capabilities/bench" -H "Cookie: $SESSION" -H 'content-type: application/json' \
   -d '{"provider":"ovms","model":"Coder","results":[{"type":"bugfix","passed":true},{"type":"tests","passed":false}]}'
 ```
 
-`GET /api/capabilities` returns the matrix. A model gets a verdict per type after 3 tries: passes at 80 % or more,
+`GET /api/model-capabilities` returns the matrix. A model gets a verdict per type after 3 tries: passes at 80 % or more,
 fails at 40 % or less. Task runs add to the same counts, so the matrix keeps learning from real work.
