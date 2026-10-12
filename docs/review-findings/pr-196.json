@@ -259,5 +259,23 @@
     "reason": "sort -V puts the higher version last; when the installed version is not lower than the newest the script prints \"is current\" and exits, otherwise it updates (tools/test_sync_runner.sh covers older, equal, newer, missing).",
     "title": "Incorrect Version Comparison Logic",
     "verdict": "false_positive"
+  },
+  "03c46a2c0bc8": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "get_grant_error is in runner/src/grants.rs, not in selfupdate.rs; the warning comes from the voided rsb2 log. cargo build and all tests pass in CI.",
+    "title": "Compilation Error",
+    "verdict": "false_positive"
+  },
+  "9d15df134fbf": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_sync_runner.sh",
+    "reason": "Case 4 is labelled \"no runner installed, or an empty dist\"; it checks that nothing is changed. The reviewer read it as the \"already newest\" case, which is case 2.",
+    "title": "Flawed Test Case for Empty Dist",
+    "verdict": "false_positive"
   }
 }
