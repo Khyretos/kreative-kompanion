@@ -8,6 +8,15 @@
     "title": "Incomplete Update Logic",
     "verdict": "false_positive"
   },
+  "3308d992833a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Unsafe Path Handling",
+    "verdict": "false_positive"
+  },
   "49ea2e3c057b": {
     "by": "claude",
     "checked": true,
@@ -15,6 +24,15 @@
     "path": "runner/src/main.rs",
     "reason": "current_exe() errors are mapped to a string and returned through and_then, then reported as \"error: ...\" in the job output; no panic path.",
     "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "4c8f0a623ac6": {
+    "by": "repeat of 60197a97132b",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
     "verdict": "false_positive"
   },
   "4e4c99c8873f": {
@@ -44,6 +62,15 @@
     "title": "Hardcoded Test Data",
     "verdict": "false_positive"
   },
+  "63bbc1988cef": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "6b2d15306b4a": {
     "by": "claude",
     "checked": true,
@@ -62,6 +89,15 @@
     "title": "Incomplete Diff Context",
     "verdict": "false_positive"
   },
+  "9d7e82d7069b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Potential Deadlock / Resource Leak",
+    "verdict": "false_positive"
+  },
   "bd8da2cb46c4": {
     "by": "claude",
     "checked": true,
@@ -71,8 +107,62 @@
     "title": "Possible Issue",
     "verdict": "false_positive"
   },
+  "bffcd9b8618b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_sync_runner.sh",
+    "reason": "The test only states the wanted behaviour (a newer installed runner stays); sync_runner.sh implements it with sort -V and the test passes for older, equal, newer, missing and empty-dist cases.",
+    "title": "Flawed Test Case for Newer Runner",
+    "verdict": "false_positive"
+  },
+  "cdac423e7d54": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "base_url comes from the paired config (cfg.server, https or localhost only) and is defined a few lines above the job loop; the end-to-end run uses it.",
+    "title": "Hard-coded URL",
+    "verdict": "false_positive"
+  },
+  "d5c998d79c77": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "e8f7cd33ea6c": {
     "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/sync_runner.sh",
+    "reason": "sort -V puts the higher version last; when the installed version is not lower than the newest the script prints \"is current\" and exits, otherwise it updates (tools/test_sync_runner.sh covers older, equal, newer, missing).",
+    "title": "Incorrect Version Comparison Logic",
+    "verdict": "false_positive"
+  },
+  "e9067fed0760": {
+    "by": "repeat of 60197a97132b",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "f18fea0057a8": {
+    "by": "repeat of 49ea2e3c057b",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "current_exe() errors are mapped to a string and returned through and_then, then reported as \"error: ...\" in the job output; no panic path.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "f2827b0262e0": {
+    "by": "repeat of e8f7cd33ea6c",
     "checked": true,
     "fixed": "",
     "path": "tools/sync_runner.sh",
