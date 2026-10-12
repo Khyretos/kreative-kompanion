@@ -108,6 +108,8 @@ for (const scheme of ["light", "dark"] as const) {
     const tree = page.locator(".task-tree");
     await expect(tree).toBeVisible();
     expect(await tree.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-    await tree.screenshot({ path: `test-results/kg01-tree-${scheme}-390.png` });
+    await expect(async () => {
+      await page.locator(".task-tree").screenshot({ path: `test-results/kg01-tree-${scheme}-390.png` });
+    }).toPass({ timeout: 5000 });
   });
 }
