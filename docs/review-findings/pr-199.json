@@ -1,0 +1,20 @@
+{
+  "5e254f7a3c36": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/tests/tasktree.spec.ts",
+    "reason": "An unchosen chip carries the hidden attribute, and styles.css sets .dep-chip[hidden] { display: none } as well, so it has no box and Playwright's :visible skips it; tasktree.spec passed on kireserver and in CI web-live. The triage answer did not parse.",
+    "title": "Flaky Test Selector",
+    "verdict": "false_positive"
+  },
+  "fe6f4d01f1f2": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/taskdesc.ts",
+    "reason": "Both regexes are anchored per line (^...$ on one line of md.split('\\n')), and `!parts.goal` keeps the first match; taskform.spec and the tf1 unit check (first Goal line wins, a later one stays in notes) pass. The triage answer did not parse.",
+    "title": "Regex Parsing Bug",
+    "verdict": "false_positive"
+  }
+}
