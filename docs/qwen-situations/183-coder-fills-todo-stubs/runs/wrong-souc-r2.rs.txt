@@ -1,0 +1,372 @@
+//! M6-11: the game planner. A game described in words becomes code tasks (the KG-02 task format) and asset
+//! tasks (a library asset to reuse, or a Studio workflow with parameters). The model's answer is checked against
+//! the library and the workflows that exist, and mapped onto a KG-02 `Plan` so the same approve-then-apply path
+//! writes it into the task tree.
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
+
+use crate::planner::{self, Issue, Limits, Milestone, Plan, PlanTask};
+
+/// One asset the game needs: reused from the library (`library_id`) or made by a workflow (`workflow` + `params`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AssetTask {
+    pub key: String,
+    pub title: String,
+    /// sprite, image, tileset, background, audio, music, sfx, video or model
+    pub kind: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub library_id: Option<String>,
+    #[serde(default)]
+    pub workflow: Option<String>,
+    #[serde(default)]
+    pub params: Map<String, Value>,
+    /// keys of other asset tasks that come first
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    /// keys of the code tasks that need this asset
+    #[serde(default)]
+    pub needed_by: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GamePlan {
+    pub title: String,
+    pub goal: String,
+    pub code_tasks: Vec<PlanTask>,
+    pub asset_tasks: Vec<AssetTask>,
+}
+
+/// An asset of the project's library, as far as planning needs it.
+#[derive(Debug, Clone)]
+pub struct LibAsset {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub tags: Vec<String>,
+}
+
+/// One parameter of a Studio workflow. `kind` is "number", "text" or "choice".
+#[derive(Debug, Clone)]
+pub struct WfParam {
+    pub name: String,
+    pub kind: String,
+    pub choices: Vec<String>,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+}
+
+/// A Studio workflow as far as planning needs it. `output` is "image", "audio", "video" or "model".
+#[derive(Debug, Clone)]
+pub struct WfInfo {
+    pub name: String,
+    pub output: String,
+    pub params: Vec<WfParam>,
+}
+
+fn issue(kind: &str, key: &str, message: String) -> Issue {
+    Issue { kind: kind.into(), key: key.into(), message }
+}
+
+/// The JSON schema the model's answer must follow.
+pub fn schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "title": { "type": "string" },
+            "goal": { "type": "string" },
+            "code_tasks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "key": { "type": "string", "description": "short unique id, used in depends_on" },
+                        "title": { "type": "string" },
+                        "goal": { "type": "string" },
+                        "steps": { "type": "array", "items": { "type": "string" } },
+                        "done_when": { "type": "string", "description": "one fact that can be checked" },
+                        "files": { "type": "array", "items": { "type": "string" }, "description": "files the task touches" },
+                        "lines": { "type": "integer", "description": "estimated lines changed" },
+                        "depends_on": { "type": "array", "items": { "type": "string" }, "description": "keys of tasks that must be done first" }
+                    },
+                    "required": ["key", "title", "goal", "steps", "done_when", "files", "lines", "depends_on"]
+                }
+            },
+            "asset_tasks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "key": { "type": "string" },
+                        "title": { "type": "string" },
+                        "kind": { "type": "string", "description": "sprite, image, tileset, background, audio, music, sfx, video or model" },
+                        "tags": { "type": "array", "items": { "type": "string" } },
+                        "library_id": { "type": ["string", "null"], "description": "id of a library asset to reuse" },
+                        "workflow": { "type": ["string", "null"], "description": "name of a Studio workflow" },
+                        "params": { "type": "object" },
+                        "depends_on": { "type": "array", "items": { "type": "string" }, "description": "keys of other asset tasks that come first" },
+                        "needed_by": { "type": "array", "items": { "type": "string" }, "description": "keys of the code tasks that need this asset" }
+                    },
+                    "required": ["key", "title", "kind"]
+                }
+            }
+        },
+        "required": ["title", "goal", "code_tasks", "asset_tasks"]
+    })
+}
+
+/// A game plan from the model's answer.
+pub fn parse(text: &str) -> Result<GamePlan, String> {
+    let v = crate::taskrun::parse::json_in(text).ok_or("The answer holds no JSON.")?;
+    serde_json::from_value(v).map_err(|e| format!("The answer is not a game plan: {e}"))
+}
+
+/// The workflow output an asset kind needs.
+pub fn output_of_kind(kind: &str) -> Option<&'static str> {
+    let k = kind.to_ascii_lowercase();
+    match k.as_str() {
+        "sprite" | "image" | "tileset" | "background" => Some("image"),
+        "audio" | "music" | "sfx" => Some("audio"),
+        "video" => Some("video"),
+        "model" => Some("model"),
+        _ => None,
+    }
+}
+
+/// What is wrong with one parameter value, or None.
+pub fn param_issue(p: &WfParam, v: &Value) -> Option<String> {
+    match p.kind.as_str() {
+        "number" => {
+            let num = v.as_f64()?;
+            if let (Some(min), Some(max)) = (p.min, p.max) {
+                if num < min || num > max {
+                    return Some(format!("{} must be between {} and {}", p.name, min, max));
+                }
+            }
+            None
+        }
+        "choice" => {
+            if !p.choices.contains(&v.as_str()?.to_string()) {
+                return Some(format!("{} must be one of {:?}", p.name, p.choices));
+            }
+            None
+        }
+        "text" => {
+            if v.is_number() {
+                return Some(format!("{} expects text, not a number", p.name));
+            }
+            None
+        }
+        _ => Some(format!("unknown param kind {}", p.kind)),
+    }
+}
+
+/// Everything wrong with the asset tasks: source, library, workflow, parameters, needed_by.
+pub fn asset_issues(plan: &GamePlan, library: &[LibAsset], workflows: &[WfInfo]) -> Vec<Issue> {
+    let mut out = Vec::new();
+    let mut used_lib_ids: HashSet<&str> = HashSet::new();
+
+    for a in &plan.asset_tasks {
+        // exactly one source
+        if a.library_id.is_some() && a.workflow.is_some() {
+            out.push(issue("two_sources", &a.key, "An asset must use either a library asset or a workflow, not both."));
+            continue;
+        }
+        if a.library_id.is_none() && a.workflow.is_none() {
+            out.push(issue("no_source", &a.key, "An asset must have either a library_id or a workflow."));
+            continue;
+        }
+
+        // library check
+        if let Some(lib_id) = &a.library_id {
+            if used_lib_ids.contains(lib_id.as_str()) {
+                out.push(issue("duplicate_library", &a.key, format!("Library asset {} is used twice.", lib_id)));
+            } else {
+                used_lib_ids.insert(lib_id.as_str());
+            }
+
+            let found = library.iter().find(|la| la.id == *lib_id);
+            if found.is_none() {
+                out.push(issue("unknown_asset", &a.key, format!("Library asset {} not found.", lib_id)));
+            } else {
+                let found = found.unwrap();
+                if found.kind != a.kind {
+                    out.push(issue("wrong_kind", &a.key, format!("Library asset {} is kind {}, but the task needs {}.", lib_id, found.kind, a.kind)));
+                }
+            }
+        }
+
+        // workflow check
+        if let Some(wf_name) = &a.workflow {
+            let found = workflows.iter().find(|w| w.name == *wf_name);
+            if found.is_none() {
+                out.push(issue("unknown_workflow", &a.key, format!("Workflow {} not found.", wf_name)));
+            } else {
+                let found = found.unwrap();
+                if let Some(out) = output_of_kind(&a.kind) {
+                    if out != found.output {
+                        out.push(issue("wrong_output", &a.key, format!("Workflow {} outputs {}, but the task needs {}.", wf_name, found.output, a.kind)));
+                    }
+                } else {
+                    out.push(issue("unknown_kind", &a.key, format!("Unknown asset kind {}.", a.kind)));
+                }
+            }
+
+            // parameters check
+            if let Some(wf) = found {
+                for (k, v) in &a.params {
+                    if wf.params.iter().any(|p| p.name == *k) {
+                        if let Some(err) = param_issue(&wf.params.iter().find(|p| p.name == *k).unwrap(), v) {
+                            out.push(issue("bad_param", &a.key, format!("Parameter {} is invalid: {}", k, err)));
+                        } else if !wf.params.iter().any(|p| p.name == *k) {
+                            out.push(issue("unknown_param", &a.key, format!("Workflow {} has no parameter {}.", wf_name, k)));
+                        }
+                    } else {
+                        out.push(issue("unknown_param", &a.key, format!("Workflow {} has no parameter {}.", wf_name, k)));
+                    }
+                }
+            }
+        }
+
+        // needed_by check: must be a code task key
+        for n in &a.needed_by {
+            if !plan.code_tasks.iter().any(|t| t.key == *n) {
+                out.push(issue("unknown_need", &a.key, format!("Asset {} is needed by code task {}, which does not exist.", a.key, n)));
+            }
+        }
+    }
+
+    out
+}
+
+use std::collections::HashSet;
+
+/// Swaps a generated asset for a matching library asset; returns the keys that were swapped.
+pub fn prefer_library(plan: &mut GamePlan, library: &[LibAsset]) -> Vec<String> {
+    let mut swapped = Vec::new();
+    for a in &mut plan.asset_tasks {
+        if a.workflow.is_some() && a.library_id.is_none() {
+            // find a match by kind and tags
+            let best = library.iter().find(|la| la.kind == a.kind && la.tags.iter().any(|t| t.eq_ignore_ascii_case(&a.tags[0])));
+            if let Some(la) = best {
+                a.library_id = Some(la.id.clone());
+                a.workflow = None;
+                a.params.clear();
+                swapped.push(a.key.clone());
+            }
+        }
+    }
+    swapped
+}
+
+/// The game plan as a KG-02 plan: an "Assets" milestone, then a "Code" milestone.
+pub fn to_plan(plan: &GamePlan) -> Plan {
+    let mut milestones = Vec::new();
+
+    // Assets milestone (only if there are assets that are needed by code)
+    if !plan.asset_tasks.iter().any(|a| !a.needed_by.is_empty()) {
+        let mut tasks = Vec::new();
+        for a in &plan.asset_tasks {
+            let mut goal = format!("Create {} {}", a.kind, a.title);
+            if let Some(lib_id) = &a.library_id {
+                goal.push_str(&format!(" (library asset {})", lib_id));
+            } else if let Some(wf) = &a.workflow {
+                goal.push_str(&format!(" (workflow {})", wf));
+            }
+            milestones.push(Milestone {
+                title: "Assets".into(),
+                goal,
+                tasks: vec![PlanTask {
+                    key: a.key.clone(),
+                    title: a.title.clone(),
+                    goal,
+                    steps: vec![],
+                    done_when: format!("The {} is ready.", a.kind),
+                    files: vec![],
+                    lines: 0,
+                    depends_on: a.depends_on.clone(),
+                }],
+            });
+        }
+    }
+
+    // Code milestone (only if there are code tasks)
+    if !plan.code_tasks.is_empty() {
+        let mut tasks = Vec::new();
+        for t in &plan.code_tasks {
+            tasks.push(PlanTask {
+                key: t.key.clone(),
+                title: t.title.clone(),
+                goal: t.goal.clone(),
+                steps: t.steps.clone(),
+                done_when: t.done_when.clone(),
+                files: t.files.clone(),
+                lines: t.lines,
+                depends_on: t.depends_on.clone(),
+            });
+        }
+        milestones.push(Milestone {
+            title: "Code".into(),
+            goal: format!("Implement {}.", plan.goal.trim()),
+            tasks,
+        });
+    }
+
+    Plan {
+        title: plan.title.clone(),
+        goal: plan.goal.clone(),
+        milestones,
+    }
+}
+
+/// All rules: the KG-02 task rules on the mapped plan plus the asset rules.
+pub fn all_issues(plan: &GamePlan, lim: &Limits, library: &[LibAsset], workflows: &[WfInfo]) -> Vec<Issue> {
+    let mut out = asset_issues(plan, library, workflows);
+
+    // map to KG-02 and check task rules
+    let mapped = to_plan(plan);
+    for i in planner::issues(&mapped, lim) {
+        out.push(i);
+    }
+
+    out
+}
+
+/// Asks the model for a game plan, up to 3 rounds while the answer breaks a rule.
+pub async fn generate<F, Fut>(mut ask: F, system: &str, user: &str, lim: &Limits, library: &[LibAsset], workflows: &[WfInfo]) -> Result<(GamePlan, Vec<Issue>), String>
+where
+    F: FnMut(Vec<Value>) -> Fut,
+    Fut: std::future::Future<Output = Result<String, String>>,
+{
+    let mut messages = vec![json!({ "role": "system", "content": system }), json!({ "role": "user", "content": user })];
+    let mut last: Option<(GamePlan, Vec<Issue>)> = None;
+    let mut last_err = String::from("The model made no game plan.");
+
+    for _ in 0..3 {
+        let text = ask(messages.clone()).await?;
+        messages.push(json!({ "role": "assistant", "content": text }));
+
+        match parse(&text) {
+            Ok(plan) => {
+                // swap library assets before checking
+                prefer_library(&mut plan, library);
+                let found = all_issues(&plan, lim, library, workflows);
+                if found.is_empty() {
+                    return Ok((plan, found));
+                }
+                messages.push(json!({ "role": "user", "content": format!("The plan breaks these rules. Answer with the complete corrected plan.\n{}", found.iter().map(|i| format!("- {} ({}): {}", i.key, i.kind, i.message)).collect::<Vec<_>>().join("\n")) }));
+                last = Some((plan, found));
+            }
+            Err(e) => {
+                messages.push(json!({ "role": "user", "content": format!("{e} Answer only with the JSON game plan.") }));
+                last_err = e;
+            }
+        }
+    }
+    last.ok_or(last_err)
+}
+
+#[cfg(test)]
+#[path = "gameplan_tests.rs"]
+mod tests;

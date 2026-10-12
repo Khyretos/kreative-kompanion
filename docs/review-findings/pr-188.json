@@ -1,0 +1,38 @@
+{
+  "0fcdb8cf2350": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/gameplan.rs",
+    "reason": "Checked by Claude: the tie-break is the spec's (a tie on shared tags keeps the smallest id: `lib.id >= best.id` keeps the current best); the first match always becomes the best, later ones replace it only with more shared tags or an equal count and a smaller id; covered by library_assets_are_preferred_over_generating and library_assets_are_swapped_in_before_the_checks.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "3e855b19ec7f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/183-coder-fills-todo-stubs/runs/wrong-ovms-r2.rs.txt",
+    "reason": "Checked by Claude: the file is a stored situation (lesson 183), an intentionally wrong Coder draft kept as a text file, not code that runs; the live code does not contain it.",
+    "title": "Dead Code",
+    "verdict": "false_positive"
+  },
+  "4d3cadf81aa2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/183-coder-fills-todo-stubs/runs/wrong-ovms-r1.rs.txt",
+    "reason": "Checked by Claude: the file is a stored situation (lesson 183), an intentionally wrong Coder draft kept as a text file, not code that runs; the live code does not contain it.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "fb1928ceffa8": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/183-coder-fills-todo-stubs/runs/wrong-ovms-r2.rs.txt",
+    "reason": "Checked by Claude: the file is a stored situation (lesson 183), an intentionally wrong Coder draft kept as a text file, not code that runs; the live code does not contain it.",
+    "title": "Silent Type Validation Failure",
+    "verdict": "false_positive"
+  }
+}

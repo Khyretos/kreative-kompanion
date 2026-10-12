@@ -1,0 +1,12 @@
+{
+  "name": "gp-param-issue",
+  "role": "worker/rust",
+  "out": "server/src/gameplan.rs",
+  "precheck": false,
+  "mode": "patch",
+  "max_tokens": 3500,
+  "context": ["server/src/gameplan_tests.rs", "server/src/planner.rs"],
+  "prompt": "In server/src/gameplan.rs replace the body of `pub fn param_issue` (currently `todo!()`). `p` is the workflow parameter definition and `v` the value the plan gives it. Return None when the value fits and Some(message) otherwise. By `p.kind`: \"number\": the value must be a JSON number (`v.as_f64()`), else Some(format!(\"Parameter {} must be a number.\", p.name)); when `p.min` is Some(m) and the number is below m, or `p.max` is Some(m) and the number is above m, return Some(format!(\"Parameter {} must be between {} and {}.\", ...)) using the limits that are set (use the word \"between {min} and {max}\" with the missing side written as \"-\" ). \"choice\": the value must be a string that is in `p.choices`, else Some(format!(\"Parameter {} must be one of {}; \\\"{}\\\" is not allowed.\", p.name, p.choices.join(\", \"), <the value as text: the string itself, or its JSON text when it is not a string>)). \"text\": the value must be a JSON string, else Some(format!(\"Parameter {} must be text.\", p.name)). Any other kind: None. Limits are allowed (inclusive). Change nothing else.",
+  "CHECKFILTERS": "one_parameter_value_is_judged",
+  "focus": ["pub fn param_issue"]
+}

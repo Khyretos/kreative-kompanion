@@ -58,6 +58,8 @@ mod studio;
 mod skillrepo;
 mod tasks;
 mod tasktree;
+mod gameplan;
+mod gameplan_web;
 mod planner;
 mod planner_web;
 mod scheduler;
@@ -326,6 +328,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tasks/{id}", patch(tasks::update).delete(tasks::delete))
         .route("/tasks/{id}/events", get(tasks::events))
         .route("/projects/{id}/plan", post(planner_web::propose))
+        .route("/projects/{id}/game-plan", post(gameplan_web::propose))
         .route("/projects/{id}/plans", get(planner_web::list))
         .route("/plans/{id}/apply", post(planner_web::apply))
         .route("/plans/{id}/dismiss", post(planner_web::dismiss))

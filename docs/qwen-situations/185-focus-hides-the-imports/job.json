@@ -1,0 +1,12 @@
+{
+  "name": "gp-asset-issues",
+  "role": "worker/rust",
+  "out": "server/src/gameplan.rs",
+  "precheck": false,
+  "mode": "patch",
+  "max_tokens": 3500,
+  "context": ["server/src/gameplan_tests.rs", "server/src/planner.rs"],
+  "prompt": "In server/src/gameplan.rs replace the body of `pub fn asset_issues` (currently `todo!()`). Go through `plan.asset_tasks` in order and push `issue(kind, &task.key, message)` entries (the `issue` helper is in the file). For each asset task, in this order:\n0. For every key in `task.needed_by` that is not the key of a task in `plan.code_tasks` push \"unknown_need\". This comes first and never ends the task's checks.\n1. Source: if `library_id` and `workflow` are both None push \"no_source\" (\"Asset X has no source: give a library_id or a workflow.\") and go to the next task; if both are Some push \"two_sources\" and go to the next task.\n2. If it has a `library_id`: find the library asset with that id in `library`; none: push \"unknown_asset\"; found but its `kind` differs from the task's `kind` (compare lower-cased): push \"wrong_kind\". Then go to the next task.\n3. If it has a `workflow`: find it by name in `workflows`; none: push \"unknown_workflow\" and go to the next task. `output_of_kind(&task.kind)` returning None: push \"unknown_kind\" and go to the next task. When the workflow's `output` differs from it: push \"wrong_output\" and go to the next task. Otherwise check each entry of `task.params`: no parameter of that name in the workflow: push \"unknown_param\"; otherwise `param_issue(param, value)` returning Some(message): push \"bad_param\" with that message.\nChange nothing else.",
+  "CHECKFILTERS": "an_asset_needs_exactly_one_source a_library_asset_must_exist an_impossible_workflow_is_flagged parameters_are_checked_against_the_workflow",
+  "focus": ["pub fn asset_issues", "pub fn param_issue"]
+}

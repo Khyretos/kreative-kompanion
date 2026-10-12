@@ -47,4 +47,5 @@ Accepted: nt-send-test OVMS run 2 (4 attempts), nt-log-failures OVMS run 1 (2), 
 
 - Lesson 187, situation docs/qwen-situations/187-unit-without-behaviour-check/ (jobs, every run's log, wrong and corrected block, rerun note); row in docs/lessons-learned.md.
 - Coder totals (jobs, GPU s, output tokens, prompt tokens): OVMS 22, 208, 5402, 136105; soucouyant 15, 108, 4150, 86013.
-- Claude tokens, review rounds and capability row: added when the task is done (steps 10 and 11).
+- Review: PR 186, CI 8/8 twice, PR-Agent 2 findings (both false positives: stored situation excerpts), checked; merged by Kees 14:31Z, deployed 14:35Z (main 56b02ae).
+- Claude tokens: not separable from the M6-11 thread (one session did both): see docs/plans/m6-11.md for the thread total over the same window; time worked about 25 min from the coordinator's request (14:10Z) to "ready to merge" (14:31Z), of which about 10 min were waiting for CI.

@@ -1,0 +1,37 @@
+pub fn prefer_library(plan: &mut GamePlan, library: &[LibAsset]) -> Vec<String> {
+    let mut result = Vec::new();
+    for task in &mut plan.asset_tasks {
+        if task.workflow.is_none() || task.library_id.is_some() {
+            continue;
+        }
+        let kind_lower = task.kind.to_ascii_lowercase();
+        let tags_lower: HashSet<&str> = task.tags.iter().map(|s| s.as_str()).collect();
+        let mut best_asset: Option<&LibAsset> = None;
+        for lib in library {
+            if lib.kind != kind_lower {
+                continue;
+            }
+            let asset_tags_lower: HashSet<&str> = lib.tags.iter().map(|s| s.as_str()).collect();
+            let shared: usize = tags_lower.intersection(&asset_tags_lower).count();
+            if shared == 0 {
+                continue;
+            }
+            match &best_asset {
+                None => best_asset = Some(lib),
+                Some(best) => {
+                    let best_shared = best.tags.iter().map(|s| s.as_str()).collect::<HashSet<_>>().intersection(&asset_tags_lower).count();
+                    if shared > best_shared || (shared == best_shared && lib.id < best.id) {
+                        best_asset = Some(lib);
+                    }
+                }
+            }
+        }
+        if let Some(asset) = best_asset {
+            task.library_id = Some(asset.id.clone());
+            task.workflow = None;
+            task.params.clear();
+            result.push(task.key.clone());
+        }
+    }
+    result
+}
