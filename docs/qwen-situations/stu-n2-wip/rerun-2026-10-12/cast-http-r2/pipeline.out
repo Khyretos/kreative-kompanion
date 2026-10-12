@@ -1,0 +1,3 @@
+[Coder]
+{"name": "cast-http", "out": "web/src/api/http.ts", "mode": "patch", "gpu_seconds": 19.3, "tokens": 570, "prompt_tokens": 4443, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-12T12:38:29"}
+{"name": "cast-http", "out": "web/src/api/http.ts", "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'hidden: (w.studio!.cast' web/src/api/http.ts", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T12:38:32"}

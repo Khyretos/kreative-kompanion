@@ -1,0 +1,5 @@
+[Coder]
+{"name": "cast-main-state", "out": "web/src/main.ts", "mode": "patch", "gpu_seconds": 18.3, "tokens": 571, "prompt_tokens": 6256, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/live-updates"], "lines": 3, "attempts": 1, "model": "Coder", "at": "2026-10-12T12:41:18"}
+[Coder]
+{"name": "cast-main-state#fix1", "out": "web/src/main.ts", "mode": "patch", "gpu_seconds": 3.0, "tokens": 54, "prompt_tokens": 32277, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/live-updates"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-12T12:41:24"}
+{"name": "cast-main-state", "out": "web/src/main.ts", "check": "cd web && npx tsc --noEmit && cd .. && grep -qF 'studioHelmet, studioCast' web/src/main.ts", "check_attempts": 2, "check_passed": true, "at": "2026-10-12T12:41:27"}

@@ -1,0 +1,16 @@
+cast-http r1 passed 1
+accepted r1
+cast-http r2 passed 1
+cast-http r3 passed 1
+cast-mock r1 passed 1
+accepted r1
+cast-mock r2 passed 1
+cast-mock r3 passed 1
+cast-main-state r1 passed 2
+accepted r1
+cast-main-state r2 passed 2
+cast-main-state r3 passed 2
+cast-main-actions r1 FAILED 4
+cast-main-actions r2 FAILED 4
+cast-main-actions r3 FAILED 4
+STOP at cast-main-actions
