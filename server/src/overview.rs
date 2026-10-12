@@ -93,34 +93,39 @@ pub async fn refresh_git(s: AppState, user_id: String, project_id: String, machi
     todo!("unit o8")
 }
 
+/// The project row with its owner's name; None when it is not this user's.
+pub async fn load(db: &SqlitePool, user_id: &str, project_id: &str) -> sqlx::Result<Option<ProjectRow>> {
+    todo!("unit o9")
+}
+
 /// Where it lives: the repo computer, the folder and the cached git remote and branch.
 async fn where_part(s: &AppState, user_id: &str, p: &ProjectRow) -> Result<Value, String> {
-    todo!("unit o9")
+    todo!("unit o10")
 }
 
 /// What it can reach: computer grants covering the repo folder, active MCP grants, knowledge, assets, commands.
 async fn access_part(s: &AppState, user_id: &str, p: &ProjectRow) -> Result<Value, String> {
-    todo!("unit o10")
+    todo!("unit o11")
 }
 
 /// Progress: counts from the tasks plus the last merged PR.
 async fn progress_part(db: &SqlitePool, user_id: &str, project_id: &str) -> Result<Value, String> {
-    todo!("unit o11")
+    todo!("unit o12")
 }
 
 /// The last 10 events across task events, runs and the project's chats, newest first.
 async fn activity_part(db: &SqlitePool, user_id: &str, project_id: &str) -> Result<Value, String> {
-    todo!("unit o12")
+    todo!("unit o13")
 }
 
 /// Models used by the project's runs in the last 30 days: runs, tokens and model minutes per model.
 async fn ai_part(db: &SqlitePool, user_id: &str, project_id: &str) -> Result<Value, String> {
-    todo!("unit o13")
+    todo!("unit o14")
 }
 
 /// GET /api/projects/{id}/overview (owner only; anyone else gets 404).
 pub async fn get(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
-    todo!("unit o14")
+    todo!("unit o15")
 }
 
 #[cfg(test)]

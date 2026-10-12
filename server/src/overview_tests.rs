@@ -137,21 +137,122 @@ async fn overview(s: &AppState, who: &str, id: &str) -> ApiResult<Value> {
     get(State(s.clone()), Extension(user(who)), Path(id.into())).await.map(|Json(v)| v)
 }
 
+async fn row(db: &SqlitePool, id: &str) -> ProjectRow {
+    load(db, "u1", id).await.unwrap().unwrap()
+}
+
 #[tokio::test]
-async fn a_chat_project_has_the_header_and_empty_parts() {
-    let s = state(db().await);
-    let o = overview(&s, "u1", "chat").await.unwrap();
-    assert_eq!((o["name"].as_str(), o["description"].as_str(), o["type"].as_str()), (Some("Notes"), Some("Just talk"), Some("chat")));
-    assert_eq!((o["about"].as_str(), o["owner"].as_str()), (Some(""), Some("kees")));
-    assert_eq!(o["links"], json!([]));
-    assert_eq!(o["createdAt"], "2026-10-01T00:00:00Z", "an old project's creation date falls back to updated_at");
-    assert!(o["archivedAt"].is_null());
-    assert!(o["where"]["machine"].is_null());
-    assert_eq!(o["progress"]["total"], 0);
-    assert_eq!(o["activity"], json!([]));
-    assert_eq!(o["ai"], json!([]));
-    assert_eq!(o["access"]["grants"], json!([]));
-    assert_eq!(o["errors"], json!({}));
+async fn load_reads_the_project_with_its_owner_and_only_for_the_owner() {
+    let db = db().await;
+    let p = row(&db, "prog").await;
+    assert_eq!((p.name.as_str(), p.ptype.as_str(), p.kind.as_str(), p.owner.as_str()), ("Shop", "programming", "internal", "kees"));
+    assert_eq!((p.about.as_str(), p.repo_folder.as_deref(), p.repo_machine_id.as_deref()), ("Why the shop exists.", Some("/home/k/shop"), Some("m1")));
+    assert_eq!((p.repo_git.as_str(), p.overseer, p.created_at.as_deref()), ("", true, Some("2026-10-03T00:00:00Z")));
+    assert!(p.dev_settings.contains("cargo build") && p.scheduler.contains("enabled") && p.links.contains("Live"));
+    assert!(load(&db, "u2", "prog").await.unwrap().is_none());
+    assert!(load(&db, "u1", "nope").await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn where_an_offline_project_lives() {
+    let db = db().await;
+    let s = state(db.clone());
+    let w = where_part(&s, "u1", &row(&db, "prog").await).await.unwrap();
+    assert_eq!(w["machine"]["id"], "m1");
+    assert_eq!(w["machine"]["name"], "kireserver");
+    assert_eq!(w["machine"]["online"], false);
+    assert_eq!(w["folder"], "/home/k/shop");
+    assert_eq!(w["gitState"], "unknown", "offline and nothing cached");
+    assert!(w["git"].is_null());
+    let w = where_part(&s, "u1", &row(&db, "chat").await).await.unwrap();
+    assert!(w["machine"].is_null() && w["folder"].is_null() && w["git"].is_null());
+    assert_eq!(w["gitState"], "none");
+}
+
+#[tokio::test]
+async fn an_online_computer_shows_the_cached_git_and_starts_a_fresh_read_when_stale() {
+    let db = db().await;
+    sqlx::query("UPDATE machines SET last_seen = ? WHERE id = 'm1'").bind(util::now()).execute(&db).await.unwrap();
+    let cached = json!({ "remote": "https://git.example.com/k/shop.git", "branch": "main", "at": util::now() }).to_string();
+    sqlx::query("UPDATE projects SET repo_git = ? WHERE id = 'prog'").bind(&cached).execute(&db).await.unwrap();
+    let s = state(db.clone());
+    let w = where_part(&s, "u1", &row(&db, "prog").await).await.unwrap();
+    assert_eq!(w["machine"]["online"], true);
+    assert_eq!(w["gitState"], "known");
+    assert_eq!(w["git"]["branch"], "main");
+    // A fresh cache queues no job.
+    let (jobs,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM machine_jobs").fetch_one(&db).await.unwrap();
+    assert_eq!(jobs, 0);
+    // A stale one is read again in the background, as a shell job in the repo folder.
+    let stale = json!({ "remote": "x", "branch": "main", "at": "2026-01-01T00:00:00Z" }).to_string();
+    sqlx::query("UPDATE projects SET repo_git = ? WHERE id = 'prog'").bind(&stale).execute(&db).await.unwrap();
+    let w = where_part(&s, "u1", &row(&db, "prog").await).await.unwrap();
+    assert_eq!(w["gitState"], "reading");
+    assert_eq!(w["git"]["remote"], "x", "the old value shows until the new one is in");
+    let mut tool = None;
+    for _ in 0..50 {
+        tool = sqlx::query_scalar::<_, String>("SELECT tool FROM machine_jobs").fetch_optional(&db).await.unwrap();
+        if tool.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let tool: Value = serde_json::from_str(&tool.expect("a git job was queued")).unwrap();
+    assert_eq!((tool["tool"].as_str(), tool["cwd"].as_str()), (Some("shell"), Some("/home/k/shop")));
+    assert_eq!(tool["command"], "git remote get-url origin; git branch --show-current");
+}
+
+#[tokio::test]
+async fn a_finished_git_read_is_cached() {
+    let db = db().await;
+    let s = state(db.clone());
+    let job = tokio::spawn(refresh_git(s.clone(), "u1".into(), "prog".into(), "m1".into(), "/home/k/shop".into()));
+    let mut id = None;
+    for _ in 0..50 {
+        id = sqlx::query_scalar::<_, String>("SELECT id FROM machine_jobs").fetch_optional(&db).await.unwrap();
+        if id.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    sqlx::query("UPDATE machine_jobs SET state = 'done', result = ? WHERE id = ?")
+        .bind("https://kees:tok@git.example.com/k/shop.git\nmain\nexit: 0")
+        .bind(id.expect("a git job was queued"))
+        .execute(&db)
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(10), job).await.expect("the read ends once the job is done").unwrap();
+    let git: String = sqlx::query_scalar("SELECT repo_git FROM projects WHERE id = 'prog'").fetch_one(&db).await.unwrap();
+    let git: Value = serde_json::from_str(&git).unwrap();
+    assert_eq!((git["remote"].as_str(), git["branch"].as_str()), (Some("https://git.example.com/k/shop.git"), Some("main")));
+    assert!(git["at"].as_str().is_some_and(|a| a.starts_with("20")));
+}
+
+#[tokio::test]
+async fn access_lists_covering_grants_mcp_knowledge_assets_and_commands() {
+    let db = db().await;
+    let s = state(db.clone());
+    let a = access_part(&s, "u1", &row(&db, "prog").await).await.unwrap();
+    // Only grants on the repo computer that cover the folder.
+    let targets: Vec<&str> = a["grants"].as_array().unwrap().iter().map(|g| g["target"].as_str().unwrap()).collect();
+    assert_eq!(targets, ["/home/k", "/home/k/shop"]);
+    assert_eq!(a["grants"][0]["rights"], json!(["read", "write"]));
+    assert_eq!(a["grants"][0]["expires"], "2026-12-01T00:00:00Z");
+    assert!(a["grants"][1]["expires"].is_null());
+    assert_eq!(a["mcp"], json!([{ "server": "blender", "tool": "*", "expires": "2099-01-01T00:00:00Z" }]));
+    assert_eq!(a["knowledge"], json!([{ "id": "k1", "name": "Plant care" }]));
+    assert_eq!(a["assets"], 0);
+    let cmds = a["commands"].as_array().unwrap();
+    let kinds: Vec<&str> = cmds.iter().map(|c| c["kind"].as_str().unwrap()).collect();
+    assert_eq!(kinds, ["build", "test", "deploy"]);
+    assert_eq!(cmds[0]["command"], "cargo build");
+    assert_eq!(cmds[1]["last"], json!({ "ok": true, "at": "2026-10-10T10:00:00Z", "summary": "12 passed" }));
+    assert!(cmds[0]["last"].is_null());
+    assert_eq!((cmds[0]["fromHere"].as_bool(), cmds[2]["fromHere"].as_bool()), (Some(true), Some(false)), "deploy is never run from here");
+    // A project without a repo computer has no computer grants and no commands.
+    let a = access_part(&s, "u1", &row(&db, "chat").await).await.unwrap();
+    assert_eq!((a["grants"].clone(), a["commands"].clone()), (json!([]), json!([])));
+    assert_eq!(a["mcp"].as_array().unwrap().len(), 1, "MCP grants are the user's, shown on every project");
 }
 
 #[tokio::test]
@@ -164,86 +265,87 @@ async fn a_game_project_counts_its_assets() {
     ] {
         sqlx::query(q).execute(&db).await.unwrap();
     }
-    let s = state(db);
-    let o = overview(&s, "u1", "game").await.unwrap();
-    assert_eq!(o["type"], "game");
-    assert_eq!(o["access"]["assets"], 2);
+    let s = state(db.clone());
+    let a = access_part(&s, "u1", &row(&db, "game").await).await.unwrap();
+    assert_eq!(a["assets"], 2);
 }
 
 #[tokio::test]
-async fn a_programming_project_shows_where_it_lives_and_what_it_reaches() {
+async fn progress_part_adds_the_last_merged_pr() {
+    let db = db().await;
+    let p = progress_part(&db, "u1", "prog").await.unwrap();
+    assert_eq!((p["done"].as_i64(), p["total"].as_i64(), p["needsYou"].as_i64()), (Some(1), Some(3), Some(1)));
+    assert_eq!(p["lastMerged"], json!({ "title": "Cart", "pr": "https://f/pulls/7" }));
+    assert_eq!(p["next"], json!([{ "id": "t3", "title": "Search", "ready": true }]));
+    let p = progress_part(&db, "u1", "chat").await.unwrap();
+    assert_eq!(p["total"], 0);
+    assert!(p["lastMerged"].is_null());
+    // Someone else's project counts nothing.
+    assert_eq!(progress_part(&db, "u2", "prog").await.unwrap()["total"], 0);
+}
+
+#[tokio::test]
+async fn activity_is_newest_first_across_events_runs_and_chats() {
+    let db = db().await;
+    let a = activity_part(&db, "u1", "prog").await.unwrap();
+    let what: Vec<&str> = a.as_array().unwrap().iter().map(|a| a["what"].as_str().unwrap()).collect();
+    assert_eq!(what, ["PR merged: Cart", "Run done: Cart", "Task added: Cart", "Chat: Ideas", "Run failed: Checkout"]);
+    assert_eq!(a[1]["who"], "qwen3-9b", "a run names the model it used most");
+    assert_eq!(a[0]["who"], "");
+    assert!(a[0]["at"].as_str().is_some_and(|t| t.starts_with("20")));
+    // At most 10.
+    for i in 0..12 {
+        sqlx::query("INSERT INTO task_events (task_id, user_id, at, kind, detail) VALUES ('t3', 'u1', ?, 'changed', '{}')").bind(format!("2026-10-06T00:00:{i:02}Z")).execute(&db).await.unwrap();
+    }
+    assert_eq!(activity_part(&db, "u1", "prog").await.unwrap().as_array().unwrap().len(), 10);
+    assert_eq!(activity_part(&db, "u2", "prog").await.unwrap(), json!([]));
+}
+
+#[tokio::test]
+async fn ai_use_counts_the_last_30_days_per_model() {
+    let db = db().await;
+    let ai = ai_part(&db, "u1", "prog").await.unwrap();
+    assert_eq!(ai, json!([{ "model": "qwen3-9b", "runs": 1, "tokens": 1800, "minutes": 1.5 }]));
+    assert_eq!(ai_part(&db, "u1", "chat").await.unwrap(), json!([]));
+}
+
+#[tokio::test]
+async fn the_route_puts_the_header_and_every_part_together() {
     let s = state(db().await);
     let o = overview(&s, "u1", "prog").await.unwrap();
     assert_eq!(o["errors"], json!({}));
-    assert_eq!(o["about"], "Why the shop exists.");
+    assert_eq!((o["id"].as_str(), o["name"].as_str(), o["description"].as_str(), o["type"].as_str()), (Some("prog"), Some("Shop"), Some("Sells plants"), Some("programming")));
+    assert_eq!((o["about"].as_str(), o["owner"].as_str(), o["kind"].as_str()), (Some("Why the shop exists."), Some("kees"), Some("internal")));
+    assert!(o["source"].is_null());
     assert_eq!(o["links"], json!([{ "label": "Live", "url": "https://shop.example.com" }]));
-    // Offline computer: it is named, the git part is unknown, nothing fails.
+    assert_eq!((o["createdAt"].as_str(), o["updatedAt"].as_str()), (Some("2026-10-03T00:00:00Z"), Some("2026-10-03T00:00:00Z")));
+    assert!(o["archivedAt"].is_null());
     assert_eq!(o["where"]["machine"]["name"], "kireserver");
-    assert_eq!(o["where"]["machine"]["online"], false);
-    assert_eq!(o["where"]["folder"], "/home/k/shop");
-    assert_eq!(o["where"]["gitState"], "unknown");
-    assert!(o["where"]["git"].is_null());
-    // Only grants on the repo computer that cover the folder.
-    let targets: Vec<&str> = o["access"]["grants"].as_array().unwrap().iter().map(|g| g["target"].as_str().unwrap()).collect();
-    assert_eq!(targets, ["/home/k", "/home/k/shop"]);
-    assert_eq!(o["access"]["grants"][0]["rights"], json!(["read", "write"]));
-    assert_eq!(o["access"]["grants"][0]["expires"], "2026-12-01T00:00:00Z");
-    assert_eq!(o["access"]["mcp"], json!([{ "server": "blender", "tool": "*", "expires": "2099-01-01T00:00:00Z" }]));
-    assert_eq!(o["access"]["knowledge"], json!([{ "id": "k1", "name": "Plant care" }]));
-    assert_eq!(o["access"]["assets"], 0);
-    let cmds = o["access"]["commands"].as_array().unwrap();
-    let kinds: Vec<&str> = cmds.iter().map(|c| c["kind"].as_str().unwrap()).collect();
-    assert_eq!(kinds, ["build", "test", "deploy"]);
-    assert_eq!(cmds[1]["last"]["summary"], "12 passed");
-    assert!(cmds[0]["last"].is_null());
-    assert_eq!((cmds[0]["fromHere"].as_bool(), cmds[2]["fromHere"].as_bool()), (Some(true), Some(false)), "deploy is never run from here");
-    // Progress, with the last merged PR.
-    assert_eq!((o["progress"]["done"].as_i64(), o["progress"]["total"].as_i64(), o["progress"]["needsYou"].as_i64()), (Some(1), Some(3), Some(1)));
-    assert_eq!(o["progress"]["lastMerged"], json!({ "title": "Cart", "pr": "https://f/pulls/7" }));
-    assert_eq!(o["progress"]["next"][0]["title"], "Search");
-    // Activity: newest first, runs and chats included.
-    let what: Vec<&str> = o["activity"].as_array().unwrap().iter().map(|a| a["what"].as_str().unwrap()).collect();
-    assert_eq!(what[..2], ["PR merged: Cart", "Run done: Cart"]);
-    assert!(what.contains(&"Chat: Ideas") && what.contains(&"Task added: Cart") && what.contains(&"Run failed: Checkout"), "{what:?}");
-    assert_eq!(o["activity"][1]["who"], "qwen3-9b");
-    // AI use: only the last 30 days.
-    assert_eq!(o["ai"], json!([{ "model": "qwen3-9b", "runs": 1, "tokens": 1800, "minutes": 1.5 }]));
-    // Automation.
-    assert_eq!(o["automation"]["scheduler"]["enabled"], true);
-    assert_eq!(o["automation"]["scheduler"]["budget"]["minutes"], 30);
-    assert_eq!(o["automation"]["overseer"], true);
+    assert_eq!(o["access"]["knowledge"][0]["name"], "Plant care");
+    assert_eq!(o["progress"]["total"], 3);
+    assert_eq!(o["activity"][0]["what"], "PR merged: Cart");
+    assert_eq!(o["ai"][0]["model"], "qwen3-9b");
+    assert_eq!(o["automation"], json!({ "scheduler": { "enabled": true, "budget": { "minutes": 30, "rounds": null, "tokens": null } }, "overseer": true }));
+    // A chat project: empty parts, never an error.
+    let o = overview(&s, "u1", "chat").await.unwrap();
+    assert_eq!(o["errors"], json!({}));
+    assert_eq!((o["links"].clone(), o["activity"].clone(), o["ai"].clone()), (json!([]), json!([]), json!([])));
+    assert_eq!(o["automation"], json!({ "scheduler": { "enabled": false, "budget": { "minutes": null, "rounds": null, "tokens": null } }, "overseer": false }));
+    // Broken links JSON shows as no links.
+    sqlx::query("UPDATE projects SET links = 'not json' WHERE id = 'chat'").execute(&s.db).await.unwrap();
+    assert_eq!(overview(&s, "u1", "chat").await.unwrap()["links"], json!([]));
 }
 
 #[tokio::test]
-async fn an_online_computer_shows_the_cached_git_and_starts_a_fresh_read_when_stale() {
+async fn a_failing_part_is_null_with_its_reason() {
     let db = db().await;
-    sqlx::query("UPDATE machines SET last_seen = ? WHERE id = 'm1'").bind(util::now()).execute(&db).await.unwrap();
-    let cached = json!({ "remote": "https://git.example.com/k/shop.git", "branch": "main", "at": util::now() }).to_string();
-    sqlx::query("UPDATE projects SET repo_git = ? WHERE id = 'prog'").bind(&cached).execute(&db).await.unwrap();
-    let s = state(db.clone());
+    sqlx::query("DROP TABLE runs").execute(&db).await.unwrap();
+    let s = state(db);
     let o = overview(&s, "u1", "prog").await.unwrap();
-    assert_eq!(o["where"]["machine"]["online"], true);
-    assert_eq!(o["where"]["gitState"], "known");
-    assert_eq!(o["where"]["git"]["branch"], "main");
-    // A fresh cache queues no job.
-    let (jobs,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM machine_jobs").fetch_one(&db).await.unwrap();
-    assert_eq!(jobs, 0);
-    // A stale one is read again in the background, as a shell job in the repo folder.
-    let stale = json!({ "remote": "x", "branch": "main", "at": "2026-01-01T00:00:00Z" }).to_string();
-    sqlx::query("UPDATE projects SET repo_git = ? WHERE id = 'prog'").bind(&stale).execute(&db).await.unwrap();
-    let o = overview(&s, "u1", "prog").await.unwrap();
-    assert_eq!(o["where"]["gitState"], "reading");
-    let mut tool = None;
-    for _ in 0..50 {
-        tool = sqlx::query_scalar::<_, String>("SELECT tool FROM machine_jobs").fetch_optional(&db).await.unwrap();
-        if tool.is_some() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(20)).await;
-    }
-    let tool: Value = serde_json::from_str(&tool.expect("a git job was queued")).unwrap();
-    assert_eq!((tool["tool"].as_str(), tool["cwd"].as_str()), (Some("shell"), Some("/home/k/shop")));
-    assert!(tool["command"].as_str().unwrap().contains("git remote get-url origin"));
+    assert!(o["ai"].is_null() && o["activity"].is_null());
+    assert!(o["errors"]["ai"].as_str().is_some_and(|e| !e.is_empty()));
+    assert!(o["errors"]["activity"].is_string());
+    assert_eq!(o["progress"]["total"], 3, "the other parts still come");
 }
 
 #[tokio::test]
@@ -266,6 +368,11 @@ async fn prompts_read_about_after_the_description() {
     let db = db().await;
     let ctx = crate::project_ctx::project_context(&db, "prog", "u1", 8_000).await.unwrap();
     assert!(ctx.contains("Sells plants\n\nWhy the shop exists."), "{ctx}");
+}
+
+#[tokio::test]
+async fn the_overseer_reads_about_after_the_description() {
+    let db = db().await;
     let scan = crate::overseer::scan(&db, "u1", 20_000).await;
     assert!(scan.text.contains("Sells plants\nWhy the shop exists."), "{}", scan.text);
     // The Overseer reads at most ABOUT_IN_SCAN chars of it per project.

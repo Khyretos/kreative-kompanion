@@ -191,6 +191,19 @@ mod tests {
         Json(serde_json::from_value(v).unwrap())
     }
 
+    #[test]
+    fn links_are_trimmed_checked_and_stored_as_json() {
+        let l = |label: &str, url: &str| Link { label: label.into(), url: url.into() };
+        assert_eq!(clean_links(&[l(" Repo ", " https://g.test/k "), l("Site", "http://s.test")]).unwrap(), r#"[{"label":"Repo","url":"https://g.test/k"},{"label":"Site","url":"http://s.test"}]"#);
+        assert_eq!(clean_links(&[]).unwrap(), "[]");
+        for bad in [l("x", "javascript:alert(1)"), l("x", "ftp://a.test"), l("x", "https://a.test/a b"), l("", "https://a.test"), l(&"x".repeat(61), "https://a.test"), l("x", &format!("https://a.test/{}", "p".repeat(500)))] {
+            assert!(matches!(clean_links(&[bad]), Err(ApiError::BadRequest(_))));
+        }
+        let eleven: Vec<Link> = (0..11).map(|_| l("x", "https://a.test")).collect();
+        assert!(clean_links(&eleven).is_err());
+        assert!(clean_links(&eleven[..10]).is_ok());
+    }
+
     /// PROJ-OVERVIEW: name, description, about and links are checked, trimmed and saved; a Windshift
     /// project keeps its name and description (they are edited in Windshift).
     #[tokio::test]
