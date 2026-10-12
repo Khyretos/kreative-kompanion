@@ -8,6 +8,33 @@
     "title": "Possible Issue",
     "verdict": "false_positive"
   },
+  "270d23b3c156": {
+    "by": "repeat of 54d49592773a",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetaudio.rs",
+    "reason": "The use of `try_into().ok()?` after a successful `.get()` call is safe because the slice length is guaranteed to be sufficient for the target integer type, making the panic impossible in this specific context.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "3a6a6940854c": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The code already validates that width and height are non-zero immediately after reading them, so defaulting to 0 does not bypass the validation logic. Checked against the code.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "3be423bed617": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetmodel.rs",
+    "reason": "The code correctly validates that every LOD level from 0 up to the highest found is present by checking if the current level equals the previous level plus one. Checked against the code.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
   "54d49592773a": {
     "by": "coder",
     "checked": true,
@@ -44,6 +71,15 @@
     "title": "Hard-coded Engine Fallback",
     "verdict": "false_positive"
   },
+  "85d2fc4f20e9": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "f0ac96d",
+    "path": "server/src/assetcontract.rs",
+    "reason": "validate cloned every asset byte buffer before the format checks; they now take references.",
+    "title": "Possible Issue",
+    "verdict": "bug"
+  },
   "96dca424b6bb": {
     "by": "coder",
     "checked": true,
@@ -60,6 +96,15 @@
     "path": "server/src/assetimage.rs",
     "reason": "The loop correctly advances the position pointer `at` by the full chunk size (12 bytes for length/type + data length) on every iteration, ensuring all IDAT chunks are processed regardless of how many exist.",
     "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "b26543763b7a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/assetimage.rs",
+    "reason": "The code already validates JSON validity and the presence of a 'frames' array before attempting to parse frame details, preventing the described failure modes. Checked against the code.",
+    "title": "Potential Logic Flaw",
     "verdict": "false_positive"
   },
   "c227dc1821fc": {
