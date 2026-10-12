@@ -27,8 +27,8 @@ REPO = os.environ.get("REVIEW_REPO") or os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
 
-# Findings on generated drafting logs are never about the change itself.
-IGNORED_PATHS = ("docs/qwen-log/",)
+# Findings on generated drafting logs and on the stored wrong drafts of lessons are never about the change itself.
+IGNORED_PATHS = ("docs/qwen-log/", "docs/qwen-situations/")
 
 # Import pipeline only inside the triage function to avoid config needs for tests.
 # pylint: disable=import-outside-toplevel

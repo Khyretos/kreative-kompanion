@@ -1,0 +1,353 @@
+{
+  "004e7f983b5b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "On a failed update the arm sets output to the error and falls through to the normal post_result, then the loop continues; exiting is only wanted after a successful swap (exit 4).",
+    "title": "Missing Error Handling for Self-Update",
+    "verdict": "false_positive"
+  },
+  "0067585272ec": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "This file is the Coder's wrong draft, stored on purpose as the situation record of lesson 205; the real function is in runner/src/selfupdate.rs and is covered by its tests.",
+    "title": "Incomplete Update Logic",
+    "verdict": "false_positive"
+  },
+  "299bcd54ad35": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
+    "title": "Compilation Failure",
+    "verdict": "false_positive"
+  },
+  "3308d992833a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Unsafe Path Handling",
+    "verdict": "false_positive"
+  },
+  "49ea2e3c057b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "current_exe() errors are mapped to a string and returned through and_then, then reported as \"error: ...\" in the job output; no panic path.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "4c8f0a623ac6": {
+    "by": "repeat of 60197a97132b",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "4e4c99c8873f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "This file is the Coder's wrong draft, stored on purpose as the situation record of lesson 205; the real function is in runner/src/selfupdate.rs and is covered by its tests.",
+    "title": "Incomplete Update Logic",
+    "verdict": "false_positive"
+  },
+  "60197a97132b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "60f25d286498": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/e2e_runner_update.py",
+    "reason": "A test script with a fake server; the fixed 9.9.9 version and token are test data on purpose.",
+    "title": "Hardcoded Test Data",
+    "verdict": "false_positive"
+  },
+  "63bbc1988cef": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "6b2d15306b4a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "6fbbb3494d54": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/lessons-learned.md",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
+    "title": "Incomplete Entry",
+    "verdict": "false_positive"
+  },
+  "877c6aeee16c": {
+    "by": "repeat of cdac423e7d54",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "base_url comes from the paired config (cfg.server, https or localhost only) and is defined a few lines above the job loop; the end-to-end run uses it.",
+    "title": "Hard-coded URL",
+    "verdict": "false_positive"
+  },
+  "92fa989496c1": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The retry is bounded (20 tries of 50 ms) and only repeats on ETXTBSY; any other error returns at once, and the concurrent-fork stress test passes repeatedly.",
+    "title": "Race Condition in Binary Replacement",
+    "verdict": "false_positive"
+  },
+  "9b57cbd2ffaf": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/206-weak-grep-check-passes-wrong-shape/wrong-output.diff",
+    "reason": "A stored wrong draft (diff of the wrong output) as the situation record of lesson 206; it is not applied anywhere.",
+    "title": "Incomplete Diff Context",
+    "verdict": "false_positive"
+  },
+  "9d7e82d7069b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Potential Deadlock / Resource Leak",
+    "verdict": "false_positive"
+  },
+  "a3f497d6a298": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "e7d845b",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "The run-log README said 8 test cases; selfupdate_tests.rs has 9. Corrected to 9.",
+    "title": "Misleading Test Claim",
+    "verdict": "bug"
+  },
+  "a8049e2eb6e2": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/202-grep-check-quote-bug-repairs-add-junk/wrong-output.diff",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
+    "title": "Incorrect Diff Content",
+    "verdict": "false_positive"
+  },
+  "ab1ebb099b1b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "A local retry bound with a comment next to it; a constant would add nothing.",
+    "title": "Hardcoded Magic Number",
+    "verdict": "false_positive"
+  },
+  "b8a8fcb553b1": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
+    "reason": "A voided or failed attempt log, a stored wrong draft or a lessons-file layout remark; not part of the shipped code, and lesson 201 was complete (reordered).",
+    "title": "Build Failure",
+    "verdict": "false_positive"
+  },
+  "bd8da2cb46c4": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "bffcd9b8618b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_sync_runner.sh",
+    "reason": "The test only states the wanted behaviour (a newer installed runner stays); sync_runner.sh implements it with sort -V and the test passes for older, equal, newer, missing and empty-dist cases.",
+    "title": "Flawed Test Case for Newer Runner",
+    "verdict": "false_positive"
+  },
+  "cdac423e7d54": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "base_url comes from the paired config (cfg.server, https or localhost only) and is defined a few lines above the job loop; the end-to-end run uses it.",
+    "title": "Hard-coded URL",
+    "verdict": "false_positive"
+  },
+  "d5c998d79c77": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/205-ignores-the-exact-call-it-was-given/wrong-output-selfupdate.rs.txt",
+    "reason": "A stored wrong draft kept as the situation record of a lesson (reviewed as if it were code); the real code in runner/src/selfupdate.rs is covered by tests and the end-to-end run.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "e81b6fcdc16c": {
+    "by": "repeat of 4c8f0a623ac6",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "e8f7cd33ea6c": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/sync_runner.sh",
+    "reason": "sort -V puts the higher version last; when the installed version is not lower than the newest the script prints \"is current\" and exits, otherwise it updates (tools/test_sync_runner.sh covers older, equal, newer, missing).",
+    "title": "Incorrect Version Comparison Logic",
+    "verdict": "false_positive"
+  },
+  "e9067fed0760": {
+    "by": "repeat of 60197a97132b",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "The reviewer read an older draft. In the current code the retry loop only repeats when spawning fails with raw_os_error() == Some(26); an exit status is never retried and every error returns an Err (tests install_binary_* pass, including the concurrent-fork stress test).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "f18fea0057a8": {
+    "by": "repeat of 49ea2e3c057b",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/main.rs",
+    "reason": "current_exe() errors are mapped to a string and returned through and_then, then reported as \"error: ...\" in the job output; no panic path.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "f2827b0262e0": {
+    "by": "repeat of e8f7cd33ea6c",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/sync_runner.sh",
+    "reason": "sort -V puts the higher version last; when the installed version is not lower than the newest the script prints \"is current\" and exits, otherwise it updates (tools/test_sync_runner.sh covers older, equal, newer, missing).",
+    "title": "Incorrect Version Comparison Logic",
+    "verdict": "false_positive"
+  },
+  "03c46a2c0bc8": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/selfupdate.rs",
+    "reason": "get_grant_error is in runner/src/grants.rs, not in selfupdate.rs; the warning comes from the voided rsb2 log. cargo build and all tests pass in CI.",
+    "title": "Compilation Error",
+    "verdict": "false_positive"
+  },
+  "9d15df134fbf": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/test_sync_runner.sh",
+    "reason": "Case 4 is labelled \"no runner installed, or an empty dist\"; it checks that nothing is changed. The reviewer read it as the \"already newest\" case, which is case 2.",
+    "title": "Flawed Test Case for Empty Dist",
+    "verdict": "false_positive"
+  },
+  "4ce7f54c5286": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/access/jobs.rs",
+    "reason": "The diff does add \"self_update\" to the allowed list as intended (the reviewer's own text says so after re-reading); creating the job stays owner-only through the machine ownership check.",
+    "title": "Missing Tool Validation",
+    "verdict": "false_positive"
+  },
+  "63ec02fe56ed": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "Already fixed in b796fe7: the README now says 9 cases.",
+    "title": "Incorrect Test Count",
+    "verdict": "false_positive"
+  },
+  "677aa0c068f0": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "Same as 63ec02fe56ed, already fixed (9 cases).",
+    "title": "Inaccurate Documentation",
+    "verdict": "false_positive"
+  },
+  "953331f01403": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/README.md",
+    "reason": "The test files are part of this PR (runner/src/selfupdate_tests.rs, tools/test_sync_runner.sh, web/tests/runnersync.spec.ts, tools/e2e_runner_update.py); the reviewer only saw a diff chunk without them.",
+    "title": "Misleading Test Summary",
+    "verdict": "false_positive"
+  },
+  "45822f4f1f67": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/202-grep-check-quote-bug-repairs-add-junk/wrong-output.diff",
+    "title": "Wrong Diff Content",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
+  },
+  "9cb15e5c4e7b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/runner-sync-unit-runs/rsb2-souc.log.jsonl",
+    "title": "Compilation Errors",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
+  },
+  "b30c41b85ce3": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/206-weak-grep-check-passes-wrong-shape/wrong-output.diff",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
+  },
+  "b54884dbbffb": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/lessons-learned.md",
+    "title": "Incorrect Line Numbers",
+    "verdict": "false_positive",
+    "reason": "A stored failure record (now gzipped so it is not reviewed as code) or a remark about the lessons list layout; not part of the shipped code."
+  }
+}

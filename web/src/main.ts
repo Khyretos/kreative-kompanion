@@ -20,7 +20,7 @@ import type { Attached } from "./core/attachments";
 import { composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
-import { renderMachines, REFRESH_STEPS, setGpuView } from "./views/machines";
+import { renderMachines, REFRESH_STEPS, setGpuView, markUpdating, unmarkUpdating } from "./views/machines";
 import { confirmPermanent, grantFromForm, renderAccess, type GrantView } from "./views/access";
 import { renderPcActions, renderPcPicker } from "./views/pcactions";
 import { renderLessons } from "./views/lessons";
@@ -960,6 +960,13 @@ function wire(shell: HTMLElement): void {
       const m = store.get().machines.find((x) => x.id === el.dataset.id);
       if (!m || !confirm(`Unpair ${m.name}? Its runner stops being accepted.`)) return;
       return api.unpairMachine(m.id).then(() => api.listMachines()).then((machines) => store.set({ machines }), showError);
+    },
+    // RUNNER-SYNC: queue a runner self-update; the card shows "Updating…" until the runner reports the new version.
+    "update-runner": (el) => {
+      const id = el.dataset.id ?? "";
+      markUpdating(id);
+      store.set({ machines: [...store.get().machines] });
+      return api.updateRunner(id).catch((e) => { unmarkUpdating(id); store.set({ machines: [...store.get().machines] }); showError(e); });
     },
     // HOST-01: pair the server's own computer under its machine name, so its runner merges into the server card.
     "pair-host": (el) => {

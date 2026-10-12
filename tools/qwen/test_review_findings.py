@@ -306,6 +306,20 @@ class RepeatTest(unittest.TestCase):
         }
         self.assertEqual(rf.blocking(rf.open_findings(state), {}), [])
 
+    def test_findings_in_the_stored_situations_are_ignored(self):
+        # docs/qwen-situations/ keeps the Coder's wrong drafts as records (lesson 211).
+        state = {
+            "findings": [
+                {
+                    "finding_id": "sit1",
+                    "state": "ACTIVE",
+                    "path": "docs/qwen-situations/205-x/wrong-output-selfupdate.rs.txt",
+                    "body": "**Incomplete Update Logic**\n\nstored wrong draft",
+                }
+            ]
+        }
+        self.assertEqual(rf.blocking(rf.open_findings(state), {}), [])
+
 
 class JobsTest(unittest.TestCase):
     def test_fix_jobs_only_checked_unfixed_bugs(self):

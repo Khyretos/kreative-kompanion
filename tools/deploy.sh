@@ -11,6 +11,8 @@ if ! git merge-base --is-ancestor origin/main HEAD; then
 fi
 nice docker compose build -q
 docker compose up -d
+# RUNNER-SYNC: this computer's own runner follows the newest build the server ships.
+sh tools/sync_runner.sh || echo "deploy: runner sync failed (ignored)" >&2
 for _ in $(seq 1 30); do
     if curl -sf -o /dev/null http://127.0.0.1:8095/api/status; then
         echo "deploy: $(git rev-parse --short HEAD) is up"

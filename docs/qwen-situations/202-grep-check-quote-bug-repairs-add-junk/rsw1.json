@@ -1,0 +1,13 @@
+[
+  {
+    "name": "rsw1",
+    "role": "worker/web",
+    "out": "web/src/api/mock.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1500,
+    "focus": ["id: \"soucouyant\", name: \"soucouyant\""],
+    "prompt": "In web/src/api/mock.ts, in the `machines` array, in the object with `id: \"soucouyant\"`, add `runnerVersion: \"0.5.0\", runnerLatest: \"0.6.0\",` right after `online: true,` on that same line (keep the rest of the object exactly). Change nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsw1.sh"
+  }
+]

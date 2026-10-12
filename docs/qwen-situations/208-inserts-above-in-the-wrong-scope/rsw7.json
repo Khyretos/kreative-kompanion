@@ -1,0 +1,16 @@
+[
+  {
+    "name": "rsw7",
+    "role": "worker/web",
+    "out": "web/src/views/machines.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "focus": [
+      "function machine(m: MachineStats): SafeHtml {",
+      "data-action=\"update-runner\""
+    ],
+    "prompt": "Two edits in web/src/views/machines.ts.\n(1) Directly above the line `function machine(m: MachineStats): SafeHtml {` insert these four lines and a blank line:\n/** RUNNER-SYNC: machines whose runner update was queued from this page (cleared once the runner reports the newest version). */\nconst updating = new Set<string>();\nexport function markUpdating(id: string): void { updating.add(id); }\nexport function unmarkUpdating(id: string): void { updating.delete(id); }\n(2) Replace the whole line that contains `data-action=\"update-runner\"` (it starts with `${m.id !== \"server\" && m.runnerLatest && m.runnerVersion !== m.runnerLatest ? html`<button`) by exactly these two lines (same 8-space indentation):\n        ${m.runnerVersion === m.runnerLatest ? (updating.delete(m.id), \"\") : \"\"}\n        ${m.id !== \"server\" && m.runnerLatest && m.runnerVersion !== m.runnerLatest ? (updating.has(m.id) ? html`<button class=\"btn primary small\" data-action=\"update-runner\" data-id=\"${m.id}\" disabled>Updating\u2026</button>` : html`<button class=\"btn primary small\" data-action=\"update-runner\" data-id=\"${m.id}\" title=\"Downloads the newest runner and restarts it\">Update to ${m.runnerLatest}</button>`) : \"\"}\nChange nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsw7.sh"
+  }
+]

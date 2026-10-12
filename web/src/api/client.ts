@@ -58,6 +58,8 @@ export interface KompanionApi {
   /** A one-time code for the one-line runner install (15 minutes). */
   pairCode(name: string): Promise<{ code: string; expiresAt: string }>;
   unpairMachine(id: string): Promise<void>;
+  /** RUNNER-SYNC: queue a self-update of the machine's runner (owner only). */
+  updateRunner(id: string): Promise<void>;
   listGrants(machineId: string): Promise<import("../views/access").GrantView[]>;
   addGrant(machineId: string, target: string, rights: string[], expiresHours?: number): Promise<void>;
   revokeGrant(machineId: string, target: string): Promise<void>;

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "rsd1",
+    "role": "worker/rust",
+    "out": "runner/src/selfupdate.rs",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 3000,
+    "context": ["runner/src/selfupdate_tests.rs"],
+    "focus": ["pub fn update_from_server", "todo!()"],
+    "prompt": "In runner/src/selfupdate.rs replace the `todo!()` in `pub fn update_from_server` with a working body; keep the signature and doc comment, touch nothing else, add no new functions, no `mod`, no tests, no top-level `use` lines (write `use std::io::Read;` inside the body). Exact std/ureq calls to use: `let url = format!(\"{}/download/kompanion-runner\", base.trim_end_matches('/'));` `let resp = agent.get(&url).call().map_err(|e| format!(\"download failed: {e}\"))?;` then `let mut bytes = Vec::new(); resp.into_reader().take(200_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;` and for the digest `agent.get(&format!(\"{url}.sha256\")).call().map_err(|e| format!(\"download of the sha256 failed: {e}\"))?.into_string().map_err(|e| e.to_string())?`. Then: if `!sha_ok(&bytes, &sha_text)` return Err containing the word `sha256` (e.g. \"the download does not match its sha256\"); call `install_binary(&bytes, target)?`; finally run `std::process::Command::new(target).arg(\"--version\").output()` and return Ok(format!(\"updated: {}\", first line of its stdout trimmed)) (Ok(\"updated\".to_string()) if that last run fails). Use `?` only in this function (it returns Result<String, String>). The tests in runner/src/selfupdate_tests.rs show the behaviour.",
+    "check": "sh /tmp/kk-runner-chk/rsd1.sh"
+  }
+]

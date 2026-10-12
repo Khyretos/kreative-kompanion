@@ -30,6 +30,11 @@ let pins: string[] = [];
 /** Which GPU panels are open (this session) and which bars are pinned (saved per user). */
 export function setGpuView(open: Set<string>, pinned: string[]): void { openGpus = open; pins = pinned; }
 
+/** RUNNER-SYNC: machines whose runner update was queued from this page (cleared once the runner reports the newest version). */
+const updating = new Set<string>();
+export function markUpdating(id: string): void { updating.add(id); }
+export function unmarkUpdating(id: string): void { updating.delete(id); }
+
 function machine(m: MachineStats): SafeHtml {
   const cpuKind = m.historyKind === "cpu";
   const watts = m.history[m.history.length - 1];
@@ -42,7 +47,8 @@ function machine(m: MachineStats): SafeHtml {
       <div class="machine-head">
         <span class="dot ok" aria-hidden="true"></span>
         <strong>${m.name}</strong>${m.isServer ? html`<span class="chip this-server">this server</span>` : ""}${m.isServer && !m.online ? html`<span class="chip warn-chip">runner offline</span>` : ""}<span class="muted small">${m.os}${m.id !== "server" ? ` · runner ${m.runnerVersion ?? "before 0.4.5"}` : ""}</span>
-        ${m.id !== "server" && m.runnerLatest && m.runnerVersion !== m.runnerLatest ? html`<span class="chip warn-chip" title="Pair a computer shows the one-line installer">update to ${m.runnerLatest}</span>` : ""}
+        ${m.runnerVersion === m.runnerLatest ? (updating.delete(m.id), "") : ""}
+        ${m.id !== "server" && m.runnerLatest && m.runnerVersion !== m.runnerLatest ? (updating.has(m.id) ? html`<button class="btn primary small" data-action="update-runner" data-id="${m.id}" disabled>Updating…</button>` : html`<button class="btn primary small" data-action="update-runner" data-id="${m.id}" title="Downloads the newest runner and restarts it">Update to ${m.runnerLatest}</button>`) : ""}
         ${m.id !== "server" ? html`<button class="icon-btn" data-action="unpair" data-id="${m.id}" aria-label="Unpair ${m.name}">${icon("trash")}</button>` : ""}
         <span class="watts">${cpuKind ? `${pct(m.cpu)} CPU` : watts === undefined ? "" : `${watts} W`}</span>
       </div>

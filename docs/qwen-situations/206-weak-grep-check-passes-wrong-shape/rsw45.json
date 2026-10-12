@@ -1,0 +1,24 @@
+[
+  {
+    "name": "rsw4",
+    "role": "worker/web",
+    "out": "web/src/api/mock.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1500,
+    "focus": ["async unpairMachine() {}"],
+    "prompt": "In web/src/api/mock.ts add one line directly after the line `  async unpairMachine() {}`: `  async updateRunner() {}` (same indentation). Change nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsw4.sh"
+  },
+  {
+    "name": "rsw5",
+    "role": "worker/web",
+    "out": "web/src/views/machines.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1500,
+    "focus": ["update to ${m.runnerLatest}"],
+    "prompt": "In web/src/views/machines.ts replace the `<span class=\"chip warn-chip\" title=\"Pair a computer shows the one-line installer\">update to ${m.runnerLatest}</span>` element (inside the html template on the line that starts with `${m.id !== \"server\" && m.runnerLatest`) with `<button class=\"btn primary small\" data-action=\"update-runner\" data-id=\"${m.id}\" title=\"Downloads the newest runner and restarts it\">Update to ${m.runnerLatest}</button>`. Keep the condition and the `: \"\"` part of that line exactly. Change nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsw5.sh"
+  }
+]

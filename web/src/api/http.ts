@@ -91,6 +91,7 @@ export class HttpApi implements KompanionApi {
   accessHistory() { return this.request<import("../views/access").AccessEvent[]>("GET", "/access"); }
   pairCode(name: string) { return this.request<{ code: string; expiresAt: string }>("POST", "/machines/pair-code", { name }); }
   unpairMachine(id: string) { return this.request<void>("DELETE", `/machines/${encodeURIComponent(id)}`); }
+  updateRunner(id: string) { return this.request<void>("POST", `/machines/${encodeURIComponent(id)}/jobs`, { tool: { tool: "self_update" } }); }
   watchMachines() { return this.request<void>("POST", "/machines/live"); }
   setTheme(theme: ThemeChoice) { return this.request<void>("PUT", "/me/theme", { theme }); }
   getAdmin() { return this.request<{ settings: AdminSettings; smtpPasswordSet: boolean }>("GET", "/admin/settings"); }

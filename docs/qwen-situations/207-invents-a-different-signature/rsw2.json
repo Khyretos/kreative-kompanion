@@ -1,0 +1,13 @@
+[
+  {
+    "name": "rsw2",
+    "role": "worker/web",
+    "out": "web/src/api/client.ts",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 2500,
+    "focus": ["unpairMachine(id: string): Promise<void>;"],
+    "prompt": "In web/src/api/client.ts add one line directly after the line `  unpairMachine(id: string): Promise<void>;`: `  /** RUNNER-SYNC: queue a self-update of the machine's runner (owner only). */` and below it `  updateRunner(id: string): Promise<void>;` (two lines, same indentation). Change nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsw2.sh"
+  }
+]

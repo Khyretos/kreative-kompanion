@@ -1,0 +1,13 @@
+[
+  {
+    "name": "rsa1",
+    "role": "worker/rust",
+    "out": "runner/Cargo.toml",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1200,
+    "focus": ["[dependencies]", "ureq = "],
+    "prompt": "In runner/Cargo.toml add one dependency line `sha2 = \"0.10\"` as the last line of the [dependencies] table (after the `ureq = ...` line). Change nothing else.",
+    "check": "sh /tmp/kk-runner-chk/rsa1.sh"
+  }
+]

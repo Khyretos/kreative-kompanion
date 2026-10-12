@@ -1,0 +1,5 @@
+# Lesson 205: the Coder ignored the exact calls written into the prompt
+
+Situation: RUNNER-SYNC unit rsd1 (rsd1.json; tests in runner/src/selfupdate_tests.rs): `update_from_server`, with the exact ureq/std calls spelled out, including `resp.into_reader().take(200_000_000).read_to_end(&mut bytes)` and "use std::io::Read inside the body". The Coder (OVMS, 3 attempts, check failed) wrote `std::io::Take::new(&mut reader, ...)` (no such function; it also never imported Read), and discarded the `--version` output so the message was always just "updated". The repair rounds kept the same wrong call. wrong-output-selfupdate.rs.txt.gz is its final file.
+Fix: Claude wrote the body as the prompt described.
+Rule: the Coder copies a std API name only when it is also in a file it can see; put a 3-line example of the exact call in a context file, not only in the prompt. The compile error in the repair prompt named `Take::new` but the model did not switch to `.take()`; give the repair round the corrected snippet when the same error repeats (family of 24).
