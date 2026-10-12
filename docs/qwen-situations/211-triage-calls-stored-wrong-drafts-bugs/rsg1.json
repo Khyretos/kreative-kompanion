@@ -1,0 +1,14 @@
+[
+  {
+    "name": "rsg1",
+    "role": "worker/python",
+    "out": "tools/qwen/review_findings.py",
+    "precheck": false,
+    "mode": "patch",
+    "max_tokens": 1500,
+    "context": ["tools/qwen/test_review_findings.py"],
+    "focus": ["IGNORED_PATHS = (", "# Findings on generated drafting logs"],
+    "prompt": "In tools/qwen/review_findings.py change the comment line `# Findings on generated drafting logs are never about the change itself.` to `# Findings on generated drafting logs and on the stored wrong drafts of lessons are never about the change itself.` and the line `IGNORED_PATHS = (\"docs/qwen-log/\",)` to `IGNORED_PATHS = (\"docs/qwen-log/\", \"docs/qwen-situations/\")`. Change nothing else. The new test test_findings_in_the_stored_situations_are_ignored in tools/qwen/test_review_findings.py shows the behaviour.",
+    "check": "sh /tmp/kk-runner-chk/rsg1.sh"
+  }
+]

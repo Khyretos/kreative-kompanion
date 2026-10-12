@@ -1,0 +1,5 @@
+# Lesson 211: the triage Coder called stored wrong drafts "bugs"
+
+Situation: RUNNER-SYNC PR 196, review gate. PR-Agent reviewed the stored wrong drafts under docs/qwen-situations/ (and one older chunk of the real code) and raised 9 findings. The triage Coder (OVMS, `review_findings.py 196 --triage`) marked 4 of them "bug" (two with "unparsed model answer") and 5 "false_positive", most of them with reasoning that did not match the finding (it described `raw_os_error()` as reading an exit code of a process Output). Claude read every finding: all 9 are false positives (3 about stored wrong drafts or diffs of lessons 205/206, 1 about test data in the e2e script, 5 about code that is correct as it stands or that the reviewer saw in an older draft); the ledger docs/review-findings/pr-196.json carries Claude's reasons.
+Fix: all verdicts corrected by Claude; so this cannot recur, `IGNORED_PATHS` in tools/qwen/review_findings.py now also lists `docs/qwen-situations/` (job rsg1.json, test `test_findings_in_the_stored_situations_are_ignored` written first; Coder, OVMS, attempt 1).
+Rule: stored wrong outputs are data; the review gate must not triage them.
