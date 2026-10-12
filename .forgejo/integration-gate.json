@@ -6,7 +6,7 @@
     { "name": "web", "cmd": "cd web && npm ci && npm run typecheck" },
     {
       "name": "tools",
-      "cmd": "python3 -m unittest discover -s tools -p 'test_*.py'"
+      "cmd": "sh tools/gate-tools.sh"
     }
   ]
 }

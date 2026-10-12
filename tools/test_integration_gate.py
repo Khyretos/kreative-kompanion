@@ -1,5 +1,7 @@
 """Tests for tools/integration_gate.py (KG-09). Run: python3 -m unittest tools/test_integration_gate.py"""
 
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -144,6 +146,46 @@ class ConfiguredChecks(unittest.TestCase):
         with open(os.path.join(root, ".forgejo", "integration-gate.json")) as f:
             web = [c for c in json.load(f)["checks"] if c["name"] == "web"][0]
         self.assertIn("npm ci", web["cmd"])
+
+    def test_tools_check_runs_every_test_in_a_container_with_its_dependencies(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root, ".forgejo", "integration-gate.json")) as f:
+            cmd = [c for c in json.load(f)["checks"] if c["name"] == "tools"][0]["cmd"]
+        self.assertEqual(cmd, "sh tools/gate-tools.sh")
+        path = os.path.join(root, "tools", "gate-tools.sh")
+        with open(path) as f:
+            script = f.read()
+        # the runner image has no Pillow, numpy or ffmpeg: the script installs them and runs every test
+        for word in ("docker run", "ffmpeg", "python3-pil", "python3-numpy", "unittest discover -s tools"):
+            self.assertIn(word, script)
+        self.assertNotIn("| tail", script)
+        subprocess.run(["sh", "-n", path], check=True)
+
+    def test_a_failed_gate_prints_the_check_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp)
+            merge_commit(tmp, 1, "[A-1] one")
+            cfg = {
+                "every": 1,
+                "checks": [{"name": "build", "cmd": "echo boom >&2; exit 3"}],
+            }
+            with open(os.path.join(tmp, "gate.json"), "w") as f:
+                json.dump(cfg, f)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = g.main(
+                    [
+                        "--repo",
+                        tmp,
+                        "--config",
+                        "gate.json",
+                        "--task-out",
+                        os.path.join(tmp, "task.json"),
+                        "--force",
+                    ]
+                )
+            self.assertEqual(code, 1)
+            self.assertIn("boom", buf.getvalue())
 
 
 if __name__ == "__main__":

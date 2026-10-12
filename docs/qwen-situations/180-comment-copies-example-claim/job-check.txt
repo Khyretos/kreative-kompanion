@@ -1,0 +1,1 @@
+test -e tools/gate-tools.sh || { echo 'error: tools/gate-tools.sh: not written'; exit 1; }; sh -n tools/gate-tools.sh && for w in 'docker run' 'ffmpeg' 'python3-pil' 'python3-numpy' 'unittest discover -s tools' 'set -eu' 'node:22'; do grep -qF "$w" tools/gate-tools.sh || { echo "error: tools/gate-tools.sh: missing $w"; exit 1; }; done; ! grep -q '| tail' tools/gate-tools.sh

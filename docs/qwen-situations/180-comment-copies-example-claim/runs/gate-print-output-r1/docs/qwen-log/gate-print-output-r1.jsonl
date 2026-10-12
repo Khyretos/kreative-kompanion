@@ -1,0 +1,2 @@
+{"name": "gate-print-output", "out": "tools/integration_gate.py", "mode": "patch", "gpu_seconds": 2.1, "tokens": 61, "prompt_tokens": 3038, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "worker/python"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-12T13:06:55"}
+{"name": "gate-print-output", "out": "tools/integration_gate.py", "check": "python3 -m unittest tools.test_integration_gate.ConfiguredChecks.test_a_failed_gate_prints_the_check_output", "check_attempts": 1, "check_passed": true, "at": "2026-10-12T13:06:55"}
