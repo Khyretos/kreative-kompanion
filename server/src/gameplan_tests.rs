@@ -478,3 +478,41 @@ fn the_system_text_names_the_limits() {
     assert!(!s.contains("{files}") && !s.contains("{lines}"));
     assert!(s.contains("library_id") && s.contains("needed_by"));
 }
+
+#[test]
+fn a_plan_without_title_or_goal_still_parses() {
+    let text = r#"{"code_tasks":[],"asset_tasks":[]}"#;
+    let p = parse(text).unwrap();
+    assert_eq!((p.title.as_str(), p.goal.as_str()), ("", ""));
+    // the lists stay required
+    assert!(parse(r#"{"title":"T","goal":"G"}"#).is_err());
+}
+
+#[test]
+fn titles_come_from_the_description() {
+    let mut p = good();
+    p.title = String::new();
+    p.goal = "  ".into();
+    fill_titles(&mut p, "A small 2D platformer level with a fox. It has a jump sound and music.");
+    assert_eq!(p.title, "A small 2D platformer level with a fox.");
+    assert_eq!(p.goal, "A small 2D platformer level with a fox. It has a jump sound and music.");
+    // given ones stay
+    let mut q = good();
+    fill_titles(&mut q, "Something else entirely.");
+    assert_eq!((q.title.as_str(), q.goal.as_str()), ("Tiny platformer", "A knight jumps over pits and collects coins."));
+    // a long first sentence is cut at 60 characters
+    let mut r = good();
+    r.title = String::new();
+    let long = "a".repeat(100);
+    fill_titles(&mut r, &long);
+    assert_eq!(r.title.chars().count(), 60);
+    assert!(long.starts_with(&r.title));
+}
+
+#[tokio::test]
+async fn the_last_answer_is_in_the_error_when_no_plan_comes() {
+    let (_, ask) = ask_with(vec![r#"{"title":"T","goal":"G","asset_tasks":[]}"#, r#"{"title":"T","goal":"G","asset_tasks":[]}"#, r#"{"title":"T","goal":"G","asset_tasks":[]}"#]);
+    let err = generate(ask, "s", "u", &Limits::default(), &library(), &workflows()).await.unwrap_err();
+    assert!(err.contains("code_tasks"), "{err}");
+    assert!(err.contains("Last answer: ") && err.contains("asset_tasks"), "{err}");
+}

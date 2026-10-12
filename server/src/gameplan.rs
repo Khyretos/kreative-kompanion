@@ -34,7 +34,9 @@ pub struct AssetTask {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GamePlan {
+    #[serde(default)]
     pub title: String,
+    #[serde(default)]
     pub goal: String,
     pub code_tasks: Vec<PlanTask>,
     pub asset_tasks: Vec<AssetTask>,
@@ -339,6 +341,29 @@ pub fn all_issues(plan: &GamePlan, lim: &Limits, library: &[LibAsset], workflows
     out
 }
 
+/// Fills an empty title and goal from the user's description: the title is its first sentence cut at 60
+/// characters, the goal the whole description (trimmed).
+pub fn fill_titles(plan: &mut GamePlan, description: &str) {
+    let desc = description.trim();
+    if plan.goal.trim().is_empty() {
+        plan.goal = desc.to_string();
+    }
+    if plan.title.trim().is_empty() {
+        let mut end = desc.len();
+        for (i, c) in desc.char_indices() {
+            match c {
+                '.' | '!' | '?' => {
+                    end = i + 1;
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let sentence = &desc[..end];
+        plan.title = sentence.chars().take(60).collect::<String>().trim_end().to_string();
+    }
+}
+
 /// Asks the model for a game plan, up to 3 rounds while the answer breaks a rule.
 pub async fn generate<F, Fut>(mut ask: F, system: &str, user: &str, lim: &Limits, library: &[LibAsset], workflows: &[WfInfo]) -> Result<(GamePlan, Vec<Issue>), String>
 where
@@ -348,8 +373,10 @@ where
     let mut messages = vec![json!({ "role": "system", "content": system }), json!({ "role": "user", "content": user })];
     let mut last: Option<(GamePlan, Vec<Issue>)> = None;
     let mut last_err = String::from("The model made no plan.");
+    let mut last_text = String::new();
     for _ in 0..3 {
         let text = ask(messages.clone()).await?;
+        last_text = text.clone();
         messages.push(json!({ "role": "assistant", "content": text }));
         match parse(&text) {
             Ok(mut plan) => {
@@ -367,7 +394,7 @@ where
             }
         }
     }
-    last.ok_or(last_err)
+    last.ok_or_else(|| format!("{last_err} Last answer: {}", last_text.chars().take(300).collect::<String>()))
 }
 
 /// Studio workflows as planning info: "image" output (the "video" workflow makes video), parameters typed

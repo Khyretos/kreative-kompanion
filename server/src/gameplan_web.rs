@@ -63,7 +63,8 @@ pub async fn propose(State(s): State<AppState>, Extension(u): Extension<User>, P
     };
     let user_msg = gameplan::user_message(&name, &about, &dev, &state, &library, &workflows, description);
     let system = gameplan::system_text(&Limits::default());
-    let (game, left) = plan_with_model(&s, &u.id, &system, &user_msg, &library, &workflows).await?;
+    let (mut game, left) = plan_with_model(&s, &u.id, &system, &user_msg, &library, &workflows).await?;
+    gameplan::fill_titles(&mut game, description);
     let id = planner::store_proposal(&s.db, &u.id, &project, None, "plan", description, &gameplan::to_plan(&game)).await?;
     s.bus.send(&u.id, Event::Changed { what: "tasks", machine_id: None });
     Ok((StatusCode::CREATED, Json(json!({ "id": id, "kind": "plan", "gamePlan": game, "plan": gameplan::to_plan(&game), "issues": left }))))
