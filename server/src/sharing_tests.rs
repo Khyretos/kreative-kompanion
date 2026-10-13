@@ -161,3 +161,109 @@ async fn members_read_the_chats_of_a_shared_project() {
     let Json(list) = crate::api::chats(State(s.clone()), Extension(user("u2"))).await.unwrap();
     assert!(list.is_empty());
 }
+
+// ---- Slice 3: editors change tasks and chat; viewers and strangers stay out; the owner's models and tools answer ----
+
+fn change(v: Value) -> Json<crate::tasks::Change> {
+    Json(serde_json::from_value(v).unwrap())
+}
+
+#[tokio::test]
+async fn an_editor_changes_the_owners_tasks() {
+    let db = db().await;
+    let s = state(db.clone());
+    add_as(&s, "u1", "p1", "mara", "editor").await.unwrap();
+    let new = |title: &str| Json(serde_json::from_value(json!({ "projectId": "p1", "title": title, "description": "Goal: ship it.\nSteps: build, test. Done when it works." })).unwrap());
+    let (code, Json(t)) = crate::tasks::create(State(s.clone()), Extension(user("u2")), new("Pay")).await.unwrap();
+    assert_eq!(code, StatusCode::CREATED);
+    let new_id = t["id"].as_str().unwrap().to_string();
+    // The row stays the owner's: the owner sees it and it carries the owner's id.
+    let (owner,): (String,) = sqlx::query_as("SELECT user_id FROM tasks WHERE id = ?").bind(&new_id).fetch_one(&db).await.unwrap();
+    assert_eq!(owner, "u1");
+    let q = || Query(serde_json::from_value(json!({ "project": "p1" })).unwrap());
+    let Json(list) = crate::tasks::list(State(s.clone()), Extension(user("u1")), q()).await.unwrap();
+    assert_eq!(list.len(), 3);
+    // Edit, reorder and delete.
+    let Json(t) = crate::tasks::update(State(s.clone()), Extension(user("u2")), Path("t2".into()), change(json!({ "title": "Pay now", "state": "in_review" }))).await.unwrap();
+    assert_eq!((t["title"].as_str(), t["state"].as_str()), (Some("Pay now"), Some("in_review")));
+    let order = Json(serde_json::from_value(json!({ "projectId": "p1", "ids": ["t2", "t1", new_id] })).unwrap());
+    assert_eq!(crate::tasks::reorder(State(s.clone()), Extension(user("u2")), order).await.unwrap(), StatusCode::NO_CONTENT);
+    assert_eq!(crate::tasks::delete(State(s.clone()), Extension(user("u2")), Path("t1".into())).await.unwrap(), StatusCode::NO_CONTENT);
+    let Json(list) = crate::tasks::list(State(s.clone()), Extension(user("u1")), q()).await.unwrap();
+    assert_eq!(list.len(), 2);
+    // Another project of the editor's own still works, and a project they are not in does not.
+    let own = Json(serde_json::from_value(json!({ "projectId": "p2", "title": "Mine too", "description": "Goal: ship it.\nSteps: build, test. Done when it works." })).unwrap());
+    crate::tasks::create(State(s.clone()), Extension(user("u2")), own).await.unwrap();
+    let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM tasks WHERE project_id = 'p2' AND user_id = 'u2'").fetch_one(&db).await.unwrap();
+    assert_eq!(n, 2);
+    let other = Json(serde_json::from_value(json!({ "projectId": "p1", "title": "No", "description": "Goal: ship it.\nSteps: build, test. Done when it works." })).unwrap());
+    assert!(matches!(crate::tasks::create(State(s.clone()), Extension(user("u3")), other).await, Err(ApiError::NotFound)));
+}
+
+#[tokio::test]
+async fn a_viewer_and_a_stranger_change_nothing() {
+    let db = db().await;
+    let s = state(db.clone());
+    add_as(&s, "u1", "p1", "mara", "viewer").await.unwrap();
+    for who in ["u2", "u3"] {
+        let new = Json(serde_json::from_value(json!({ "projectId": "p1", "title": "No", "description": "Goal: ship it.\nSteps: build, test. Done when it works." })).unwrap());
+        assert!(matches!(crate::tasks::create(State(s.clone()), Extension(user(who)), new).await, Err(ApiError::NotFound)), "create {who}");
+        let upd = crate::tasks::update(State(s.clone()), Extension(user(who)), Path("t2".into()), change(json!({ "title": "No" }))).await;
+        assert!(matches!(upd, Err(ApiError::NotFound)), "update {who}");
+        let order = Json(serde_json::from_value(json!({ "projectId": "p1", "ids": ["t2", "t1"] })).unwrap());
+        assert!(matches!(crate::tasks::reorder(State(s.clone()), Extension(user(who)), order).await, Err(ApiError::NotFound)), "reorder {who}");
+        assert!(matches!(crate::tasks::delete(State(s.clone()), Extension(user(who)), Path("t1".into())).await, Err(ApiError::NotFound)), "delete {who}");
+    }
+    let (n, title): (i64, String) = sqlx::query_as("SELECT COUNT(*), MAX(title) FROM tasks WHERE project_id = 'p1' AND title IN ('Cart', 'Checkout')").fetch_one(&db).await.unwrap();
+    assert_eq!((n, title.as_str()), (2, "Checkout"));
+}
+
+#[tokio::test]
+async fn running_tasks_stays_with_the_owner() {
+    let db = db().await;
+    let s = state(db.clone());
+    add_as(&s, "u1", "p1", "mara", "editor").await.unwrap();
+    let start = Json(serde_json::from_value(json!({ "machine_id": "m1", "folder": "/tmp" })).unwrap());
+    let r = crate::taskrun::start(State(s.clone()), Extension(user("u2")), Path("t2".into()), start).await;
+    assert!(matches!(r, Err(ApiError::NotFound)), "an editor cannot start the owner's task");
+}
+
+#[tokio::test]
+async fn an_editor_writes_in_the_chat_and_the_owner_answers_it() {
+    let db = db().await;
+    let s = state(db.clone());
+    for q in [
+        "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES ('c1', 'p1', 'Plan', '2026-10-03T00:00:00Z', 'u1')",
+        // Only the owner has a model set; the editor has none.
+        "INSERT INTO user_roles (user_id, role, provider_id, model_id) VALUES ('u1', 'orchestrator', 'nowhere', 'none')",
+    ] {
+        sqlx::query(q).execute(&db).await.unwrap_or_else(|e| panic!("{e}: {q}"));
+    }
+    add_as(&s, "u1", "p1", "mara", "editor").await.unwrap();
+    let body = |v: Value| Json(serde_json::from_value(v).unwrap());
+    let sent = crate::api::send(State(s.clone()), Extension(user("u2")), Path("c1".into()), body(json!({ "text": "hi from the editor" }))).await.unwrap();
+    assert_eq!(sent, StatusCode::ACCEPTED);
+    let Json(m) = crate::api::messages(State(s.clone()), Extension(user("u1")), Path("c1".into())).await.unwrap();
+    assert!(m.iter().any(|m| m.author == "user" && m.text == "hi from the editor"), "the editor's message is in the owner's chat");
+    assert!(!m.iter().any(|m| m.text.contains("No model is set")), "the owner's model answers, not the editor's missing one");
+    // A computer and its tools are the owner's: an editor who names one is refused and nothing is stored.
+    let before = m.len();
+    let r = crate::api::send(State(s.clone()), Extension(user("u2")), Path("c1".into()), body(json!({ "text": "run it", "machine_id": "m1" }))).await;
+    assert!(matches!(r, Err(ApiError::Forbidden(_))), "computer tools are owner-only");
+    let Json(m) = crate::api::messages(State(s.clone()), Extension(user("u1")), Path("c1".into())).await.unwrap();
+    assert_eq!(m.len(), before);
+}
+
+#[tokio::test]
+async fn a_viewer_and_a_stranger_cannot_write_in_the_chat() {
+    let db = db().await;
+    let s = state(db.clone());
+    sqlx::query("INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES ('c1', 'p1', 'Plan', '2026-10-03T00:00:00Z', 'u1')").execute(&db).await.unwrap();
+    add_as(&s, "u1", "p1", "mara", "viewer").await.unwrap();
+    for who in ["u2", "u3"] {
+        let body = Json(serde_json::from_value(json!({ "text": "hi" })).unwrap());
+        assert!(matches!(crate::api::send(State(s.clone()), Extension(user(who)), Path("c1".into()), body).await, Err(ApiError::NotFound)), "{who}");
+    }
+    let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM messages WHERE chat_id = 'c1'").fetch_one(&db).await.unwrap();
+    assert_eq!(n, 0);
+}

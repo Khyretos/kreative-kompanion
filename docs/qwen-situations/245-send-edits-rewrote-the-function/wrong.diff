@@ -1,0 +1,86 @@
+diff --git a/server/src/api.rs b/server/src/api.rs
+index dd0a1d3..7e5ac49 100644
+--- a/server/src/api.rs
++++ b/server/src/api.rs
+@@ -249,9 +249,22 @@ pub async fn send(
+             "Messages must be 1 to 100,000 characters.".into(),
+         ));
+     }
+-    if !owns(&s, "chats", &chat_id, &u).await? {
++    let Some(owner_id) = crate::sharing::chat_editor(&s.db, &u.id, &chat_id).await? else {
+         return Err(ApiError::NotFound);
++    };
++    // OVR-01: an Overseer chat is answered by the overseer role.
++    let wanted = "orchestrator";
++    let role = user_roles(&s, &owner_id)
++        .await?
++        .into_iter()
++        .find(|r| r.role == wanted);
++    let Some(role) = role else {
++        return Err(ApiError::BadRequest("No model is set for the orchestrator role yet.".into()));
++    };
++    if owner_id != u.id && b.machine_id.as_deref().is_some_and(|m| !m.is_empty()) {
++        return Err(ApiError::Forbidden("Only the owner can use a computer in this chat.".into()));
+     }
++    tokio::spawn(answer(s.clone(), owner_id.clone(), chat_id.clone(), role.clone(), owner_id == u.id));
+ 
+     if let Some(level) = b.effort.as_deref().and_then(crate::effort::Effort::parse) {
+         sqlx::query("UPDATE chats SET effort = ? WHERE id = ?")
+@@ -282,24 +295,7 @@ pub async fn send(
+         return Ok(StatusCode::ACCEPTED);
+     }
+ 
+-    // OVR-01: an Overseer chat is answered by the overseer role.
+-    let overseer = crate::overseer::chat_on(&s.db, &chat_id).await;
+-    let wanted = if overseer { "overseer" } else { "orchestrator" };
+-    let role = user_roles(&s, &u.id)
+-        .await?
+-        .into_iter()
+-        .find(|r| r.role == wanted);
+-    let Some(role) = role else {
+-        let m = insert_message(
+-            &s,
+-            &chat_id,
+-            "orchestrator",
+-            "No model is set for the orchestrator role yet. Pick one under Models and roles.",
+-        )
+-        .await?;
+-        s.bus.send(&u.id, Event::Message { message: m });
+-        return Ok(StatusCode::ACCEPTED);
+-    };
++
+ 
+     if let Some(machine_id) = b.machine_id.filter(|m| !m.is_empty()) {
+         let machine: Option<(String,)> = sqlx::query_as("SELECT name FROM machines WHERE id = ? AND user_id = ?")
+@@ -308,10 +304,10 @@ pub async fn send(
+             .fetch_optional(&s.db)
+             .await?;
+         let Some((machine_name,)) = machine else { return Err(ApiError::NotFound) };
+-        tokio::spawn(crate::pcagent::run(s.clone(), u.id.clone(), chat_id, machine_id, machine_name, role));
++        tokio::spawn(crate::pcagent::run(s.clone(), u.id.clone(), chat_id, machine_id, machine_name, role.clone()));
+         return Ok(StatusCode::ACCEPTED);
+     }
+-    tokio::spawn(answer(s.clone(), u.id.clone(), chat_id, role));
++    tokio::spawn(answer(s.clone(), u.id.clone(), chat_id, role, true));
+     Ok(StatusCode::ACCEPTED)
+ }
+ 
+@@ -345,7 +341,8 @@ pub(crate) async fn insert_message(
+     Ok(m)
+ }
+ 
+-async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment) {
++/// `tools`: the chat's MCP tools only run for the owner (PROJECT-SHARING: an editor's message is answered without them).
++async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool) {
+     let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?")
+         .bind(&chat_id)
+         .fetch_optional(&s.db)
+@@ -450,7 +447,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
+         .flatten()
+         .unwrap_or_else(|| "[]".into());
+     let names: Vec<String> = serde_json::from_str(&mcp).unwrap_or_default();
+-    let servers: Vec<crate::config::McpServerConfig> = s.config.mcp.iter().filter(|m| m.enabled && names.contains(&m.name)).cloned().collect();
++    let servers: Vec<crate::config::McpServerConfig> = s.config.mcp.iter().filter(|m| tools && m.enabled && names.contains(&m.name)).cloned().collect();
+     // CHAT-03b: a project chat searches knowledge when its project has collections, even without the Tools pick.
+     let project_knowledge = match &project_id {
+         Some(pid) => !crate::knowledge::project_collections(&s.db, pid).await.unwrap_or_default().is_empty(),

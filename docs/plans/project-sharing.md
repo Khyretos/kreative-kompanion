@@ -41,3 +41,13 @@ Tests: `server/src/sharing_tests.rs` (6 tests), `server/src/import_tests.rs` (2)
 - Claude corrected three units by hand (lessons 240, 242, 243): 4 lines restored in mock.ts, 7 lines + 1 character in overview.ts, 1 line removed in main.ts.
 - GPU seconds 466, output tokens 11952, prompt tokens 307648 (docs/qwen-log/khyretos-sharing-web-ovms.jsonl).
 - Production diff (server + web, tests excluded): +225 / -10 lines; all production lines were drafted by the Coder except the ~12 corrected lines above.
+
+## Slice 3 (editor writes), 2026-10-13
+
+Kees decided "Owner" (2026-10-13 08:59Z): an editor's chat message is answered by the owner's models; computers and MCP tools stay the owner's.
+
+- Tasks: `tasks::create`, `update`, `delete` and `reorder` run as the project's owner when the caller is an editor (`sharing::project_editor`, `task_editor`); a viewer or stranger gets 404. Starting, stopping, replanning, budgets and interjecting stay owner-only (they still filter by the caller's own id).
+- Chat: `api::send` accepts an editor in a chat of the shared project (`sharing::chat_editor`), answers with the owner's `orchestrator`/`overseer` role, refuses a computer (`machine_id`) from an editor with 403, and answers an editor's message without the chat's MCP tools (`answer(..., tools)`).
+- Not done: an editor sees the answer streaming only after a reload (events go to the owner's id); editors cannot create chats; the web UI still shows editors the read-only view.
+- Tests: `server/src/sharing_tests.rs` (5 new: editor changes tasks, viewer and stranger change nothing, running stays with the owner, editor writes in the chat and the owner's model answers, viewer and stranger cannot write). Full server suite: 579 passed.
+- Coder (OVMS): 9 units, 6 passed their check on the first attempt, 2 on a later attempt, 1 failed 3 attempts; the three `send` units rewrote the whole function, Claude restored it and applied the five edits (lesson 245). 132 GPU s, 3,192 output / 119,242 prompt tokens.

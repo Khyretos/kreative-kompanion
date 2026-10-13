@@ -57,6 +57,30 @@ pub async fn access(db: &SqlitePool, user_id: &str, project_id: &str) -> sqlx::R
     }
 }
 
+/// The owner's id when `user_id` may change the project's tasks and chats: its owner or an editor (a viewer or stranger gets None).
+pub async fn project_editor(db: &SqlitePool, user_id: &str, project_id: &str) -> sqlx::Result<Option<String>> {
+    Ok(access(db, user_id, project_id).await?.filter(|a| a.role != Role::Viewer).map(|a| a.owner_id))
+}
+
+/// The owner's id when `user_id` may change this task (see `project_editor`).
+pub async fn task_editor(db: &SqlitePool, user_id: &str, task_id: &str) -> sqlx::Result<Option<String>> {
+    let project: Option<String> = sqlx::query_scalar("SELECT project_id FROM tasks WHERE id = ?").bind(task_id).fetch_optional(db).await?;
+    match project {
+        Some(p) => project_editor(db, user_id, &p).await,
+        None => Ok(None),
+    }
+}
+
+/// The owner's id when `user_id` may write in this chat: it is theirs, or it belongs to a project they edit.
+pub async fn chat_editor(db: &SqlitePool, user_id: &str, chat_id: &str) -> sqlx::Result<Option<String>> {
+    let chat: Option<(String, Option<String>)> = sqlx::query_as("SELECT user_id, project_id FROM chats WHERE id = ?").bind(chat_id).fetch_optional(db).await?;
+    match chat {
+        Some((owner, _)) if owner == user_id => Ok(Some(owner)),
+        Some((_, Some(project))) => project_editor(db, user_id, &project).await,
+        _ => Ok(None),
+    }
+}
+
 /// Body for adding a member to a project.
 #[derive(Deserialize)]
 pub struct AddBody {
