@@ -8,6 +8,24 @@
     "title": "Logic Error",
     "verdict": "false_positive"
   },
+  "186680d1dbb2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/tests/projoverview.spec.ts",
+    "reason": "The finding incorrectly identifies a direct DOM style mutation as a flaky test cause, ignoring that the subsequent `expect.poll` assertion explicitly waits for the layout to stabilize before validating the result.",
+    "title": "Flaky Test",
+    "verdict": "false_positive"
+  },
+  "8c453ceb2532": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/projects.rs",
+    "reason": "The validation logic for repo_folder and repo_machine_id occurs after the initial batch of UPDATE statements, but these specific fields are only updated later in the code (lines 136-141) if they pass validation, ensuring that no partial data is persisted upon failure.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  },
   "c208c1a5923d": {
     "by": "coder",
     "checked": true,
