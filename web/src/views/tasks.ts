@@ -1,8 +1,9 @@
 // Right pane: tasks for this project (or all), grouped by what they need.
 import { html, type SafeHtml } from "../core/html";
 import { clock, relTime } from "../core/time";
-import { activeProject, type AppState } from "../state";
-import type { Effort, Task, TaskEvent, TaskState } from "../api/types";
+import { paneProject, type AppState } from "../state";
+import type { Effort, ProjectOverview, Task, TaskEvent, TaskState } from "../api/types";
+import { renderOverview, accessCount, type SectionName } from "./overview";
 import { icon } from "./icons";
 import { matchTask } from "../core/fuzzy";
 import { parseDescription } from "./taskdesc";
@@ -17,6 +18,12 @@ export function setAssetThumbs(fn: (a: { id: number; pv: number }) => string): v
 
 /** EF-01: the effort levels, as the composer chip names them. */
 export const EFFORT_LABELS: Record<Effort, string> = { auto: "Auto", low: "Low", medium: "Medium", high: "High" } as const;
+
+/** PROJ-OVERVIEW: sections open on a desktop and closed on a phone; Settings starts closed, Access when it has more than 3 items. */
+function openByDefault(sec: SectionName, o: ProjectOverview | undefined): boolean {
+  if (sec === "settings" || window.matchMedia("(max-width: 760px)").matches) return false;
+  return sec !== "access" || (accessCount(o) ?? 0) <= 3;
+}
 
 const labels: Record<TaskState, string> = {
   queued: "Queued",
@@ -304,7 +311,7 @@ export function paneTabs(s: AppState): SafeHtml {
 }
 
 export function renderTasks(s: AppState): SafeHtml {
-  const project = activeProject(s);
+  const project = paneProject(s);
   if (s.editingTaskId) {
     const t = s.tasks.find((x) => x.id === s.editingTaskId);
     const projectId = t?.projectId ?? project?.id;
@@ -337,13 +344,21 @@ export function renderTasks(s: AppState): SafeHtml {
     </div>
     <div class="task-groups">
       ${scope === "project" ? html`
-        ${renderProjectPanel(project!, {
+        ${renderOverview({
+          project: project!,
+          o: s.overviews[project!.id],
+          editing: s.overviewEditing === project!.id,
+          more: s.overviewMore.has(project!.id),
+          activityAll: s.overviewActivityAll.has(project!.id),
+          preview: s.overviewPreview !== undefined,
+          open: (sec) => s.overviewOpen[`${project!.id}:${sec}`] ?? openByDefault(sec, s.overviews[project!.id]),
+        }, renderProjectPanel(project!, {
           machines: s.machines.filter((m) => m.id !== "server").map((m) => ({ id: m.id, name: m.name })),
           assets: s.projectAssets[project!.id],
           dev: s.devSettings[project!.id],
           pick: s.assetPick.project === project!.id ? s.assetPick : { q: "", items: [], busy: false },
           thumb,
-        })}
+        }))}
         <div class="project-bar">
           ${search}
           <button class="btn small" data-action="new-task">${icon("plus")} Add task</button>

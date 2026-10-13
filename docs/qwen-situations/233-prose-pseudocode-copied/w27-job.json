@@ -1,0 +1,14 @@
+[
+  {
+    "name": "po-w27",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "focus": [
+      "const devForm = \\(ev\\.target as HTMLElement\\)\\.closest\\(\"form\\.project-dev\"\\)"
+    ],
+    "prompt": "In web/src/main.ts, the shell's submit listener handles forms one by one, for example `const devForm = (ev.target as HTMLElement).closest(\"form.project-dev\") as HTMLFormElement | null; if (devForm) { ... return; }`. Directly BEFORE that devForm line add the PROJ-OVERVIEW edit form, saved optimistically without a reload:\n    const ovForm = (ev.target as HTMLElement).closest(\"form.overview-edit\") as HTMLFormElement | null;\n    if (ovForm) {\n      ev.preventDefault();\n      - id = ovForm.dataset.id ?? \"\"; data = new FormData(ovForm); s = store.get(); before = s.overviews[id]; beforeProjects = s.projects.\n      - synced = before?.kind === \"windshift\". change: ProjectSettingsChange = { about: String(data.get(\"about\") ?? \"\").trim(), links: parseLinks(String(data.get(\"links\") ?? \"\")) }; when not synced also change.name and change.description from the form, trimmed.\n      - Optimistic: store.set({ overviewEditing: undefined, overviewPreview: undefined, overviews: before ? { ...s.overviews, [id]: { ...before, about: change.about ?? \"\", links: change.links ?? [], name: change.name ?? before.name, description: change.description ?? before.description } } : s.overviews, projects: synced ? s.projects : s.projects.map((p) => (p.id === id ? { ...p, name: change.name ?? p.name, description: change.description ?? p.description } : p)) }).\n      - api.setProjectSettings(id, change).catch((e: unknown) => { put back: store.set({ projects: beforeProjects, overviews: before ? { ...store.get().overviews, [id]: before } : store.get().overviews }); showError(e); });\n      - return;\n    }\nAdd the imports it needs at the top of the file: parseLinks from \"./views/overview\" and the type ProjectSettingsChange from \"./api/types\" (extend existing imports of those modules when there are some). Change nothing else.",
+    "check": "sh /tmp/kk-ov-chk/w27.sh",
+    "precheck": false
+  }
+]

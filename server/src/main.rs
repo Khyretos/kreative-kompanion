@@ -31,6 +31,7 @@ mod taskrun;
 mod hoststats;
 mod import;
 mod overseer;
+mod overview;
 mod lessons;
 mod llm;
 mod mail;
@@ -356,6 +357,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/actions/{id}/stop", post(pcagent::stop))
         .route("/projects/{id}", patch(tasks::set_project_kind))
         .route("/projects/{id}/settings", patch(projects::settings))
+        .route("/projects/{id}/overview", get(overview::get))
         .route("/projects/{id}/thread", post(thread::open))
         .route("/projects/{id}/assets", get(projects::assets).post(projects::attach))
         .route("/projects/{id}/assets/{asset}", axum::routing::delete(projects::detach))

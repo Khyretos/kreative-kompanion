@@ -5,13 +5,14 @@ import { attachLiveMarkdown } from "./core/livemd";
 import { initResize } from "./core/resize";
 import { MockApi } from "./api/mock";
 import type { KompanionApi, ServerEvent } from "./api/client";
-import type { AdminSettings, Effort, Project, Role, Server, TaskKind, TaskState, ThemeChoice, SearchResult } from "./api/types";
+import type { AdminSettings, Effort, Project, ProjectSettingsChange, Role, Server, TaskKind, TaskState, ThemeChoice, SearchResult } from "./api/types";
+import { parseLinks } from "./views/overview";
 import { openSearch } from "./views/search";
 import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
 import { saveText, onCodeAction, setCodeTheme, applyCodeTheme } from "./core/codeblocks";
 import { onMediaAction } from "./core/media";
-import { activeProject, store, type AppState } from "./state";
+import { paneProject, store, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
 import { backStep } from "./back";
@@ -272,7 +273,7 @@ function openTaskById(id: string): void {
 
 async function openChat(chatId?: string): Promise<void> {
   const messages = chatId ? await api.listMessages(chatId) : [];
-  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat" });
+  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined });
   const prompt = document.getElementById("prompt") as HTMLTextAreaElement | null;
   if (prompt && window.matchMedia("(pointer: fine)").matches) prompt.focus();
   store.set({ pcActions: chatId ? await api.listActions(chatId).catch(() => []) : [] });
@@ -392,7 +393,7 @@ function render(s: AppState, prev: AppState): void {
   }
   lastPcKey = pcKey;
   const rightKeys: (keyof AppState)[] = s.rightTab === "tasks"
-    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines", "showArchived"]
+    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines", "showArchived", "overviews", "overviewEditing", "overviewMore", "overviewActivityAll", "overviewPreview", "overviewOpen", "overviewOpen", "paneProjectId"]
     : s.rightTab === "access" ? ["rightTab", "grants", "accessHistory", "machines"]
     : s.rightTab === "activity" ? ["rightTab", "activity", "activityFilter", "weeklyCosts"]
     : ["rightTab", "machines", "today", "machinesRefresh", "tasks", "pairing", "gpuOpen", "gpuPins", "cardStyle"];
@@ -407,9 +408,10 @@ function render(s: AppState, prev: AppState): void {
     api.taskRuns(id).then((runs) => { if (store.get().openTaskId === id) store.set({ taskRuns: { taskId: id, runs } }); }, () => undefined);
     api.taskCosts(id).then((cost) => { if (store.get().openTaskId === id) store.set({ taskCosts: { taskId: id, cost } }); }, () => undefined);
   }
-  const shownProject = s.rightTab === "tasks" && s.taskScope === "project" ? activeProject(s) : undefined;
+  const shownProject = s.rightTab === "tasks" && s.taskScope === "project" ? paneProject(s) : undefined;
   if (shownProject?.type === "game" && !(shownProject.id in s.projectAssets)) void loadProjectAssets(shownProject.id);
   if ((shownProject?.type === "game" || shownProject?.type === "programming") && !(shownProject.id in s.devSettings)) void loadDevSettings(shownProject.id);
+  if (shownProject && !(shownProject.id in s.overviews) && !overviewFailed.has(shownProject.id)) void loadOverview(shownProject.id);
   if (!editing && changed(s, prev, rightKeys)) {
     remount($("#right"), s.rightTab === "tasks" ? renderTasks(s) : s.rightTab === "activity" ? h`
       <div class="pane-head">${paneTabs(s)}
@@ -426,6 +428,12 @@ function render(s: AppState, prev: AppState): void {
       const t = s.tasks.find((x) => x.id === el.dataset.mdTask);
       if (t?.description) el.replaceChildren(renderMarkdown(t.description));
     }
+    // PROJ-OVERVIEW: the About text and the edit form's preview are markdown, rendered sanitised after mounting.
+    for (const el of document.querySelectorAll<HTMLElement>("[data-md-about]")) {
+      const o = s.overviews[el.dataset.mdAbout ?? ""];
+      if (o?.about) el.replaceChildren(renderMarkdown(o.about));
+    }
+    for (const el of document.querySelectorAll<HTMLElement>("[data-md-preview]")) el.replaceChildren(renderMarkdown(s.overviewPreview ?? ""));
   }
 
   if (changed(s, prev, ["messages", "activeChatId", "activeProjectId", "projects", "tasks", "pcActions"])) {
@@ -621,6 +629,31 @@ function setVoicePrefs(change: Partial<VoicePrefs>): void {
   if (!voicePrefs.readAloud) reader.stop();
 }
 
+// PROJ-OVERVIEW: a project's overview loads when its Tasks pane shows it, and again on "projects" and "tasks" events.
+// A failed load is not retried by every render, only by the next event. An event during a load
+// loads once more afterwards, so a quick series of changes never leaves an old overview.
+const overviewLoads = new Set<string>();
+const overviewAgain = new Set<string>();
+const overviewFailed = new Set<string>();
+async function loadOverview(projectId: string): Promise<void> {
+  if (overviewLoads.has(projectId)) {
+    overviewAgain.add(projectId);
+    return;
+  }
+  overviewLoads.add(projectId);
+  try {
+    const o = await api.getOverview(projectId);
+    overviewFailed.delete(projectId);
+    store.set({ overviews: { ...store.get().overviews, [projectId]: o } });
+  } catch (e) {
+    overviewFailed.add(projectId);
+    showError(e);
+  } finally {
+    overviewLoads.delete(projectId);
+    if (overviewAgain.delete(projectId)) void loadOverview(projectId);
+  }
+}
+
 // KG-10: build/test/run settings of a game or programming project; reloaded on "projects" events (results arrive that way).
 const devLoads = new Set<string>();
 async function loadDevSettings(projectId: string): Promise<void> {
@@ -721,7 +754,15 @@ function refetch(what: string): void {
       else if (what === "access") await loadAccess();
       if ((what === "access" || what === "machines" || what === "gpus") && store.get().section === "capabilities") loadCapabilities();
       if (what === "studio") store.set({ studioRuns: await api.studioMine() });
-      if (what === "projects") for (const id of Object.keys(store.get().devSettings)) void loadDevSettings(id);
+      if (what === "projects") {
+        for (const id of Object.keys(store.get().devSettings)) void loadDevSettings(id);
+        overviewFailed.clear();
+        for (const id of Object.keys(store.get().overviews)) void loadOverview(id);
+      }
+      if (what === "tasks") {
+        overviewFailed.clear();
+        for (const id of Object.keys(store.get().overviews)) void loadOverview(id);
+      }
       if (what === "project-assets") for (const id of Object.keys(store.get().projectAssets)) void loadProjectAssets(id);
       if ((what === "access" || what === "actions") && s.rightTab === "activity") store.set({ activity: await api.listActivity() });
       else if (what === "actions" && s.activeChatId) {
@@ -881,7 +922,23 @@ function wire(shell: HTMLElement): void {
       // First click selects and opens; clicking the selected project closes it.
       if (s.activeProjectId === id && expanded.has(id)) expanded.delete(id);
       else expanded.add(id);
-      store.set({ expandedProjects: expanded, activeProjectId: id, taskScope: "project" });
+      store.set({
+        expandedProjects: expanded,
+        activeProjectId: id,
+        taskScope: "project",
+        paneProjectId: id,
+        rightTab: "tasks",
+        openTaskId: undefined,
+        editingTaskId: undefined,
+        // A phone shows the Tasks pane on the Overview; a wider screen keeps its panes.
+        ...(window.matchMedia("(max-width: 760px)").matches ? { pane: "right" as const } : {}),
+      });
+      whenShown(() => {
+        const g = document.querySelector<HTMLElement>("#right .task-groups");
+        if (!g) return false;
+        g.scrollTop = 0;
+        return true;
+      });
     },
     "gpu-toggle": (el) => {
       const open = new Set(store.get().gpuOpen);
@@ -1073,6 +1130,46 @@ function wire(shell: HTMLElement): void {
       const c = store.get().chats.find((x) => x.id === el.dataset.id);
       if (c && confirm(`Delete "${c.title}" and its messages? This can't be undone.`)) removeChat(c.id);
       else store.set({ chatMenuId: undefined });
+    },
+    "overview-edit": (el) => {
+      store.set({ overviewEditing: el.dataset.id, overviewPreview: undefined });
+      if (el.dataset.focus) {
+        whenShown(() => {
+          const f = document.querySelector<HTMLElement>(`form.overview-edit [name="${el.dataset.focus}"]`);
+          f?.focus();
+          return !!f;
+        });
+      }
+    },
+    "overview-cancel": () => store.set({ overviewEditing: undefined, overviewPreview: undefined }),
+    "overview-more": (el) => {
+      const id = el.dataset.id ?? "";
+      const m = new Set(store.get().overviewMore);
+      if (m.has(id)) m.delete(id);
+      else m.add(id);
+      store.set({ overviewMore: m });
+    },
+    "overview-activity-more": (el) => {
+      const id = el.dataset.id ?? "";
+      const m = new Set(store.get().overviewActivityAll);
+      if (m.has(id)) m.delete(id);
+      else m.add(id);
+      store.set({ overviewActivityAll: m });
+    },
+    "overview-sec": (el) => {
+      const section = el.closest<HTMLElement>("section.overview") ?? null;
+      const id = section?.dataset.id ?? "";
+      const sec = el.dataset.sec ?? "";
+      const key = `${id}:${sec}`;
+      const open = el.getAttribute("aria-expanded") === "true";
+      store.set({ overviewOpen: { ...store.get().overviewOpen, [key]: !open } });
+    },
+    "overview-preview": (el) => {
+      const ta = el.closest("form")?.querySelector<HTMLTextAreaElement>('[name="about"]');
+      store.set({ overviewPreview: store.get().overviewPreview === undefined ? (ta?.value ?? "") : undefined });
+    },
+    "copy-folder": (el) => {
+      void navigator.clipboard?.writeText(el.dataset.folder ?? "").catch(showError);
     },
     "project-menu": (el) => store.set({ projectMenuId: store.get().projectMenuId === el.dataset.id ? undefined : el.dataset.id }),
     "project-archive": (el) => archiveProject(el.dataset.id ?? "", true),
@@ -1468,6 +1565,31 @@ function wire(shell: HTMLElement): void {
       void made
         .then(async () => store.set({ studioRuns: await api.studioMine(), studioForm: { ...store.get().studioForm, busy: false } }))
         .catch((e: unknown) => store.set({ studioForm: { ...store.get().studioForm, busy: false, error: e instanceof Error ? e.message : String(e) } }));
+      return;
+    }
+    // PROJ-OVERVIEW: the overview's edit form, saved optimistically (no reload); a refused change is put back.
+    const ovForm = (ev.target as HTMLElement).closest("form.overview-edit") as HTMLFormElement | null;
+    if (ovForm) {
+      ev.preventDefault();
+      const id = ovForm.dataset.id ?? "";
+      const data = new FormData(ovForm);
+      const s = store.get();
+      const before = s.overviews[id], beforeProjects = s.projects;
+      const synced = before?.kind === "windshift";
+      const change: ProjectSettingsChange = { about: String(data.get("about") ?? "").trim(), links: parseLinks(String(data.get("links") ?? "")) };
+      if (!synced) {
+        change.name = String(data.get("name") ?? "").trim();
+        change.description = String(data.get("description") ?? "").trim();
+      }
+      store.set({
+        overviewEditing: undefined, overviewPreview: undefined,
+        overviews: before ? { ...s.overviews, [id]: { ...before, about: change.about ?? "", links: change.links ?? [], name: change.name ?? before.name, description: change.description ?? before.description } } : s.overviews,
+        projects: synced ? s.projects : s.projects.map((p) => (p.id === id ? { ...p, name: change.name ?? p.name, description: change.description ?? p.description } : p)),
+      });
+      api.setProjectSettings(id, change).catch((e: unknown) => {
+        store.set({ projects: beforeProjects, overviews: before ? { ...store.get().overviews, [id]: before } : store.get().overviews });
+        showError(e);
+      });
       return;
     }
     const devForm = (ev.target as HTMLElement).closest("form.project-dev") as HTMLFormElement | null;

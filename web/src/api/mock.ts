@@ -23,6 +23,16 @@ const DEV_PRESETS: DevSettings[] = [
   { ...emptyDev(), preset: "game", engine: "kk-engine", build: "cmake --build build", test: "ctest --test-dir build --output-on-failure", screenshots: "screenshots" },
 ];
 const devSettings: Record<string, DevSettings> = {};
+// PROJ-OVERVIEW: each project's About text and links (the demo keeps them beside the project list).
+const overviewText: Record<string, { about: string; links: import("./types").ProjectLink[] }> = {
+  "p-kk": {
+    about: "A small C++17 engine with a Vulkan renderer, made for Kees's own games.\n\n" +
+      "It keeps the editor, the asset pipeline and the runtime in one repo, so a game can be built and tested from Kompanion. " +
+      "The renderer targets desktop Linux and Windows first; consoles are out of scope.\n\n" +
+      "## Goals\n\n- Fast iteration: a scene reloads in under a second\n- Tests for every system\n- Screenshots for every visual change",
+    links: [{ label: "Repo", url: "https://git.kreative-kompas.com/khyretos/kk-engine" }],
+  },
+};
 const history: AccessEvent[] = [];
 
 const now = Date.now();
@@ -427,18 +437,105 @@ export class MockApi implements KompanionApi {
   async testMail() { throw new Error("The demo can't send mail."); }
   async login() {}
   async listProjects() { return structuredClone(projects); }
-  async setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean; archived?: boolean }) {
+  async setProjectSettings(projectId: string, change: import("./types").ProjectSettingsChange) {
     const p = projects.find((x) => x.id === projectId);
     if (!p) throw new Error("No such project.");
     if (change.repoFolder !== undefined && change.repoFolder && !change.repoFolder.startsWith("/")) {
       throw new Error("Use an absolute folder, like /home/you/projects/app.");
+    }
+    if ((change.name !== undefined || change.description !== undefined) && p.kind === "windshift") {
+      throw new Error("This project is synced with Windshift: change its name and description there.");
+    }
+    if (change.name !== undefined) {
+      const n = change.name.trim();
+      if (n.length < 1 || n.length > 80) throw new Error("A name has 1 to 80 characters.");
+    }
+    if (change.description !== undefined) {
+      const d = change.description.trim();
+      if (d.length > 200 || /\r|\n/.test(change.description)) throw new Error("The description is one line of at most 200 characters.");
+    }
+    if (change.about !== undefined) {
+      if (change.about.length > 20000) throw new Error("The about text is at most 20,000 bytes.");
+    }
+    if (change.links !== undefined) {
+      if (change.links.length > 10) throw new Error("At most 10 links.");
+      for (const l of change.links) {
+        const label = l.label?.trim() ?? "";
+        if (label.length < 1 || label.length > 60) throw new Error("A link needs a label of 1 to 60 characters.");
+        const url = l.url.trim();
+        if (!/^https?:\/\/\S+$/.test(url) || url.length > 500) throw new Error("Links must be http or https addresses.");
+      }
     }
     if (change.type) p.type = change.type;
     if (change.repoFolder !== undefined) p.repoFolder = change.repoFolder.replace(/\/+$/, "") || null;
     if (change.repoMachineId !== undefined) p.repoMachineId = change.repoMachineId || null;
     if (change.overseer !== undefined) p.overseer = change.overseer;
     if (change.archived !== undefined) p.archivedAt = change.archived ? (p.archivedAt ?? new Date().toISOString()) : null;
+    if (change.name !== undefined) p.name = change.name.trim();
+    if (change.description !== undefined) p.description = change.description.trim();
+    const overviewTextMap = overviewText[projectId] ?? { about: "", links: [] };
+    if (change.about !== undefined) overviewTextMap.about = change.about;
+    if (change.links !== undefined) overviewTextMap.links = change.links.map((l) => ({ label: l.label.trim(), url: l.url.trim() }));
+    overviewText[projectId] = overviewTextMap;
     setTimeout(() => this.emit({ type: "changed", what: "projects" }), 50);
+  }
+  async getOverview(projectId: string): Promise<import("./types").ProjectOverview> {
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) throw new Error("No such project.");
+    const text = overviewText[projectId] ?? { about: "", links: [] };
+    const m = p.repoMachineId ? machines.find((x) => x.id === p.repoMachineId) : undefined;
+    const folder = p.repoFolder ?? null;
+    const where = {
+      machine: m ? { id: m.id, name: m.name, online: m.online, os: m.os || null } : null,
+      folder,
+      git: m ? { remote: `https://git.kreative-kompas.com/khyretos/${p.name}`, branch: "main", at: ago(5) } : null,
+      gitState: m ? ("known" as const) : ("none" as const),
+    };
+    const covering = m && folder
+      ? (grants[m.id] ?? []).filter((g) => g.target.startsWith("/") && (folder === g.target || folder.startsWith(g.target + "/"))).map((g) => ({ target: g.target, rights: g.rights, expires: g.expires }))
+      : [];
+    const dev = devSettings[projectId] ?? emptyDev();
+    const commands = m
+      ? (["build", "test", "run", "deploy"] as const).filter((k) => dev[k].trim()).map((k) => ({ kind: k, command: dev[k], last: dev.last[k] ?? null, fromHere: k !== "deploy" }))
+      : [];
+    const access = { grants: covering, mcp: [{ server: "Blender", tool: "*", expires: hoursFromNow(48) }], knowledge: [], assets: (projectAssets[projectId] ?? []).length, commands };
+    const mine = tasks.filter((t) => t.projectId === projectId);
+    const progress = {
+      done: mine.filter((t) => t.state === "done").length,
+      total: mine.length,
+      running: mine.filter((t) => t.state === "running").length,
+      needsYou: mine.filter((t) => t.state === "needs_input" || t.state === "failed").length,
+      inReview: mine.filter((t) => t.state === "in_review").length,
+      goals: [],
+      next: mine.filter((t) => t.state === "queued").slice(0, 3).map((t) => ({ id: t.id, title: t.title, ready: true })),
+      lastMerged: null,
+    };
+    const activity = [
+      ...mine.flatMap((t) => t.events.map((e) => ({ what: `${t.title}: ${"text" in e ? e.text : e.kind}`, at: e.at, who: t.model }))),
+      ...chats.filter((c) => c.projectId === projectId).map((c) => ({ what: `Chat: ${c.title}`, at: c.updatedAt, who: "" })),
+    ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 10);
+    const ai = mine.length ? [{ model: "Qwen3.5-9B", runs: 4, tokens: 182000, minutes: 12.5 }, { model: "DeepSeek V3", runs: 1, tokens: 24000, minutes: 1.2 }] : [];
+    return structuredClone({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      about: text.about,
+      type: p.type ?? "chat",
+      kind: p.kind ?? "internal",
+      source: null,
+      links: text.links,
+      createdAt: ago(60 * 24 * 30),
+      updatedAt: p.updatedAt,
+      archivedAt: p.archivedAt ?? null,
+      owner: "kees",
+      where,
+      access,
+      progress,
+      activity,
+      ai,
+      automation: { scheduler: { enabled: false, budget: { minutes: null, rounds: null, tokens: null } }, overseer: !!p.overseer },
+      errors: {},
+    });
   }
   async getDevSettings(projectId: string) {
     const p = projects.find((x) => x.id === projectId);

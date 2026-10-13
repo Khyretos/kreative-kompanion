@@ -1,0 +1,2 @@
+{"name": "po-c3", "out": "server/src/planner_web.rs", "mode": "patch", "gpu_seconds": 6.3, "tokens": 179, "prompt_tokens": 5640, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-13T02:13:02"}
+{"name": "po-c3", "out": "server/src/planner_web.rs", "check": "sh /tmp/kk-ov-chk/c3.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T02:13:12"}

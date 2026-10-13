@@ -74,7 +74,9 @@ export interface KompanionApi {
 
   listProjects(): Promise<Project[]>;
   /** A project's type, and for programming projects its repo folder and computer ("" clears). */
-  setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean; archived?: boolean }): Promise<void>;
+  setProjectSettings(projectId: string, change: import("./types").ProjectSettingsChange): Promise<void>;
+  /** PROJ-OVERVIEW: everything the project's Overview shows, in one request. */
+  getOverview(projectId: string): Promise<import("./types").ProjectOverview>;
   /** Library assets attached to a game project. */
   getDevSettings(projectId: string): Promise<import("./types").DevSettingsView>;
   putDevSettings(projectId: string, s: Omit<import("./types").DevSettings, "last">): Promise<void>;
@@ -195,3 +197,4 @@ export type ServerEvent =
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
   | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app ignores it
   | { type: "resync" };
+

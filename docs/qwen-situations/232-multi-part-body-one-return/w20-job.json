@@ -1,0 +1,13 @@
+[
+  {
+    "name": "po-w20",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/overview.ts",
+    "focus": ["^(export )?function renderOverview\\("],
+    "prompt": "In web/src/views/overview.ts (PROJ-OVERVIEW, the project Overview), replace the placeholder body of function renderOverview (it returns html`` or an empty value today) with the real code. Keep its signature and doc comment. Spec: the whole Overview, using the other functions of this file:\n<section class=\"overview\" data-id=\"${v.project.id}\" aria-label=\"Project overview\">\n  ${header(v)}\n  ${v.editing ? editForm(v) : html`${tiles(v)}${about(v)}`}\n  ${section(\"where\", \"Where it lives\", undefined, v.open(\"where\"), where(v))}\n  ${section(\"access\", \"Access\", n, v.open(\"access\"), access(v))} where n is the number of access items (grants + knowledge + mcp + 1 when assets > 0) or undefined while loading or when access is null\n  ${section(\"build\", \"Build and test\", undefined, v.open(\"build\"), build(v))}\n  ${section(\"activity\", \"Recent activity\", undefined, v.open(\"activity\"), activity(v))}\n  ${section(\"ai\", \"AI use\", undefined, v.open(\"ai\"), ai(v))}\n  ${section(\"settings\", \"Settings\", undefined, v.open(\"settings\"), settings)}\n</section>\nAlso export the access item count as a function for the Tasks pane, directly above renderOverview: export function accessCount(o: ProjectOverview | undefined): number | undefined (undefined when o or o.access is missing).\nMarkup rules: build it with the html`` tagged template (it escapes every ${} value; nest html`` for markup, use \"\" for nothing; never build markup with string concatenation). Icons: icon(\"name\") from ./icons. Times: relTime(iso) from ../core/time gives \"2 h ago\". The OverviewView fields are documented at the top of the file; v.o is undefined while loading, and a part of v.o (where, access, progress, activity, ai) is null when it failed, with the reason in v.o.errors[part]. Change nothing else; the other functions keep their placeholders until their own job. Early returns are only for the loading and failed cases; for the normal case build every part first (const values), then end with ONE return html`...` that contains all of them in order.",
+    "context": ["web/src/api/types.ts"],
+    "check": "sh /tmp/kk-ov-chk/w20.sh",
+    "precheck": false
+  }
+]

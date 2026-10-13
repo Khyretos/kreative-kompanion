@@ -237,6 +237,11 @@ impl HostStats {
         self.remote.lock().unwrap().get(machine_id).and_then(|r| r.version.clone())
     }
 
+    /// PROJ-OVERVIEW: the operating system a computer last reported; None when unknown.
+    pub fn os(&self, machine_id: &str) -> Option<String> {
+        self.remote.lock().unwrap().get(machine_id).filter(|r| !r.snap.os.is_empty()).map(|r| r.snap.os.clone())
+    }
+
     /// Measured VRAM per GPU for the M6 ledger: (None for this server or the remote machine
     /// id, PCI slot, used GB, total GB). This server is sampled now if its sample is old.
     pub fn gpu_vram(&self, state: &AppState) -> Vec<GpuReading> {

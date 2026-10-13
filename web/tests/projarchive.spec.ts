@@ -84,7 +84,7 @@ test("archived projects leave the all-tasks list and the move-to-project picker"
 test("an archived project that is open shows an Archived bar with Unarchive", async ({ page }) => {
   await openDemo(page);
   await head(page, "p-kk").click();
-  await expect(page.locator("#project-type")).toBeAttached();
+  await expect(page.locator("#right section.overview")).toBeVisible();
   await archive(page, "p-kk");
   const bar = page.locator("#right .archived-bar");
   await expect(bar).toContainText("Archived");

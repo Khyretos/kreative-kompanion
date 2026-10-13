@@ -1,0 +1,2 @@
+{"name": "po-w5", "out": "web/src/api/mock.ts", "mode": "patch", "gpu_seconds": 38.4, "tokens": 980, "prompt_tokens": 5741, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/playwright"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-13T02:02:20"}
+{"name": "po-w5", "out": "web/src/api/mock.ts", "check": "sh /tmp/kk-ov-chk/w5.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T02:02:24"}

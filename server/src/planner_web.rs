@@ -69,8 +69,9 @@ pub async fn propose(State(s): State<AppState>, Extension(u): Extension<User>, P
     if goal.len() < 10 {
         return Err(ApiError::BadRequest("Describe the goal in a sentence or two.".into()));
     }
-    let row: Option<(String, String)> = sqlx::query_as("SELECT name, description FROM projects WHERE id = ? AND user_id = ?").bind(&project).bind(&u.id).fetch_optional(&s.db).await?;
-    let (name, description) = row.ok_or(ApiError::NotFound)?;
+    let row: Option<(String, String, String)> = sqlx::query_as("SELECT name, description, about FROM projects WHERE id = ? AND user_id = ?").bind(&project).bind(&u.id).fetch_optional(&s.db).await?;
+    let (name, description, about) = row.ok_or(ApiError::NotFound)?;
+    let description = crate::overview::with_about(&description, &about, crate::overview::ABOUT_IN_CONTEXT);
     let existing: Vec<(String, String, String)> = sqlx::query_as("SELECT kind, title, state FROM tasks WHERE project_id = ? AND user_id = ? ORDER BY position LIMIT 60").bind(&project).bind(&u.id).fetch_all(&s.db).await?;
     let list: String = existing.iter().map(|(k, t, st)| format!("- {k}: {t} ({st})")).collect::<Vec<_>>().join("\n");
     let state = crate::statesum::summary_of(&s.db, &project, &u.id).await;

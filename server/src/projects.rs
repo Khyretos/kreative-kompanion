@@ -2,7 +2,7 @@
 //! (assets from the library attached to it) and "programming" (a repo folder on a computer,
 //! the default for W2 "Run it on a computer").
 use axum::{Extension, Json, extract::{Path, State}, http::StatusCode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{AppState, auth::User, error::{ApiError, ApiResult}, events::Event, util};
@@ -30,6 +30,36 @@ fn clean_folder(folder: &str) -> ApiResult<String> {
     Ok(f.to_string())
 }
 
+/// A link on the project's overview (repo web page, live site, docs).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Link {
+    pub label: String,
+    pub url: String,
+}
+
+/// The overview links, trimmed and checked, as the JSON text stored in `projects.links`.
+fn clean_links(links: &[Link]) -> ApiResult<String> {
+    if links.len() > 10 {
+        return Err(ApiError::BadRequest("At most 10 links.".into()));
+    }
+    let mut cleaned = Vec::with_capacity(links.len());
+    for link in links {
+        let label = link.label.trim();
+        let url = link.url.trim();
+        if label.len() < 1 || label.len() > 60 {
+            return Err(ApiError::BadRequest("A link needs a label of 1 to 60 characters.".into()));
+        }
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return Err(ApiError::BadRequest("Links must be http or https addresses.".into()));
+        }
+        if url.len() > 500 || url.chars().any(char::is_whitespace) {
+            return Err(ApiError::BadRequest("Links must be http or https addresses.".into()));
+        }
+        cleaned.push(Link { label: label.to_string(), url: url.to_string() });
+    }
+    Ok(serde_json::to_string(&cleaned).unwrap_or_else(|_| "[]".into()))
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsBody {
@@ -41,6 +71,14 @@ pub struct SettingsBody {
     overseer: Option<bool>,
     /// PROJ-ARCHIVE: true archives the project (the first date is kept), false unarchives it.
     archived: Option<bool>,
+    /// PROJ-OVERVIEW: the project name (1-80 characters).
+    name: Option<String>,
+    /// PROJ-OVERVIEW: a short description (one line, at most 200 characters).
+    description: Option<String>,
+    /// PROJ-OVERVIEW: markdown content (at most 20,000 bytes).
+    about: Option<String>,
+    /// PROJ-OVERVIEW: links to external resources (at most 10, http or https).
+    links: Option<Vec<Link>>,
 }
 
 /// PATCH /projects/{id}/settings: the type, and for programming projects the repo.
@@ -51,6 +89,32 @@ pub async fn settings(
     Json(b): Json<SettingsBody>,
 ) -> ApiResult<StatusCode> {
     owned(&s, &id, &u).await?;
+
+    // PROJ-OVERVIEW: check every overview field first, so a refused value changes nothing.
+    if b.name.is_some() || b.description.is_some() {
+        let kind: String = sqlx::query_scalar("SELECT kind FROM projects WHERE id = ?").bind(&id).fetch_one(&s.db).await?;
+        if kind == "windshift" {
+            return Err(ApiError::BadRequest("This project is synced with Windshift: change its name and description there.".into()));
+        }
+    }
+    let name = b.name.as_deref().map(str::trim);
+    if name.is_some_and(|n| !(1..=80).contains(&n.chars().count())) {
+        return Err(ApiError::BadRequest("A name has 1 to 80 characters.".into()));
+    }
+    let description = b.description.as_deref().map(str::trim);
+    if description.is_some_and(|d| d.chars().count() > 200 || d.contains(['\n', '\r'])) {
+        return Err(ApiError::BadRequest("The description is one line of at most 200 characters.".into()));
+    }
+    let about = b.about.as_deref().map(str::trim);
+    if about.is_some_and(|a| a.len() > crate::overview::ABOUT_MAX) {
+        return Err(ApiError::BadRequest("The about text is at most 20,000 bytes.".into()));
+    }
+    let links = b.links.as_deref().map(clean_links).transpose()?;
+    for (column, value) in [("name", name), ("description", description), ("about", about), ("links", links.as_deref())] {
+        if let Some(v) = value {
+            sqlx::query(&format!("UPDATE projects SET {column} = ? WHERE id = ?")).bind(v).bind(&id).execute(&s.db).await?;
+        }
+    }
     if let Some(t) = &b.ptype {
         if !TYPES.contains(&t.as_str()) {
             return Err(ApiError::BadRequest("A project is a chat, game or programming project.".into()));
@@ -187,6 +251,78 @@ mod tests {
         AppState::for_tests(toml::from_str("").unwrap(), db)
     }
 
+    fn body(v: Value) -> Json<SettingsBody> {
+        Json(serde_json::from_value(v).unwrap())
+    }
+
+    #[test]
+    fn links_are_trimmed_checked_and_stored_as_json() {
+        let l = |label: &str, url: &str| Link { label: label.into(), url: url.into() };
+        assert_eq!(clean_links(&[l(" Repo ", " https://g.test/k "), l("Site", "http://s.test")]).unwrap(), r#"[{"label":"Repo","url":"https://g.test/k"},{"label":"Site","url":"http://s.test"}]"#);
+        assert_eq!(clean_links(&[]).unwrap(), "[]");
+        for bad in [l("x", "javascript:alert(1)"), l("x", "ftp://a.test"), l("x", "https://a.test/a b"), l("", "https://a.test"), l(&"x".repeat(61), "https://a.test"), l("x", &format!("https://a.test/{}", "p".repeat(500)))] {
+            assert!(matches!(clean_links(&[bad]), Err(ApiError::BadRequest(_))));
+        }
+        let eleven: Vec<Link> = (0..11).map(|_| l("x", "https://a.test")).collect();
+        assert!(clean_links(&eleven).is_err());
+        assert!(clean_links(&eleven[..10]).is_ok());
+    }
+
+    /// PROJ-OVERVIEW: name, description, about and links are checked, trimmed and saved; a Windshift
+    /// project keeps its name and description (they are edited in Windshift).
+    #[tokio::test]
+    async fn overview_fields_are_checked_and_saved() {
+        let db = db().await;
+        let s = state(db.clone());
+        let mut events = s.bus.subscribe();
+        let patch = |v: Value| settings(State(s.clone()), Extension(user("u1")), Path("p1".into()), body(v));
+        patch(json!({
+            "name": " Forest ", "description": " A calm game ", "about": "# Why\nBecause.",
+            "links": [{ "label": " Repo ", "url": " https://git.example.com/k/forest " }, { "label": "Site", "url": "http://forest.test" }],
+        }))
+        .await
+        .unwrap();
+        assert!(matches!(events.try_recv(), Ok((ref u, crate::events::Event::Changed { what: "projects", .. })) if u == "u1"));
+        let row: (String, String, String, String) = sqlx::query_as("SELECT name, description, about, links FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!((row.0.as_str(), row.1.as_str(), row.2.as_str()), ("Forest", "A calm game", "# Why\nBecause."));
+        let links: Value = serde_json::from_str(&row.3).unwrap();
+        assert_eq!(links, json!([{ "label": "Repo", "url": "https://git.example.com/k/forest" }, { "label": "Site", "url": "http://forest.test" }]));
+        // An empty list clears the links; an empty about clears it.
+        patch(json!({ "links": [], "about": "" })).await.unwrap();
+        let row: (String, String) = sqlx::query_as("SELECT about, links FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!(row, (String::new(), "[]".into()));
+        // Refused, and nothing changes.
+        let link = |label: &str, url: &str| json!({ "links": [{ "label": label, "url": url }] });
+        let eleven: Vec<Value> = (0..11).map(|i| json!({ "label": format!("L{i}"), "url": "https://a.test" })).collect();
+        for bad in [
+            json!({ "name": "  " }),
+            json!({ "name": "x".repeat(81) }),
+            json!({ "description": "two\nlines" }),
+            json!({ "description": "x".repeat(201) }),
+            json!({ "about": "x".repeat(20_001) }),
+            json!({ "links": eleven }),
+            link("Bad", "javascript:alert(1)"),
+            link("Ftp", "ftp://files.test"),
+            link("Space", "https://a.test/x y"),
+            link("", "https://a.test"),
+            link(&"x".repeat(61), "https://a.test"),
+        ] {
+            assert!(matches!(patch(bad.clone()).await, Err(ApiError::BadRequest(_))), "{bad}");
+        }
+        let name: String = sqlx::query_scalar("SELECT name FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!(name, "Forest");
+        // 80 characters, 200 characters and 20,000 bytes are still fine.
+        patch(json!({ "name": "é".repeat(80), "description": "d".repeat(200), "about": "a".repeat(20_000) })).await.unwrap();
+        // Windshift projects: name and description are read-only here, about and links are not.
+        sqlx::query("UPDATE projects SET kind = 'windshift' WHERE id = 'p1'").execute(&db).await.unwrap();
+        assert!(matches!(patch(json!({ "name": "Renamed" })).await, Err(ApiError::BadRequest(m)) if m.contains("Windshift")));
+        assert!(matches!(patch(json!({ "description": "New" })).await, Err(ApiError::BadRequest(m)) if m.contains("Windshift")));
+        patch(json!({ "about": "Still editable." })).await.unwrap();
+        // Someone else's project: not found.
+        let other = settings(State(s.clone()), Extension(user("u2")), Path("p1".into()), body(json!({ "about": "x" })));
+        assert!(matches!(other.await, Err(ApiError::NotFound)));
+    }
+
     #[test]
     fn folders_must_be_absolute() {
         assert_eq!(clean_folder(" /home/k/app/ ").unwrap(), "/home/k/app");
@@ -199,9 +335,7 @@ mod tests {
     async fn type_and_repo_are_saved_and_checked() {
         let db = db().await;
         let s = state(db.clone());
-        let body = |t: Option<&str>, f: Option<&str>, m: Option<&str>| {
-            Json(SettingsBody { ptype: t.map(Into::into), repo_folder: f.map(Into::into), repo_machine_id: m.map(Into::into), overseer: None, archived: None })
-        };
+        let body = |t: Option<&str>, f: Option<&str>, m: Option<&str>| body(json!({ "type": t, "repoFolder": f, "repoMachineId": m }));
         settings(State(s.clone()), Extension(user("u1")), Path("p1".into()), body(Some("programming"), Some("/home/k/app/"), Some("m1")))
             .await
             .unwrap();
@@ -238,7 +372,7 @@ mod tests {
                 State(s.clone()),
                 Extension(user(who)),
                 Path("p1".into()),
-                Json(SettingsBody { ptype: None, repo_folder: None, repo_machine_id: None, overseer: None, archived: Some(on) }),
+                body(json!({ "archived": on })),
             )
         };
         let archived_at = || async { sqlx::query_scalar::<_, Option<String>>("SELECT archived_at FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap() };

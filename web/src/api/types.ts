@@ -44,6 +44,68 @@ export interface Project {
   archivedAt?: string | null; // PROJ-ARCHIVE: when it was archived; absent or null = active
 }
 
+/** PROJ-OVERVIEW: a link on a project's overview (repo web page, live site, docs). */
+export interface ProjectLink {
+  label: string;
+  url: string;
+}
+
+/** PATCH /api/projects/{id}/settings: every field is optional. */
+export interface ProjectSettingsChange {
+  type?: Project["type"];
+  repoFolder?: string;
+  repoMachineId?: string;
+  overseer?: boolean;
+  archived?: boolean;
+  name?: string; // 1-80 characters
+  description?: string; // one line, at most 200 characters
+  about?: string; // markdown, at most 20,000 bytes
+  links?: ProjectLink[]; // at most 10, http or https
+}
+
+/** PROJ-OVERVIEW: GET /api/projects/{id}/overview. A part that failed is null, with its reason in `errors`. */
+export interface ProjectOverview {
+  id: string;
+  name: string;
+  description: string;
+  about: string;
+  type: "chat" | "game" | "programming";
+  kind: "internal" | "windshift";
+  source: string | null;
+  links: ProjectLink[];
+  createdAt: string | null;
+  updatedAt: string;
+  archivedAt: string | null;
+  owner: string;
+  where: {
+    machine: { id: string; name: string; online: boolean; os: string | null } | null;
+    folder: string | null;
+    git: { remote: string; branch: string; at: string } | null;
+    gitState: "none" | "unknown" | "known" | "reading";
+  } | null;
+  access: {
+    grants: { target: string; rights: string[]; expires: string | null }[];
+    mcp: { server: string; tool: string; expires: string }[];
+    knowledge: { id: string; name: string }[];
+    assets: number;
+    commands: { kind: "build" | "test" | "run" | "deploy"; command: string; last: { ok: boolean; at: string; summary: string } | null; fromHere: boolean }[];
+  } | null;
+  progress: {
+    done: number;
+    total: number;
+    running: number;
+    needsYou: number;
+    inReview: number;
+    goals: { title: string; done: number; total: number }[];
+    next: { id: string; title: string; ready: boolean }[];
+    lastMerged: { title: string; pr: string } | null;
+  } | null;
+  activity: { what: string; at: string; who: string }[] | null;
+  ai: { model: string; runs: number; tokens: number; minutes: number }[] | null;
+  automation: { scheduler: { enabled: boolean; budget: { minutes: number | null; rounds: number | null; tokens: number | null } }; overseer: boolean };
+  errors: Record<string, string>;
+}
+
 /** KG-10: repo commands for any project type. */
 export interface DevSettings {
   preset: string; // "", "software" or "game"

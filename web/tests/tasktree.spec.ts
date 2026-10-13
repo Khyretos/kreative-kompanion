@@ -8,7 +8,7 @@ async function openProject(page: Page): Promise<void> {
   await page.goto("/?demo");
   await page.click("button.found-server");
   await page.click('[data-action="project"][data-id="p-kk"]');
-  await expect(page.locator("#project-type")).toBeVisible();
+  await expect(page.locator("#right section.overview")).toBeVisible();
 }
 
 /** Adds a task through the editor and goes back to the list. */

@@ -1,0 +1,2 @@
+{"name": "po-o8", "out": "server/src/overview.rs", "mode": "patch", "gpu_seconds": 25.3, "tokens": 516, "prompt_tokens": 11086, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/sql", "worker/rust/axum-api"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-13T01:56:50"}
+{"name": "po-o8", "out": "server/src/overview.rs", "check": "sh /tmp/kk-ov-chk/o8.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T01:57:16"}

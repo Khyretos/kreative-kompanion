@@ -310,6 +310,48 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
 .archived-bar > span { flex: 1; }
 .project.archived .nav-meta { display: none; }
 
+/* PROJ-OVERVIEW: the project Overview at the top of the Tasks pane. */
+.overview { display: grid; gap: 0.75rem; margin-bottom: 1rem; min-width: 0; }
+.ov-title { display: flex; align-items: center; gap: 0.5rem; }
+.ov-name { margin: 0; font-size: 1.15rem; color: var(--fg-strong); overflow-wrap: anywhere; }
+.ov-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ov-desc { margin: 0; color: var(--fg); }
+.ov-desc.muted { color: var(--muted); }
+.ov-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
+@media (max-width: 760px) { .ov-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ov-tile { display: grid; gap: 0.15rem; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
+.ov-num { font-size: 1.15rem; font-weight: 600; color: var(--fg-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-label { font-size: 0.8rem; color: var(--muted); }
+.ov-tile.attn { border-color: var(--attn); }
+.ov-tile.attn .ov-num { color: var(--attn); }
+.ov-tiles.loading .ov-num { opacity: 0.5; }
+.ov-bar { display: block; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.ov-bar > span { display: block; height: 100%; background: var(--accent); }
+.ov-about .md { overflow-wrap: anywhere; }
+.ov-about.clamped .md { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.ov-about.empty { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.ov-sec { border-top: 1px solid var(--line); }
+.ov-sec-head { display: flex; align-items: center; gap: 0.4rem; width: 100%; padding: 0.55rem 0; min-height: 44px; background: none; border: 0; color: var(--fg-strong); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.ov-sec-head .count { margin-left: auto; color: var(--muted); font-weight: 400; }
+.ov-sec-body { padding-bottom: 0.6rem; display: grid; gap: 0.4rem; min-width: 0; animation: ov-in 160ms ease-out; }
+@keyframes ov-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.ov-machine, .ov-git, .ov-folder-row { margin: 0; display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.ov-folder, .ov-git span { font-family: var(--mono); font-size: 0.85rem; overflow-wrap: anywhere; min-width: 0; }
+.dot.off { background: var(--muted); }
+.ov-links { margin: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ov-links .chip { display: inline-flex; align-items: center; gap: 0.25rem; text-decoration: none; }
+.ov-access, .ov-cmds, .ov-act, .ov-ai { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.ov-access li, .ov-cmds li, .ov-act li, .ov-ai li { min-width: 0; overflow-wrap: anywhere; }
+.ov-cmds li { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: baseline; }
+.ov-kind { font-weight: 600; }
+.ov-act li { display: grid; gap: 0.1rem; }
+.ov-when { font-size: 0.8rem; }
+form.overview-edit { display: grid; gap: 0.6rem; }
+form.overview-edit label { display: grid; gap: 0.25rem; }
+form.overview-edit input, form.overview-edit textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.ov-edit-actions { display: flex; gap: 0.5rem; }
+.ov-preview { padding: 0.6rem; border: 1px dashed var(--line); border-radius: var(--radius); }
+
 .task-desc { font-size: 0.9rem; line-height: 1.55; margin-bottom: 1rem; }
 .task-desc ol, .task-desc ul { padding-left: 1.25rem; }
 .task-desc ol { list-style: decimal; }

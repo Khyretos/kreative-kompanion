@@ -1,0 +1,65 @@
+// server/src/overview.rs
+pub async fn refresh_git(s: AppState, user_id: String, project_id: String, machine_id: String, folder: String) {
+    s.host.watch(&user_id);
+    let job = match crate::access::queue_job(&s.db, &machine_id, &user_id, &json!({ "tool": "shell", "cwd": folder, "command": "git remote get-url origin; git branch --show-current" }), None).await {
+        Ok(j) => j,
+        Err(_) => return,
+    };
+
+    let deadline = tokio::time::Instant::now() + GIT_WAIT;
+    while tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let row: Option<(String, Option<String>)> = sqlx::query_as("SELECT state, result FROM machine_jobs WHERE id = ?")
+            .bind(&job)
+            .fetch_optional(&s.db)
+            .await.ok().flatten();
+        if let Some((state, result)) = row {
+            if state == "done" {
+                if let Some((remote, branch)) = parse_git(&result.unwrap_or_default()) {
+                    let _ = sqlx::query("UPDATE projects SET repo_git = ? WHERE id = ? AND user_id = ?")
+                        .bind(json!({ "remote": remote, "branch": branch, "at": util::now() }).to_string())
+                        .bind(&project_id)
+                        .bind(&user_id)
+                        .execute(&s.db)
+                        .await;
+                }
+                return;
+            } else if state == "failed" || state == "refused" {
+                return;
+            }
+        }
+    }
+    // Time is up: a job the computer never picked up is dropped.
+    let _ = sqlx::query("DELETE FROM machine_jobs WHERE id = ? AND state = 'queued'").bind(&job).execute(&s.db).await;
+}
+
+
+// web/src/views/overview.ts
+function activity(v: OverviewView): SafeHtml {
+  if (!v.o) {
+    return html`<p class="muted">Loading…</p>`;
+  }
+  if (v.o.activity === null) {
+    const err = v.o.errors.activity ?? "";
+    return html`<p class="muted">Could not read this part: ${err}</p>`;
+  }
+  if (v.o.activity.length === 0) {
+    return html`<p class="muted">Nothing yet.</p>`;
+  }
+  const shown = v.o.activity.slice(0, v.activityAll ? 10 : 5);
+  const moreBtn = !v.activityAll && v.o.activity.length > 5
+    ? html`<button class="btn small" type="button" data-action="overview-activity-more" data-id="${v.project.id}">More</button>`
+    : html``;
+
+  return html`
+    <ul class="ov-act">
+      ${shown.map((a) => html`
+        <li>
+          <span class="ov-what">${a.what}</span>
+          <span class="ov-when muted">${relTime(a.at)}${a.who ? ` · ${a.who}` : ""}</span>
+        </li>
+      `)}
+    </ul>
+    ${moreBtn}
+  `;
+}

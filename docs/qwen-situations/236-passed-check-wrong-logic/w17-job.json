@@ -1,0 +1,13 @@
+[
+  {
+    "name": "po-w17",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/overview.ts",
+    "focus": ["^(export )?function activity\\("],
+    "prompt": "In web/src/views/overview.ts (PROJ-OVERVIEW, the project Overview), replace the placeholder body of function activity (it returns html`` or an empty value today) with the real code. Keep its signature and doc comment. Spec: the body of the \"Recent activity\" section. Loading: <p class=\"muted\">Loading\u2026</p>; v.o.activity null: <p class=\"muted\">Could not read this part: ${v.o.errors.activity ?? \"\"}</p>; empty list: <p class=\"muted\">Nothing yet.</p>. Else shown = v.o.activity.slice(0, v.activityAll ? 10 : 5) as <ul class=\"ov-act\"> with <li><span class=\"ov-what\">${a.what}</span><span class=\"ov-when muted\">${relTime(a.at)}${a.who ? ` \u00b7 ${a.who}` : \"\"}</span></li>, and when the list has more than 5 entries and !v.activityAll, after the list: <button class=\"btn small\" type=\"button\" data-action=\"overview-activity-more\" data-id=\"${v.project.id}\">More</button>.\nMarkup rules: build it with the html`` tagged template (it escapes every ${} value; nest html`` for markup, use \"\" for nothing; never build markup with string concatenation). Icons: icon(\"name\") from ./icons. Times: relTime(iso) from ../core/time gives \"2 h ago\". The OverviewView fields are documented at the top of the file; v.o is undefined while loading, and a part of v.o (where, access, progress, activity, ai) is null when it failed, with the reason in v.o.errors[part]. Change nothing else; the other functions keep their placeholders until their own job. Early returns are only for the loading and failed cases; for the normal case build every part first (const values), then end with ONE return html`...` that contains all of them in order.",
+    "context": ["web/src/api/types.ts"],
+    "check": "sh /tmp/kk-ov-chk/w17.sh",
+    "precheck": false
+  }
+]

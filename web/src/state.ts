@@ -70,10 +70,17 @@ export interface AppState {
   cardStyle?: import("./core/cardtypes").CardStyle; // card colours and labels per action type (Settings)
   projectAssets: Record<string, import("./views/projectpanel").ProjectAsset[]>; // game projects, loaded when shown
   devSettings: Record<string, import("./api/types").DevSettingsView>; // KG-10, loaded when a game or programming project shows
+  overviews: Record<string, import("./api/types").ProjectOverview>; // PROJ-OVERVIEW: loaded when a project's Tasks pane shows
+  overviewEditing?: string; // project whose overview edit form is open
+  overviewMore: Set<string>; // projects whose About shows in full
+  overviewActivityAll: Set<string>; // projects whose Recent activity shows 10 entries
+  overviewPreview?: string; // the About preview in the edit form (undefined: no preview)
+  overviewOpen: Record<string, boolean>; // "projectId:section" -> expanded, over the default
   taskFilter: string; // the task list's live search
   collapsedGroups: Set<string>; // task list groups the user closed ("Finished"), remembered on this device
   assetPick: { project: string; q: string; items: import("./views/projectpanel").PickResult[]; busy: boolean }; // the picker
   activeProjectId?: string; // project picked in the sidebar (tasks pane, new chats)
+  paneProjectId?: string; // PROJ-OVERVIEW: the project the Tasks pane shows after a sidebar click; cleared when a chat opens
   chatMenuId?: string; // chat whose options menu is open
   projectMenuId?: string; // PROJ-ARCHIVE: project whose options menu is open
   showArchived?: boolean; // PROJ-ARCHIVE: archived projects shown in the sidebar, remembered on this device
@@ -115,6 +122,10 @@ export const store = new Store<AppState>({
   speaking: false,
   projectAssets: {},
   devSettings: {},
+  overviews: {},
+  overviewMore: new Set(),
+  overviewActivityAll: new Set(),
+  overviewOpen: {},
   assetPick: { project: "", q: "", items: [], busy: false },
   isAdmin: false,
   isAdult: false,
@@ -139,4 +150,10 @@ export function activeProject(s: AppState): Project | undefined {
   const chat = activeChat(s);
   const id = chat?.projectId ?? s.activeProjectId;
   return id ? s.projects.find((p) => p.id === id) : undefined;
+}
+
+/** The project the Tasks pane shows: the one picked in the sidebar last, else the active one. */
+export function paneProject(s: AppState): Project | undefined {
+  const picked = s.paneProjectId ? s.projects.find((p) => p.id === s.paneProjectId) : undefined;
+  return picked ?? activeProject(s);
 }

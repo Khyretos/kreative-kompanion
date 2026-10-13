@@ -1,0 +1,83 @@
+{
+  "088803ef8481": {
+    "by": "repeat of f0eb50177201",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/overview.rs",
+    "reason": "False positive by design (spec): a failed or timed-out git read leaves the cached value and its time as they were; the overview shows the cache with its date or \"unknown\".",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "1568bb0da43e": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "False positive: loadOverview deletes the id from overviewLoads in `finally` on success and failure, and only reloads once more when an event came in during the load; events are not emitted by the load, so nothing loops.",
+    "title": "Infinite Retry Loop Risk",
+    "verdict": "false_positive"
+  },
+  "2fdf89ef2543": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "False positive: the demo mock is typed (ProjectSettingsChange.about is a string) and only the app calls it; the real check is in the server.",
+    "title": "Incomplete Validation",
+    "verdict": "false_positive"
+  },
+  "792c2d64949d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "False positive: loadOverview never emits change events, so the reload cannot loop; overviewLoads/overviewAgain allow one load at a time per project plus one follow-up.",
+    "title": "Potential Infinite Loop",
+    "verdict": "false_positive"
+  },
+  "810b361a37f7": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/overview.rs",
+    "reason": "False positive: parse_git returns None when fewer than two lines precede the exit line, and refresh_git only writes inside `if let Some(..)`, so empty strings are never stored.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "d53025123d89": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "False positive: setProjectSettings creates the entry (`?? { about: \"\", links: [] }`) and stores it back with `overviewText[projectId] = ...`, so new projects keep their text.",
+    "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "d78e051ff6a8": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "False positive: the `finally` block removes the id from overviewLoads after the catch too, and overviewFailed is cleared by the next projects/tasks event, so a failed overview loads again on the next change.",
+    "title": "Potential Data Loss",
+    "verdict": "false_positive"
+  },
+  "f0eb50177201": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/overview.rs",
+    "reason": "False positive by design (spec): a failed or timed-out git read leaves the cached value and its time as they were; the overview shows the cache with its date or \"unknown\".",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "fd379f07b5b9": {
+    "by": "repeat of 810b361a37f7",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/overview.rs",
+    "reason": "False positive: parse_git returns None when fewer than two lines precede the exit line, and refresh_git only writes inside `if let Some(..)`, so empty strings are never stored.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  }
+}

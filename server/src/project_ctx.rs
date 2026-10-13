@@ -2,13 +2,13 @@
 
 /// Context for a chat that belongs to a project: the project and its tasks, within `budget` characters.
 pub async fn project_context(db: &sqlx::SqlitePool, project_id: &str, user_id: &str, budget: usize) -> sqlx::Result<String> {
-    let project: Option<(String, String)> = sqlx::query_as("SELECT name, description FROM projects WHERE id = ? AND user_id = ?")
+    let project: Option<(String, String, String)> = sqlx::query_as("SELECT name, description, about FROM projects WHERE id = ? AND user_id = ?")
         .bind(project_id)
         .bind(user_id)
         .fetch_optional(db)
         .await?;
 
-    let Some((name, description)) = project else {
+    let Some((name, description, about)) = project else {
         return Ok(String::new());
     };
 
@@ -28,7 +28,7 @@ pub async fn project_context(db: &sqlx::SqlitePool, project_id: &str, user_id: &
     tasks.extend(unfinished_tasks);
     tasks.extend(finished_tasks);
 
-    let mut result = format!("Project: {}\n{}\n\nTasks ({}, by order):\n", name, description, tasks.len());
+    let mut result = format!("Project: {}\n{}\n\nTasks ({}, by order):\n", name, crate::overview::with_about(&description, &about, crate::overview::ABOUT_IN_CONTEXT), tasks.len());
 
     let mut total_chars = result.len();
     let mut task_count = 0;

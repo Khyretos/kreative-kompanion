@@ -8,7 +8,7 @@ async function openProject(page: Page, width = 1280): Promise<void> {
   await page.goto("/?demo");
   await page.click("button.found-server");
   await page.locator('[data-action="project"][data-id="p-kk"]').evaluate((el) => (el as HTMLElement).click());
-  await expect(page.locator("#project-type")).toBeAttached();
+  await expect(page.locator("#right section.overview")).toBeAttached();
 }
 
 async function newTask(page: Page): Promise<void> {

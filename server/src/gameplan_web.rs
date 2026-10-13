@@ -50,8 +50,9 @@ pub async fn propose(State(s): State<AppState>, Extension(u): Extension<User>, P
     if description.len() < 10 {
         return Err(ApiError::BadRequest("Describe the game in a sentence or two.".into()));
     }
-    let row: Option<(String, String)> = sqlx::query_as("SELECT name, description FROM projects WHERE id = ? AND user_id = ?").bind(&project).bind(&u.id).fetch_optional(&s.db).await?;
-    let (name, about) = row.ok_or(ApiError::NotFound)?;
+    let row: Option<(String, String, String)> = sqlx::query_as("SELECT name, description, about FROM projects WHERE id = ? AND user_id = ?").bind(&project).bind(&u.id).fetch_optional(&s.db).await?;
+    let (name, project_description, about_text) = row.ok_or(ApiError::NotFound)?;
+    let about = crate::overview::with_about(&project_description, &about_text, crate::overview::ABOUT_IN_CONTEXT);
     let dev = crate::devsettings_web::brief_of(&s.db, &project, &u.id).await;
     let state = crate::statesum::summary_of(&s.db, &project, &u.id).await;
     let library = gameplan::library_of(&s.db, &u.id, &project).await;

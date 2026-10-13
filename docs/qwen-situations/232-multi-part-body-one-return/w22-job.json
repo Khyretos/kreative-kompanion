@@ -1,0 +1,15 @@
+[
+  {
+    "name": "po-w22",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/tasks.ts",
+    "focus": [
+      "\\$\\{renderProjectPanel\\(project!, \\{",
+      "^import \\{ renderProjectPanel \\}"
+    ],
+    "prompt": "In web/src/views/tasks.ts, function renderTasks shows the project settings panel at the top of a project's task list with `${renderProjectPanel(project!, { machines: ..., assets: ..., dev: ..., pick: ..., thumb, })}`. Show the PROJ-OVERVIEW Overview there instead, with that same panel inside its collapsed Settings section:\n1. Add the import `import { renderOverview, accessCount, type SectionName } from \"./overview\";` after the renderProjectPanel import.\n2. Replace the expression `${renderProjectPanel(project!, { ...the same options... })}` with `${renderOverview({ project: project!, o: s.overviews[project!.id], editing: s.overviewEditing === project!.id, more: s.overviewMore.has(project!.id), activityAll: s.overviewActivityAll.has(project!.id), preview: s.overviewPreview !== undefined, open: (sec) => s.overviewOpen[`${project!.id}:${sec}`] ?? openByDefault(sec, s.overviews[project!.id]) }, renderProjectPanel(project!, { ...the same options, unchanged... }))}`.\n3. Add this function above renderTasks:\n/** PROJ-OVERVIEW: sections open on a desktop and closed on a phone; Settings starts closed, Access when it has more than 3 items. */\nfunction openByDefault(sec: SectionName, o: ProjectOverview | undefined): boolean {\n  if (sec === \"settings\" || window.matchMedia(\"(max-width: 760px)\").matches) return false;\n  return sec !== \"access\" || (accessCount(o) ?? 0) <= 3;\n}\nand add ProjectOverview to the existing type import from \"../api/types\" (or a new `import type { ProjectOverview } from \"../api/types\";`). Change nothing else.",
+    "check": "sh /tmp/kk-ov-chk/w22.sh",
+    "precheck": false
+  }
+]

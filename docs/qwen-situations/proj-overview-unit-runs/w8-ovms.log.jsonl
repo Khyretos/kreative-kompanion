@@ -1,0 +1,2 @@
+{"name": "po-w8", "out": "web/src/views/overview.ts", "mode": "patch", "gpu_seconds": 6.3, "tokens": 105, "prompt_tokens": 8838, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/live-updates"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-13T02:03:06"}
+{"name": "po-w8", "out": "web/src/views/overview.ts", "check": "sh /tmp/kk-ov-chk/w8.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T02:03:11"}
