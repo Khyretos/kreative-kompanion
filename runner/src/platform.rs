@@ -67,6 +67,23 @@ grants_file = '{}'"#,
     )
 }
 
+/// `DOMAIN\user` as Task Scheduler wants it.
+pub fn qualified_user(domain: Option<&str>, name: Option<&str>) -> Result<String, String> {
+    let name_str = name.filter(|n| !n.is_empty()).ok_or_else(|| "%USERNAME% is not set".to_string())?;
+    if let Some(d) = domain.filter(|d| !d.is_empty()) {
+        Ok(format!("{d}\\{name_str}"))
+    } else {
+        Ok(name_str.to_string())
+    }
+}
+
+#[cfg(windows)]
+pub fn current_user() -> Result<String, String> {
+    let domain = env::var("USERDOMAIN").ok();
+    let username = env::var("USERNAME").ok();
+    qualified_user(domain.as_deref(), username.as_deref())
+}
+
 /// Returns icacls command arguments to remove inheritance and grant full access to a user.
 #[allow(dead_code)]
 pub fn icacls_args(path: &Path, user: &str) -> Vec<String> {
@@ -206,6 +223,18 @@ mod tests {
             icacls_args(Path::new("C:\\x\\token"), "kees"),
             vec!["C:\\x\\token", "/inheritance:r", "/grant:r", "kees:F"]
         );
+    }
+
+    #[test]
+    fn qualified_user_joins_domain_and_name() {
+        let result = qualified_user(Some("PC"), Some("kees"));
+        assert_eq!(result.unwrap(), "PC\\kees");
+        let result = qualified_user(None, Some("kees"));
+        assert_eq!(result.unwrap(), "kees");
+        let result = qualified_user(Some(""), Some("kees"));
+        assert_eq!(result.unwrap(), "kees");
+        let result = qualified_user(Some("PC"), None);
+        assert_eq!(result.unwrap_err(), "%USERNAME% is not set");
     }
 
     #[test]

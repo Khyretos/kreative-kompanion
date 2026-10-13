@@ -25,18 +25,23 @@ pub fn xml_escape(s: &str) -> String {
 
 /// Build a Windows Task Scheduler 1.2 XML definition for the runner.
 /// Uses UTF-16 LE with BOM.
+/// Needs the user: a logon trigger for any user needs an administrator.
 #[cfg_attr(not(windows), allow(dead_code))]
-pub fn task_xml(exe: &str) -> String {
+pub fn task_xml(exe: &str, user: &str) -> String {
+    let escaped_user = xml_escape(user);
+    let escaped_exe = xml_escape(exe);
     format!(
         r#"<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <Triggers>
     <LogonTrigger>
       <Enabled>true</Enabled>
+      <UserId>{}</UserId>
     </LogonTrigger>
   </Triggers>
   <Principals>
     <Principal id="Author">
+      <UserId>{}</UserId>
       <LogonType>InteractiveToken</LogonType>
       <RunLevel>LeastPrivilege</RunLevel>
     </Principal>
@@ -58,7 +63,7 @@ pub fn task_xml(exe: &str) -> String {
     </Exec>
   </Actions>
 </Task>"#,
-        xml_escape(exe)
+        escaped_user, escaped_user, escaped_exe
     )
 }
 
@@ -95,7 +100,8 @@ mod tests {
 
     #[test]
     fn task_xml_starts_at_logon_and_restarts_on_failure() {
-        let x = task_xml("C:\\Users\\k & co\\kompanion-runner.exe");
+        let x = task_xml("C:\\Users\\k & co\\kompanion-runner.exe", "PC\\k&co");
+        assert!(x.contains("PC\\k&amp;co"), "user ID is escaped in the XML");
         assert!(x.contains("<LogonTrigger>"));
         assert!(x.contains("<Command>C:\\Users\\k &amp; co\\kompanion-runner.exe</Command>"));
         assert!(x.contains("<RestartOnFailure>") && x.contains("<Interval>PT1M</Interval>") && x.contains("<Count>999</Count>"));
