@@ -59,6 +59,8 @@ jobs:
           python3 -m unittest tools/qwen/test_review_findings.py
           python3 -m unittest tools/test_lint_gate.py
           python3 -m unittest tools/test_anatomy_check.py
+      - name: No kill program in Rust code (RUNNER-WIN, procps kill -1)
+        run: sh tools/check-no-kill-command.sh
       - name: Host installer (HOST-01, stub docker and curl)
         run: sh tools/test_install_host.sh
       - name: Blender MCP server and installer (BLD-01, fake Blender and systemctl)

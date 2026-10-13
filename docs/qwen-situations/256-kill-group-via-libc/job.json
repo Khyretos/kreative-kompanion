@@ -1,0 +1,41 @@
+[
+  {
+    "name": "kg-1-manifest",
+    "role": "worker/shell",
+    "out": "runner/Cargo.toml",
+    "prompt": "Add a section at the end of the file: a blank line, `[target.'cfg(unix)'.dependencies]`, then `libc = \"0.2\"`. Change nothing else.",
+    "check": "grep -q 'cfg(unix)' runner/Cargo.toml && grep -q 'libc = ' runner/Cargo.toml && grep -q 'ureq' runner/Cargo.toml",
+    "precheck": false,
+    "context": [],
+    "mode": "patch"
+  },
+  {
+    "name": "kg-2-proc",
+    "role": "worker/rust",
+    "out": "runner/src/proc.rs",
+    "prompt": "Fix the process-group kill without running the `kill` program. (1) Add above the unix `kill_group` (the one with `#[cfg(unix)]`): `/// The signal target for the process group `pid`: -pgid; None for ids below 2 (0 and 1 mean everyone) and for ids that do not fit an i32.\n#[cfg_attr(windows, allow(dead_code))]\nfn group_target(pid: u32) -> Option<i32>` returning Some(-(pid as i32)) when 2 <= pid <= i32::MAX as u32, else None. (2) Replace the body of the unix `kill_group` by: `if let Some(target) = group_target(pid) {` newline `// SAFETY: plain syscall; the target is a negative group id of a child we started, never 0, -1 or positive.` newline `unsafe { libc::kill(target, libc::SIGKILL) };` newline `}`. Change the doc comment of the unix kill_group to say it signals the group with kill(2), not the kill program. Leave the windows kill_group and the tests unchanged.",
+    "check": "export CARGO_TARGET_DIR=/tmp/kk-kg-target RUSTFLAGS='-A warnings'; cd runner && cargo check --tests --quiet && grep -q 'libc::kill' src/proc.rs && ! grep -q 'Command::new(\"kill\")' src/proc.rs && test $(grep -c 'cfg(test)' src/proc.rs) -eq 1",
+    "precheck": false,
+    "context": [],
+    "mode": "patch"
+  },
+  {
+    "name": "kg-3-guard-script",
+    "role": "worker/shell",
+    "out": "tools/check-no-kill-command.sh",
+    "prompt": "Write a new POSIX shell script. Header comment: `# Fails when Rust code starts the `kill` program. procps 4.x reads `kill -KILL -1234567` as `kill -KILL -1` and signals every process of the user (2026-10-13, RUNNER-WIN). Use libc::kill with a guard instead.` Then `set -eu`, `cd \"$(dirname \"$0\")/..\"`, and: `hits=$(grep -rn --include='*.rs' -E 'Command::new\\(\"kill\"\\)' runner server gpu-helper machine-stats 2>/dev/null || true)`; if hits is not empty print `no-kill-command: do not run the kill program, use libc::kill with a guard:` and the hits to stderr and exit 1; otherwise print `no-kill-command: ok`. Use 4 spaces for indentation.",
+    "check": "sh tools/check-no-kill-command.sh && sh -n tools/check-no-kill-command.sh",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "kg-4-ci-step",
+    "role": "worker/shell",
+    "out": ".forgejo/workflows/build.yml",
+    "prompt": "In the `skills:` job add a step directly before the step whose name line is `      - name: Host installer (HOST-01, stub docker and curl)` (SEARCH that one line; REPLACE with the new step, then that same line): `      - name: No kill program in Rust code (RUNNER-WIN, procps kill -1)` followed by `        run: sh tools/check-no-kill-command.sh`. Change nothing else.",
+    "check": "python3 -c \"import yaml;d=yaml.safe_load(open('.forgejo/workflows/build.yml'));s=d['jobs']['skills']['steps'];assert any('check-no-kill' in x.get('run','') for x in s);assert set(d['jobs'])>={'server','skills','web','web-live','runner','runner-windows'}\"",
+    "precheck": false,
+    "context": [],
+    "mode": "patch"
+  }
+]

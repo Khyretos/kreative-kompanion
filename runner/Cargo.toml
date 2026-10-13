@@ -12,3 +12,6 @@ serde_json = "1"
 sha2 = "0.10"
 toml = "0.8"
 ureq = { version = "2", default-features = false, features = ["tls", "json"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
