@@ -1,0 +1,269 @@
+//! Where the runner keeps its files and who it is, per OS (RUNNER-WIN). Pure functions take the
+//! environment as arguments so the Windows rules are tested on Linux too.
+
+use std::env;
+#[cfg(not(windows))]
+use std::fs;
+use std::path::{Path, PathBuf};
+#[cfg(windows)]
+use std::process::Command;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+/// Returns the config directory path based on platform and environment variables.
+pub fn config_dir_from(windows: bool, appdata: Option<&str>, home: Option<&str>) -> Result<PathBuf, String> {
+    if windows {
+        match appdata.filter(|a| !a.is_empty()) {
+            Some(a) => Ok(PathBuf::from(a).join("kompanion-runner")),
+            None => Err("%APPDATA% is not set".to_string()),
+        }
+    } else {
+        match home.filter(|h| !h.is_empty()) {
+            Some(h) => Ok(PathBuf::from(h).join(".config").join("kompanion-runner")),
+            None => Err("$HOME is not set".to_string()),
+        }
+    }
+}
+
+/// Returns the config directory for the current platform.
+pub fn config_dir() -> Result<PathBuf, String> {
+    let windows = cfg!(windows);
+    let appdata = env::var("APPDATA").ok();
+    let home = env::var("HOME").ok();
+    config_dir_from(windows, appdata.as_deref(), home.as_deref())
+}
+
+/// Returns the home directory string from environment variables.
+pub fn home_dir() -> String {
+    if cfg!(windows) {
+        env::var("USERPROFILE").unwrap_or_default()
+    } else {
+        env::var("HOME").unwrap_or_default()
+    }
+}
+
+/// Expands a path that starts with `~/` or `~\` using the given home directory.
+pub fn expand_with(p: &str, home: &str) -> PathBuf {
+    if p.starts_with("~/") || p.starts_with("~\\") {
+        PathBuf::from(home).join(&p[2..])
+    } else {
+        PathBuf::from(p)
+    }
+}
+
+/// Expands a path using the current home directory.
+pub fn expand(p: &str) -> PathBuf {
+    expand_with(p, &home_dir())
+}
+
+/// Generates a TOML configuration string with the given values.
+pub fn config_toml(server: &str, machine_id: &str, token_file: &Path, grants_file: &Path) -> String {
+    format!(
+        r#"server = "{}"
+machine_id = "{}"
+token_file = '{}'
+grants_file = '{}'"#,
+        server, machine_id, token_file.display(), grants_file.display()
+    )
+}
+
+/// `DOMAIN\user` as Task Scheduler wants it.
+#[cfg(windows)]
+pub fn qualified_user(domain: Option<&str>, name: Option<&str>) -> Result<String, String> {
+    let name_str = name.ok_or_else(|| "%USERNAME% is not set".to_string())?;
+    if let Some(d) = domain.filter(|d| !d.is_empty()) {
+        Ok(format!("{d}\\{name_str}"))
+    } else {
+        Ok(name_str.to_string())
+    }
+}
+
+#[cfg(windows)]
+pub fn current_user() -> Result<String, String> {
+    let domain = env::var("USERDOMAIN").ok().as_deref();
+    let username = env::var("USERNAME").ok().as_deref();
+    qualified_user(domain, username)
+}
+
+/// Returns icacls command arguments to remove inheritance and grant full access to a user.
+#[allow(dead_code)]
+pub fn icacls_args(path: &Path, user: &str) -> Vec<String> {
+    vec![
+        path.display().to_string(),
+        "/inheritance:r".to_string(),
+        "/grant:r".to_string(),
+        format!("{}:F", user),
+    ]
+}
+
+/// Returns taskkill command arguments to kill a process tree.
+#[allow(dead_code)]
+pub fn taskkill_args(pid: u32) -> Vec<String> {
+    vec!["/PID".to_string(), pid.to_string(), "/T".to_string(), "/F".to_string()]
+}
+
+/// Extracts the Windows version from the output of `ver`.
+#[allow(dead_code)]
+pub fn windows_os_name(ver_output: &str) -> String {
+    if let Some(start) = ver_output.find("[Version ") {
+        let rest = &ver_output[start + "[Version ".len()..];
+        if let Some(end) = rest.find(']') {
+            return format!("Windows {}", &rest[..end]);
+        }
+    }
+    "Windows".to_string()
+}
+
+/// Returns the hostname from environment or /proc/sys/kernel/hostname.
+#[cfg(windows)]
+pub fn hostname() -> String {
+    env::var("COMPUTERNAME").unwrap_or_default()
+}
+
+/// Returns the hostname from environment or /proc/sys/kernel/hostname.
+#[cfg(not(windows))]
+pub fn hostname() -> String {
+    fs::read_to_string("/proc/sys/kernel/hostname")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
+}
+
+/// Returns the root drive letter on Windows or "/" on Unix.
+#[cfg(windows)]
+pub fn disk_root() -> String {
+    env::var("SystemDrive").map(|d| format!("{}\\", d)).unwrap_or_else(|_| "C:\\".to_string())
+}
+
+/// Returns the root drive letter on Windows or "/" on Unix.
+#[cfg(not(windows))]
+pub fn disk_root() -> String {
+    "/".to_string()
+}
+
+/// Sets private permissions on a file or directory.
+#[cfg(unix)]
+pub fn set_private(path: &Path, dir: bool) -> Result<(), String> {
+    let mode = if dir { 0o700 } else { 0o600 };
+    let perms = fs::Permissions::from_mode(mode);
+    fs::set_permissions(path, perms)
+        .map_err(|e| format!("failed to set permissions on {}: {}", path.display(), e))
+}
+
+/// Sets private permissions on a file or directory using icacls on Windows.
+#[cfg(windows)]
+pub fn set_private(path: &Path, dir: bool) -> Result<(), String> {
+    let username = env::var("USERNAME").unwrap_or_default();
+    let mut args = icacls_args(path, &username);
+    if dir {
+        // A folder's rule must pass to the files created inside it.
+        if let Some(last) = args.last_mut() {
+            *last = format!("{username}:(OI)(CI)F");
+        }
+    }
+    let mut cmd = Command::new("icacls");
+    cmd.args(&args);
+    let output = cmd.output().map_err(|e| format!("failed to start icacls: {}", e))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("icacls failed: {}", stderr))
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn config_dir_windows_uses_appdata() {
+        let d = config_dir_from(true, Some("C:\\Users\\k\\AppData\\Roaming"), Some("/home/k")).unwrap();
+        assert_eq!(d, PathBuf::from("C:\\Users\\k\\AppData\\Roaming").join("kompanion-runner"));
+    }
+
+    #[test]
+    fn config_dir_unix_uses_home_dot_config() {
+        let d = config_dir_from(false, None, Some("/home/k")).unwrap();
+        assert_eq!(d, PathBuf::from("/home/k/.config/kompanion-runner"));
+    }
+
+    #[test]
+    fn config_dir_names_the_missing_variable() {
+        assert_eq!(config_dir_from(true, None, Some("/home/k")).unwrap_err(), "%APPDATA% is not set");
+        assert_eq!(config_dir_from(true, Some(""), None).unwrap_err(), "%APPDATA% is not set");
+        assert_eq!(config_dir_from(false, Some("x"), None).unwrap_err(), "$HOME is not set");
+    }
+
+    #[test]
+    fn expand_replaces_a_leading_tilde_with_either_slash() {
+        assert_eq!(expand_with("~/a/b", "/home/k"), PathBuf::from("/home/k").join("a/b"));
+        assert_eq!(expand_with("~\\a", "C:\\Users\\k"), PathBuf::from("C:\\Users\\k").join("a"));
+        assert_eq!(expand_with("/etc/x", "/home/k"), PathBuf::from("/etc/x"));
+        assert_eq!(expand_with("a~/b", "/home/k"), PathBuf::from("a~/b"));
+    }
+
+    #[test]
+    fn config_toml_round_trips_windows_paths() {
+        let text = config_toml(
+            "https://k.example",
+            "m-1",
+            Path::new("C:\\Users\\k\\AppData\\Roaming\\kompanion-runner\\token"),
+            Path::new("C:\\Users\\k\\AppData\\Roaming\\kompanion-runner\\grants.json"),
+        );
+        let v: toml::Value = toml::from_str(&text).unwrap();
+        assert_eq!(v["server"].as_str(), Some("https://k.example"));
+        assert_eq!(v["machine_id"].as_str(), Some("m-1"));
+        assert_eq!(v["token_file"].as_str(), Some("C:\\Users\\k\\AppData\\Roaming\\kompanion-runner\\token"));
+        assert_eq!(v["grants_file"].as_str(), Some("C:\\Users\\k\\AppData\\Roaming\\kompanion-runner\\grants.json"));
+    }
+
+    #[test]
+    fn icacls_keeps_only_the_user() {
+        assert_eq!(
+            icacls_args(Path::new("C:\\x\\token"), "kees"),
+            vec!["C:\\x\\token", "/inheritance:r", "/grant:r", "kees:F"]
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn qualified_user_joins_domain_and_name() {
+        let result = qualified_user(Some("PC"), Some("kees"));
+        assert_eq!(result.unwrap(), "PC\\kees");
+        let result = qualified_user(None, Some("kees"));
+        assert_eq!(result.unwrap(), "kees");
+        let result = qualified_user(Some(""), Some("kees"));
+        assert_eq!(result.unwrap(), "kees");
+        let result = qualified_user(Some("PC"), None);
+        assert_eq!(result.unwrap_err(), "%USERNAME% is not set");
+    }
+
+    #[test]
+    fn taskkill_kills_the_whole_tree() {
+        assert_eq!(taskkill_args(1234), vec!["/PID", "1234", "/T", "/F"]);
+    }
+
+    #[test]
+    fn windows_os_name_from_ver_output() {
+        assert_eq!(windows_os_name("\r\nMicrosoft Windows [Version 10.0.19045.4651]\r\n"), "Windows 10.0.19045.4651");
+        assert_eq!(windows_os_name("something else"), "Windows");
+    }
+
+    #[test]
+    fn set_private_makes_a_unix_file_0600() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let dir = std::env::temp_dir().join(format!("kk-platform-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let f = dir.join("token");
+            std::fs::write(&f, "x").unwrap();
+            set_private(&f, false).unwrap();
+            assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
+            set_private(&dir, true).unwrap();
+            assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
+            std::fs::remove_dir_all(&dir).unwrap();
+        }
+    }
+}

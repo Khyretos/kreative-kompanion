@@ -166,8 +166,9 @@ pub fn install_service() -> Result<(), String> {
 #[cfg(windows)]
 pub fn install_service() -> Result<(), String> {
     let exe = env::current_exe().map_err(|e| format!("can't find the runner: {e}"))?;
+    let user = platform::current_user()?;
     let xml_path = platform::config_dir()?.join("task.xml");
-    fs::write(&xml_path, crate::winsetup::utf16le_bom(&crate::winsetup::task_xml(&exe.to_string_lossy())))
+    fs::write(&xml_path, crate::winsetup::utf16le_bom(&crate::winsetup::task_xml(&exe.to_string_lossy(), &user)))
         .map_err(|e| format!("failed to write the task file: {e}"))?;
     let output = Command::new("schtasks")
         .args(crate::winsetup::create_args(&xml_path.to_string_lossy()))
