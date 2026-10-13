@@ -80,9 +80,11 @@ for (const scheme of ["dark", "light"] as const) {
     await secToggle(page, "settings").click();
     await expect(page.locator("#right .project-panel")).toBeVisible();
     // The overview is above the task list.
-    const ob = await o.boundingBox();
-    const bar = await page.locator("#right .project-bar").boundingBox();
-    expect(ob && bar && ob.y < bar.y).toBeTruthy();
+    await expect.poll(async () => {
+      const ob = await o.boundingBox();
+      const bar = await page.locator("#right .project-bar").boundingBox();
+      return !!ob && !!bar && ob.y < bar.y;
+    }).toBe(true);
     await page.screenshot({ path: `test-results/overview-1280-${scheme}.png`, fullPage: true });
   });
 }
