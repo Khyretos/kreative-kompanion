@@ -1,0 +1,2 @@
+{"name": "fix-overview-race", "out": "web/tests/projoverview.spec.ts", "mode": "patch", "gpu_seconds": 12.2, "tokens": 131, "prompt_tokens": 5964, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/playwright", "shared/processes"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-13T07:22:40"}
+{"name": "fix-overview-race", "out": "web/tests/projoverview.spec.ts", "check": "sh /tmp/kk-ov206-chk/race.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T07:22:43"}
