@@ -42,6 +42,16 @@ export interface Project {
   repoMachineId?: string | null;
   overseer?: boolean; // OVR-01b: the Overseer answers every chat of this project
   archivedAt?: string | null; // PROJ-ARCHIVE: when it was archived; absent or null = active
+  role?: "owner" | "editor" | "viewer"; // PROJECT-SHARING: your role in this project; absent = owner
+  ownerName?: string; // PROJECT-SHARING: who owns it (shown as "shared by" when it is not you)
+}
+
+/** PROJECT-SHARING: a person the owner shared a project with. */
+export interface ProjectMember {
+  userId: string;
+  name: string;
+  role: "viewer" | "editor";
+  you: boolean;
 }
 
 /** PROJ-OVERVIEW: a link on a project's overview (repo web page, live site, docs). */
@@ -77,6 +87,8 @@ export interface ProjectOverview {
   updatedAt: string;
   archivedAt: string | null;
   owner: string;
+  role: "owner" | "editor" | "viewer"; // your role in this project
+  members: ProjectMember[]; // the people it is shared with (the owner is `owner`)
   where: {
     machine: { id: string; name: string; online: boolean; os: string | null } | null;
     folder: string | null;

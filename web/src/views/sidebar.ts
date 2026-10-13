@@ -85,7 +85,7 @@ export function renderSidebar(s: AppState): SafeHtml {
             <div class="project-row">
               <button class="project-head ${s.activeProjectId === p.id ? "active" : ""}" data-action="project" data-id="${p.id}"
                 aria-expanded="${open ? "true" : "false"}" title="${p.description}">
-                ${icon(open ? "chevron-down" : "chevron-right")}${icon("folder")}<span class="project-name">${p.name}</span>${p.archivedAt ? html`<span class="chip archived-chip">Archived</span>` : ""}
+                ${icon(open ? "chevron-down" : "chevron-right")}${icon("folder")}<span class="project-name">${p.name}</span>${p.role && p.role !== "owner" ? html`<span class="chip shared-chip">shared by ${p.ownerName ?? "someone"}</span>` : ""}${p.archivedAt ? html`<span class="chip archived-chip">Archived</span>` : ""}
                 ${n ? html`<span class="badge attn" title="${n} waiting for you">${n}</span>` : ""}
                 ${r ? html`<span class="badge run" title="${r} running">${r}</span>` : ""}
                 ${ts.length ? html`<span class="nav-meta">${done}/${ts.length}</span>` : ""}

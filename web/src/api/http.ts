@@ -107,6 +107,12 @@ export class HttpApi implements KompanionApi {
   getOverview(projectId: string) {
     return this.request<import("./types").ProjectOverview>("GET", `/projects/${encodeURIComponent(projectId)}/overview`);
   }
+  addMember(projectId: string, name: string, role: "viewer" | "editor") {
+    return this.request<void>("PUT", `/projects/${encodeURIComponent(projectId)}/members`, { name, role });
+  }
+  removeMember(projectId: string, userId: string) {
+    return this.request<void>("DELETE", `/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`);
+  }
   getDevSettings(projectId: string) {
     return this.request<import("./types").DevSettingsView>("GET", `/projects/${encodeURIComponent(projectId)}/dev-settings`);
   }
