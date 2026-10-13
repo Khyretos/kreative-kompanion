@@ -1,0 +1,2 @@
+{"name": "bump-1-version", "out": "runner/Cargo.toml", "mode": "patch", "gpu_seconds": 4.8, "tokens": 62, "prompt_tokens": 2286, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-13T18:42:45"}
+{"name": "bump-1-version", "out": "runner/Cargo.toml", "check": "grep -q '^version = \"0.6.1\"' runner/Cargo.toml && test $(grep -c '^version' runner/Cargo.toml) -eq 1", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T18:42:45"}
