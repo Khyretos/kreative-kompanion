@@ -326,4 +326,3 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - State the end condition when renaming (`both fn sample and fn sample_unix exist`) and check for both.
 - With several edits in one file, one edit per job, exact old and new text, `copy every other line unchanged`; do not combine with `focus`.
 - Checks for cargo jobs run with `RUSTFLAGS="-A warnings"` so a fix round sees only errors; one pipeline per tree; stop at the first failed unit and repair it before the next job.
-
