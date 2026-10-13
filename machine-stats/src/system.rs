@@ -1,10 +1,15 @@
 //! CPU, memory, disk, uptime and load, plus the GPUs, in one snapshot.
+#![cfg_attr(windows, allow(dead_code, unused_imports))]
 
-use std::{ffi::CString, fs, path::Path, time::Instant};
+use std::{fs, path::Path, time::Instant};
 
 use serde::{Deserialize, Serialize};
 
 use crate::gpu::{GpuReader, GpuStats};
+
+#[cfg(windows)]
+#[path = "winsample.rs"]
+mod winsample;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -48,7 +53,20 @@ impl Sampler {
         self.last.map(|t| t.elapsed().as_secs_f64())
     }
 
+    /// Reads the machine now (Linux: /proc and sysfs; Windows: Win32).
     pub fn sample(&mut self) -> Snapshot {
+        #[cfg(unix)]
+        {
+            self.sample_unix()
+        }
+        #[cfg(windows)]
+        {
+            self.sample_windows()
+        }
+    }
+
+    #[cfg(unix)]
+    fn sample_unix(&mut self) -> Snapshot {
         let p = |rel: &str| format!("{}/{rel}", self.root);
         let stat = fs::read_to_string(p("proc/stat")).unwrap_or_default();
         let now = parse_cpu(&stat);
@@ -129,8 +147,10 @@ fn os_name(path: &str) -> Option<String> {
         .map(|v| v.trim_matches('"').to_string())
 }
 
+#[cfg(unix)]
 /// (used, total) bytes of the filesystem holding `path`.
 fn disk_usage(path: &str) -> (u64, u64) {
+    use std::ffi::CString;
     let Ok(c) = CString::new(path) else { return (0, 0) };
     let mut s: libc::statvfs = unsafe { std::mem::zeroed() };
     // SAFETY: valid C string and a zeroed out-struct of the right type.
@@ -154,7 +174,8 @@ mod tests {
 
     #[test]
     fn samples_this_machine_and_round_trips() {
-        let mut s = Sampler::new("/", "/");
+        let disk = if cfg!(windows) { "C:\\" } else { "/" };
+        let mut s = Sampler::new("/", disk);
         s.sample();
         std::thread::sleep(std::time::Duration::from_millis(300));
         let snap = s.sample();

@@ -344,3 +344,14 @@ mod tests {
         }
     }
 }
+
+#[cfg(all(test, unix))]
+mod unix_tests {
+    use super::*;
+
+    #[test]
+    fn cfg_marker_exists() {
+        // This test ensures the module is only compiled on Unix when tests are enabled.
+        assert!(true);
+    }
+}

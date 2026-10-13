@@ -32,6 +32,9 @@ pub fn valid_name(s: &str) -> bool {
 }
 
 pub fn service(grants: &Grants, action: &str, unit: Option<&str>, now: &str) -> Outcome {
+    if cfg!(windows) {
+        return no("services are not supported on Windows");
+    }
     if !grants.allows_system(&Right::Services, now) {
         return no("not granted: services");
     }
@@ -91,6 +94,9 @@ pub fn package_cmd(manager: &str, action: &str, names: &[String]) -> Option<Vec<
 }
 
 pub fn package(grants: &Grants, manager: &str, action: &str, names: &[String], now: &str) -> Outcome {
+    if cfg!(windows) {
+        return no("packages are not supported on Windows");
+    }
     if !grants.allows_system(&Right::Packages, now) {
         return no("not granted: packages");
     }

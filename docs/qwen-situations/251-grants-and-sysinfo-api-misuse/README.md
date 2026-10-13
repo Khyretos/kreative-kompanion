@@ -1,0 +1,3 @@
+# 251-grants-and-sysinfo-api-misuse
+
+grants.rs: with `focus` excerpts the Coder also rewrote lines outside the request (a working `read_to_string` call became one that does not compile, params renamed). sysinfo.rs: `p.split(env::split_paths(&p))` (split_paths already splits), `is_none_or` instead of `is_some_and`, `if cfg!(windows) { [3 items] } else { [4 items] }` (arrays of different size), and a deleted `let Ok(pid_str)` line in polkit_agent. Use `env::var_os` + `env::split_paths(&p).any(..)`, and slices (`&[&str]`) for lists of different length. Do not combine `focus` with several edits; send each edit as its own job with exact text.

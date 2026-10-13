@@ -317,3 +317,13 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 
 240-244. (2026-10-13, PROJECT-SHARING slice 2; full rows in docs/lessons-learned.md) Insertion jobs get a no-deletions check (240). Fix rounds resend the whole file: on files over ~600 lines Claude sends one focused job itself (241). Diff the whole file after each unit, spell HTML tag text out, count tags in the check (242). A function and its only call go in one job; a repeated 'unused' error means add the caller, not an import (243). Failure messages live in the store, not the DOM; Playwright form steps retry with toPass (244).
 245. (2026-10-13, PROJECT-SHARING slice 3; full row in docs/lessons-learned.md) On a function over about 60 lines a one-edit patch job still gets the whole function rewritten: give the exact REPLACE text for every changed line, say "copy every other line unchanged", and review each unit by `git diff --stat`, not only by compiling.
+
+## Windows / FFI and multi-edit units (lessons 246-253, RUNNER-WIN)
+
+- Win32 FFI units: give the exact signatures and a skeleton of each call; wide strings end in a 0; a `#[cfg(..)]` belongs to the one item under it; every unsafe call sits in `unsafe` with a SAFETY comment.
+- Logic that must be tested on Linux gets no `cfg` inside it; only the thin OS call is cfg-gated.
+- A patch that re-emits its anchor lines must name both lines; the check greps that the anchor (for example `#[cfg(test)]`) is still there.
+- State the end condition when renaming (`both fn sample and fn sample_unix exist`) and check for both.
+- With several edits in one file, one edit per job, exact old and new text, `copy every other line unchanged`; do not combine with `focus`.
+- Checks for cargo jobs run with `RUSTFLAGS="-A warnings"` so a fix round sees only errors; one pipeline per tree; stop at the first failed unit and repair it before the next job.
+

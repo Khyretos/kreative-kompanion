@@ -1,6 +1,8 @@
-use std::{env, fs, io::Write, os::unix::fs::{OpenOptionsExt, PermissionsExt}, path::PathBuf, process::Command};
+use std::{env, fs, io::Write, path::PathBuf, process::Command};
+use crate::platform;
 
 /// The systemd user unit the installer writes.
+#[cfg(unix)]
 const UNIT: &str = r#"[Unit]
 Description=Kreative Kompanion runner (stats and granted tools, outbound only)
 After=network-online.target
@@ -16,9 +18,7 @@ WantedBy=default.target
 
 /// Returns the path to the Kompanion runner config directory.
 fn config_dir() -> Result<PathBuf, String> {
-    env::var("HOME")
-        .map(|h| PathBuf::from(h).join(".config").join("kompanion-runner"))
-        .map_err(|_| "$HOME is not set".to_string())
+    platform::config_dir()
 }
 
 /// Pairs the runner with a Kompanion server.
@@ -35,11 +35,8 @@ pub fn pair(server: &str, code: &str) -> Result<(), String> {
     // Remove trailing slash
     let server = server.trim_end_matches('/');
 
-    // Get hostname from /proc/sys/kernel/hostname
-    let hostname = fs::read_to_string("/proc/sys/kernel/hostname")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .unwrap_or_default();
+    // Get hostname
+    let hostname = platform::hostname();
 
     // Prepare request payload
     let payload = serde_json::json!({
@@ -84,40 +81,27 @@ pub fn pair(server: &str, code: &str) -> Result<(), String> {
 
     let name = result.get("name").and_then(|v| v.as_str()).unwrap_or("this computer");
 
-    // Create config directory with mode 0700
+    // Create config directory
     let config_path = config_dir()?;
     fs::create_dir_all(&config_path)
         .map_err(|e| format!("failed to create config directory: {}", e))?;
-    
-    let perms = fs::Permissions::from_mode(0o700);
-    fs::set_permissions(&config_path, perms)
-        .map_err(|e| format!("failed to set config directory permissions: {}", e))?;
+    platform::set_private(&config_path, true)?;
 
-    // Write token file with mode 0600
+    // Write token file
     let token_path = config_path.join("token");
-    let mut f = fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(&token_path)
-        .map_err(|e| format!("failed to open token file: {}", e))?;
-    f.write_all(token.as_bytes())
-        .map_err(|e| format!("failed to write token file: {}", e))?;
-    
-    let token_perms = fs::Permissions::from_mode(0o600);
-    fs::set_permissions(&token_path, token_perms)
-        .map_err(|e| format!("failed to set token file permissions: {}", e))?;
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(&token_path).map_err(|e| format!("failed to open token file: {}", e))?;
+    f.write_all(token.as_bytes()).map_err(|e| format!("failed to write token file: {}", e))?;
+    platform::set_private(&token_path, false)?;
 
     // Write config.toml
-    let config_content = format!(
-        r#"server = "{}"
-machine_id = "{}"
-token_file = "~/.config/kompanion-runner/token"
-grants_file = "~/.config/kompanion-runner/grants.json""#,
-        server, machine_id
-    );
-    
+    let config_content = platform::config_toml(server, machine_id, &token_path, &config_path.join("grants.json"));
     fs::write(config_path.join("config.toml"), config_content)
         .map_err(|e| format!("failed to write config.toml: {}", e))?;
 
@@ -133,6 +117,7 @@ grants_file = "~/.config/kompanion-runner/grants.json""#,
 }
 
 /// Installs the systemd user service for the Kompanion runner.
+#[cfg(unix)]
 pub fn install_service() -> Result<(), String> {
     let service_dir = env::var("HOME")
         .map(|h| PathBuf::from(h).join(".config").join("systemd").join("user"))
@@ -177,10 +162,41 @@ pub fn install_service() -> Result<(), String> {
     Ok(())
 }
 
+/// Registers the Windows logon task that starts the runner (and restarts it when it exits, e.g. after a self-update).
+#[cfg(windows)]
+pub fn install_service() -> Result<(), String> {
+    let exe = env::current_exe().map_err(|e| format!("can't find the runner: {e}"))?;
+    let xml_path = platform::config_dir()?.join("task.xml");
+    fs::write(&xml_path, crate::winsetup::utf16le_bom(&crate::winsetup::task_xml(&exe.to_string_lossy())))
+        .map_err(|e| format!("failed to write the task file: {e}"))?;
+    let output = Command::new("schtasks")
+        .args(crate::winsetup::create_args(&xml_path.to_string_lossy()))
+        .output();
+    if let Err(e) = output {
+        return Err(format!("schtasks: {}", e));
+    }
+    let output = output.unwrap();
+    if !output.status.success() {
+        return Err(format!("schtasks: {}", String::from_utf8_lossy(&output.stderr).trim()));
+    }
+    let output = Command::new("schtasks")
+        .args(crate::winsetup::run_args())
+        .output();
+    if let Err(e) = output {
+        return Err(format!("schtasks: {}", e));
+    }
+    let output = output.unwrap();
+    if !output.status.success() {
+        return Err(format!("schtasks: {}", String::from_utf8_lossy(&output.stderr).trim()));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[test]
     fn test_unit_text_contains_execstart() {
         assert!(UNIT.contains("ExecStart=%h/.local/bin/kompanion-runner"));

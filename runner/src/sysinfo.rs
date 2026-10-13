@@ -2,16 +2,17 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+use crate::platform;
 use crate::tools::Outcome;
 
 pub fn system_info() -> Outcome {
     let os = os_name();
     let kernel = read_trim("/proc/sys/kernel/osrelease");
-    let hostname = read_trim("/proc/sys/kernel/hostname");
+    let hostname = Some(platform::hostname()).filter(|h| !h.is_empty());
     let package_managers = find_package_managers();
     let desktop = env::var("XDG_CURRENT_DESKTOP").ok().and_then(|v| if v.is_empty() { None } else { Some(v) });
-    let home = env::var("HOME").ok();
-    let user = env::var("USER").ok();
+    let home = Some(platform::home_dir()).filter(|h| !h.is_empty());
+    let user = env::var("USER").or_else(|_| env::var("USERNAME")).ok();
     let hyprland_version = hyprland_version();
     let hyprland_config = hyprland_config();
     let hyprland = hypr_runtime_exists();
@@ -35,14 +36,18 @@ pub fn system_info() -> Outcome {
     Outcome { ok: true, output }
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 fn read_trim(path: &str) -> Option<String> {
     fs::read_to_string(path).ok().map(|s| s.trim().to_string())
 }
 
 fn on_path(name: &str) -> bool {
-    env::var("PATH").ok().is_some_and(|p| p.split(':').any(|dir| PathBuf::from(dir).join(name).exists()))
+    env::var_os("PATH").is_some_and(|p| {
+        env::split_paths(&p).any(|dir| dir.join(name).exists() || (cfg!(windows) && dir.join(format!("{name}.exe")).exists()))
+    })
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 fn pretty_name(text: &str) -> Option<String> {
     text.lines()
         .find(|l| l.starts_with("PRETTY_NAME="))
@@ -57,14 +62,24 @@ fn pretty_name(text: &str) -> Option<String> {
         })
 }
 
+#[cfg(not(windows))]
 fn os_name() -> Option<String> {
     read_trim("/etc/os-release")
         .as_deref()
         .and_then(pretty_name)
 }
 
+#[cfg(windows)]
+fn os_name() -> Option<String> {
+    std::process::Command::new("cmd")
+        .args(["/C", "ver"])
+        .output()
+        .ok()
+        .map(|o| platform::windows_os_name(&String::from_utf8_lossy(&o.stdout)))
+}
+
 fn find_package_managers() -> Vec<String> {
-    let names = ["pacman", "paru", "apt-get", "flatpak"];
+    let names: &[&str] = if cfg!(windows) { &["winget", "choco", "scoop"] } else { &["pacman", "paru", "apt-get", "flatpak"] };
     names
         .iter()
         .filter(|n| on_path(n))

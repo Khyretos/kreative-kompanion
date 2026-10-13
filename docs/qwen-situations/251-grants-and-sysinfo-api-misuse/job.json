@@ -1,0 +1,48 @@
+[
+ {
+  "name": "rw-c1-grants",
+  "role": "worker/rust",
+  "mode": "patch",
+  "out": "runner/src/grants.rs",
+  "prompt": "Make this file compile on Windows. (1) Change line 1 `use std::fs::{self, File, Permissions};` to `use std::fs::{self, File};` and delete the line `use std::os::unix::fs::PermissionsExt;` (line 4). (2) In `fn save`, replace the whole `#[cfg(unix)] { ... }` block (with its comment line `// Set file permissions to 0o600 on Unix`) by the single line `crate::platform::set_private(&tmp_path, false)?;` (preceded by the comment `// Only the owner may read the file (0600 on unix, an ACL on Windows)`).",
+  "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet grants && ! grep -n 'os::unix' src/grants.rs && grep -q 'set_private' src/grants.rs",
+  "precheck": false,
+  "context": [],
+  "focus": [
+   "^use ",
+   "fn save",
+   "set_mode",
+   "cfg\\(unix\\)"
+  ]
+ },
+ {
+  "name": "rw-c5-sysinfo-a",
+  "role": "worker/rust",
+  "mode": "patch",
+  "out": "runner/src/sysinfo.rs",
+  "prompt": "(1) In `system_info`, replace `let hostname = read_trim(\"/proc/sys/kernel/hostname\");` by `let hostname = Some(crate::platform::hostname()).filter(|h| !h.is_empty());`, replace `let home = env::var(\"HOME\").ok();` by `let home = Some(crate::platform::home_dir()).filter(|h| !h.is_empty());` and `let user = env::var(\"USER\").ok();` by `let user = env::var(\"USER\").or_else(|_| env::var(\"USERNAME\")).ok();`. (2) Replace the body of `fn os_name` by a version with two variants: `#[cfg(windows)]` returns `std::process::Command::new(\"cmd\").args([\"/C\", \"ver\"]).output().ok().map(|o| crate::platform::windows_os_name(&String::from_utf8_lossy(&o.stdout)))`, and `#[cfg(not(windows))]` keeps the existing `read_trim(\"/etc/os-release\").as_deref().and_then(pretty_name)`. Put `#[cfg_attr(windows, allow(dead_code))]` on `read_trim`? No: only add `#[cfg_attr(windows, allow(dead_code))]` above `fn pretty_name` and `fn read_trim`.",
+  "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet sysinfo && grep -q 'platform::hostname' src/sysinfo.rs",
+  "precheck": false,
+  "context": [],
+  "focus": [
+   "pub fn system_info",
+   "fn os_name",
+   "fn read_trim",
+   "fn pretty_name"
+  ]
+ },
+ {
+  "name": "rw-c6-sysinfo-b",
+  "role": "worker/rust",
+  "mode": "patch",
+  "out": "runner/src/sysinfo.rs",
+  "prompt": "(1) `fn on_path`: split PATH with `env::split_paths` instead of `split(':')` and on Windows also accept `name.exe` (`PathBuf::from(dir).join(name).exists() || (cfg!(windows) && dir.join(format!(\"{name}.exe\")).exists())`). (2) `fn find_package_managers`: the names list is `[\"winget\", \"choco\", \"scoop\"]` when `cfg!(windows)`, else the existing four. (3) `fn hyprland_config`: leave unchanged. Keep every other line.",
+  "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet sysinfo && grep -q 'split_paths' src/sysinfo.rs && grep -q 'winget' src/sysinfo.rs",
+  "precheck": false,
+  "context": [],
+  "focus": [
+   "fn on_path",
+   "fn find_package_managers"
+  ]
+ }
+]

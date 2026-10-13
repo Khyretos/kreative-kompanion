@@ -95,8 +95,8 @@ jobs:
           npm ci
           npx playwright test
 
-  runner:
-    # Cached the same way as the server job.
+  runner-windows:
+    # RUNNER-WIN: the runner and the shared stats crate must compile for Windows (cross-check from Linux with mingw; the tests run on a Windows PC, see windows.yml).
     runs-on: soucouyant
     container:
       image: docker:cli
@@ -105,22 +105,21 @@ jobs:
       REPO_URL: ${{ github.server_url }}/${{ github.repository }}
       SHA: ${{ github.sha }}
     steps:
-      - name: Build and test the static runner binary
+      - name: Cross-check the Windows build
         run: |
-          docker run -i --rm --name "kompanion-ci-runner-${{ github.run_number }}" \
-            --label kk.ci.repo=${{ github.repository }} --label kk.ci.run=${{ github.run_number }} --label kk.ci.job=runner \
+          docker run -i --rm --name "kompanion-ci-runner-win-${{ github.run_number }}" \
+            --label kk.ci.repo=${{ github.repository }} --label kk.ci.run=${{ github.run_number }} --label kk.ci.job=runner-windows \
             -e TOKEN -e REPO_URL -e SHA -e CARGO_BUILD_JOBS -e CARGO_TARGET_DIR=/cache/target \
-            -v kompanion-cargo-registry:/usr/local/cargo/registry \
-            -v kompanion-target-runner:/cache/target \
-            rust:1-alpine sh -eu <<'BUILD'
-          apk add --no-cache -q git musl-dev
+            -v kompanion-cargo-registry-bookworm:/usr/local/cargo/registry \
+            -v kompanion-target-win:/cache/target \
+            rust:1-bookworm sh -eu <<'BUILD'
+          apt-get update -qq >/dev/null && apt-get install -y -qq git gcc-mingw-w64-x86-64 >/dev/null
+          rustup target add x86_64-pc-windows-gnu >/dev/null 2>&1
           # Start the target dir over when it passes 8 GB, so the cache can't fill the disk.
           [ "$(du -sm /cache/target | cut -f1)" -lt 8000 ] || rm -rf /cache/target/*
           mkdir /src && cd /src && git init -q .
           git -c http.extraHeader="Authorization: token $TOKEN" fetch -q --depth 1 "$REPO_URL" "$SHA" && git checkout -q FETCH_HEAD
-          cd runner && cargo test && cargo build --release
-          # (The job token can't write packages; the binary for PCs is copied by hand.)
-          ls -l /cache/target/release/kompanion-runner && sha256sum /cache/target/release/kompanion-runner
+          cd runner && cargo check --locked --target x86_64-pc-windows-gnu --all-targets
           BUILD
 
 # The container image is built where it is deployed (tools/deploy.sh on kireserver),

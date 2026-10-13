@@ -1,0 +1,33 @@
+# RUNNER-WIN: runs the stats crate and runner tests natively on Windows. Needs a Forgejo runner registered with the label `windows` (host mode, Rust and Git installed); until one exists the job just stays queued, so this workflow only runs by hand (Run workflow) or on pushes to main that touch the runner, never on pull requests. Add `pull_request` here once the runner exists.
+name: windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - machine-stats/**
+      - runner/**
+      - .forgejo/workflows/windows.yml
+
+jobs:
+  runner:
+    runs-on: windows
+    steps:
+      - name: Checkout
+        uses: https://code.forgejo.org/actions/checkout@v4
+
+      - name: Test the shared stats crate
+        working-directory: machine-stats
+        run: cargo test --locked
+
+      - name: Test the runner
+        working-directory: runner
+        run: cargo test --locked
+
+      - name: Build the runner
+        working-directory: runner
+        run: cargo build --release --locked
+
+      - name: Runner starts
+        working-directory: runner
+        run: .\target\release\kompanion-runner.exe --version
