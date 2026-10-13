@@ -1,0 +1,2 @@
+{"name": "po-m1", "out": "server/src/main.rs", "mode": "patch", "gpu_seconds": 6.1, "tokens": 121, "prompt_tokens": 6275, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/axum-api"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-13T01:39:41"}
+{"name": "po-m1", "out": "server/src/main.rs", "check": "sh /tmp/kk-ov-chk/m1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T01:39:54"}

@@ -103,8 +103,8 @@ type TaskRow = (String, String, String, String, String, f64, String);
 /// the user, failed, in review, the next three queued) with their step; done tasks only as a count
 /// and the last few titles. Bounded to about `max` characters.
 pub async fn scan(db: &SqlitePool, user_id: &str, max: usize) -> Scan {
-    let projects: Vec<(String, String, String, String)> = sqlx::query_as(
-        "SELECT id, name, description, state_summary FROM projects WHERE user_id = ? AND archived_at IS NULL ORDER BY updated_at DESC LIMIT 30",
+    let projects: Vec<(String, String, String, String, String)> = sqlx::query_as(
+        "SELECT id, name, description, about, state_summary FROM projects WHERE user_id = ? AND archived_at IS NULL ORDER BY updated_at DESC LIMIT 30",
     )
     .bind(user_id)
     .fetch_all(db)
@@ -118,13 +118,13 @@ pub async fn scan(db: &SqlitePool, user_id: &str, max: usize) -> Scan {
     .fetch_all(db)
     .await
     .unwrap_or_default();
-    let mut out = Scan { projects: projects.iter().map(|(id, n, _, _)| (id.clone(), n.clone())).collect(), ..Default::default() };
+    let mut out = Scan { projects: projects.iter().map(|(id, n, _, _, _)| (id.clone(), n.clone())).collect(), ..Default::default() };
     if projects.is_empty() {
         out.text = "No projects yet.".into();
         return out;
     }
     let mut text = String::new();
-    for (pid, name, description, summary) in &projects {
+    for (pid, name, description, about_text, summary) in &projects {
         let mine: Vec<&TaskRow> = tasks.iter().filter(|t| &t.1 == pid).collect();
         let counts: Vec<String> = LABELS
             .iter()
@@ -137,6 +137,10 @@ pub async fn scan(db: &SqlitePool, user_id: &str, max: usize) -> Scan {
         let about: String = description.lines().next().unwrap_or("").chars().take(160).collect();
         if !about.trim().is_empty() {
             block.push_str(&format!("{}\n", about.trim()));
+        }
+        let more: String = about_text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(crate::overview::ABOUT_IN_SCAN).collect();
+        if !more.is_empty() {
+            block.push_str(&format!("{more}\n"));
         }
         block.push_str(&format!("Tasks: {}\n", if counts.is_empty() { "none".into() } else { counts.join(", ") }));
         // KG-07: what is left and the last merge, from the stored project state summary.

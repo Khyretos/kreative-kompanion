@@ -101,8 +101,11 @@ export class HttpApi implements KompanionApi {
   testMail(to: string) { return this.request<void>("POST", "/admin/test-mail", { to }); }
 
   listProjects() { return this.request<Project[]>("GET", "/projects"); }
-  setProjectSettings(projectId: string, change: { type?: Project["type"]; repoFolder?: string; repoMachineId?: string; overseer?: boolean; archived?: boolean }) {
+  setProjectSettings(projectId: string, change: import("./types").ProjectSettingsChange) {
     return this.request<void>("PATCH", `/projects/${encodeURIComponent(projectId)}/settings`, change);
+  }
+  getOverview(projectId: string) {
+    return this.request<import("./types").ProjectOverview>("GET", `/projects/${encodeURIComponent(projectId)}/overview`);
   }
   getDevSettings(projectId: string) {
     return this.request<import("./types").DevSettingsView>("GET", `/projects/${encodeURIComponent(projectId)}/dev-settings`);

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "po-o12",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "focus": ["(pub )?(async )?fn progress_part\\("],
+    "prompt": "In server/src/overview.rs, replace the body `todo!(\"unit o12\")` of fn progress_part with the real code. Keep its signature and doc comment exactly. Spec: map sqlx errors to Err(e.to_string()) with `?`.\n1. Rows: `SELECT id, COALESCE(parent_id, ''), kind, title, state FROM tasks WHERE project_id = ? AND user_id = ? ORDER BY position, rowid` as Vec<(String, String, String, String, String)>, mapped into TaskRow { id, parent_id, kind, title, state }.\n2. Deps: `SELECT d.task_id, d.depends_on FROM task_deps d JOIN tasks t ON t.id = d.task_id WHERE t.project_id = ? AND t.user_id = ?` as Vec<(String, String)>.\n3. let mut out = progress(&rows, &deps);\n4. Last merged PR: `SELECT t.title, e.detail FROM task_events e JOIN tasks t ON t.id = e.task_id WHERE t.project_id = ? AND t.user_id = ? AND e.kind = 'forge' ORDER BY e.id DESC LIMIT 20` as Vec<(String, String)>; the first whose detail parses as JSON with v[\"state\"][\"to\"] == \"done\" gives json!({ \"title\": title, \"pr\": v[\"pr\"].as_str().unwrap_or(\"\") }). Set out[\"lastMerged\"] to it, or Value::Null when there is none.\nReturn Ok(out).\nChange nothing else in the file; the other functions keep their todo!() until their own job.",
+    "check": "sh /tmp/kk-ov-chk/o12.sh",
+    "precheck": false
+  }
+]

@@ -1,0 +1,15 @@
+[
+  {
+    "name": "po-p3",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/projects.rs",
+    "focus": [
+      "pub async fn settings\\(",
+      "if let Some\\(archived\\) = b\\.archived"
+    ],
+    "prompt": "In server/src/projects.rs, fn settings (PATCH /api/projects/{id}/settings) handles the new SettingsBody fields name, description, about and links (PROJ-OVERVIEW). Insert the new code directly after the line `owned(&s, &id, &u).await?;` and before `if let Some(t) = &b.ptype {`, so a refused value changes nothing:\n1. When b.name or b.description is Some, read `SELECT kind FROM projects WHERE id = ?` (sqlx::query_scalar::<_, String>, fetch_one(&s.db).await?); when it is \"windshift\" return Err(ApiError::BadRequest(\"This project is synced with Windshift: change its name and description there.\".into())).\n2. name: trim it; it must have 1 to 80 characters (n.chars().count()), else BadRequest(\"A name has 1 to 80 characters.\").\n3. description: trim it; at most 200 characters and no '\\n' or '\\r', else BadRequest(\"The description is one line of at most 200 characters.\").\n4. about: trim it; at most crate::overview::ABOUT_MAX bytes (.len()), else BadRequest(\"The about text is at most 20,000 bytes.\").\n5. links: let links_json = clean_links(l)? (clean_links already exists in this file).\nCheck ALL four first (steps 1-5), then write each given one with its own `UPDATE projects SET name = ? WHERE id = ?` / description / about / links (bind the trimmed value or links_json, then &id) using sqlx::query(...).bind(...).bind(&id).execute(&s.db).await?. Keep everything that follows (type, repo, overseer, archived, the Changed event) as it is.",
+    "check": "sh /tmp/kk-ov-chk/p3.sh",
+    "precheck": false
+  }
+]

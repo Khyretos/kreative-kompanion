@@ -1,0 +1,162 @@
+// server/src/overview.rs
+pub fn parse_git(output: &str) -> Option<(String, String)> {
+    let lines: Vec<&str> = output.lines().collect();
+    let exit_idx = lines.iter().rposition(|l| l.trim_start().starts_with("exit:"));
+    
+    if let Some(idx) = exit_idx {
+        let exit_line = lines[idx].trim();
+        let num_part = exit_line.strip_prefix("exit:").map(|s| s.trim());
+        if num_part != Some("0") {
+            return None;
+        }
+    } else {
+        return None;
+    }
+    
+    let body_lines: Vec<String> = lines.iter()
+        .take(if let Some(idx) = exit_idx { idx } else { lines.len() })
+        .filter_map(|l| {
+            let trimmed = l.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        })
+        .collect();
+    
+    if body_lines.len() < 2 {
+        return None;
+    }
+    
+    let remote = body_lines[0].clone();
+    let branch = body_lines[1].clone();
+    
+    // Drop "user:token@" between "://" and the host (only when the '@' comes before the next '/').
+    let clean_remote = match remote.find("://") {
+        Some(pos) => {
+            let after = &remote[pos + 3..];
+            match after.find('@') {
+                Some(at) if after.find('/').is_none_or(|slash| at < slash) => format!("{}{}", &remote[..pos + 3], &after[at + 1..]),
+                _ => remote.clone(),
+            }
+        }
+        None => remote.clone(),
+    };
+
+    Some((clean_remote, branch))
+}
+
+
+// web/src/views/overview.ts
+function where(v: OverviewView): SafeHtml {
+  if (!v.o) {
+    return html`<p class="muted">Loading…</p>`;
+  }
+  const w = v.o.where;
+  if (w === null) {
+    const err = v.o.errors.where ?? "";
+    return html`<p class="muted">Could not read this part: ${err}</p>`;
+  }
+
+  const m = w.machine;
+  const git = w.git
+    ? html`<p class="ov-git">${icon("code")}<span>${w.git.remote} · ${w.git.branch}</span></p>`
+    : w.gitState === "reading" ? html`<p class="muted">Reading the git remote…</p>`
+    : w.gitState === "unknown" ? html`<p class="muted">Git remote unknown while the computer is offline.</p>` : "";
+  return html`
+    ${m
+      ? html`<p class="ov-machine"><span class="dot ${m.online ? "ok" : "off"}" aria-hidden="true"></span>${m.name}${m.os ? ` · ${m.os}` : ""}${m.online ? "" : " · offline"}</p>`
+      : html`<p class="muted">No computer yet. Pick one in Settings.</p>`}
+    ${w.folder ? html`<p class="ov-folder-row"><code class="ov-folder">${w.folder}</code><button class="icon-btn" type="button" data-action="copy-folder" data-folder="${w.folder}" aria-label="Copy the folder">${icon("copy")}</button></p>` : ""}
+    ${git}
+    ${v.o.links.length ? html`<p class="ov-links">${v.o.links.map((l) => html`<a class="chip" href="${l.url}" target="_blank" rel="noopener noreferrer">${icon("link")}${l.label}</a>`)}</p>` : ""}`;
+}
+
+
+// web/src/views/overview.ts
+export function renderOverview(v: OverviewView, settings: SafeHtml): SafeHtml {
+  return html`
+    <section class="overview" data-id="${v.project.id}" aria-label="Project overview">
+      ${header(v)}
+      ${v.editing ? editForm(v) : html`${tiles(v)}${about(v)}`}
+      ${section("where", "Where it lives", undefined, v.open("where"), where(v))}
+      ${section("access", "Access", accessCount(v.o), v.open("access"), access(v))}
+      ${section("build", "Build and test", undefined, v.open("build"), build(v))}
+      ${section("activity", "Recent activity", undefined, v.open("activity"), activity(v))}
+      ${section("ai", "AI use", undefined, v.open("ai"), ai(v))}
+      ${section("settings", "Settings", undefined, v.open("settings"), settings)}
+    </section>`;
+}
+
+
+// server/src/projects.rs
+pub async fn settings(
+    State(s): State<AppState>,
+    Extension(u): Extension<User>,
+    Path(id): Path<String>,
+    Json(b): Json<SettingsBody>,
+) -> ApiResult<StatusCode> {
+    owned(&s, &id, &u).await?;
+
+    // PROJ-OVERVIEW: check every overview field first, so a refused value changes nothing.
+    if b.name.is_some() || b.description.is_some() {
+        let kind: String = sqlx::query_scalar("SELECT kind FROM projects WHERE id = ?").bind(&id).fetch_one(&s.db).await?;
+        if kind == "windshift" {
+            return Err(ApiError::BadRequest("This project is synced with Windshift: change its name and description there.".into()));
+        }
+    }
+    let name = b.name.as_deref().map(str::trim);
+    if name.is_some_and(|n| !(1..=80).contains(&n.chars().count())) {
+        return Err(ApiError::BadRequest("A name has 1 to 80 characters.".into()));
+    }
+    let description = b.description.as_deref().map(str::trim);
+    if description.is_some_and(|d| d.chars().count() > 200 || d.contains(['\n', '\r'])) {
+        return Err(ApiError::BadRequest("The description is one line of at most 200 characters.".into()));
+    }
+    let about = b.about.as_deref().map(str::trim);
+    if about.is_some_and(|a| a.len() > crate::overview::ABOUT_MAX) {
+        return Err(ApiError::BadRequest("The about text is at most 20,000 bytes.".into()));
+    }
+    let links = b.links.as_deref().map(clean_links).transpose()?;
+    for (column, value) in [("name", name), ("description", description), ("about", about), ("links", links.as_deref())] {
+        if let Some(v) = value {
+            sqlx::query(&format!("UPDATE projects SET {column} = ? WHERE id = ?")).bind(v).bind(&id).execute(&s.db).await?;
+        }
+    }
+    if let Some(t) = &b.ptype {
+        if !TYPES.contains(&t.as_str()) {
+            return Err(ApiError::BadRequest("A project is a chat, game or programming project.".into()));
+        }
+        sqlx::query("UPDATE projects SET ptype = ? WHERE id = ?").bind(t).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(f) = &b.repo_folder {
+        let f = clean_folder(f)?;
+        sqlx::query("UPDATE projects SET repo_folder = NULLIF(?, '') WHERE id = ?").bind(f).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(m) = b.repo_machine_id.as_deref().map(str::trim) {
+        if !m.is_empty() {
+            let mine: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM machines WHERE id = ? AND user_id = ?")
+                .bind(m)
+                .bind(&u.id)
+                .fetch_optional(&s.db)
+                .await?;
+            if mine.is_none() {
+                return Err(ApiError::BadRequest("Pick one of your computers.".into()));
+            }
+        }
+        sqlx::query("UPDATE projects SET repo_machine_id = NULLIF(?, '') WHERE id = ?").bind(m).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(on) = b.overseer {
+        sqlx::query("UPDATE projects SET overseer = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(archived) = b.archived {
+        if archived {
+            sqlx::query("UPDATE projects SET archived_at = COALESCE(archived_at, ?) WHERE id = ?").bind(util::now()).bind(&id).execute(&s.db).await?;
+        } else {
+            sqlx::query("UPDATE projects SET archived_at = NULL WHERE id = ?").bind(&id).execute(&s.db).await?;
+        }
+    }
+    s.bus.send(&u.id, Event::Changed { what: "projects", machine_id: None });
+    Ok(StatusCode::NO_CONTENT)
+}

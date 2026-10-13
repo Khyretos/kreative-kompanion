@@ -1,0 +1,2 @@
+{"name": "po-c4", "out": "server/src/gameplan_web.rs", "mode": "patch", "gpu_seconds": 10.1, "tokens": 255, "prompt_tokens": 5409, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-13T02:13:23"}
+{"name": "po-c4", "out": "server/src/gameplan_web.rs", "check": "sh /tmp/kk-ov-chk/c4.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T02:13:27"}

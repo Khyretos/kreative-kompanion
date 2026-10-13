@@ -1,0 +1,12 @@
+[
+  {
+    "name": "po-o3",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "focus": ["(pub )?(async )?fn covers\\("],
+    "prompt": "In server/src/overview.rs, replace the body `todo!(\"unit o3\")` of fn covers with the real code. Keep its signature and doc comment exactly. Spec: `target` is a computer grant's target and `folder` the project's repo folder. Strip trailing '/' from both, but a bare \"/\" stays \"/\". Return false when folder is empty or target does not start with '/' (for example the target \"system\"). Return true when target == \"/\", when target == folder, or when folder starts with target followed by '/' (so \"/home/k\" covers \"/home/k/app\" but \"/home/k/ap\" does not, and \"/home/k/app/src\" does not cover \"/home/k/app\"). Otherwise false.\nChange nothing else in the file; the other functions keep their todo!() until their own job.",
+    "check": "sh /tmp/kk-ov-chk/o3.sh",
+    "precheck": false
+  }
+]

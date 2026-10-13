@@ -1,0 +1,12 @@
+pub fn covers(target: &str, folder: &str) -> bool {
+    // "/" trimmed of its slash would be empty: keep the root as "/".
+    let trim = |p: &str| -> String {
+        let t = p.trim_end_matches('/');
+        if t.is_empty() && p.starts_with('/') { "/".into() } else { t.into() }
+    };
+    let (target, folder) = (trim(target), trim(folder));
+    if folder.is_empty() || !target.starts_with('/') {
+        return false;
+    }
+    target == "/" || target == folder || folder.starts_with(&format!("{target}/"))
+}

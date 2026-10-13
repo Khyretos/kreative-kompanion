@@ -1,0 +1,12 @@
+[
+  {
+    "name": "po-o10",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "focus": ["(pub )?(async )?fn where_part\\("],
+    "prompt": "In server/src/overview.rs, replace the body `todo!(\"unit o10\")` of fn where_part with the real code. Keep its signature and doc comment exactly. Spec: returns json!({ \"machine\": ..., \"folder\": p.repo_folder, \"git\": ..., \"gitState\": ... }).\n- No p.repo_machine_id: machine null, git null, gitState \"none\".\n- Otherwise read `SELECT id, name, last_seen FROM machines WHERE id = ? AND user_id = ?` (Option<(String, String, Option<String>)>; map a sqlx error to Err(e.to_string())). Not found: machine null, git null, gitState \"none\". Found: online = last_seen is within the last 90 seconds; compute it in SQL instead: select `last_seen IS NOT NULL AND (julianday('now') - julianday(last_seen)) * 86400 <= 90` as a bool column `online`, so the row is (String, String, bool). machine = {\"id\", \"name\", \"online\", \"os\": s.host.os(&id)}.\n- git: parse p.repo_git as serde_json::Value; a non-object (empty text, bad JSON) means no cache (git null).\n- stale = no cache, or the cache's \"at\" is older than GIT_STALE_MINUTES: compare the at string with util::minutes_ago(GIT_STALE_MINUTES) (RFC 3339 strings compare in time order).\n- gitState: when online and stale and p.repo_folder is Some: spawn the read with tokio::spawn(refresh_git(s.clone(), user_id.to_string(), p.id.clone(), machine id, folder)) and say \"reading\" (git keeps the old cache, or null). Else when a cache exists: \"known\". Else \"unknown\".\nChange nothing else in the file; the other functions keep their todo!() until their own job.",
+    "check": "sh /tmp/kk-ov-chk/o10.sh",
+    "precheck": false
+  }
+]

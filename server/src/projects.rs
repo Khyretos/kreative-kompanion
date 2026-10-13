@@ -2,7 +2,7 @@
 //! (assets from the library attached to it) and "programming" (a repo folder on a computer,
 //! the default for W2 "Run it on a computer").
 use axum::{Extension, Json, extract::{Path, State}, http::StatusCode};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{AppState, auth::User, error::{ApiError, ApiResult}, events::Event, util};
@@ -30,6 +30,36 @@ fn clean_folder(folder: &str) -> ApiResult<String> {
     Ok(f.to_string())
 }
 
+/// A link on the project's overview (repo web page, live site, docs).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Link {
+    pub label: String,
+    pub url: String,
+}
+
+/// The overview links, trimmed and checked, as the JSON text stored in `projects.links`.
+fn clean_links(links: &[Link]) -> ApiResult<String> {
+    if links.len() > 10 {
+        return Err(ApiError::BadRequest("At most 10 links.".into()));
+    }
+    let mut cleaned = Vec::with_capacity(links.len());
+    for link in links {
+        let label = link.label.trim();
+        let url = link.url.trim();
+        if label.len() < 1 || label.len() > 60 {
+            return Err(ApiError::BadRequest("A link needs a label of 1 to 60 characters.".into()));
+        }
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            return Err(ApiError::BadRequest("Links must be http or https addresses.".into()));
+        }
+        if url.len() > 500 || url.chars().any(char::is_whitespace) {
+            return Err(ApiError::BadRequest("Links must be http or https addresses.".into()));
+        }
+        cleaned.push(Link { label: label.to_string(), url: url.to_string() });
+    }
+    Ok(serde_json::to_string(&cleaned).unwrap_or_else(|_| "[]".into()))
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsBody {
@@ -41,6 +71,14 @@ pub struct SettingsBody {
     overseer: Option<bool>,
     /// PROJ-ARCHIVE: true archives the project (the first date is kept), false unarchives it.
     archived: Option<bool>,
+    /// PROJ-OVERVIEW: the project name (1-80 characters).
+    name: Option<String>,
+    /// PROJ-OVERVIEW: a short description (one line, at most 200 characters).
+    description: Option<String>,
+    /// PROJ-OVERVIEW: markdown content (at most 20,000 bytes).
+    about: Option<String>,
+    /// PROJ-OVERVIEW: links to external resources (at most 10, http or https).
+    links: Option<Vec<Link>>,
 }
 
 /// PATCH /projects/{id}/settings: the type, and for programming projects the repo.
@@ -51,6 +89,32 @@ pub async fn settings(
     Json(b): Json<SettingsBody>,
 ) -> ApiResult<StatusCode> {
     owned(&s, &id, &u).await?;
+
+    // PROJ-OVERVIEW: check every overview field first, so a refused value changes nothing.
+    if b.name.is_some() || b.description.is_some() {
+        let kind: String = sqlx::query_scalar("SELECT kind FROM projects WHERE id = ?").bind(&id).fetch_one(&s.db).await?;
+        if kind == "windshift" {
+            return Err(ApiError::BadRequest("This project is synced with Windshift: change its name and description there.".into()));
+        }
+    }
+    let name = b.name.as_deref().map(str::trim);
+    if name.is_some_and(|n| !(1..=80).contains(&n.chars().count())) {
+        return Err(ApiError::BadRequest("A name has 1 to 80 characters.".into()));
+    }
+    let description = b.description.as_deref().map(str::trim);
+    if description.is_some_and(|d| d.chars().count() > 200 || d.contains(['\n', '\r'])) {
+        return Err(ApiError::BadRequest("The description is one line of at most 200 characters.".into()));
+    }
+    let about = b.about.as_deref().map(str::trim);
+    if about.is_some_and(|a| a.len() > crate::overview::ABOUT_MAX) {
+        return Err(ApiError::BadRequest("The about text is at most 20,000 bytes.".into()));
+    }
+    let links = b.links.as_deref().map(clean_links).transpose()?;
+    for (column, value) in [("name", name), ("description", description), ("about", about), ("links", links.as_deref())] {
+        if let Some(v) = value {
+            sqlx::query(&format!("UPDATE projects SET {column} = ? WHERE id = ?")).bind(v).bind(&id).execute(&s.db).await?;
+        }
+    }
     if let Some(t) = &b.ptype {
         if !TYPES.contains(&t.as_str()) {
             return Err(ApiError::BadRequest("A project is a chat, game or programming project.".into()));

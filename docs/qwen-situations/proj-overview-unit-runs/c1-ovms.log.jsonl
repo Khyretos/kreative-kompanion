@@ -1,0 +1,2 @@
+{"name": "po-c1", "out": "server/src/project_ctx.rs", "mode": "patch", "gpu_seconds": 9.8, "tokens": 270, "prompt_tokens": 5273, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-13T02:12:09"}
+{"name": "po-c1", "out": "server/src/project_ctx.rs", "check": "sh /tmp/kk-ov-chk/c1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T02:12:25"}

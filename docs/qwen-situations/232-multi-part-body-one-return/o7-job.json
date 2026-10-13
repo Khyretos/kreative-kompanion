@@ -1,0 +1,12 @@
+[
+  {
+    "name": "po-o7",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "focus": ["(pub )?(async )?fn parse_git\\("],
+    "prompt": "In server/src/overview.rs, replace the body `todo!(\"unit o7\")` of fn parse_git with the real code. Keep its signature and doc comment exactly. Spec: `output` is a shell job's output: the command's lines, then a last line \"exit: N\". Find the last line that starts with \"exit:\"; when there is none or its trimmed number is not \"0\", return None. Take the other lines before it, trimmed, skipping empty ones: the first is the remote, the second the branch; when either is missing return None. Remove credentials from the remote: when it contains \"://\" and an '@' appears after the \"://\" and before the next '/', drop everything between \"://\" and that '@' including the '@' (\"https://kees:tok@host/x.git\" -> \"https://host/x.git\"). An ssh remote like \"git@github.com:k/app.git\" stays as it is. Return Some((remote, branch)).\nChange nothing else in the file; the other functions keep their todo!() until their own job.",
+    "check": "sh /tmp/kk-ov-chk/o7.sh",
+    "precheck": false
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "po-o6",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "focus": ["(pub )?(async )?fn progress\\("],
+    "prompt": "In server/src/overview.rs, replace the body `todo!(\"unit o6\")` of fn progress with the real code. Keep its signature and doc comment exactly. Spec: build a serde_json object with json!. Tasks = rows with kind == \"task\" (goals and milestones are not counted).\n- \"done\": tasks with state \"done\"; \"total\": number of tasks;\n- \"running\": state \"running\"; \"needsYou\": state \"needs_input\", \"failed\" or \"refused\"; \"inReview\": state \"in_review\" (all as numbers);\n- \"goals\": for each row with kind == \"goal\", in row order, whose tasks (tasks with parent_id == goal.id) are not empty: {\"title\": goal title, \"done\": its done tasks, \"total\": its tasks};\n- \"next\": up to 3 tasks with state \"queued\", each {\"id\", \"title\", \"ready\"}. A queued task is ready when every pair (task_id, depends_on) in `deps` with task_id == its id has a depends_on task whose state is \"done\" (a depends_on id not in rows counts as done). Ready tasks come first, then the not-ready ones, each group in row order; take the first 3.\nUse a HashMap<&str, &str> from id to state for the dependency lookup.\nChange nothing else in the file; the other functions keep their todo!() until their own job.",
+    "check": "sh /tmp/kk-ov-chk/o6.sh",
+    "precheck": false
+  }
+]

@@ -126,8 +126,6 @@ export function renderProjectPanel(p: Project, o: PanelOptions): SafeHtml {
   const type = p.type ?? "chat";
   return html`
     <section class="project-panel" aria-label="Project settings">
-      ${p.archivedAt ? html`<div class="archived-bar" role="status">${icon("archive")}<span>Archived</span>
-        <button class="btn small" data-action="project-unarchive" data-id="${p.id}">Unarchive</button></div>` : ""}
       <div class="project-type">
         <label for="project-type">Project type</label>
         <select id="project-type" data-id="${p.id}">

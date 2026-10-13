@@ -1,0 +1,158 @@
+// server/src/overview.rs
+pub fn progress(rows: &[TaskRow], deps: &[(String, String)]) -> Value {
+    let state: HashMap<&str, &str> = rows.iter().map(|r| (r.id.as_str(), r.state.as_str())).collect();
+    let tasks: Vec<&TaskRow> = rows.iter().filter(|r| r.kind == "task").collect();
+    let count = |states: &[&str]| tasks.iter().filter(|t| states.contains(&t.state.as_str())).count();
+    let goals: Vec<Value> = rows
+        .iter()
+        .filter(|g| g.kind == "goal")
+        .filter_map(|g| {
+            let mine: Vec<&&TaskRow> = tasks.iter().filter(|t| t.parent_id == g.id).collect();
+            let done = mine.iter().filter(|t| t.state == "done").count();
+            (!mine.is_empty()).then(|| json!({ "title": g.title, "done": done, "total": mine.len() }))
+        })
+        .collect();
+    // A dependency on a task that is not in the rows counts as done.
+    let ready = |id: &str| deps.iter().filter(|(t, _)| t == id).all(|(_, on)| state.get(on.as_str()).is_none_or(|s| *s == "done"));
+    let queued: Vec<&&TaskRow> = tasks.iter().filter(|t| t.state == "queued").collect();
+    let (first, later): (Vec<&&TaskRow>, Vec<&&TaskRow>) = queued.into_iter().partition(|t| ready(&t.id));
+    let next: Vec<Value> = first
+        .iter()
+        .map(|t| (t, true))
+        .chain(later.iter().map(|t| (t, false)))
+        .take(3)
+        .map(|(t, r)| json!({ "id": t.id, "title": t.title, "ready": r }))
+        .collect();
+    json!({
+        "done": count(&["done"]), "total": tasks.len(), "running": count(&["running"]),
+        "needsYou": count(&["needs_input", "failed", "refused"]), "inReview": count(&["in_review"]),
+        "goals": goals, "next": next,
+    })
+}
+
+
+// server/src/overview.rs
+async fn where_part(s: &AppState, user_id: &str, p: &ProjectRow) -> Result<Value, String> {
+    let none = || json!({ "machine": null, "folder": p.repo_folder, "git": null, "gitState": "none" });
+    let Some(machine_id) = p.repo_machine_id.as_deref() else { return Ok(none()) };
+    let row: Option<(String, String, bool)> = sqlx::query_as(
+        "SELECT id, name, last_seen IS NOT NULL AND (julianday('now') - julianday(last_seen)) * 86400 <= 90 FROM machines WHERE id = ? AND user_id = ?",
+    )
+    .bind(machine_id)
+    .bind(user_id)
+    .fetch_optional(&s.db)
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some((id, name, online)) = row else { return Ok(none()) };
+    let cache: Value = serde_json::from_str(&p.repo_git).unwrap_or(Value::Null);
+    let git = if cache.is_object() { cache } else { Value::Null };
+    let stale = git["at"].as_str().is_none_or(|at| at < util::minutes_ago(GIT_STALE_MINUTES).as_str());
+    let state = match (&p.repo_folder, online && stale) {
+        (Some(folder), true) => {
+            tokio::spawn(refresh_git(s.clone(), user_id.to_string(), p.id.clone(), id.clone(), folder.clone()));
+            "reading"
+        }
+        _ if !git.is_null() => "known",
+        _ => "unknown",
+    };
+    Ok(json!({
+        "machine": { "id": id, "name": name, "online": online, "os": s.host.os(&id) },
+        "folder": p.repo_folder, "git": git, "gitState": state,
+    }))
+}
+
+
+// server/src/overview.rs
+async fn access_part(s: &AppState, user_id: &str, p: &ProjectRow) -> Result<Value, String> {
+    let err = |e: sqlx::Error| e.to_string();
+    let mut grants = Vec::new();
+    if let (Some(machine_id), Some(folder)) = (&p.repo_machine_id, &p.repo_folder) {
+        let rows: Vec<(String, String, Option<String>)> = sqlx::query_as("SELECT target, rights, expires FROM machine_grants WHERE machine_id = ? ORDER BY target")
+            .bind(machine_id)
+            .fetch_all(&s.db)
+            .await
+            .map_err(err)?;
+        for (target, rights, expires) in rows.into_iter().filter(|r| covers(&r.0, folder)) {
+            let rights: Vec<String> = serde_json::from_str(&rights).unwrap_or_default();
+            grants.push(json!({ "target": target, "rights": rights, "expires": expires }));
+        }
+    }
+    let mcp: Vec<(String, String, String)> = sqlx::query_as("SELECT server, tool, expires FROM mcp_grants WHERE user_id = ? AND expires > ? ORDER BY server, tool")
+        .bind(user_id)
+        .bind(util::now())
+        .fetch_all(&s.db)
+        .await
+        .map_err(err)?;
+    let knowledge: Vec<(String, String)> = sqlx::query_as(
+        "SELECT c.id, c.name FROM knowledge_project kp JOIN knowledge_collection c ON c.id = kp.collection_id WHERE kp.project_id = ? ORDER BY c.name",
+    )
+    .bind(&p.id)
+    .fetch_all(&s.db)
+    .await
+    .map_err(err)?;
+    let assets: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM project_asset WHERE project_id = ?").bind(&p.id).fetch_one(&s.db).await.map_err(err)?;
+    let mut commands = Vec::new();
+    if p.repo_machine_id.is_some() {
+        let dev = devsettings::Settings::parse(&p.dev_settings);
+        for kind in ["build", "test", "run", "deploy"] {
+            if let Some(cmd) = dev.command(kind) {
+                commands.push(json!({ "kind": kind, "command": cmd, "last": dev.last.get(kind), "fromHere": kind != "deploy" }));
+            }
+        }
+    }
+    Ok(json!({
+        "grants": grants,
+        "mcp": mcp.into_iter().map(|(server, tool, expires)| json!({ "server": server, "tool": tool, "expires": expires })).collect::<Vec<_>>(),
+        "knowledge": knowledge.into_iter().map(|(id, name)| json!({ "id": id, "name": name })).collect::<Vec<_>>(),
+        "assets": assets,
+        "commands": commands,
+    }))
+}
+
+
+// server/src/overview.rs
+async fn progress_part(db: &SqlitePool, user_id: &str, project_id: &str) -> Result<Value, String> {
+    let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
+        "SELECT id, COALESCE(parent_id, ''), kind, title, state FROM tasks WHERE project_id = ? AND user_id = ? ORDER BY position, rowid"
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_all(db)
+    .await
+    .map_err(|e| e.to_string())?;
+    let rows: Vec<TaskRow> = rows.into_iter().map(|(id, parent_id, kind, title, state)| TaskRow { id, parent_id, kind, title, state }).collect();
+
+    let deps: Vec<(String, String)> = sqlx::query_as::<_, (String, String)>(
+        "SELECT d.task_id, d.depends_on FROM task_deps d JOIN tasks t ON t.id = d.task_id WHERE t.project_id = ? AND t.user_id = ?"
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_all(db)
+    .await.map_err(|e| e.to_string())?;
+
+    let mut out = progress(&rows, &deps);
+    out["lastMerged"] = Value::Null;
+
+    let events: Vec<(String, String)> = sqlx::query_as::<_, (String, String)>(
+        "SELECT t.title, e.detail FROM task_events e JOIN tasks t ON t.id = e.task_id WHERE t.project_id = ? AND t.user_id = ? AND e.kind = 'forge' ORDER BY e.id DESC LIMIT 20"
+    )
+    .bind(project_id)
+    .bind(user_id)
+    .fetch_all(db)
+    .await.map_err(|e| e.to_string())?;
+
+    for (title, detail) in events {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&detail) {
+            if let Some(state) = v.get("state").and_then(|s| s.as_object()) {
+                if state.get("to").and_then(|t| t.as_str()) == Some("done") {
+                    if let Some(pr) = v.get("pr").and_then(|p| p.as_str()) {
+                        out["lastMerged"] = json!({ "title": title, "pr": pr });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(out)
+}

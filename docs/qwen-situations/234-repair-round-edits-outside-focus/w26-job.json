@@ -1,0 +1,12 @@
+[
+  {
+    "name": "po-w26",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "focus": ["\"project-archive\": \\(el\\) => archiveProject"],
+    "prompt": "In web/src/main.ts, the click actions map has `\"project-archive\": (el) => archiveProject(el.dataset.id ?? \"\", true),`. Directly BEFORE that line add the PROJ-OVERVIEW actions (same indentation, each a property of the map):\n- \"overview-edit\": open the edit form: store.set({ overviewEditing: el.dataset.id, overviewPreview: undefined }); then when el.dataset.focus is set, focus that field once it is shown: whenShown(() => { const f = document.querySelector<HTMLElement>(`form.overview-edit [name=\"${el.dataset.focus}\"]`); f?.focus(); return !!f; }) (whenShown exists in this file).\n- \"overview-cancel\": () => store.set({ overviewEditing: undefined, overviewPreview: undefined })\n- \"overview-more\": toggle el.dataset.id in a copy of store.get().overviewMore (new Set, add or delete) and store.set it.\n- \"overview-activity-more\": the same for overviewActivityAll.\n- \"overview-sec\": const id = el.closest<HTMLElement>(\"section.overview\")?.dataset.id ?? \"\"; key = `${id}:${el.dataset.sec ?? \"\"}`; open = el.getAttribute(\"aria-expanded\") === \"true\"; store.set({ overviewOpen: { ...store.get().overviewOpen, [key]: !open } }).\n- \"overview-preview\": const ta = el.closest(\"form\")?.querySelector<HTMLTextAreaElement>('[name=\"about\"]'); store.set({ overviewPreview: store.get().overviewPreview === undefined ? (ta?.value ?? \"\") : undefined }).\n- \"copy-folder\": (el) => { void navigator.clipboard?.writeText(el.dataset.folder ?? \"\").catch(showError); }\nChange nothing else.",
+    "check": "sh /tmp/kk-ov-chk/w26.sh",
+    "precheck": false
+  }
+]

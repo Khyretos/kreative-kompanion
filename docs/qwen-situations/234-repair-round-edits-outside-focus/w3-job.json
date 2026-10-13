@@ -1,0 +1,12 @@
+[
+  {
+    "name": "po-w3",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/api/http.ts",
+    "focus": ["setProjectSettings\\(projectId: string"],
+    "prompt": "In web/src/api/http.ts, the method `setProjectSettings(projectId: string, change: { type?: ...; archived?: boolean })` sends PATCH /projects/{id}/settings. Replace its inline change type with `import(\"./types\").ProjectSettingsChange` (the body stays). Directly after that method add:\n  getOverview(projectId: string) {\n    return this.request<import(\"./types\").ProjectOverview>(\"GET\", `/projects/${encodeURIComponent(projectId)}/overview`);\n  }\nChange nothing else.",
+    "check": "sh /tmp/kk-ov-chk/w3.sh",
+    "precheck": false
+  }
+]

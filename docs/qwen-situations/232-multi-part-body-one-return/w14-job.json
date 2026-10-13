@@ -1,0 +1,13 @@
+[
+  {
+    "name": "po-w14",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/overview.ts",
+    "focus": ["^(export )?function where\\("],
+    "prompt": "In web/src/views/overview.ts (PROJ-OVERVIEW, the project Overview), replace the placeholder body of function where (it returns html`` or an empty value today) with the real code. Keep its signature and doc comment. Spec: the body of the \"Where it lives\" section (no section wrapper). While v.o is undefined: <p class=\"muted\">Loading\u2026</p>. When v.o.where is null: <p class=\"muted\">Could not read this part: ${v.o.errors.where ?? \"\"}</p>. Else w = v.o.where and the parts, in order:\n- computer: w.machine ? <p class=\"ov-machine\"><span class=\"dot ${w.machine.online ? \"ok\" : \"off\"}\" aria-hidden=\"true\"></span>${w.machine.name}${w.machine.os ? ` \u00b7 ${w.machine.os}` : \"\"}${w.machine.online ? \"\" : \" \u00b7 offline\"}</p> : <p class=\"muted\">No computer yet. Pick one in Settings.</p>\n- folder (when w.folder): <p class=\"ov-folder-row\"><code class=\"ov-folder\">${w.folder}</code><button class=\"icon-btn\" type=\"button\" data-action=\"copy-folder\" data-folder=\"${w.folder}\" aria-label=\"Copy the folder\">${icon(\"copy\")}</button></p>\n- git: w.git ? <p class=\"ov-git\">${icon(\"code\")}<span>${w.git.remote} \u00b7 ${w.git.branch}</span></p> : w.gitState === \"reading\" ? <p class=\"muted\">Reading the git remote\u2026</p> : w.gitState === \"unknown\" ? <p class=\"muted\">Git remote unknown while the computer is offline.</p> : nothing\n- links (when v.o.links.length): <p class=\"ov-links\"> then for each link <a class=\"chip\" href=\"${l.url}\" target=\"_blank\" rel=\"noopener noreferrer\">${icon(\"link\")}${l.label}</a></p>\nMarkup rules: build it with the html`` tagged template (it escapes every ${} value; nest html`` for markup, use \"\" for nothing; never build markup with string concatenation). Icons: icon(\"name\") from ./icons. Times: relTime(iso) from ../core/time gives \"2 h ago\". The OverviewView fields are documented at the top of the file; v.o is undefined while loading, and a part of v.o (where, access, progress, activity, ai) is null when it failed, with the reason in v.o.errors[part]. Change nothing else; the other functions keep their placeholders until their own job.",
+    "context": ["web/src/api/types.ts"],
+    "check": "sh /tmp/kk-ov-chk/w14.sh",
+    "precheck": false
+  }
+]

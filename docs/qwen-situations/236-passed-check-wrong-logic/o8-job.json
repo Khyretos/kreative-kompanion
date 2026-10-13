@@ -1,0 +1,13 @@
+[
+  {
+    "name": "po-o8",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "focus": ["(pub )?(async )?fn refresh_git\\("],
+    "prompt": "In server/src/overview.rs, replace the body `todo!(\"unit o8\")` of fn refresh_git with the real code. Keep its signature and doc comment exactly. Spec:\n1. `s.host.watch(&user_id);` then queue a shell job on the computer: `crate::access::queue_job(&s.db, &machine_id, &user_id, &json!({ \"tool\": \"shell\", \"cwd\": folder, \"command\": \"git remote get-url origin; git branch --show-current\" }), None).await`; on Err return.\n2. Poll until GIT_WAIT has passed: every 500 ms (tokio::time::sleep(Duration::from_millis(500))) read `SELECT state, result FROM machine_jobs WHERE id = ?` as Option<(String, Option<String>)>. When state is \"done\": if parse_git(&result.unwrap_or_default()) gives Some((remote, branch)), store `json!({ \"remote\": remote, \"branch\": branch, \"at\": util::now() }).to_string()` with `UPDATE projects SET repo_git = ? WHERE id = ? AND user_id = ?` (project_id, user_id), then return. When state is \"failed\" or \"refused\" return without storing.\n3. After the loop (time is up) delete the job if it never ran: `DELETE FROM machine_jobs WHERE id = ? AND state = 'queued'`.\nIgnore database errors (let _ = ...; use .ok().flatten() for the read). Use sqlx::query / sqlx::query_as on &s.db.\nChange nothing else in the file; the other functions keep their todo!() until their own job.",
+    "context": ["server/src/scheduler.rs"],
+    "check": "sh /tmp/kk-ov-chk/o8.sh",
+    "precheck": false
+  }
+]

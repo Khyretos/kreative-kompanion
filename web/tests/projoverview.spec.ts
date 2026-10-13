@@ -26,10 +26,16 @@ async function setUpKk(page: Page): Promise<void> {
   await repo.locator('select[name="machine"]').selectOption({ label: "soucouyant" });
   await repo.locator('input[name="folder"]').fill("/home/kees/projects/kompanion/kk-engine");
   await repo.locator('button[type="submit"]').click();
+  // Each save sends a change event that re-renders the panel: wait for it before the next form.
+  await expect(sec(page, "where")).toContainText("soucouyant");
   const dev = page.locator("#right form.project-dev");
-  await dev.locator("#dev-preset").selectOption("game");
-  await dev.locator('button[type="submit"]').click();
-  await expect(sec(page, "build")).toContainText("cmake --build build");
+  // A late change event can re-render the form between the preset and Save; then save again.
+  await expect(async () => {
+    await dev.locator("#dev-preset").selectOption("game");
+    await expect(dev.locator('[name="build"]')).toHaveValue("cmake --build build");
+    await dev.locator('button[type="submit"]').click();
+    await expect(sec(page, "build")).toContainText("cmake --build build", { timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
   await secToggle(page, "settings").click();
   await expect(page.locator("#right .project-panel")).toHaveCount(0);
 }
@@ -47,7 +53,9 @@ for (const scheme of ["dark", "light"] as const) {
     const tiles = o.locator(".ov-tiles .ov-tile");
     await expect(tiles).toHaveCount(4);
     await expect(o.locator('.ov-tile[data-tile="progress"] .ov-num')).toHaveText(/^\d+\/\d+$/);
-    await expect(o.locator('.ov-tile[data-tile="needs"]')).toHaveClass(/attn/);
+    // kk-engine has nothing waiting for Kees, so the tile stays calm (orange only when > 0).
+    await expect(o.locator('.ov-tile[data-tile="needs"] .ov-num')).toHaveText("0");
+    await expect(o.locator('.ov-tile[data-tile="needs"]')).not.toHaveClass(/attn/);
     await expect(o.locator('.ov-tile[data-tile="activity"] .ov-num')).not.toHaveText("");
     // About: clamped with "Show more", which opens the rest.
     const about = o.locator(".ov-about");

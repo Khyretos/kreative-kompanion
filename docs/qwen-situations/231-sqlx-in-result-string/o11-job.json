@@ -1,0 +1,13 @@
+[
+  {
+    "name": "po-o11",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "focus": ["(pub )?(async )?fn access_part\\("],
+    "prompt": "In server/src/overview.rs, replace the body `todo!(\"unit o11\")` of fn access_part with the real code. Keep its signature and doc comment exactly. Spec: returns json!({ \"grants\", \"mcp\", \"knowledge\", \"assets\", \"commands\" }); map every sqlx error to Err(e.to_string()) with `?`.\n- grants: [] when p.repo_machine_id or p.repo_folder is None. Else `SELECT target, rights, expires FROM machine_grants WHERE machine_id = ? ORDER BY target` as Vec<(String, String, Option<String>)>, keep only rows where covers(&target, folder), each {\"target\", \"rights\": serde_json::from_str::<Vec<String>>(&rights).unwrap_or_default(), \"expires\": expires (null when None)}.\n- mcp: `SELECT server, tool, expires FROM mcp_grants WHERE user_id = ? AND expires > ? ORDER BY server, tool` bound user_id and util::now(), each {\"server\", \"tool\", \"expires\"}.\n- knowledge: `SELECT c.id, c.name FROM knowledge_project kp JOIN knowledge_collection c ON c.id = kp.collection_id WHERE kp.project_id = ? ORDER BY c.name`, each {\"id\", \"name\"}.\n- assets: `SELECT COUNT(*) FROM project_asset WHERE project_id = ?` as i64.\n- commands: [] when p.repo_machine_id is None. Else let dev = devsettings::Settings::parse(&p.dev_settings); for kind in [\"build\", \"test\", \"run\", \"deploy\"] where dev.command(kind) is Some(cmd): {\"kind\": kind, \"command\": cmd, \"last\": dev.last.get(kind) (serialize it with json!; null when missing), \"fromHere\": kind != \"deploy\"}.\nChange nothing else in the file; the other functions keep their todo!() until their own job.",
+    "context": ["server/src/devsettings.rs"],
+    "check": "sh /tmp/kk-ov-chk/o11.sh",
+    "precheck": false
+  }
+]
