@@ -12,3 +12,17 @@ Add people to a project with a role. Scope agreed in the thread: the owner adds 
 - Slice 3: editor writes (task changes, chat messages), the Overseer/planner/scheduler stay owner-only.
 
 Done when (slice 1): the tests in `server/src/sharing_tests.rs` pass and a live check as the test user (owner) plus a second user shows the shared project and its overview.
+
+## Slice 1 result (PR 207, main 2af3312, deployed 2026-10-13)
+
+Live check as the test user (owner): GET /projects/{id}/members gives role owner and no members; adding an unknown name or yourself gives 400; the project list carries role and ownerName; the overview answers 200. A second user could not be used live (accounts exist only through OIDC); the member paths are covered by the 4 tests in server/src/sharing_tests.rs (570 server tests pass).
+
+## Metrics
+
+| What | Value |
+|---|---|
+| Coder (OVMS) | 5 units: migration, overview, tasks list, project list as drafted on the first try; sharing.rs (about 150 lines) failed 3 attempts on one line, Claude fixed it (lesson 239). 210 GPU s, 5,448 output / 77,941 prompt tokens |
+| Lines | server +334 / -10 (incl. 4 tests and a 30-line migration/doc part); about 190 drafted lines kept, 1 line corrected |
+| Review | PR-Agent 3 findings, all false positives (user names are UNIQUE), 1 ledger commit |
+| Claude tokens | unmeasured (thread totals only) |
+| Not done | web (members row, shared chip), chats of shared projects, editor writes: slices 2 and 3 |
