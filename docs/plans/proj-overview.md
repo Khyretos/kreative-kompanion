@@ -80,7 +80,7 @@ logs in docs/qwen-situations/proj-overview-unit-runs/.
 | Review and CI rounds            | see the PR                                                                                                                   |
 | Time                            | about 75 min worked, most of it waiting on Coder units and cargo/Playwright runs                                             |
 
-## Live check (2026-10-13, http://127.0.0.1:8095 as the test user, main 19cbf7e deployed from kk-deploy)
+## Live check (2026-10-13, `http://127.0.0.1:8095` as the test user, main 19cbf7e deployed from kk-deploy)
 
 API (project "OVR live check"):
 
