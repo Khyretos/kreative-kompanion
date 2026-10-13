@@ -13,7 +13,6 @@ Add people to a project with a role. Scope agreed in the thread: the owner adds 
 
 Done when (slice 1): the tests in `server/src/sharing_tests.rs` pass and a live check as the test user (owner) plus a second user shows the shared project and its overview.
 
-
 ## Slice 2 (web), 2026-10-13
 
 Server: `GET /projects/{id}/overview` now returns `role` and `members` (`userId`, `name`, `role`, `you`); `GET /chats` lists the chats of projects shared with the user (member's pins are not shown as pinned); `GET /chats/{id}/messages` is readable by members (`api::can_read_chat`); `kompanion-server import` accepts `about` and `links` per project (needed for the About drafts; links must be http/https, at most 10). Posting stays owner-only until slice 3.
@@ -23,6 +22,7 @@ Web: the sidebar shows a `shared by <owner>` chip; the Overview has a members ro
 Tests: `server/src/sharing_tests.rs` (6 tests), `server/src/import_tests.rs` (2), `web/tests/projshare.spec.ts` (7 at 1280 dark/light and 390 px). Full server suite 574 passed; 66 web tests passed locally (projshare + projects, projarchive, projoverview, sidebar, newchat, projecttypes, contrast, layout, back).
 
 ### Per-unit run log (Coder on OVMS, kireserver)
+
 - Units drafted: 41; passed their check on the first attempt: 36; fix rounds drafted: 4, fix rounds cut off at the context limit: 4 (lesson 241).
 - Claude corrected three units by hand (lessons 240, 242, 243): 4 lines restored in mock.ts, 7 lines + 1 character in overview.ts, 1 line removed in main.ts.
 - GPU seconds 466, output tokens 11952, prompt tokens 307648 (docs/qwen-log/khyretos-sharing-web-ovms.jsonl).
