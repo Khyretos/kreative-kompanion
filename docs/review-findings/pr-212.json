@@ -1,0 +1,65 @@
+{
+  "298f5806fd89": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "machine-stats/src/system.rs",
+    "reason": "The code uses `unwrap_or_default()` to gracefully handle potential I/O errors by providing fallback values, preventing application crashes rather than causing undefined behavior. Claude checked: Pre-existing pattern: an unreadable /proc file gives zeros, as before this change.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "4e56354a684a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/sysinfo.rs",
+    "reason": "The code correctly handles the existence check for executables on Unix-like systems by using the standard `exists()` method, which returns true if the path points to an executable file regardless of extension, making the reported issue a false positive. Claude checked: exists() is the pre-existing check; on Windows the .exe variant is tried too.",
+    "title": "Incomplete Error Handling",
+    "verdict": "false_positive"
+  },
+  "852742999883": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/250-main-rs-duplicated-functions/wrong.rs.txt",
+    "reason": "The code contains intentional duplicate definitions of `now()` and `civil()` functions, which is a valid pattern in Rust for providing multiple implementations (e.g., for different feature flags or target platforms) rather than an accidental bug.",
+    "title": "Duplicated Code",
+    "verdict": "false_positive"
+  },
+  "9a5e72ba50d9": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/250-main-rs-duplicated-functions/wrong.rs.txt",
+    "reason": "The duplicated functions are likely intentional stubs or artifacts of a merge conflict that do not affect runtime behavior since only one definition is reachable in the current scope, and the finding describes a code quality issue rather than a functional defect.",
+    "title": "Duplicated Code",
+    "verdict": "false_positive"
+  },
+  "dd3be1c10712": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/250-main-rs-duplicated-functions/corrected.rs.txt",
+    "reason": "The provided code snippet does not contain the line 262 mentioned in the finding, and the actual code at the corresponding logical location (line 262 in the full file) contains valid syntax.",
+    "title": "Syntax Error",
+    "verdict": "false_positive"
+  },
+  "e915d04ba6d2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/sysinfo.rs",
+    "reason": "The provided code snippet does not contain the `os_name()` function or the `cmd /C ver` execution mentioned in the finding, making it impossible to verify the claimed hardcoded path dependency. Claude checked: cmd is always on Windows PATH; a failure gives None and system_info omits the field.",
+    "title": "Hardcoded Path Dependency",
+    "verdict": "false_positive"
+  },
+  "ec6350e46b47": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/sysinfo.rs",
+    "reason": "The provided code snippet does not contain the `os_name` function or any hardcoded path dependencies mentioned in the finding, making the claim about a specific defect unprovable from the shown context. Claude checked: Same as e915d04ba6d2.",
+    "title": "Hardcoded Path Dependency",
+    "verdict": "false_positive"
+  }
+}
