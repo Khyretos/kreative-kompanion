@@ -1,0 +1,14 @@
+[
+ {
+  "name": "s2-m-data",
+  "role": "worker/web",
+  "mode": "patch",
+  "out": "web/src/api/mock.ts",
+  "precheck": false,
+  "prompt": "In web/src/api/mock.ts insert a new block right BEFORE the line `export class MockApi implements KompanionApi {` (SEARCH that line, REPLACE with the block, a blank line, then that same line). The module already has the arrays `projects: Project[]`, `chats: Chat[]`, `messages: Message[]` and the helper `ago(minutes)`. Block: a comment `// PROJECT-SHARING: the members each project's Overview lists (the owner's own projects start with none), and the demo users the add form accepts. ?demo&shared also adds a project mara shared with you as a viewer, with one chat.`; `const members: Record<string, import(\"./types\").ProjectMember[]> = {};`; `const DEMO_USERS: Record<string, string> = { mara: \"u-mara\", kees: \"u-me\" };`; and `if (typeof location !== \"undefined\" && new URLSearchParams(location.search).has(\"shared\")) {` ... `}` containing: `projects.push({ id: \"p-shared\", name: \"Mara's shop\", description: \"Plants and pots\", updatedAt: ago(40), role: \"viewer\", ownerName: \"mara\" });` then `chats.push({ id: \"c-shared\", title: \"Shop plan\", projectId: \"p-shared\", updatedAt: ago(40) });` then `messages.push({ id: \"m-shared-1\", chatId: \"c-shared\", author: \"user\", at: ago(41), text: \"Which plants sell best?\" });` then `members[\"p-shared\"] = [{ userId: \"u-me\", name: \"kees\", role: \"viewer\", you: true }];`.",
+  "check": "python3 tools/qwen/chk.py web/src/api/mock.ts 'const DEMO_USERS' 'p-shared' 'c-shared' 'm-shared-1'",
+  "focus": [
+   "export class MockApi"
+  ]
+ }
+]

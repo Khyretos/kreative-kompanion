@@ -304,6 +304,7 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
 .project.archived .project-name { color: var(--muted); font-weight: 500; white-space: normal; overflow-wrap: anywhere; }
 .project:not(.archived) + .project.archived { margin-top: 0.35rem; padding-top: 0.5rem; border-top: 1px solid var(--line); }
 .archived-chip { font-size: 0.7rem; flex: none; }
+.shared-chip { font-size: 0.7rem; flex: none; }
 .archived-toggle { align-items: center; color: var(--muted); font-size: 0.85rem; }
 .archived-toggle[aria-pressed="true"] { color: var(--accent-strong); }
 .archived-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); font-size: 0.88rem; }
@@ -315,6 +316,14 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
 .ov-title { display: flex; align-items: center; gap: 0.5rem; }
 .ov-name { margin: 0; font-size: 1.15rem; color: var(--fg-strong); overflow-wrap: anywhere; }
 .ov-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ov-members { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0 0 0.75rem; min-width: 0; }
+.member-chip { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 100%; overflow-wrap: anywhere; }
+.member-remove { width: 1.5rem; height: 1.5rem; flex: none; }
+@media (max-width: 760px), (hover: none) { .member-remove { width: 2.75rem; height: 2.75rem; } }
+form.member-add { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; flex: 1 1 100%; min-width: 0; }
+form.member-add input { flex: 1 1 8rem; min-width: 0; font: inherit; }
+form.member-add select { font: inherit; }
+.member-error { flex: 1 1 100%; font-size: 0.85rem; }
 .ov-desc { margin: 0; color: var(--fg); }
 .ov-desc.muted { color: var(--muted); }
 .ov-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
@@ -509,6 +518,9 @@ li.task.dragging { opacity: 0.5; }
   background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0.5rem;
 }
 .composer:focus-within { border-color: var(--accent); }
+.composer.read-only { opacity: 0.7; }
+.composer-readonly { margin: 0.4rem 0.25rem 0; flex: 1 1 100%; color: var(--muted); font-size: 0.85rem; }
+.composer-readonly[hidden] { display: none; }
 /* CHAT-08: attached files. Compact chips (5px corners, not pills); the composer row sits above the field. */
 .attach-row { width: min(46rem, 100%); margin: 0 auto 0.4rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .attach-row:empty { display: none; }

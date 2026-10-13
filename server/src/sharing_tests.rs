@@ -109,3 +109,55 @@ async fn a_member_sees_the_project_overview_tasks_and_list() {
     let Json(list) = crate::api::projects(State(s.clone()), Extension(user("u3"))).await.unwrap();
     assert!(list.is_empty());
 }
+
+#[tokio::test]
+async fn overview_lists_role_and_members() {
+    let db = db().await;
+    let s = state(db.clone());
+    add_as(&s, "u1", "p1", "mara", "editor").await.unwrap();
+    let Json(o) = crate::overview::get(State(s.clone()), Extension(user("u1")), Path("p1".into())).await.unwrap();
+    assert_eq!(o["role"], "owner");
+    assert_eq!(o["members"].as_array().unwrap().len(), 1);
+    assert_eq!(o["members"][0]["name"], "mara");
+    assert_eq!(o["members"][0]["userId"], "u2");
+    assert_eq!(o["members"][0]["role"], "editor");
+    assert_eq!(o["members"][0]["you"], false);
+    let Json(o) = crate::overview::get(State(s.clone()), Extension(user("u2")), Path("p1".into())).await.unwrap();
+    assert_eq!(o["role"], "editor");
+    assert_eq!(o["members"][0]["you"], true);
+}
+
+#[tokio::test]
+async fn members_read_the_chats_of_a_shared_project() {
+    let db = db().await;
+    let s = state(db.clone());
+    for q in [
+        "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES ('c1', 'p1', 'Plan', '2026-10-03T00:00:00Z', 'u1'), ('c2', NULL, 'Private', '2026-10-03T00:00:00Z', 'u1')",
+        "INSERT INTO messages (id, chat_id, author, text, at) VALUES ('m1', 'c1', 'user', 'hello', '2026-10-03T00:00:01Z'), ('m2', 'c2', 'user', 'secret', '2026-10-03T00:00:02Z')",
+    ] {
+        sqlx::query(q).execute(&db).await.unwrap_or_else(|e| panic!("{e}: {q}"));
+    }
+    let ids = |list: Vec<crate::api::Chat>| list.into_iter().map(|c| c.id).collect::<Vec<_>>();
+    let Json(before) = crate::api::chats(State(s.clone()), Extension(user("u2"))).await.unwrap();
+    assert!(before.is_empty(), "not shared yet");
+    add_as(&s, "u1", "p1", "mara", "viewer").await.unwrap();
+    // The member sees the project's chat, not the owner's loose chat; a stranger sees nothing.
+    let Json(list) = crate::api::chats(State(s.clone()), Extension(user("u2"))).await.unwrap();
+    assert_eq!(ids(list), vec!["c1".to_string()]);
+    let Json(list) = crate::api::chats(State(s.clone()), Extension(user("u3"))).await.unwrap();
+    assert!(list.is_empty());
+    let Json(list) = crate::api::chats(State(s.clone()), Extension(user("u1"))).await.unwrap();
+    assert_eq!(list.len(), 2);
+    // Messages: the member reads the shared chat only.
+    let Json(m) = crate::api::messages(State(s.clone()), Extension(user("u2")), Path("c1".into())).await.unwrap();
+    assert_eq!(m.len(), 1);
+    assert!(matches!(crate::api::messages(State(s.clone()), Extension(user("u2")), Path("c2".into())).await, Err(ApiError::NotFound)));
+    assert!(matches!(crate::api::messages(State(s.clone()), Extension(user("u3")), Path("c1".into())).await, Err(ApiError::NotFound)));
+    // Slice 2 is read-only: a viewer cannot post.
+    let body = || Json(serde_json::from_value(json!({ "text": "hi" })).unwrap());
+    assert!(matches!(crate::api::send(State(s.clone()), Extension(user("u2")), Path("c1".into()), body()).await, Err(ApiError::NotFound)));
+    // After leaving, the chat is gone again.
+    remove(State(s.clone()), Extension(user("u2")), Path(("p1".to_string(), "u2".to_string()))).await.unwrap();
+    let Json(list) = crate::api::chats(State(s.clone()), Extension(user("u2"))).await.unwrap();
+    assert!(list.is_empty());
+}

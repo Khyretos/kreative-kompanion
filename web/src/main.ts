@@ -385,6 +385,7 @@ function render(s: AppState, prev: AppState): void {
     mount($("#pc-slot"), renderPcPicker(s.machines.filter((m) => m.id !== "server"), s.pcMachineId));
   }
   if (firstRender || s.lessons !== prev.lessons) mount($("#lessons"), renderLessons(s.lessons));
+  applyComposerAccess(s);
   if (firstRender || s.pcActions !== prev.pcActions || pcKey !== lastPcKey || s.cardStyle !== prev.cardStyle) {
     const box = $("#messages");
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
@@ -393,7 +394,7 @@ function render(s: AppState, prev: AppState): void {
   }
   lastPcKey = pcKey;
   const rightKeys: (keyof AppState)[] = s.rightTab === "tasks"
-    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines", "showArchived", "overviews", "overviewEditing", "overviewMore", "overviewActivityAll", "overviewPreview", "overviewOpen", "overviewOpen", "paneProjectId"]
+    ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines", "showArchived", "overviews", "overviewEditing", "overviewMore", "overviewActivityAll", "overviewPreview", "overviewOpen", "overviewOpen", "memberError", "paneProjectId"]
     : s.rightTab === "access" ? ["rightTab", "grants", "accessHistory", "machines"]
     : s.rightTab === "activity" ? ["rightTab", "activity", "activityFilter", "weeklyCosts"]
     : ["rightTab", "machines", "today", "machinesRefresh", "tasks", "pairing", "gpuOpen", "gpuPins", "cardStyle"];
@@ -1174,6 +1175,7 @@ function wire(shell: HTMLElement): void {
     "project-menu": (el) => store.set({ projectMenuId: store.get().projectMenuId === el.dataset.id ? undefined : el.dataset.id }),
     "project-archive": (el) => archiveProject(el.dataset.id ?? "", true),
     "project-unarchive": (el) => archiveProject(el.dataset.id ?? "", false),
+    "member-remove": (el) => removeMember(el.dataset.id ?? "", el.dataset.user ?? ""),
     "archived-toggle": () => {
       const on = !store.get().showArchived;
       try { localStorage.setItem("kk-show-archived", on ? "1" : "0"); } catch { /* private window: this tab only */ }
@@ -1592,6 +1594,18 @@ function wire(shell: HTMLElement): void {
       });
       return;
     }
+    // PROJECT-SHARING: the members row's add form; a refusal ("No user with that name.") shows under the field and nothing reloads.
+    const memberForm = (ev.target as HTMLElement).closest("form.member-add") as HTMLFormElement | null;
+    if (memberForm) {
+      ev.preventDefault();
+      const data = new FormData(memberForm);
+      const name = String(data.get("member") ?? "").trim();
+      const role = String(data.get("role") ?? "viewer") === "editor" ? "editor" : "viewer";
+      const id = memberForm.dataset.id ?? "";
+      store.set({ memberError: undefined });
+      api.addMember(id, name, role).then(() => { memberForm.reset(); void loadOverview(id); }, (e: unknown) => store.set({ memberError: { projectId: id, text: e instanceof Error ? e.message : String(e) } }));
+      return;
+    }
     const devForm = (ev.target as HTMLElement).closest("form.project-dev") as HTMLFormElement | null;
     if (devForm) {
       ev.preventDefault();
@@ -1965,6 +1979,39 @@ async function loadAccess(): Promise<void> {
     const grants = Object.fromEntries(machines.map((m, i) => [m.id, lists[i]]));
     store.set({ grants, accessHistory: await api.accessHistory() });
   } catch (e) { showError(e); }
+}
+
+// PROJECT-SHARING: the owner removes a member, a member leaves. The member chip (or, for the person leaving, the whole project) goes at once; a refused change is put back.
+async function removeMember(projectId: string, userId: string): Promise<void> {
+  const s = store.get();
+  const before = { projects: s.projects, overviews: s.overviews, activeProjectId: s.activeProjectId };
+  const o = s.overviews[projectId];
+  const leaving = o?.members.find((m) => m.userId === userId)?.you ?? false;
+  if (leaving) {
+    store.set({ projects: s.projects.filter((p) => p.id !== projectId), activeProjectId: s.activeProjectId === projectId ? undefined : s.activeProjectId });
+  } else if (o) {
+    store.set({ overviews: { ...s.overviews, [projectId]: { ...o, members: o.members.filter((m) => m.userId !== userId) } } });
+  }
+  try {
+    await api.removeMember(projectId, userId);
+  } catch (e) {
+    store.set(before);
+    showError(e);
+  }
+}
+
+// PROJECT-SHARING: in a chat of a project shared with you the composer is read-only (the server refuses writes anyway).
+function applyComposerAccess(s: AppState): void {
+  const chat = s.chats.find((c) => c.id === s.activeChatId);
+  const project = chat?.projectId ? s.projects.find((p) => p.id === chat.projectId) : undefined;
+  const readOnly = !!project && !!project.role && project.role !== "owner";
+  const form = document.getElementById("composer");
+  const prompt = document.getElementById("prompt") as HTMLTextAreaElement | null;
+  if (!form || !prompt) return;
+  prompt.disabled = readOnly;
+  form.classList.toggle("read-only", readOnly);
+  const note = form.querySelector<HTMLElement>(".composer-readonly");
+  if (note) note.hidden = !readOnly;
 }
 
 // PROJ-ARCHIVE: the project leaves (or rejoins) the list in the same frame, then the server is told;

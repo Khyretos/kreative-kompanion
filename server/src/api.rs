@@ -151,7 +151,7 @@ pub async fn chats(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Chat>>> {
     let rows = sqlx::query_as(
-        "SELECT id, title, project_id, updated_at, pinned, thread, effort, mcp, overseer FROM chats\n         WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
+        "SELECT id, title, project_id, updated_at, CASE WHEN user_id = ?1 THEN pinned ELSE 0 END AS pinned, thread, effort, mcp, overseer FROM chats\n         WHERE (user_id = ?1 OR project_id IN (SELECT project_id FROM project_members WHERE user_id = ?1)) AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -209,7 +209,7 @@ pub async fn messages(
     Extension(u): Extension<User>,
     Path(chat_id): Path<String>,
 ) -> ApiResult<Json<Vec<Message>>> {
-    if !owns(&s, "chats", &chat_id, &u).await? {
+    if !can_read_chat(&s, &chat_id, &u).await? {
         return Err(ApiError::NotFound);
     }
     let rows = sqlx::query_as(
@@ -904,6 +904,21 @@ pub(crate) async fn owns(s: &AppState, table: &str, id: &str, u: &User) -> ApiRe
         .bind(&u.id)
         .fetch_optional(&s.db)
         .await?;
+    Ok(row.is_some())
+}
+
+/// Returns true if the user owns the chat or is a member of its project.
+pub(crate) async fn can_read_chat(s: &AppState, chat_id: &str, u: &User) -> ApiResult<bool> {
+    if owns(s, "chats", chat_id, u).await? {
+        return Ok(true);
+    }
+    let row: Option<i64> = sqlx::query_scalar(
+        "SELECT 1 FROM chats c JOIN project_members m ON m.project_id = c.project_id WHERE c.id = ? AND m.user_id = ?",
+    )
+    .bind(chat_id)
+    .bind(&u.id)
+    .fetch_optional(&s.db)
+    .await?;
     Ok(row.is_some())
 }
 
