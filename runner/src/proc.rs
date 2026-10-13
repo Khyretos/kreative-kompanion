@@ -20,10 +20,23 @@ thread_local! {
     pub static STOP: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
 }
 
-/// Kills the process group `pid` (the command and everything it started).
+/// The signal target for the process group `pid`: -pgid; None for ids below 2 (0 and 1 mean everyone) and for ids that do not fit an i32.
+#[cfg_attr(windows, allow(dead_code))]
+fn group_target(pid: u32) -> Option<i32> {
+    if 2 <= pid && pid <= i32::MAX as u32 {
+        Some(-(pid as i32))
+    } else {
+        None
+    }
+}
+
+/// Kills the process group `pid` (the command and everything it started) by calling kill(2).
 #[cfg(unix)]
 fn kill_group(pid: u32) {
-    let _ = Command::new("kill").arg("-KILL").arg(format!("-{pid}")).status();
+    if let Some(target) = group_target(pid) {
+        // SAFETY: plain syscall; the target is a negative group id of a child we started, never 0, -1 or positive.
+        unsafe { libc::kill(target, libc::SIGKILL) };
+    }
 }
 
 #[cfg(windows)]
@@ -117,6 +130,22 @@ pub fn run_cmd(program: &str, args: &[String], cwd: Option<&Path>, envs: &[(Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn group_target_is_the_negative_group_id() {
+        // kill(-pgid) signals the group; never shell out to `kill -PID` (procps 4.x reads -1234567 as -1 = everyone).
+        assert_eq!(group_target(1234567), Some(-1234567));
+        assert_eq!(group_target(2), Some(-2));
+    }
+
+    #[test]
+    fn group_target_refuses_ids_that_mean_everyone_or_overflow() {
+        assert_eq!(group_target(0), None);
+        assert_eq!(group_target(1), None);
+        assert_eq!(group_target(u32::MAX), None);
+        assert_eq!(group_target(i32::MAX as u32 + 1), None);
+        assert!(group_target(i32::MAX as u32).is_some());
+    }
 
     fn a(parts: &[&str]) -> Vec<String> {
         parts.iter().map(|s| s.to_string()).collect()
