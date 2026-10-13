@@ -1,0 +1,2 @@
+{"name": "share-tasks", "out": "server/src/tasks.rs", "mode": "patch", "gpu_seconds": 14.9, "tokens": 412, "prompt_tokens": 6892, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/sql", "worker/rust/axum-api"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-13T07:28:27"}
+{"name": "share-tasks", "out": "server/src/tasks.rs", "check": "sh /tmp/kk-share-chk/wire.sh tasks", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T07:28:40"}

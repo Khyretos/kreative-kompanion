@@ -419,14 +419,16 @@ async fn ai_part(db: &SqlitePool, user_id: &str, project_id: &str) -> Result<Val
 
 /// GET /api/projects/{id}/overview (owner only; anyone else gets 404).
 pub async fn get(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
-    let p = load(&s.db, &u.id, &id).await?.ok_or(ApiError::NotFound)?;
+    let access = crate::sharing::access(&s.db, &u.id, &id).await?.ok_or(ApiError::NotFound)?;
+    let owner = access.owner_id;
+    let p = load(&s.db, &owner, &id).await?.ok_or(ApiError::NotFound)?;
 
     let mut errors = serde_json::Map::new();
-    let where_part_res = where_part(&s, &u.id, &p).await;
-    let access_part_res = access_part(&s, &u.id, &p).await;
-    let progress_part_res = progress_part(&s.db, &u.id, &p.id).await;
-    let activity_part_res = activity_part(&s.db, &u.id, &p.id).await;
-    let ai_part_res = ai_part(&s.db, &u.id, &p.id).await;
+    let where_part_res = where_part(&s, &owner, &p).await;
+    let access_part_res = access_part(&s, &owner, &p).await;
+    let progress_part_res = progress_part(&s.db, &owner, &p.id).await;
+    let activity_part_res = activity_part(&s.db, &owner, &p.id).await;
+    let ai_part_res = ai_part(&s.db, &owner, &p.id).await;
 
     if let Err(ref reason) = where_part_res {
         errors.insert("where".to_string(), Value::String(reason.clone()));

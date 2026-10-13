@@ -1,0 +1,2 @@
+{"name": "share-projects", "out": "server/src/api.rs", "mode": "patch", "gpu_seconds": 15.4, "tokens": 469, "prompt_tokens": 7378, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/axum-api", "worker/rust/sql"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-13T07:28:56"}
+{"name": "share-projects", "out": "server/src/api.rs", "check": "sh /tmp/kk-share-chk/wire.sh projects", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T07:29:14"}

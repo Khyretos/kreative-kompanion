@@ -64,6 +64,7 @@ mod gameplan_web;
 mod planner;
 mod planner_web;
 mod scheduler;
+mod sharing;
 mod statesum;
 mod scheduler_web;
 mod thread;
@@ -358,6 +359,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/projects/{id}", patch(tasks::set_project_kind))
         .route("/projects/{id}/settings", patch(projects::settings))
         .route("/projects/{id}/overview", get(overview::get))
+        .route("/projects/{id}/members", get(sharing::members).put(sharing::add))
+        .route("/projects/{id}/members/{user}", axum::routing::delete(sharing::remove))
         .route("/projects/{id}/thread", post(thread::open))
         .route("/projects/{id}/assets", get(projects::assets).post(projects::attach))
         .route("/projects/{id}/assets/{asset}", axum::routing::delete(projects::detach))

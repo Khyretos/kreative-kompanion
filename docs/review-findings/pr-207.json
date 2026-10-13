@@ -1,0 +1,29 @@
+{
+  "699651a32dbf": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/sharing.rs",
+    "reason": "The provided code does not contain the erroneous tuple binding described in the finding; it correctly binds individual values to the SQL query.",
+    "title": "SQL Bind Error",
+    "verdict": "false_positive"
+  },
+  "ab5a5237b2f2": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/sharing.rs",
+    "reason": "The finding describes a potential ambiguity with duplicate names, but the code correctly handles this by returning an error if no user is found and does not explicitly grant access to a wrong user in the shown logic.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "c275799cf32e": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/overview.rs",
+    "reason": "The code correctly retrieves the project owner and passes it to the `load` function, which is consistent with the comment stating 'owner only' since non-owners are explicitly rejected by the `access` check on line 422 before reaching this logic.",
+    "title": "Incorrect Owner Lookup",
+    "verdict": "false_positive"
+  }
+}
