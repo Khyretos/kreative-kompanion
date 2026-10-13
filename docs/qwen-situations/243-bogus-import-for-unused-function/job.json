@@ -1,14 +1,12 @@
 [
- {
-  "name": "s2-a-composerfn",
-  "role": "worker/web",
-  "mode": "patch",
-  "out": "web/src/main.ts",
-  "precheck": false,
-  "prompt": "In web/src/main.ts add a new function right BEFORE the line `async function archiveProject(id: string, on: boolean): Promise<void> {` (SEARCH that line; REPLACE with the function, a blank line, then that line). `function applyComposerAccess(s: AppState): void` with the comment `// PROJECT-SHARING: in a chat of a project shared with you the composer is read-only (the server refuses writes anyway).` Body: `const chat = s.chats.find((c) => c.id === s.activeChatId);` `const project = chat?.projectId ? s.projects.find((p) => p.id === chat.projectId) : undefined;` `const readOnly = !!project && !!project.role && project.role !== \"owner\";` `const form = document.getElementById(\"composer\");` `const prompt = document.getElementById(\"prompt\") as HTMLTextAreaElement | null;` `if (!form || !prompt) return;` `prompt.disabled = readOnly;` `form.classList.toggle(\"read-only\", readOnly);` `const note = form.querySelector<HTMLElement>(\".composer-readonly\");` `if (note) note.hidden = !readOnly;`. `AppState` is the state type imported in this file (used as `prev: AppState` in the render function).",
-  "check": "sh /tmp/kk-share2-chk/tsc.sh web/src/main.ts",
-  "focus": [
-   "async function archiveProject"
-  ]
- }
+  {
+    "name": "s2-a-composerfn",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/main.ts",
+    "precheck": false,
+    "prompt": "In web/src/main.ts add a new function right BEFORE the line `async function archiveProject(id: string, on: boolean): Promise<void> {` (SEARCH that line; REPLACE with the function, a blank line, then that line). `function applyComposerAccess(s: AppState): void` with the comment `// PROJECT-SHARING: in a chat of a project shared with you the composer is read-only (the server refuses writes anyway).` Body: `const chat = s.chats.find((c) => c.id === s.activeChatId);` `const project = chat?.projectId ? s.projects.find((p) => p.id === chat.projectId) : undefined;` `const readOnly = !!project && !!project.role && project.role !== \"owner\";` `const form = document.getElementById(\"composer\");` `const prompt = document.getElementById(\"prompt\") as HTMLTextAreaElement | null;` `if (!form || !prompt) return;` `prompt.disabled = readOnly;` `form.classList.toggle(\"read-only\", readOnly);` `const note = form.querySelector<HTMLElement>(\".composer-readonly\");` `if (note) note.hidden = !readOnly;`. `AppState` is the state type imported in this file (used as `prev: AppState` in the render function).",
+    "check": "sh /tmp/kk-share2-chk/tsc.sh web/src/main.ts",
+    "focus": ["async function archiveProject"]
+  }
 ]

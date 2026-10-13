@@ -1,26 +1,22 @@
 [
- {
-  "name": "s2-o-helper",
-  "role": "worker/web",
-  "mode": "patch",
-  "out": "web/src/views/overview.ts",
-  "precheck": false,
-  "prompt": "In web/src/views/overview.ts insert an exported helper right BEFORE the line `function header(v: OverviewView): SafeHtml {` (SEARCH that line; REPLACE with the helper, a blank line, then that line). Helper with a doc comment `/** PROJECT-SHARING: only the owner edits, archives and configures a project; members read. */`: `export function isOwner(v: OverviewView): boolean { return (v.o?.role ?? v.project.role ?? \"owner\") === \"owner\"; }` written on several lines in the file's style.",
-  "check": "sh /tmp/kk-share2-chk/tsc.sh web/src/views/overview.ts",
-  "focus": [
-   "function header"
-  ]
- },
- {
-  "name": "s2-o-members",
-  "role": "worker/web",
-  "mode": "patch",
-  "out": "web/src/views/overview.ts",
-  "precheck": false,
-  "prompt": "In web/src/views/overview.ts insert a new function right BEFORE the doc comment line `/** The whole Overview; `settings` is the project's settings panel, shown inside the Settings section. */` (SEARCH that one line; REPLACE with the new function, a blank line, then that line). `function membersRow(v: OverviewView): SafeHtml` with the doc comment `/** PROJECT-SHARING: who has this project: the owner first, then each member with a role; the owner adds and removes people, a member can only leave. */`. Behaviour: `const o = v.o; if (!o) return html``;`. Build `chips`: first `html`<span class=\"chip member-chip\" data-member=\"owner\">${o.owner} \u00b7 Owner</span>``, then one chip per `o.members` entry m: `html`<span class=\"chip member-chip\" data-member=\"${m.userId}\">${m.name}${m.you ? \" (you)\" : \"\"} \u00b7 ${m.role === \"editor\" ? \"Editor\" : \"Viewer\"}${removable ? html`<button class=\"icon-btn member-remove\" type=\"button\" data-action=\"member-remove\" data-id=\"${v.project.id}\" data-user=\"${m.userId}\" aria-label=\"${m.you ? \"Leave this project\" : `Remove ${m.name}`}\">${icon(\"close\")}</button>` : \"\"}</span>`` where `removable` is `o.role === \"owner\" || m.you`. When the viewer is the owner (`o.role === \"owner\"`) also render the add form: `html`<form class=\"member-add\" data-id=\"${v.project.id}\"><input name=\"member\" placeholder=\"Add a person by name\" aria-label=\"Name of the person to add\" autocomplete=\"off\" required><select name=\"role\" aria-label=\"Role\"><option value=\"viewer\">Viewer</option><option value=\"editor\">Editor</option></select><button class=\"btn small\" type=\"submit\">Add</button><span class=\"member-error error\" role=\"alert\"></span></form>``, else an empty `html```. Return `html`<section class=\"ov-members\" aria-label=\"Members\">${chips}${form}</section>``. Use the file's `html` tagged template and `icon` import as the other functions do.",
-  "check": "sh /tmp/kk-share2-chk/tsc.sh web/src/views/overview.ts",
-  "focus": [
-   "The whole Overview"
-  ]
- }
+  {
+    "name": "s2-o-helper",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/overview.ts",
+    "precheck": false,
+    "prompt": "In web/src/views/overview.ts insert an exported helper right BEFORE the line `function header(v: OverviewView): SafeHtml {` (SEARCH that line; REPLACE with the helper, a blank line, then that line). Helper with a doc comment `/** PROJECT-SHARING: only the owner edits, archives and configures a project; members read. */`: `export function isOwner(v: OverviewView): boolean { return (v.o?.role ?? v.project.role ?? \"owner\") === \"owner\"; }` written on several lines in the file's style.",
+    "check": "sh /tmp/kk-share2-chk/tsc.sh web/src/views/overview.ts",
+    "focus": ["function header"]
+  },
+  {
+    "name": "s2-o-members",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "web/src/views/overview.ts",
+    "precheck": false,
+    "prompt": "In web/src/views/overview.ts insert a new function right BEFORE the doc comment line `/** The whole Overview; `settings` is the project's settings panel, shown inside the Settings section. */` (SEARCH that one line; REPLACE with the new function, a blank line, then that line). `function membersRow(v: OverviewView): SafeHtml` with the doc comment `/** PROJECT-SHARING: who has this project: the owner first, then each member with a role; the owner adds and removes people, a member can only leave. */`. Behaviour: `const o = v.o; if (!o) return html``;`. Build `chips`: first `html`<span class=\"chip member-chip\" data-member=\"owner\">${o.owner} \u00b7 Owner</span>``, then one chip per `o.members` entry m: `html`<span class=\"chip member-chip\" data-member=\"${m.userId}\">${m.name}${m.you ? \" (you)\" : \"\"} \u00b7 ${m.role === \"editor\" ? \"Editor\" : \"Viewer\"}${removable ? html`<button class=\"icon-btn member-remove\" type=\"button\" data-action=\"member-remove\" data-id=\"${v.project.id}\" data-user=\"${m.userId}\" aria-label=\"${m.you ? \"Leave this project\" : `Remove ${m.name}`}\">${icon(\"close\")}</button>` : \"\"}</span>`` where `removable` is `o.role === \"owner\" || m.you`. When the viewer is the owner (`o.role === \"owner\"`) also render the add form: `html`<form class=\"member-add\" data-id=\"${v.project.id}\"><input name=\"member\" placeholder=\"Add a person by name\" aria-label=\"Name of the person to add\" autocomplete=\"off\" required><select name=\"role\" aria-label=\"Role\"><option value=\"viewer\">Viewer</option><option value=\"editor\">Editor</option></select><button class=\"btn small\" type=\"submit\">Add</button><span class=\"member-error error\" role=\"alert\"></span></form>``, else an empty `html```. Return `html`<section class=\"ov-members\" aria-label=\"Members\">${chips}${form}</section>``. Use the file's `html` tagged template and `icon` import as the other functions do.",
+    "check": "sh /tmp/kk-share2-chk/tsc.sh web/src/views/overview.ts",
+    "focus": ["The whole Overview"]
+  }
 ]
