@@ -8,6 +8,24 @@
     "title": "Missing Error Handling for Add Member",
     "verdict": "false_positive"
   },
+  "24b8d467c2f5": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "The code explicitly removes the entire project object from the `projects` array if the removed user was the owner, preventing any stale role references from persisting in that specific data structure.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "28ed5a126015": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/conversation.ts",
+    "reason": "The provided code snippet only defines the static HTML structure of the composer component and does not contain the logic for detecting read-only states or handling message submission, making it impossible to verify the missing error handling claim from this diff alone.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "46fcc4a95620": {
     "by": "coder",
     "checked": true,
@@ -44,6 +62,15 @@
     "title": "Unused Import",
     "verdict": "false_positive"
   },
+  "65935d44bf83": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/overview.ts",
+    "reason": "The code correctly identifies the current user as 'you' via m.you and allows removal only if the current user is the owner or the target member is themselves, which aligns with the documented behavior that members can only leave while owners manage others.",
+    "title": "Logic Error in Member Removal",
+    "verdict": "false_positive"
+  },
   "8d9e8687c380": {
     "by": "coder",
     "checked": true,
@@ -51,6 +78,15 @@
     "path": "docs/qwen-situations/243-bogus-import-for-unused-function/corrected.diff",
     "reason": "The code explicitly checks for the existence of the DOM elements before accessing them, preventing the reported TypeError.",
     "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "c0d47f12fd14": {
+    "by": "repeat of e0ecd07246b1",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/overview.ts",
+    "reason": "The code correctly implements the intended logic where only owners can remove other members and current users can leave their own projects, with no actual defect in the provided snippet.",
+    "title": "Possible Logic Error",
     "verdict": "false_positive"
   },
   "cb95840dd362": {
@@ -71,6 +107,15 @@
     "title": "Unused Import",
     "verdict": "false_positive"
   },
+  "d59da2def05a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "The finding incorrectly identifies a duplicate definition because the provided code snippet only shows the usage of `applyComposerAccess` at line 388, not the function's actual definition later in the file which the linter flagged as redundant.",
+    "title": "Unused Import",
+    "verdict": "false_positive"
+  },
   "e0ecd07246b1": {
     "by": "coder",
     "checked": true,
@@ -87,6 +132,15 @@
     "path": "web/src/api/mock.ts",
     "reason": "The code correctly trims the input name before looking it up in DEMO_USERS, which handles empty or whitespace-only strings by resulting in a lookup for an empty string that will simply not match any user.",
     "title": "Incomplete Error Handling",
+    "verdict": "false_positive"
+  },
+  "fd9acd558ab4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "The provided code snippet does not contain the `applyComposerAccess` function or any logic related to project role checks, making it impossible to verify the claimed security issue.",
+    "title": "Potential Security Issue",
     "verdict": "false_positive"
   },
   "ffc491385b90": {
