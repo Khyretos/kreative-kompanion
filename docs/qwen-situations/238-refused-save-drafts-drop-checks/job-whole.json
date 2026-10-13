@@ -1,0 +1,15 @@
+[
+ {
+  "name": "ovfix-settings",
+  "role": "worker/rust",
+  "mode": "patch",
+  "out": "server/src/projects.rs",
+  "precheck": false,
+  "focus": [
+   "pub async fn settings",
+   "PROJ-OVERVIEW: check every overview field first"
+  ],
+  "prompt": "In server/src/projects.rs, `settings` (PATCH /projects/{id}/settings) saves some fields before it validates the rest: the name/description/about/links are saved in a loop, then `ptype` is validated and saved, then `repo_folder` is cleaned (can fail), then `repo_machine_id` is checked against the user's machines (can fail). A refused request (400) therefore still saved the fields before it. Fix it so a refused request saves nothing: validate EVERYTHING first (ptype against TYPES, `clean_folder(f)?`, the machine lookup when repo_machine_id is non-empty, besides the checks already at the top), keep the cleaned values in local variables, and only then run the UPDATE statements, in the same order as now. Keep every error message and every UPDATE statement exactly as it is; only move code. The test `a_refused_settings_change_saves_nothing` in the same file must pass, and so must the other tests of the file. Use several small SEARCH/REPLACE blocks; each SEARCH is only the lines it changes.",
+  "check": "sh /tmp/kk-ov11-chk/settings.sh"
+ }
+]

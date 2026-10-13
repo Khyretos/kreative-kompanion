@@ -110,32 +110,33 @@ pub async fn settings(
         return Err(ApiError::BadRequest("The about text is at most 20,000 bytes.".into()));
     }
     let links = b.links.as_deref().map(clean_links).transpose()?;
+    if let Some(t) = &b.ptype {
+        if !TYPES.contains(&t.as_str()) {
+            return Err(ApiError::BadRequest("A project is a chat, game or programming project.".into()));
+        }
+    }
+    let folder = b.repo_folder.as_deref().map(clean_folder).transpose()?;
+    let machine = b.repo_machine_id.as_deref().map(str::trim);
+    if let Some(m) = machine.filter(|m| !m.is_empty()) {
+        let mine: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM machines WHERE id = ? AND user_id = ?").bind(m).bind(&u.id).fetch_optional(&s.db).await?;
+        if mine.is_none() {
+            return Err(ApiError::BadRequest("Pick one of your computers.".into()));
+        }
+    }
+
+    // Everything is valid: save.
     for (column, value) in [("name", name), ("description", description), ("about", about), ("links", links.as_deref())] {
         if let Some(v) = value {
             sqlx::query(&format!("UPDATE projects SET {column} = ? WHERE id = ?")).bind(v).bind(&id).execute(&s.db).await?;
         }
     }
     if let Some(t) = &b.ptype {
-        if !TYPES.contains(&t.as_str()) {
-            return Err(ApiError::BadRequest("A project is a chat, game or programming project.".into()));
-        }
         sqlx::query("UPDATE projects SET ptype = ? WHERE id = ?").bind(t).bind(&id).execute(&s.db).await?;
     }
-    if let Some(f) = &b.repo_folder {
-        let f = clean_folder(f)?;
+    if let Some(f) = &folder {
         sqlx::query("UPDATE projects SET repo_folder = NULLIF(?, '') WHERE id = ?").bind(f).bind(&id).execute(&s.db).await?;
     }
-    if let Some(m) = b.repo_machine_id.as_deref().map(str::trim) {
-        if !m.is_empty() {
-            let mine: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM machines WHERE id = ? AND user_id = ?")
-                .bind(m)
-                .bind(&u.id)
-                .fetch_optional(&s.db)
-                .await?;
-            if mine.is_none() {
-                return Err(ApiError::BadRequest("Pick one of your computers.".into()));
-            }
-        }
+    if let Some(m) = machine {
         sqlx::query("UPDATE projects SET repo_machine_id = NULLIF(?, '') WHERE id = ?").bind(m).bind(&id).execute(&s.db).await?;
     }
     if let Some(on) = b.overseer {
@@ -427,5 +428,26 @@ mod tests {
         detach(State(s.clone()), Extension(user("u1")), Path(("p1".into(), 8))).await.unwrap();
         let Json(list) = assets(State(s), Extension(user("u1")), Path("p1".into())).await.unwrap();
         assert!(list.is_empty());
+    }
+
+    /// PROJ-OVERVIEW follow-up: a refused change saves nothing, not even the fields checked before the refusal.
+    #[tokio::test]
+    async fn a_refused_settings_change_saves_nothing() {
+        let db = db().await;
+        let s = state(db.clone());
+        let patch = |v: Value| settings(State(s.clone()), Extension(user("u1")), Path("p1".into()), body(v));
+        for bad in [
+            json!({ "type": "programming", "repoFolder": "/home/u/app", "repoMachineId": "m2" }),
+            json!({ "type": "programming", "repoFolder": "relative/path" }),
+            json!({ "type": "programming", "name": "Renamed", "repoMachineId": "m2" }),
+            json!({ "name": "Renamed", "type": "nonsense" }),
+        ] {
+            assert!(matches!(patch(bad).await, Err(ApiError::BadRequest(_))));
+            let row: (String, String, Option<String>, Option<String>) = sqlx::query_as("SELECT name, ptype, repo_folder, repo_machine_id FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+            assert_eq!(row, ("Game".into(), "chat".into(), None, None));
+        }
+        patch(json!({ "type": "programming", "repoFolder": "/home/u/app", "repoMachineId": "m1" })).await.unwrap();
+        let row: (String, Option<String>, Option<String>) = sqlx::query_as("SELECT ptype, repo_folder, repo_machine_id FROM projects WHERE id = 'p1'").fetch_one(&db).await.unwrap();
+        assert_eq!(row, ("programming".into(), Some("/home/u/app".into()), Some("m1".into())));
     }
 }
