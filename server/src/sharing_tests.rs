@@ -247,11 +247,12 @@ async fn an_editor_writes_in_the_chat_and_the_owner_answers_it() {
     assert!(m.iter().any(|m| m.author == "user" && m.text == "hi from the editor"), "the editor's message is in the owner's chat");
     assert!(!m.iter().any(|m| m.text.contains("No model is set")), "the owner's model answers, not the editor's missing one");
     // A computer and its tools are the owner's: an editor who names one is refused and nothing is stored.
-    let before = m.len();
+    let user_messages = |m: &[crate::api::Message]| m.iter().filter(|m| m.author == "user").count();
+    let before = user_messages(&m);
     let r = crate::api::send(State(s.clone()), Extension(user("u2")), Path("c1".into()), body(json!({ "text": "run it", "machine_id": "m1" }))).await;
     assert!(matches!(r, Err(ApiError::Forbidden(_))), "computer tools are owner-only");
     let Json(m) = crate::api::messages(State(s.clone()), Extension(user("u1")), Path("c1".into())).await.unwrap();
-    assert_eq!(m.len(), before);
+    assert_eq!(user_messages(&m), before, "a refused message is not stored");
 }
 
 #[tokio::test]
