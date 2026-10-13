@@ -72,15 +72,19 @@ pub async fn list(
     Extension(u): Extension<User>,
     Query(q): Query<ListQuery>,
 ) -> ApiResult<Json<Vec<Value>>> {
+    let user_id = match q.project.as_deref() {
+        Some(p) => crate::sharing::access(&s.db, &u.id, p).await?.map(|a| a.owner_id).unwrap_or_else(|| u.id.clone()),
+        None => u.id.clone(),
+    };
     let rows: Vec<Row> = sqlx::query_as(&format!(
         "SELECT {COLUMNS} FROM tasks WHERE user_id = ?2 AND (?1 IS NULL OR project_id = ?1)
          ORDER BY project_id, position, updated_at DESC LIMIT 2000"
     ))
     .bind(&q.project)
-    .bind(&u.id)
+    .bind(&user_id)
     .fetch_all(&s.db)
     .await?;
-    let mut deps = tasktree::deps_of(&s.db, &u.id, q.project.as_deref()).await?;
+    let mut deps = tasktree::deps_of(&s.db, &user_id, q.project.as_deref()).await?;
     Ok(Json(rows.into_iter().map(|r| {
         let d = deps.get(&r.id).cloned().unwrap_or_default();
         to_json(r, d)

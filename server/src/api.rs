@@ -51,6 +51,12 @@ pub struct Project {
     /// PROJ-ARCHIVE: when it was archived; None = active.
     #[sqlx(default)]
     pub archived_at: Option<String>,
+    /// PROJ-SHARE: the caller's role in this project ("owner" or member role).
+    #[sqlx(default)]
+    pub role: String,
+    /// PROJ-SHARE: the name of the project owner.
+    #[sqlx(default)]
+    pub owner_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -126,8 +132,13 @@ pub async fn projects(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Project>>> {
     let rows = sqlx::query_as(
-        "SELECT id, name, description, updated_at, kind, ptype, repo_folder, repo_machine_id, overseer, archived_at FROM projects
-         WHERE user_id = ? ORDER BY updated_at DESC",
+        "SELECT p.id, p.name, p.description, p.updated_at, p.kind, p.ptype, p.repo_folder, p.repo_machine_id, p.overseer, p.archived_at,
+         CASE WHEN p.user_id = ?1 THEN 'owner' ELSE m.role END AS role, o.name AS owner_name
+         FROM projects p
+         JOIN users o ON o.id = p.user_id
+         LEFT JOIN project_members m ON m.project_id = p.id AND m.user_id = ?1
+         WHERE p.user_id = ?1 OR m.user_id = ?1
+         ORDER BY p.updated_at DESC",
     )
     .bind(&u.id)
     .fetch_all(&s.db)

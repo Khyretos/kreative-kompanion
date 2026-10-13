@@ -1,0 +1,2 @@
+{"name": "share-migration", "out": "server/migrations/0133_project_members.sql", "gpu_seconds": 9.7, "tokens": 224, "prompt_tokens": 12407, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/sql", "worker/python"], "lines": 10, "model": "Coder", "at": "2026-10-13T07:22:26"}
+{"name": "share-migration", "out": "server/migrations/0133_project_members.sql", "check": "sh /tmp/kk-share-chk/migration.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T07:22:26"}

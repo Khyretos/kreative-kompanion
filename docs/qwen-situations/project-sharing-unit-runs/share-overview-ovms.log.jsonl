@@ -1,0 +1,2 @@
+{"name": "share-overview", "out": "server/src/overview.rs", "mode": "patch", "gpu_seconds": 16.2, "tokens": 452, "prompt_tokens": 6903, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/axum-api", "worker/rust/sql"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-13T07:27:50"}
+{"name": "share-overview", "out": "server/src/overview.rs", "check": "sh /tmp/kk-share-chk/wire.sh overview", "check_attempts": 1, "check_passed": true, "at": "2026-10-13T07:28:11"}
