@@ -1,0 +1,38 @@
+{
+  "1694aa991c1b": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/238-refused-save-drafts-drop-checks/corrected.txt",
+    "reason": "Checked by Claude: corrected.txt is a snapshot of the final validate-then-save block (stored as a rerunnable lesson situation); the real function has each check once and the test passes.",
+    "title": "Logic Error",
+    "verdict": "false_positive"
+  },
+  "c208c1a5923d": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/ovfix-unit-runs/settings2-ovms.log.jsonl",
+    "reason": "Checked by Claude: the log records the Coder attempts that failed (lesson 238); it is run history, not code, and the final function passes the 566 tests.",
+    "title": "Test Failure",
+    "verdict": "false_positive"
+  },
+  "c7913a8dadc7": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/projects.rs",
+    "reason": "The code correctly implements atomicity by performing all validation checks before executing any database updates, ensuring that no partial data is saved if a validation fails.",
+    "title": "Partial Save Bug",
+    "verdict": "false_positive"
+  },
+  "fe992f4a53c6": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/tests/projoverview.spec.ts",
+    "reason": "The finding describes a potential flakiness issue with the test's polling mechanism, but this is a test reliability concern rather than a defect in the application code itself that a test could expose.",
+    "title": "Flaky Test Assertion",
+    "verdict": "false_positive"
+  }
+}
