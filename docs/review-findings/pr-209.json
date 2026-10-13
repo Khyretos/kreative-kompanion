@@ -71,6 +71,15 @@
     "title": "Logic Error in Member Removal",
     "verdict": "false_positive"
   },
+  "76e3947e2810": {
+    "by": "repeat of 24b8d467c2f5",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "The code explicitly removes the entire project object from the `projects` array if the removed user was the owner, preventing any stale role references from persisting in that specific data structure.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
   "8d9e8687c380": {
     "by": "coder",
     "checked": true,
@@ -78,6 +87,15 @@
     "path": "docs/qwen-situations/243-bogus-import-for-unused-function/corrected.diff",
     "reason": "The code explicitly checks for the existence of the DOM elements before accessing them, preventing the reported TypeError.",
     "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "94eb6425d424": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/tasks.ts",
+    "reason": "The code correctly passes the memberError state to the renderOverview component, which is responsible for displaying the error message in the UI. Checked by Claude: tasks.ts:354 passes memberError and overview.ts:347 renders it in a role=alert span.",
+    "title": "Missing Error Handling",
     "verdict": "false_positive"
   },
   "c0d47f12fd14": {
