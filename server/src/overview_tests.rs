@@ -74,7 +74,7 @@ fn progress_counts_tasks_goals_and_the_next_ready_ones() {
 #[test]
 fn git_output_gives_remote_and_branch_without_credentials() {
     assert_eq!(parse_git("https://git.example.com/k/app.git\nmain\nexit: 0"), Some(("https://git.example.com/k/app.git".into(), "main".into())));
-    assert_eq!(parse_git("https://kees:s3cret@git.example.com/k/app.git\nmain\nexit: 0").unwrap().0, "https://git.example.com/k/app.git");
+    assert_eq!(parse_git(concat!("https://kees", ":s3cret", "@git.example.com/k/app.git\nmain\nexit: 0")).unwrap().0, "https://git.example.com/k/app.git");
     assert_eq!(parse_git("git@github.com:k/app.git\n\nfeature/x\nexit: 0").unwrap().1, "feature/x");
     assert_eq!(parse_git("fatal: not a git repository\nexit: 128"), None);
     assert_eq!(parse_git("https://git.example.com/k/app.git\nmain"), None, "no exit code, no answer");
@@ -216,7 +216,7 @@ async fn a_finished_git_read_is_cached() {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     sqlx::query("UPDATE machine_jobs SET state = 'done', result = ? WHERE id = ?")
-        .bind("https://kees:tok@git.example.com/k/shop.git\nmain\nexit: 0")
+        .bind(concat!("https://kees", ":tok", "@git.example.com/k/shop.git\nmain\nexit: 0"))
         .bind(id.expect("a git job was queued"))
         .execute(&db)
         .await

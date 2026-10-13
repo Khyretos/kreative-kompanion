@@ -66,7 +66,7 @@ Spec: kreative-kompanion-tasks/proj-overview-spec.md (queue thread 10, 2026-10-1
 | w28                                | project click                                     | one fix (pane only on a phone) by Claude; its fix round died with an OVMS crash                |
 | w29                                | CSS                                               | layout right; it also redefined :root colours, removed by Claude (235)                         |
 
-Lessons 230-237 (237 = my own check faults); situations in docs/qwen-situations/230-* to 236-*; the per-unit
+Lessons 230-237 (237 = my own check faults); situations in `docs/qwen-situations/230-*` to `236-*`; the per-unit
 logs in docs/qwen-situations/proj-overview-unit-runs/.
 
 ## Metrics
