@@ -1,0 +1,168 @@
+//! Runner self-update (RUNNER-SYNC): check a downloaded binary and swap it in.
+
+use std::fs;
+use std::path::Path;
+
+/// True when `sha_text` (the content of a `.sha256` file: a hex digest, optionally followed by a file name) is the SHA-256 of `bytes`.
+pub fn sha_ok(bytes: &[u8], sha_text: &str) -> bool {
+    use sha2::{Digest, Sha256};
+    let expected: String = Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect();
+    let Some(word) = sha_text.split_whitespace().next() else { return false };
+    word.eq_ignore_ascii_case(&expected)
+}
+
+/// Writes `bytes` next to `target` as `<target>.new`, makes it executable (0o755), runs it with `--version`
+/// and requires its output to start with `kompanion-runner `; only then renames it over `target`.
+/// On any failure the `.new` file is removed, `target` is untouched and the error text is returned.
+pub fn install_binary(bytes: &[u8], target: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut name = target.file_name().ok_or_else(|| "target has no file name".into())?;
+    name.push(".new");
+    let new = target.with_file_name(name);
+    let swap = || -> Result<(), String> {
+        std::fs::write(&new, bytes).map_err(|e| e.to_string())?;
+        std::fs::set_permissions(&new, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+        let mut tries = 0;
+        loop {
+            let out = std::process::Command::new(&new).arg("--version").output();
+            match out {
+                Ok(_) => break,
+                Err(e) if e.raw_os_error() == Some(26) && tries < 20 => {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    tries += 1;
+                    continue;
+                }
+                Err(_) if tries >= 20 => return Err("the new runner does not start".into()),
+                _ => return Err("the new runner does not start".into()),
+            }
+        }
+        let out = std::process::Command::new(&new).arg("--version").output().map_err(|e| format!("the new runner does not start: {e}"))?;
+        if !out.status.success() || !String::from_utf8_lossy(&out.stdout).starts_with("kompanion-runner ") {
+            return Err("the new file is not a kompanion-runner".into());
+        }
+        std::fs::rename(&new, target).map_err(|e| e.to_string())
+    };
+    let result = swap();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&new);
+    }
+    result
+}
+
+/// Downloads `{base}/download/kompanion-runner` and `{base}/download/kompanion-runner.sha256` with `agent`, requires
+/// the digest to match (error text contains "sha256"), installs the file over `target` with `install_binary` and
+/// returns a message naming the new version (the first line of the new runner's `--version` output).
+pub fn update_from_server(agent: &ureq::Agent, base: &str, target: &Path) -> Result<String, String> {
+    use std::io::Read;
+    let url = format!("{}/download/kompanion-runner", base.trim_end_matches('/'));
+    let resp = agent.get(&url).call().map_err(|e| format!("download failed: {e}"))?;
+    let mut bytes = Vec::new();
+    resp.into_reader().take(200_000_000).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    let sha_text = agent
+        .get(&format!("{url}.sha256"))
+        .call()
+        .map_err(|e| format!("download of the sha256 failed: {e}"))?
+        .into_string()
+        .map_err(|e| e.to_string())?;
+    if !sha_ok(&bytes, &sha_text) {
+        return Err("the download does not match its sha256".into());
+    }
+    install_binary(&bytes, target)?;
+    let version = std::process::Command::new(target).arg("--version").output().ok().map(|o| String::from_utf8_lossy(&o.stdout).lines().next().unwrap_or("").trim().to_string()).unwrap_or_default();
+    Ok(if version.is_empty() { "updated".to_string() } else { format!("updated: {version}") })
+}
+
+/// Name of the runner file the server offers for download.
+pub fn asset_name() -> &'static str {
+    if cfg!(windows) {
+        "kompanion-runner.exe"
+    } else {
+        "kompanion-runner"
+    }
+}
+
+/// Replace the running binary with a new one on Windows by renaming the old one away.
+#[cfg_attr(unix, allow(dead_code))]
+pub fn replace_with_new(new: &Path, target: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let old = target.with_file_name(format!(
+            "{}.old",
+            target.file_stem().unwrap_or_default()
+        ));
+        // Remove stale .old file
+        let _ = fs::remove_file(&old);
+        // Rename target to .old (skip if target doesn't exist)
+        if target.exists() {
+            if let Err(e) = fs::rename(target, &old) {
+                return Err(e.to_string());
+            }
+        }
+        // Rename new to target
+        if let Err(e) = fs::rename(new, target) {
+            // Rollback: rename old back to target (ignore error)
+            let _ = fs::rename(&old, target);
+            return Err(e.to_string());
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::rename(new, target).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Remove the `.old` backup file next to `target`, ignoring errors.
+#[cfg_attr(unix, allow(dead_code))]
+pub fn cleanup_old(_target: &Path) {
+    #[cfg(windows)]
+    {
+        let old = _target.with_file_name(format!(
+            "{}.old",
+            _target.file_stem().unwrap_or_default()
+        ));
+        let _ = fs::remove_file(&old);
+    }
+}
+
+/// Make a file executable on Unix, or do nothing on Windows.
+fn make_executable(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut meta = fs::metadata(path).map_err(|e| e.to_string())?;
+        let mode = meta.permissions().mode();
+        if mode & 0o111 == 0 {
+            meta.set_mode(mode | 0o755)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(())
+    }
+}
+
+/// Install a new binary in place, handling Windows restrictions.
+fn put_in_place(new: &Path, target: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        std::fs::rename(new, target).map_err(|e| e.to_string())?;
+        make_executable(target)?;
+    }
+    #[cfg(not(unix))]
+    {
+        replace_with_new(new, target)?;
+        make_executable(target)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "selfupdate_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "selfupdate_replace_tests.rs"]
+mod replace_tests;

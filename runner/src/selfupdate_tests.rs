@@ -1,5 +1,6 @@
 use super::*;
 use sha2::{Digest, Sha256};
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
 fn hex(bytes: &[u8]) -> String {
@@ -28,6 +29,7 @@ fn sha_ok_rejects_other_bytes_and_junk() {
     assert!(!sha_ok(body, "not-a-hash  kompanion-runner"));
 }
 
+#[cfg(unix)]
 #[test]
 fn install_binary_replaces_a_working_binary() {
     let d = temp("ok");
@@ -40,6 +42,7 @@ fn install_binary_replaces_a_working_binary() {
     assert!(!d.join("kompanion-runner.new").exists());
 }
 
+#[cfg(unix)]
 #[test]
 fn install_binary_keeps_the_old_one_when_the_new_one_does_not_run() {
     let d = temp("bad");
@@ -51,6 +54,7 @@ fn install_binary_keeps_the_old_one_when_the_new_one_does_not_run() {
     assert!(!d.join("kompanion-runner.new").exists());
 }
 
+#[cfg(unix)]
 #[test]
 fn install_binary_rejects_a_program_that_is_not_the_runner() {
     let d = temp("other");
@@ -61,6 +65,7 @@ fn install_binary_rejects_a_program_that_is_not_the_runner() {
 }
 
 /// Serves `/download/kompanion-runner` and `/download/kompanion-runner.sha256` on 127.0.0.1 for `requests` requests.
+#[cfg(unix)]
 fn serve(binary: Vec<u8>, sha_text: String, requests: usize) -> String {
     use std::io::{Read, Write};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -86,6 +91,7 @@ fn serve(binary: Vec<u8>, sha_text: String, requests: usize) -> String {
     base
 }
 
+#[cfg(unix)]
 #[test]
 fn update_from_server_installs_a_verified_download() {
     let d = temp("dl-ok");
@@ -99,6 +105,7 @@ fn update_from_server_installs_a_verified_download() {
     assert_eq!(std::fs::read(&target).unwrap(), new);
 }
 
+#[cfg(unix)]
 #[test]
 fn update_from_server_refuses_a_wrong_digest() {
     let d = temp("dl-bad");
@@ -113,6 +120,7 @@ fn update_from_server_refuses_a_wrong_digest() {
     assert!(!d.join("kompanion-runner.new").exists());
 }
 
+#[cfg(unix)]
 #[test]
 fn update_from_server_reports_a_missing_download() {
     let d = temp("dl-404");
@@ -125,6 +133,7 @@ fn update_from_server_reports_a_missing_download() {
 
 /// Other threads fork (the runner runs granted tools in threads) while a fresh binary is executed: the child
 /// may briefly hold the write handle, and exec then fails with "Text file busy" unless install_binary retries.
+#[cfg(unix)]
 #[test]
 fn install_binary_survives_concurrent_forks() {
     let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));

@@ -1,0 +1,126 @@
+//! Windows machine stats (RUNNER-WIN). The arithmetic is plain Rust and tested everywhere;
+//! the Win32 calls (GlobalMemoryStatusEx, GetDiskFreeSpaceExW, GetSystemTimes, GetTickCount64)
+//! only exist on Windows.
+
+#[cfg(windows)]
+use windows_sys::Win32::Foundation::FILETIME;
+#[cfg(windows)]
+use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+#[cfg(windows)]
+use windows_sys::Win32::System::SystemInformation::{GetTickCount64, GlobalMemoryStatusEx, MEMORYSTATUSEX};
+#[cfg(windows)]
+use windows_sys::Win32::System::Threading::GetSystemTimes;
+
+pub fn busy_total(idle: u64, kernel: u64, user: u64) -> (u64, u64) {
+    let total = kernel + user;
+    let busy = total.saturating_sub(idle);
+    (busy, total)
+}
+
+pub fn filetime_ticks(low: u32, high: u32) -> u64 {
+    ((high as u64) << 32) | low as u64
+}
+
+pub fn used_bytes(total: u64, free: u64) -> u64 {
+    total.saturating_sub(free)
+}
+
+#[cfg(windows)]
+pub fn memory() -> (u64, u64) {
+    unsafe {
+        let mut status: MEMORYSTATUSEX = std::mem::zeroed();
+        status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+        if GlobalMemoryStatusEx(&mut status) == 0 {
+            return (0, 0);
+        }
+        // SAFETY: We are reading from a properly initialized struct returned by the API.
+        let total = status.ullTotalPhys;
+        let avail = status.ullAvailPhys;
+        (used_bytes(total, avail), total)
+    }
+}
+
+#[cfg(windows)]
+pub fn disk_usage(path: &str) -> (u64, u64) {
+    unsafe {
+        let path_wide: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+        let ptr: *const u16 = path_wide.as_ptr();
+        let mut free_to_caller: u64 = 0;
+        let mut total: u64 = 0;
+        let mut total_free: u64 = 0;
+        let result = GetDiskFreeSpaceExW(ptr, &mut free_to_caller, &mut total, &mut total_free);
+        if result == 0 {
+            return (0, 0);
+        }
+        (used_bytes(total, total_free), total)
+    }
+}
+
+#[cfg(windows)]
+pub fn system_times() -> Option<(u64, u64)> {
+    unsafe {
+        let mut idle = FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+        let mut kernel = FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+        let mut user = FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+        if GetSystemTimes(&mut idle, &mut kernel, &mut user) == 0 {
+            return None;
+        }
+        // SAFETY: We are passing pointers to valid FILETIME structs to the API.
+        Some(busy_total(
+            filetime_ticks(idle.dwLowDateTime, idle.dwHighDateTime),
+            filetime_ticks(kernel.dwLowDateTime, kernel.dwHighDateTime),
+            filetime_ticks(user.dwLowDateTime, user.dwHighDateTime),
+        ))
+    }
+}
+
+#[cfg(windows)]
+pub fn uptime_secs() -> u64 {
+    // SAFETY: takes no arguments and has no side effects.
+    (unsafe { GetTickCount64() }) / 1000
+}
+
+#[cfg(windows)]
+pub fn cpu_count() -> u32 {
+    std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn busy_total_takes_idle_out_of_kernel_time() {
+        // GetSystemTimes: kernel time already contains idle time.
+        assert_eq!(busy_total(100, 300, 200), (400, 500));
+    }
+
+    #[test]
+    fn busy_total_never_goes_below_zero() {
+        assert_eq!(busy_total(900, 300, 200), (0, 500));
+    }
+
+    #[test]
+    fn filetime_is_two_u32_halves() {
+        assert_eq!(filetime_ticks(1, 2), (2u64 << 32) | 1);
+        assert_eq!(filetime_ticks(u32::MAX, 0), u32::MAX as u64);
+    }
+
+    #[test]
+    fn used_is_total_minus_free_and_never_negative() {
+        assert_eq!(used_bytes(100, 40), 60);
+        assert_eq!(used_bytes(100, 140), 0);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn reads_this_windows_machine() {
+        let (used, total) = memory();
+        assert!(total > 0 && used <= total);
+        let (dused, dtotal) = disk_usage("C:\\");
+        assert!(dtotal > 0 && dused <= dtotal);
+        assert!(system_times().is_some());
+        assert!(uptime_secs() > 0);
+        assert!(cpu_count() >= 1);
+    }
+}

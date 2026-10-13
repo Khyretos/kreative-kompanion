@@ -21,6 +21,8 @@ mod setup;
 mod ask;
 mod gpuapps;
 mod selfupdate;
+mod platform;
+mod winsetup;
 
 use machine_stats::Sampler;
 use serde::Deserialize;
@@ -39,14 +41,16 @@ struct Config {
 }
 
 fn default_grants() -> String {
-    "~/.config/kompanion-runner/grants.json".into()
+    platform::config_dir().map(|d| d.join("grants.json").to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+/// `config.toml` in the OS's config folder (`~/.config/kompanion-runner` or `%APPDATA%\kompanion-runner`).
+fn default_config() -> PathBuf {
+    platform::config_dir().map(|d| d.join("config.toml")).unwrap_or_else(|_| PathBuf::from("config.toml"))
 }
 
 fn expand(p: &str) -> PathBuf {
-    match p.strip_prefix("~/") {
-        Some(rest) => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(rest),
-        None => PathBuf::from(p),
-    }
+    platform::expand(p)
 }
 
 /// The current UTC time as RFC 3339 (`2026-10-03T22:20:40Z`), comparable as a string with the grant times.
@@ -101,7 +105,7 @@ fn main() {
         Some("pair") => done(Err("usage: kompanion-runner pair <server> <code>".into())),
         Some("install-service") => done(setup::install_service()),
         Some("ask") if args.len() > 2 => {
-            let cfg_path = expand("~/.config/kompanion-runner/config.toml");
+            let cfg_path = default_config();
             let cfg: Config = match fs::read_to_string(&cfg_path).map_err(|e| e.to_string()).and_then(|t| toml::from_str(&t).map_err(|e| e.to_string())) {
                 Ok(c) => c,
                 Err(e) => done(Err(format!("can't read {}: {e} (pair this computer first)", cfg_path.display()))),
@@ -120,7 +124,7 @@ fn main() {
     let path = std::env::args()
         .nth(1)
         .map(PathBuf::from)
-        .unwrap_or_else(|| expand("~/.config/kompanion-runner/config.toml"));
+        .unwrap_or_else(default_config);
 
     let cfg: Config = match fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| toml::from_str(&t).map_err(|e| e.to_string())) {
         Ok(c) => c,
@@ -170,13 +174,18 @@ fn main() {
         }),
     );
 
-    let mut sampler = Sampler::new("/", "/");
+    let mut sampler = Sampler::new("/", &platform::disk_root());
     sampler.sample(); // first CPU/GPU counters
     let mut interval = 5u64;
     let mut backoff = 0u64;
 
     // Running jobs by id: their stop flag (set by a cancel_job job).
     let running: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<std::sync::atomic::AtomicBool>>>> = Default::default();
+
+    // A self-update on Windows leaves the old program next to the new one.
+    if let Ok(exe) = std::env::current_exe() {
+        selfupdate::cleanup_old(&exe);
+    }
 
     eprintln!("kompanion-runner: reporting to {}", cfg.server);
     loop {
@@ -219,7 +228,7 @@ fn main() {
                                     }
                                 }
                                 "self_update" => {
-                                    // RUNNER-SYNC: download, verify and swap in the newest runner, report, then exit so systemd restarts it.
+                                    // RUNNER-SYNC: download, verify and swap in the newest runner, report, then exit so systemd (Linux) or the logon task (Windows) restarts it.
                                     let dl = ureq::AgentBuilder::new().timeout(Duration::from_secs(300)).build();
                                     match std::env::current_exe().map_err(|e| e.to_string()).and_then(|exe| selfupdate::update_from_server(&dl, base_url, &exe)) {
                                         Ok(msg) => {

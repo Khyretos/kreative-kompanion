@@ -129,3 +129,14 @@ filesystem's usage, and per GPU `/sys/class/drm/cardN/device` plus its hwmon
 (amdgpu: busy %, VRAM, power, temperature, clocks, fan; Intel i915/xe: clocks,
 temperature, power from the energy counter, busy share from idle residency).
 No root needed.
+
+## Windows
+
+The runner also runs on Windows 10/11 (RUNNER-WIN). It reads CPU, RAM, disk and uptime through Win32; there is no GPU telemetry, no load average and no game detection yet, and the service, package and desktop tools answer "not supported on Windows". The shell tool runs `cmd /C`.
+
+1. Build it on the PC (Rust with the MSVC or GNU toolchain): `cd runner && cargo build --release`. The result is `runner\target\release\kompanion-runner.exe`; copy it somewhere permanent, for example `%LOCALAPPDATA%\kompanion-runner\`.
+2. Pair it: `kompanion-runner.exe pair https://kompanion.kreative-kompas.com <code>` (the code comes from Machines > Pair). The config, the token and `grants.json` go to `%APPDATA%\kompanion-runner\`; only your user may read that folder (an ACL set with `icacls`).
+3. Start it at every logon: `kompanion-runner.exe install-service`. This registers the Scheduled Task `KompanionRunner` (starts at logon, restarts a minute after it exits, no time limit) and starts it. Check it with `schtasks /Query /TN KompanionRunner`; remove it with `schtasks /Delete /TN KompanionRunner /F`.
+4. Self-update on Windows renames the running program to `kompanion-runner.exe.old`, puts the new one in place and exits; the task restarts it and the next start deletes the `.old` file. The server must serve `/download/kompanion-runner.exe` and its `.sha256` for this; until it does, the update answers with an error and nothing changes.
+
+CI cross-checks the Windows build on every pull request (`runner-windows` in build.yml, also `sh tools/check-windows.sh` locally). `windows.yml` runs the tests natively and needs a Forgejo runner labelled `windows`.

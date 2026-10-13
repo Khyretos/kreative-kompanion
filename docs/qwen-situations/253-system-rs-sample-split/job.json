@@ -1,0 +1,24 @@
+[
+  {
+    "name": "rw-d2-system-sample",
+    "role": "worker/rust",
+    "out": "machine-stats/src/system.rs",
+    "prompt": "Split `Sampler::sample` per OS. Rename the existing `pub fn sample(&mut self) -> Snapshot {` to `#[cfg(unix)]\\n    fn sample_unix(&mut self) -> Snapshot {` (the body stays exactly as is). Directly above it add a new method with the doc comment `/// Reads the machine now (Linux: /proc and sysfs; Windows: Win32).` : `pub fn sample(&mut self) -> Snapshot { #[cfg(unix)] { self.sample_unix() } #[cfg(windows)] { self.sample_windows() } }` formatted over several lines.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd machine-stats && cargo test --quiet && grep -q 'fn sample_unix' src/system.rs && grep -q 'self.sample_windows()' src/system.rs",
+    "precheck": false,
+    "context": [],
+    "mode": "patch",
+    "focus": ["pub fn sample"]
+  },
+  {
+    "name": "rw-d3-system-test",
+    "role": "worker/rust",
+    "out": "machine-stats/src/system.rs",
+    "prompt": "In the test `samples_this_machine_and_round_trips` replace `let mut s = Sampler::new(\"/\", \"/\");` by `let disk = if cfg!(windows) { \"C:\\\\\\\\\" } else { \"/\" };` followed by `let mut s = Sampler::new(\"/\", disk);`. Change nothing else.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd machine-stats && cargo test --quiet && grep -q 'let disk = if cfg!(windows)' src/system.rs",
+    "precheck": false,
+    "context": [],
+    "mode": "patch",
+    "focus": ["samples_this_machine"]
+  }
+]

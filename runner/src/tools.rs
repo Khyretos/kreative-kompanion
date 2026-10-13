@@ -147,7 +147,8 @@ pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
                 return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Shell, canonical_cwd.display()) };
             }
 
-            crate::proc::run_cmd("sh", &["-c".to_string(), command.clone()], Some(&canonical_cwd), &[], 60)
+            let (shell, flag) = if cfg!(windows) { ("cmd", "/C") } else { ("sh", "-c") };
+            crate::proc::run_cmd(shell, &[flag.to_string(), command.clone()], Some(&canonical_cwd), &[], 60)
         },
         Tool::EditFile { path, old, new } => crate::edit::edit_file(grants, path, old, new, now),
         Tool::Service { action, unit } => crate::systools::service(grants, action, unit.as_deref(), now),

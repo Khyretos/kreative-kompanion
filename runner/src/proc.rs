@@ -21,8 +21,16 @@ thread_local! {
 }
 
 /// Kills the process group `pid` (the command and everything it started).
+#[cfg(unix)]
 fn kill_group(pid: u32) {
     let _ = Command::new("kill").arg("-KILL").arg(format!("-{pid}")).status();
+}
+
+#[cfg(windows)]
+fn kill_group(pid: u32) {
+    let _ = Command::new("taskkill")
+        .args(crate::platform::taskkill_args(pid))
+        .status();
 }
 
 const CAP: u64 = 64 * 1024;

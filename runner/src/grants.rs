@@ -1,7 +1,6 @@
-use std::fs::{self, File, Permissions};
+use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
-use std::os::unix::fs::PermissionsExt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,14 +206,8 @@ impl Grants {
 
         writer.flush().map_err(|e| format!("Failed to flush grants: {}", e))?;
 
-        // Set file permissions to 0o600 on Unix
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&tmp_path).map_err(|e| format!("Failed to get metadata: {}", e))?.permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(&tmp_path, perms).map_err(|e| format!("Failed to set permissions: {}", e))?;
-        }
+        // Only the owner may read the file (0600 on unix, an ACL on Windows)
+        crate::platform::set_private(&tmp_path, false)?;
 
         // Rename the temporary file to the actual file
         fs::rename(&tmp_path, &self.path).map_err(|e| format!("Failed to rename temporary file: {}", e))?;

@@ -1,0 +1,35 @@
+[
+  {
+    "name": "rw-c10-main-a",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/main.rs",
+    "prompt": "(1) Replace the body of `fn expand(p: &str) -> PathBuf` by `platform::expand(p)`. (2) Replace the body of `fn default_grants() -> String` by `platform::config_dir().map(|d| d.join(\"grants.json\").to_string_lossy().into_owned()).unwrap_or_default()`. (3) Add a function `fn default_config() -> PathBuf { platform::config_dir().map(|d| d.join(\"config.toml\")).unwrap_or_else(|_| PathBuf::from(\"config.toml\")) }` right after `default_grants`. (4) Add `use crate::platform;`? Not needed: add `use platform;`-free: refer to `platform::` directly (it is a sibling module declared with `mod platform;`). Keep every other line.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo check --quiet && grep -q 'fn default_config' src/main.rs && grep -q 'platform::expand' src/main.rs",
+    "precheck": false,
+    "context": [],
+    "focus": ["^use ", "fn default_grants", "fn expand"]
+  },
+  {
+    "name": "rw-c11-main-b",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/main.rs",
+    "prompt": "Replace the two uses of `expand(\"~/.config/kompanion-runner/config.toml\")` (in the `\"ask\"` arm: `let cfg_path = expand(...)`, and in the `.unwrap_or_else(|| expand(...))` after `let path = std::env::args()`) by `default_config()`. Change nothing else.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo check --quiet && ! grep -n 'expand(\"~/.config' src/main.rs",
+    "precheck": false,
+    "context": [],
+    "focus": ["cfg_path", "unwrap_or_else"]
+  },
+  {
+    "name": "rw-c12-main-c",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/main.rs",
+    "prompt": "(1) Replace `let mut sampler = Sampler::new(\"/\", \"/\");` by `let mut sampler = Sampler::new(\"/\", &platform::disk_root());`. (2) Right before the line `eprintln!(\"kompanion-runner: reporting to {}\", cfg.server);` add: `if let Ok(exe) = std::env::current_exe() { selfupdate::cleanup_old(&exe); }` with the comment `// A self-update on Windows leaves the old program next to the new one.`. (3) In the comment above `std::process::exit(4);` area (`// RUNNER-SYNC: download, verify and swap in the newest runner, report, then exit so systemd restarts it.`) change `systemd restarts it` to `systemd (Linux) or the logon task (Windows) restarts it`. Keep every other line.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo check --quiet && grep -q 'platform::disk_root' src/main.rs && grep -q 'cleanup_old' src/main.rs",
+    "precheck": false,
+    "context": [],
+    "focus": ["Sampler::new", "reporting to", "RUNNER-SYNC"]
+  }
+]

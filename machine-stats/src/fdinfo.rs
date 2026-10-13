@@ -220,6 +220,7 @@ mod tests {
         root
     }
 
+    #[cfg(all(test, unix))]
     #[test]
     fn ns_engines_count_each_client_once() {
         let root = tree("ns");
@@ -241,6 +242,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    #[cfg(all(test, unix))]
     #[test]
     fn xe_cycles_and_vram() {
         let root = tree("xe");
@@ -256,6 +258,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    #[cfg(all(test, unix))]
     #[test]
     fn known_clients_are_read_without_a_full_scan() {
         let root = tree("known");
