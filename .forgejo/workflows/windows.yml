@@ -13,6 +13,10 @@ jobs:
   runner:
     runs-on: windows
     steps:
+      # The Windows runner's PATH has no cargo; the only one is msys2's.
+      - name: Put cargo on the PATH (msys2 ucrt64)
+        shell: pwsh
+        run: Add-Content $env:GITHUB_PATH 'C:\msys64\ucrt64\bin'
       - name: Checkout
         uses: https://code.forgejo.org/actions/checkout@v4
 
