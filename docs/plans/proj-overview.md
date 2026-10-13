@@ -79,3 +79,31 @@ logs in docs/qwen-situations/proj-overview-unit-runs/.
 | OVMS                            | crashed twice on a GPU error (clWaitForEvents -14, restart count 11 -> 12) and restarted itself                              |
 | Review and CI rounds            | see the PR                                                                                                                   |
 | Time                            | about 75 min worked, most of it waiting on Coder units and cargo/Playwright runs                                             |
+
+## Live check (2026-10-13, http://127.0.0.1:8095 as the test user, main 19cbf7e deployed from kk-deploy)
+
+API (project "OVR live check"):
+
+- `GET /api/projects/{id}/overview`: 200 with every part, `errors` empty; progress 2/2, three activity lines.
+- PATCH description, about (markdown) and a Repo link: 204, and the overview shows them.
+- An ftp link: 400 "Links must be http or https addresses."; an 81-character name: 400.
+- Kees's project `kompanion-next-wave` as the test user: 404.
+- Found: PATCH with type, folder and an unknown computer answers 400 "Pick one of your computers." but has
+  already saved the type and folder (the existing order in settings(): type and folder are written before the
+  computer is checked). Follow-up below.
+
+Browser (Playwright against the live app with the test user's session cookie), 1280 dark and 390 light:
+
+- A sidebar click opens the Overview (on the phone the Tasks pane): name, Programming chip, description, tiles
+  2/2 Done, 0 Needs you, 0 Running, last activity, the About markdown, Where it lives with the folder and the
+  Repo link, Access, Build and test, Recent activity; on the phone all sections are closed and the tiles are 2x2.
+- Edit in place: renaming showed in the sidebar at once and was put back; no page reload; no sideways scroll.
+
+Follow-ups (small, for the next thread):
+
+1. Tiles in the desktop Tasks pane (about 330 px wide) are cramped ("5 d …"): make the 2x2 layout depend on the
+   pane width (container query) instead of the viewport.
+2. The progress bar uses `--accent` (orange in this theme); the palette rule keeps orange for "needs you".
+3. settings(): check the computer before writing type and folder, so a refused PATCH changes nothing.
+4. Spec step 6 (draft About and links for Kees's 12 projects from Windshift and HANDOFF, for his approval) is not
+   done yet.
