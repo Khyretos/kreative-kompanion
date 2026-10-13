@@ -1,0 +1,47 @@
+{
+  "46fcc4a95620": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/tasks.ts",
+    "reason": "The code snippet only displays the error state in the UI; the logic to trigger or clear it is expected to exist elsewhere in the application's action handlers, which are not part of this specific diff.",
+    "title": "Missing Validation for Member Error State",
+    "verdict": "false_positive"
+  },
+  "48e37a057e66": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "The code correctly trims the input name before looking it up in DEMO_USERS, which handles empty or whitespace-only strings by resulting in a lookup for an empty string that will simply not match any user.",
+    "title": "Incomplete Error Handling",
+    "verdict": "false_positive"
+  },
+  "8d9e8687c380": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/243-bogus-import-for-unused-function/corrected.diff",
+    "reason": "The code explicitly checks for the existence of the DOM elements before accessing them, preventing the reported TypeError.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "cb95840dd362": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/242-template-tag-and-reindent/wrong.diff",
+    "reason": "The finding describes a malformed diff format in a documentation file, which is a data quality issue rather than a functional code defect that a test could expose.",
+    "title": "Incorrect Diff Format",
+    "verdict": "false_positive"
+  },
+  "cf48408ee639": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/243-bogus-import-for-unused-function/wrong.diff",
+    "reason": "The code explicitly calls the imported function `applyComposerAccess` on line 16, so the import is used and not unused.",
+    "title": "Unused Import",
+    "verdict": "false_positive"
+  }
+}
