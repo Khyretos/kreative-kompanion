@@ -77,6 +77,10 @@ export interface KompanionApi {
   setProjectSettings(projectId: string, change: import("./types").ProjectSettingsChange): Promise<void>;
   /** PROJ-OVERVIEW: everything the project's Overview shows, in one request. */
   getOverview(projectId: string): Promise<import("./types").ProjectOverview>;
+  /** PROJECT-SHARING: the owner shares the project with a user by name; a refused name rejects with the server's message. */
+  addMember(projectId: string, name: string, role: "viewer" | "editor"): Promise<void>;
+  /** The owner removes a member, a member leaves. */
+  removeMember(projectId: string, userId: string): Promise<void>;
   /** Library assets attached to a game project. */
   getDevSettings(projectId: string): Promise<import("./types").DevSettingsView>;
   putDevSettings(projectId: string, s: Omit<import("./types").DevSettings, "last">): Promise<void>;

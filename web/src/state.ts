@@ -72,6 +72,7 @@ export interface AppState {
   devSettings: Record<string, import("./api/types").DevSettingsView>; // KG-10, loaded when a game or programming project shows
   overviews: Record<string, import("./api/types").ProjectOverview>; // PROJ-OVERVIEW: loaded when a project's Tasks pane shows
   overviewEditing?: string; // project whose overview edit form is open
+  memberError?: { projectId: string; text: string }; // PROJECT-SHARING: why the members row's add form was refused
   overviewMore: Set<string>; // projects whose About shows in full
   overviewActivityAll: Set<string>; // projects whose Recent activity shows 10 entries
   overviewPreview?: string; // the About preview in the edit form (undefined: no preview)

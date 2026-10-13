@@ -317,6 +317,17 @@ const replies = [
   "Got it. I made that a task for Qwen with a small, self-contained scope. If it fails review I will write the lesson into the matching skill so the next attempt starts smarter.",
 ];
 
+// PROJECT-SHARING: the members each project's Overview lists (the owner's own projects start with none), and the demo users the add form accepts. ?demo&shared also adds a project mara shared with you as a viewer, with one chat.
+const members: Record<string, import("./types").ProjectMember[]> = {};
+const DEMO_USERS: Record<string, string> = { mara: "u-mara", kees: "u-me" };
+
+if (typeof location !== "undefined" && new URLSearchParams(location.search).has("shared")) {
+  projects.push({ id: "p-shared", name: "Mara's shop", description: "Plants and pots", updatedAt: ago(40), role: "viewer", ownerName: "mara" });
+  chats.push({ id: "c-shared", title: "Shop plan", projectId: "p-shared", updatedAt: ago(40) });
+  messages.push({ id: "m-shared-1", chatId: "c-shared", author: "user", at: ago(41), text: "Which plants sell best?" });
+  members["p-shared"] = [{ userId: "u-me", name: "kees", role: "viewer", you: true }];
+}
+
 export class MockApi implements KompanionApi {
   private listeners = new Set<(ev: ServerEvent) => void>();
   private replyIndex = 0;
@@ -527,7 +538,9 @@ export class MockApi implements KompanionApi {
       createdAt: ago(60 * 24 * 30),
       updatedAt: p.updatedAt,
       archivedAt: p.archivedAt ?? null,
-      owner: "kees",
+      owner: p.ownerName ?? "kees",
+      role: p.role ?? "owner",
+      members: structuredClone(members[projectId] ?? []),
       where,
       access,
       progress,
@@ -536,6 +549,25 @@ export class MockApi implements KompanionApi {
       automation: { scheduler: { enabled: false, budget: { minutes: null, rounds: null, tokens: null } }, overseer: !!p.overseer },
       errors: {},
     });
+  }
+  async addMember(projectId: string, name: string, role: "viewer" | "editor") {
+    const userId = DEMO_USERS[name.trim()];
+    if (!userId) throw new Error("No user with that name.");
+    const list = members[projectId] ?? (members[projectId] = []);
+    const found = list.find((m) => m.userId === userId);
+    if (found) found.role = role;
+    else list.push({ userId, name: name.trim(), role, you: false });
+    setTimeout(() => this.emit({ type: "changed", what: "projects" }), 50);
+  }
+  async removeMember(projectId: string, userId: string) {
+    const left = (members[projectId] ?? []).find((m) => m.userId === userId)?.you;
+    members[projectId] = (members[projectId] ?? []).filter((m) => m.userId !== userId);
+    if (left) {
+      const at = projects.findIndex((p) => p.id === projectId);
+      if (at >= 0) projects.splice(at, 1);
+      for (let i = chats.length - 1; i >= 0; i--) if (chats[i].projectId === projectId) chats.splice(i, 1);
+    }
+    setTimeout(() => this.emit({ type: "changed", what: "projects" }), 50);
   }
   async getDevSettings(projectId: string) {
     const p = projects.find((x) => x.id === projectId);

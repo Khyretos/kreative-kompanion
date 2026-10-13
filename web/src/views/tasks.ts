@@ -351,6 +351,7 @@ export function renderTasks(s: AppState): SafeHtml {
           more: s.overviewMore.has(project!.id),
           activityAll: s.overviewActivityAll.has(project!.id),
           preview: s.overviewPreview !== undefined,
+          memberError: s.memberError?.projectId === project!.id ? s.memberError.text : "",
           open: (sec) => s.overviewOpen[`${project!.id}:${sec}`] ?? openByDefault(sec, s.overviews[project!.id]),
         }, renderProjectPanel(project!, {
           machines: s.machines.filter((m) => m.id !== "server").map((m) => ({ id: m.id, name: m.name })),
@@ -361,7 +362,7 @@ export function renderTasks(s: AppState): SafeHtml {
         }))}
         <div class="project-bar">
           ${search}
-          <button class="btn small" data-action="new-task">${icon("plus")} Add task</button>
+          ${!project!.role || project!.role === "owner" ? html`<button class="btn small" data-action="new-task">${icon("plus")} Add task</button>` : ""}
           ${project!.kind === "windshift" ? html`
             <span class="chip" title="Edits here are written to Windshift and Windshift changes come back">Synced with Windshift</span>
             <button class="btn small" data-action="make-internal" data-id="${project!.id}">Stop syncing</button>` : ""}

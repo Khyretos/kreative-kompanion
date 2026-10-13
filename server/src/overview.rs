@@ -417,10 +417,13 @@ async fn ai_part(db: &SqlitePool, user_id: &str, project_id: &str) -> Result<Val
     Ok(Value::Array(arr))
 }
 
-/// GET /api/projects/{id}/overview (owner only; anyone else gets 404).
+/// GET /api/projects/{id}/overview (the owner and the project's members; anyone else gets 404). Members see exactly what the owner sees, plus `role` and `members`.
 pub async fn get(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     let access = crate::sharing::access(&s.db, &u.id, &id).await?.ok_or(ApiError::NotFound)?;
+    let role = access.role.as_str();
     let owner = access.owner_id;
+    let rows: Vec<(String, String, String)> = sqlx::query_as("SELECT m.user_id, u.name, m.role FROM project_members m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY u.name").bind(&id).fetch_all(&s.db).await?;
+    let members: Vec<Value> = rows.into_iter().map(|(user_id, name, member_role)| json!({ "userId": user_id, "name": name, "role": member_role, "you": user_id == u.id })).collect();
     let p = load(&s.db, &owner, &id).await?.ok_or(ApiError::NotFound)?;
 
     let mut errors = serde_json::Map::new();
@@ -464,6 +467,8 @@ pub async fn get(State(s): State<AppState>, Extension(u): Extension<User>, Path(
         "updatedAt": p.updated_at,
         "archivedAt": p.archived_at,
         "owner": p.owner,
+        "role": role,
+        "members": members,
         "where": where_part_res.ok().unwrap_or(Value::Null),
         "access": access_part_res.ok().unwrap_or(Value::Null),
         "progress": progress_part_res.ok().unwrap_or(Value::Null),

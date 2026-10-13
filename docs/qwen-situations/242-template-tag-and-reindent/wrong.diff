@@ -1,0 +1,91 @@
+--- a/web/src/views/overview.ts	2026-10-13 08:31:04.772645628 +0200
++++ b/web/src/views/overview.ts (Coder output)	2026-10-13 08:20:04.079507970 +0200
+@@ -70,9 +70,13 @@
+ /** A collapsible section with a header button. `count` is shown next to the title when given. */
+ export function section(name: SectionName, title: string, count: number | undefined, open: boolean, body: SafeHtml): SafeHtml {
+   return html`<section class="ov-sec ${open ? "open" : ""}" data-sec="${name}">
+-  <button class="ov-sec-head" type="button" data-action="overview-sec" data-sec="${name}" aria-expanded="${open ? "true" : "false"}">${icon(open ? "chevron-down" : "chevron-right")}<span>${title}</span>${count !== undefined ? html`<span class="count">${String(count)}</span>` : ""}</button>
+-  ${open ? html`<div class="ov-sec-body">${body}</div>` : ""}
+-</section>`;
++    <button class="ov-sec-head" type="button" data-action="overview-sec" data-sec="${name}" aria-expanded="${open ? "true" : "false"}">${icon(open ? "chevron-down" : "chevron-right")}<span>${title}</span>${count !== undefined ? html`<span class="count">${String(count)}</span>` : ""}</button>
++    ${open ? html`<div class="ov-sec-body">${body}</div>` : ""}
++  </section>`;
++}
++/** PROJECT-SHARING: only the owner edits, archives and configures a project; members read. */
++export function isOwner(v: OverviewView): boolean {
++  return (v.o?.role ?? v.project.role ?? "owner") === "owner";
+ }
+ 
+ function header(v: OverviewView): SafeHtml {
+@@ -86,7 +90,7 @@
+     <header class="ov-head">
+       <div class="ov-title">
+         <h2 class="ov-name">${name}</h2>
+-        <button class="icon-btn" type="button" data-action="overview-edit" data-id="${v.project.id}" aria-label="Edit name, description, about and links">${icon("edit")}</button>
++        ${isOwner(v) ? html`<button class="icon-btn" type="button" data-action="overview-edit" data-id="${v.project.id}" aria-label="Edit name, description, about and links">${icon("edit")}</button>` : ""}
+       </div>
+       <div class="ov-chips">
+         <span class="chip">${TYPE_LABEL[type] ?? type}</span>
+@@ -95,7 +99,7 @@
+       </div>
+       ${description ? html`<p class="ov-desc">${description}</p>` : html`<p class="ov-desc muted">No description yet.</p>`}
+     </header>
+-    ${archivedAt ? html`<div class="archived-bar" role="status">${icon("archive")}<span>Archived</span><button class="btn small" data-action="project-unarchive" data-id="${v.project.id}">Unarchive</button></div>` : ""}
++      ${archivedAt ? html`<div class="archived-bar" role="status">${icon("archive")}<span>Archived</span>${isOwner(v) ? html`<button class="btn small" data-action="project-unarchive" data-id="${v.project.id}">Unarchive</button>` : ""}</div>` : ""}
+   `;
+ }
+ 
+@@ -307,17 +311,52 @@
+   </form>`;
+ }
+ 
++/** PROJECT-SHARING: who has this project: the owner first, then each member with a role; the owner adds and removes people, a member can only leave. */
++export function membersRow(v: OverviewView): SafeHtml {
++  const o = v.o;
++  if (!o) return html``;
++
++  const chips: SafeHtml[] = [
++    html`<span class="chip member-chip" data-member="owner">${o.owner} · Owner</span>`,
++  ];
++
++  for (const m of o.members) {
++    const removable = o.role === "owner" || m.you;
++    chips.push(
++      html`<span class="chip member-chip" data-member="${m.userId}">
++        ${m.name}${m.you ? " (you)" : ""} · ${m.role === "editor" ? "Editor" : "Viewer"}
++        ${removable
++          ? html`<button class="icon-btn member-remove" type="button" data-action="member-remove" data-id="${v.project.id}" data-user="${m.userId}" aria-label="${m.you ? "Leave this project" : `Remove ${m.name}`}"${icon("close")}</button>`
++          : ""}
++      </span>`
++    );
++  }
++
++  let form: SafeHtml = html``;
++  if (o.role === "owner") {
++    form = html`<form class="member-add" data-id="${v.project.id}">
++      <input name="member" placeholder="Add a person by name" aria-label="Name of the person to add" autocomplete="off" required>
++      <select name="role" aria-label="Role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
++      <button class="btn small" type="submit">Add</button>
++      <span class="member-error error" role="alert"></span>
++    </form>`;
++  }
++
++  return html`<section class="ov-members" aria-label="Members">${chips}${form}</section>`;
++}
++
+ /** The whole Overview; `settings` is the project's settings panel, shown inside the Settings section. */
+ export function renderOverview(v: OverviewView, settings: SafeHtml): SafeHtml {
+   return html`
+     <section class="overview" data-id="${v.project.id}" aria-label="Project overview">
+       ${header(v)}
++      ${membersRow(v)}
+       ${v.editing ? editForm(v) : html`${tiles(v)}${about(v)}`}
+       ${section("where", "Where it lives", undefined, v.open("where"), where(v))}
+       ${section("access", "Access", accessCount(v.o), v.open("access"), access(v))}
+       ${section("build", "Build and test", undefined, v.open("build"), build(v))}
+       ${section("activity", "Recent activity", undefined, v.open("activity"), activity(v))}
+       ${section("ai", "AI use", undefined, v.open("ai"), ai(v))}
+-      ${section("settings", "Settings", undefined, v.open("settings"), settings)}
++      ${isOwner(v) ? section("settings", "Settings", undefined, v.open("settings"), settings) : ""}
+     </section>`;
+ }

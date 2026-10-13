@@ -1,0 +1,173 @@
+{
+  "1b8d7d6fb3b7": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "The provided code snippet is a reactivity update function that handles UI rendering based on state changes and does not contain the specific 'addMember' logic or error handling flow described in the finding.",
+    "title": "Missing Error Handling for Add Member",
+    "verdict": "false_positive"
+  },
+  "24b8d467c2f5": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "The code explicitly removes the entire project object from the `projects` array if the removed user was the owner, preventing any stale role references from persisting in that specific data structure.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "28ed5a126015": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/conversation.ts",
+    "reason": "The provided code snippet only defines the static HTML structure of the composer component and does not contain the logic for detecting read-only states or handling message submission, making it impossible to verify the missing error handling claim from this diff alone.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "46fcc4a95620": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/tasks.ts",
+    "reason": "The code snippet only displays the error state in the UI; the logic to trigger or clear it is expected to exist elsewhere in the application's action handlers, which are not part of this specific diff.",
+    "title": "Missing Validation for Member Error State",
+    "verdict": "false_positive"
+  },
+  "48e37a057e66": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "The code correctly trims the input name before looking it up in DEMO_USERS, which handles empty or whitespace-only strings by resulting in a lookup for an empty string that will simply not match any user.",
+    "title": "Incomplete Error Handling",
+    "verdict": "false_positive"
+  },
+  "497141eaf4be": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/tasks.ts",
+    "reason": "The code explicitly guards the interpolation of `project!.role` with a logical check that only renders the button if the role is null or strictly equals 'owner', preventing any arbitrary user input from being injected into the attribute context.",
+    "title": "Potential XSS Vulnerability",
+    "verdict": "false_positive"
+  },
+  "5268d1a3c2b9": {
+    "by": "repeat of cf48408ee639",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/243-bogus-import-for-unused-function/wrong.diff",
+    "reason": "The code explicitly calls the imported function `applyComposerAccess` on line 16, so the import is used and not unused.",
+    "title": "Unused Import",
+    "verdict": "false_positive"
+  },
+  "65935d44bf83": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/overview.ts",
+    "reason": "The code correctly identifies the current user as 'you' via m.you and allows removal only if the current user is the owner or the target member is themselves, which aligns with the documented behavior that members can only leave while owners manage others.",
+    "title": "Logic Error in Member Removal",
+    "verdict": "false_positive"
+  },
+  "76e3947e2810": {
+    "by": "repeat of 24b8d467c2f5",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "The code explicitly removes the entire project object from the `projects` array if the removed user was the owner, preventing any stale role references from persisting in that specific data structure.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "8d9e8687c380": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/243-bogus-import-for-unused-function/corrected.diff",
+    "reason": "The code explicitly checks for the existence of the DOM elements before accessing them, preventing the reported TypeError.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "94eb6425d424": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/tasks.ts",
+    "reason": "The code correctly passes the memberError state to the renderOverview component, which is responsible for displaying the error message in the UI. Checked by Claude: tasks.ts:354 passes memberError and overview.ts:347 renders it in a role=alert span.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "c0d47f12fd14": {
+    "by": "repeat of e0ecd07246b1",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/overview.ts",
+    "reason": "The code correctly implements the intended logic where only owners can remove other members and current users can leave their own projects, with no actual defect in the provided snippet.",
+    "title": "Possible Logic Error",
+    "verdict": "false_positive"
+  },
+  "cb95840dd362": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/242-template-tag-and-reindent/wrong.diff",
+    "reason": "The finding describes a malformed diff format in a documentation file, which is a data quality issue rather than a functional code defect that a test could expose.",
+    "title": "Incorrect Diff Format",
+    "verdict": "false_positive"
+  },
+  "cf48408ee639": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/243-bogus-import-for-unused-function/wrong.diff",
+    "reason": "The code explicitly calls the imported function `applyComposerAccess` on line 16, so the import is used and not unused.",
+    "title": "Unused Import",
+    "verdict": "false_positive"
+  },
+  "d59da2def05a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "The finding incorrectly identifies a duplicate definition because the provided code snippet only shows the usage of `applyComposerAccess` at line 388, not the function's actual definition later in the file which the linter flagged as redundant.",
+    "title": "Unused Import",
+    "verdict": "false_positive"
+  },
+  "e0ecd07246b1": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/overview.ts",
+    "reason": "The code correctly implements the intended logic where only owners can remove other members and current users can leave their own projects, with no actual defect in the provided snippet.",
+    "title": "Possible Logic Error",
+    "verdict": "false_positive"
+  },
+  "e6ee84a7da83": {
+    "by": "repeat of 48e37a057e66",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "reason": "The code correctly trims the input name before looking it up in DEMO_USERS, which handles empty or whitespace-only strings by resulting in a lookup for an empty string that will simply not match any user.",
+    "title": "Incomplete Error Handling",
+    "verdict": "false_positive"
+  },
+  "fd9acd558ab4": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "The provided code snippet does not contain the `applyComposerAccess` function or any logic related to project role checks, making it impossible to verify the claimed security issue.",
+    "title": "Potential Security Issue",
+    "verdict": "false_positive"
+  },
+  "ffc491385b90": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/243-bogus-import-for-unused-function/wrong.diff",
+    "reason": "The finding incorrectly flags a missing import as a bug, but the code snippet only shows the function definition and does not provide evidence that `showError` is undefined or that the rollback logic fails due to concurrent state changes.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  }
+}

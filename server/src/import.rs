@@ -16,6 +16,13 @@ use sqlx::SqlitePool;
 
 use crate::util;
 
+/// A link on a project's overview.
+#[derive(Deserialize)]
+struct Link {
+    label: String,
+    url: String,
+}
+
 #[derive(Deserialize)]
 struct File {
     projects: Vec<Project>,
@@ -28,6 +35,8 @@ struct Project {
     #[serde(default)]
     description: String,
     source: Option<String>,
+    about: Option<String>,
+    links: Option<Vec<Link>>,
     #[serde(default)]
     tasks: Vec<Task>,
 }
@@ -138,6 +147,27 @@ pub async fn run(db: &SqlitePool, path: &str, user: Option<&str>) -> Result<()> 
         .execute(&mut *tx)
         .await?;
         np += 1;
+        if p.about.is_some() || p.links.is_some() {
+            if p.about.as_deref().is_some_and(|a| a.len() > crate::overview::ABOUT_MAX) {
+                bail!("project {}: the about text is at most 20,000 bytes", p.id);
+            }
+            if let Some(links) = &p.links {
+                if links.len() > 10 || links.iter().any(|l| !(l.url.starts_with("http://") || l.url.starts_with("https://"))) {
+                    bail!("project {}: at most 10 links, each starting with http:// or https://", p.id);
+                }
+            }
+            let links = match &p.links {
+                Some(l) => Some(serde_json::to_string(&l.iter().map(|l| serde_json::json!({ "label": l.label, "url": l.url })).collect::<Vec<_>>())?),
+                None => None,
+            };
+            sqlx::query("UPDATE projects SET about = COALESCE(?, about), links = COALESCE(?, links) WHERE id = ? AND user_id = ?")
+                .bind(p.about.as_deref().map(str::trim))
+                .bind(links)
+                .bind(&p.id)
+                .bind(&owner)
+                .execute(&mut *tx)
+                .await?;
+        }
         for t in &p.tasks {
             if !STATES.contains(&t.state.as_str()) {
                 bail!("task {}: unknown state {}", t.id, t.state);
@@ -224,3 +254,7 @@ mod tests {
         std::fs::remove_file(path).ok();
     }
 }
+
+#[cfg(test)]
+#[path = "import_tests.rs"]
+mod about_tests;
