@@ -1,12 +1,12 @@
 [
- {
-  "name": "rw-b2-winsetup",
-  "role": "worker/rust",
-  "mode": "patch",
-  "out": "runner/src/winsetup.rs",
-  "prompt": "Implement winsetup.rs by inserting the code above its test module (patch: SEARCH the two lines `#[cfg(test)]` and `mod tests {` and REPLACE them with your code followed by those same two lines; keep the tests unchanged). Items, with doc comments, all `pub`: `const TASK_NAME: &str = \"KompanionRunner\"`; `fn xml_escape(s: &str) -> String` (& < > \" ' to &amp; &lt; &gt; &quot; &apos;, & first); `fn task_xml(exe: &str) -> String`: a Windows Task Scheduler 1.2 task definition starting with `<?xml version=\"1.0\" encoding=\"UTF-16\"?>` and the `<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">` element holding: Triggers with a LogonTrigger (Enabled true); Principals with one Principal id=\"Author\" with LogonType InteractiveToken and RunLevel LeastPrivilege; Settings with MultipleInstancesPolicy IgnoreNew, DisallowStartIfOnBatteries false, StopIfGoingOnBatteries false, StartWhenAvailable true, ExecutionTimeLimit PT0S, and RestartOnFailure with Interval PT1M and Count 999; Actions Context=\"Author\" with one Exec whose Command is xml_escape(exe). One element per line, 2-space indentation steps. `fn utf16le_bom(s: &str) -> Vec<u8>`: the bytes 0xFF 0xFE then every UTF-16 code unit of s as little endian. `fn create_args(xml_path: &str) -> Vec<String>` = [\"/Create\", \"/TN\", TASK_NAME, \"/XML\", xml_path, \"/F\"]; `fn run_args() -> Vec<String>` = [\"/Run\", \"/TN\", TASK_NAME]. Add `#![allow(dead_code)]`-free code: mark only each item `#[cfg_attr(not(windows), allow(dead_code))]`.",
-  "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet winsetup::",
-  "precheck": false,
-  "context": []
- }
+  {
+    "name": "rw-b2-winsetup",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/winsetup.rs",
+    "prompt": "Implement winsetup.rs by inserting the code above its test module (patch: SEARCH the two lines `#[cfg(test)]` and `mod tests {` and REPLACE them with your code followed by those same two lines; keep the tests unchanged). Items, with doc comments, all `pub`: `const TASK_NAME: &str = \"KompanionRunner\"`; `fn xml_escape(s: &str) -> String` (& < > \" ' to &amp; &lt; &gt; &quot; &apos;, & first); `fn task_xml(exe: &str) -> String`: a Windows Task Scheduler 1.2 task definition starting with `<?xml version=\"1.0\" encoding=\"UTF-16\"?>` and the `<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">` element holding: Triggers with a LogonTrigger (Enabled true); Principals with one Principal id=\"Author\" with LogonType InteractiveToken and RunLevel LeastPrivilege; Settings with MultipleInstancesPolicy IgnoreNew, DisallowStartIfOnBatteries false, StopIfGoingOnBatteries false, StartWhenAvailable true, ExecutionTimeLimit PT0S, and RestartOnFailure with Interval PT1M and Count 999; Actions Context=\"Author\" with one Exec whose Command is xml_escape(exe). One element per line, 2-space indentation steps. `fn utf16le_bom(s: &str) -> Vec<u8>`: the bytes 0xFF 0xFE then every UTF-16 code unit of s as little endian. `fn create_args(xml_path: &str) -> Vec<String>` = [\"/Create\", \"/TN\", TASK_NAME, \"/XML\", xml_path, \"/F\"]; `fn run_args() -> Vec<String>` = [\"/Run\", \"/TN\", TASK_NAME]. Add `#![allow(dead_code)]`-free code: mark only each item `#[cfg_attr(not(windows), allow(dead_code))]`.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet winsetup::",
+    "precheck": false,
+    "context": []
+  }
 ]

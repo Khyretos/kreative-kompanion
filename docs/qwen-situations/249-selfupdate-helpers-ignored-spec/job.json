@@ -1,29 +1,24 @@
 [
- {
-  "name": "rw-b3a-selfupdate-helpers",
-  "role": "worker/rust",
-  "mode": "patch",
-  "out": "runner/src/selfupdate.rs",
-  "prompt": "Add helpers at the end of the non-test code, before the `#[cfg(test)]` line at the bottom of the file (patch: SEARCH `#[cfg(test)]\\n#[path = \"selfupdate_tests.rs\"]\\nmod tests;` and REPLACE it with your code followed by those same three lines, then add after them: `#[cfg(test)]\\n#[path = \"selfupdate_replace_tests.rs\"]\\nmod replace_tests;`). Helpers: `/// Name of the runner file the server offers for download.\\npub fn asset_name() -> &'static str` returns \"kompanion-runner.exe\" with `cfg!(windows)`, else \"kompanion-runner\". `pub fn replace_with_new(new: &Path, target: &Path) -> Result<(), String>`: Windows cannot rename over a running program, but it can rename the running file away. Name `old` = target path with `.old` appended to the file name; remove a stale `old` (ignore errors); rename target to old (error text = e.to_string(), and `new` is left alone); rename new to target; if that fails rename old back to target (ignore its error) and return the first error. If target does not exist yet, skip the first rename. `pub fn cleanup_old(target: &Path)`: remove the `.old` file next to target, ignoring every error. `fn make_executable(path: &Path) -> Result<(), String>`: on unix (`#[cfg(unix)]`) chmod 0o755 via std::os::unix::fs::PermissionsExt, on windows (`#[cfg(not(unix))]`) Ok(()). `fn put_in_place(new: &Path, target: &Path) -> Result<(), String>`: unix: std::fs::rename(new, target) mapped to e.to_string(); windows: replace_with_new. Give replace_with_new and cleanup_old `#[cfg_attr(unix, allow(dead_code))]` only if cargo warns; the tests exercise them.",
-  "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet selfupdate",
-  "precheck": false,
-  "context": [],
-  "focus": [
-   "#\\[cfg\\(test\\)\\]"
-  ]
- },
- {
-  "name": "rw-b3b-selfupdate-install",
-  "role": "worker/rust",
-  "mode": "patch",
-  "out": "runner/src/selfupdate.rs",
-  "prompt": "In `install_binary`: remove the line `use std::os::unix::fs::PermissionsExt;`; replace the `std::fs::set_permissions(&new, ...from_mode(0o755))...?;` line with `make_executable(&new)?;`; replace the final `std::fs::rename(&new, target).map_err(|e| e.to_string())` with `put_in_place(&new, target)`. Change nothing else. In `update_from_server` build `url` as `format!(\"{}/download/{}\", base.trim_end_matches('/'), asset_name())`. Keep every other line.",
-  "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet selfupdate && ! grep -n 'os::unix' src/selfupdate.rs && grep -q 'asset_name()' src/selfupdate.rs && grep -q 'put_in_place(&new' src/selfupdate.rs",
-  "precheck": false,
-  "context": [],
-  "focus": [
-   "fn install_binary",
-   "fn update_from_server"
-  ]
- }
+  {
+    "name": "rw-b3a-selfupdate-helpers",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/selfupdate.rs",
+    "prompt": "Add helpers at the end of the non-test code, before the `#[cfg(test)]` line at the bottom of the file (patch: SEARCH `#[cfg(test)]\\n#[path = \"selfupdate_tests.rs\"]\\nmod tests;` and REPLACE it with your code followed by those same three lines, then add after them: `#[cfg(test)]\\n#[path = \"selfupdate_replace_tests.rs\"]\\nmod replace_tests;`). Helpers: `/// Name of the runner file the server offers for download.\\npub fn asset_name() -> &'static str` returns \"kompanion-runner.exe\" with `cfg!(windows)`, else \"kompanion-runner\". `pub fn replace_with_new(new: &Path, target: &Path) -> Result<(), String>`: Windows cannot rename over a running program, but it can rename the running file away. Name `old` = target path with `.old` appended to the file name; remove a stale `old` (ignore errors); rename target to old (error text = e.to_string(), and `new` is left alone); rename new to target; if that fails rename old back to target (ignore its error) and return the first error. If target does not exist yet, skip the first rename. `pub fn cleanup_old(target: &Path)`: remove the `.old` file next to target, ignoring every error. `fn make_executable(path: &Path) -> Result<(), String>`: on unix (`#[cfg(unix)]`) chmod 0o755 via std::os::unix::fs::PermissionsExt, on windows (`#[cfg(not(unix))]`) Ok(()). `fn put_in_place(new: &Path, target: &Path) -> Result<(), String>`: unix: std::fs::rename(new, target) mapped to e.to_string(); windows: replace_with_new. Give replace_with_new and cleanup_old `#[cfg_attr(unix, allow(dead_code))]` only if cargo warns; the tests exercise them.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet selfupdate",
+    "precheck": false,
+    "context": [],
+    "focus": ["#\\[cfg\\(test\\)\\]"]
+  },
+  {
+    "name": "rw-b3b-selfupdate-install",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/selfupdate.rs",
+    "prompt": "In `install_binary`: remove the line `use std::os::unix::fs::PermissionsExt;`; replace the `std::fs::set_permissions(&new, ...from_mode(0o755))...?;` line with `make_executable(&new)?;`; replace the final `std::fs::rename(&new, target).map_err(|e| e.to_string())` with `put_in_place(&new, target)`. Change nothing else. In `update_from_server` build `url` as `format!(\"{}/download/{}\", base.trim_end_matches('/'), asset_name())`. Keep every other line.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target; cd runner && cargo test --quiet selfupdate && ! grep -n 'os::unix' src/selfupdate.rs && grep -q 'asset_name()' src/selfupdate.rs && grep -q 'put_in_place(&new' src/selfupdate.rs",
+    "precheck": false,
+    "context": [],
+    "focus": ["fn install_binary", "fn update_from_server"]
+  }
 ]
