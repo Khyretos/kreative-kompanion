@@ -1,0 +1,22 @@
+[
+  {
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/projects.rs",
+    "precheck": false,
+    "name": "ovfix-settings-1",
+    "focus": ["let links = b\\.links"],
+    "prompt": "In server/src/projects.rs, function `settings`: a refused request (400) must save nothing, so every check has to run before the first UPDATE. Step 1 of 2 (step 2 follows in another job): directly AFTER the line `let links = b.links.as_deref().map(clean_links).transpose()?;` insert code that validates the remaining fields and keeps the cleaned values in new local variables: (a) `ptype`: when `b.ptype` is Some(t) and `t` is not in `TYPES`, return `Err(ApiError::BadRequest(\"A project is a chat, game or programming project.\".into()))` (the same message as the existing check further down); (b) `folder`: `let folder = b.repo_folder.as_deref().map(clean_folder).transpose()?;`; (c) `machine`: `let machine = b.repo_machine_id.as_deref().map(str::trim);` and, when it is Some and not empty, the same ownership query the existing code further down runs (`SELECT 1 FROM machines WHERE id = ? AND user_id = ?` with the machine id and `u.id`), returning `Err(ApiError::BadRequest(\"Pick one of your computers.\".into()))` when no row is found. Do not touch the code further down in this step. One SEARCH/REPLACE block whose SEARCH is just the single line `let links = ...` quoted above.",
+    "check": "sh /tmp/kk-ov11-chk/settings-compile.sh"
+  },
+  {
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/projects.rs",
+    "precheck": false,
+    "name": "ovfix-settings-2",
+    "focus": ["if let Some\\(t\\) = &b\\.ptype", "repo_machine_id"],
+    "prompt": "In server/src/projects.rs, function `settings`: step 2 of 2. The checks now run earlier and leave the locals `folder` (Option<String>, already cleaned), `machine` (Option<&str>, trimmed, ownership already checked) near the top (`b.ptype` is already validated too). Remove the old validation from the three write blocks further down, so each only writes: (a) `if let Some(t) = &b.ptype { ... }` keeps only its UPDATE (delete the TYPES check inside it); (b) `if let Some(f) = &b.repo_folder { ... }` becomes `if let Some(f) = &folder { ... }` with only its UPDATE (the `clean_folder` call goes, bind `f`); (c) `if let Some(m) = b.repo_machine_id.as_deref().map(str::trim) { ... }` becomes `if let Some(m) = machine { ... }` with only its UPDATE (the ownership query and its error go). Keep the UPDATE statements exactly as they are. The test `a_refused_settings_change_saves_nothing` must pass, and the other tests of the file. Also move the loop that saves name/description/about/links (the `for (column, value) in [...]` loop) to just before the `if let Some(t) = &b.ptype` block if it is not already there. Several small SEARCH/REPLACE blocks; each SEARCH is only the few lines it changes (one block per write block).",
+    "check": "sh /tmp/kk-ov11-chk/settings.sh"
+  }
+]

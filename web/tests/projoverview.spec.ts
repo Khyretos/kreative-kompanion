@@ -183,3 +183,20 @@ test("the overview follows live changes without a reload", async ({ page }) => {
   await expect(sec(page, "build")).toContainText("ninja -C out");
   expect(loads).toBe(0);
 });
+
+test("tiles follow the width of the overview, not the window; the progress bar is plum", async ({ page }) => {
+  await openDemo(page, 1280, 900, "dark");
+  await head(page, "p-kk").click();
+  const o = overview(page);
+  await expect(o.locator(".ov-tiles .ov-tile")).toHaveCount(4);
+  const columns = async () => (await o.locator(".ov-tiles").evaluate((el) => getComputedStyle(el).gridTemplateColumns)).split(" ").length;
+  // A wide window with a narrow pane gives 2x2, a wide pane gives one row of four.
+  await o.evaluate((el) => (el.style.width = "420px"));
+  await expect.poll(columns).toBe(2);
+  await o.evaluate((el) => (el.style.width = "760px"));
+  await expect.poll(columns).toBe(4);
+  // The progress bar uses the primary plum (--brand), not the orange accent.
+  const fill = await o.locator(".ov-bar > span").evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(document.documentElement).getPropertyValue("--brand").trim()]);
+  expect(fill[0]).toBe("rgb(92, 57, 142)");
+  expect(fill[1].toLowerCase()).toBe("#5c398e");
+});
