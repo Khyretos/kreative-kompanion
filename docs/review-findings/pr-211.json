@@ -1,0 +1,38 @@
+{
+  "23c1e5706b09": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/sharing.rs",
+    "reason": "The provided code snippet is syntactically complete and valid Rust, as the `match` statement in `chat_editor` properly closes at line 81 before the next function definition begins. Checked by Claude: sharing.rs compiles (cargo test 579 passed); the match closes before the next function.",
+    "title": "Syntax Error / Incomplete Code",
+    "verdict": "false_positive"
+  },
+  "35b3bd724cf3": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "docs/qwen-situations/245-send-edits-rewrote-the-function/job.json",
+    "reason": "The provided code snippet is valid JSON and does not contain the syntax error described in the finding, which likely pertains to characters outside the visible snippet or a misinterpretation of the prompt text within the string value. Checked by Claude: job.json parses with json.load; the backticks are inside the prompt string.",
+    "title": "Syntax Error in JSON",
+    "verdict": "false_positive"
+  },
+  "3ff16d12b2ae": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/api.rs",
+    "reason": "The provided code snippet does not contain the 'answer' function or the specific filtering logic mentioned in the finding, making the claim about a bug in that location unverifiable and thus a false positive. Checked by Claude: `tools` is the owner flag passed by send; a naming remark, not a defect.",
+    "title": "Incorrect Scope for Tools Filtering",
+    "verdict": "false_positive"
+  },
+  "816ecce03f9a": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/api.rs",
+    "reason": "The provided code snippet does not contain the `answer` function or the specific `.unwrap_or_default()` call mentioned in the finding, making the claim about missing error handling in that location unverifiable and likely referring to code not shown. Checked by Claude: the unwrap_or_default on project_collections is existing code outside this diff.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  }
+}

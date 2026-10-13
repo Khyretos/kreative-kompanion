@@ -220,6 +220,8 @@ pub async fn create(
     let kind = b.kind.clone().unwrap_or_else(|| "task".into());
     tasktree::check_kind(&kind)?;
     let parent = b.parent_id.clone().filter(|p| !p.is_empty());
+    let Some(owner) = crate::sharing::project_editor(&s.db, &u.id, &b.project_id).await? else { return Err(ApiError::NotFound) };
+    let u = User { id: owner, name: u.name };
     let owns: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM projects WHERE id = ? AND user_id = ?")
         .bind(&b.project_id)
         .bind(&u.id)
@@ -281,6 +283,8 @@ pub async fn update(
     Path(id): Path<String>,
     Json(b): Json<Change>,
 ) -> ApiResult<Json<Value>> {
+    let Some(owner) = crate::sharing::task_editor(&s.db, &u.id, &id).await? else { return Err(ApiError::NotFound) };
+    let u = User { id: owner, name: u.name };
     let before = one(&s.db, &id, &u.id).await?;
     let title = b.title.as_deref().map(clean_title).transpose()?;
     let description = b.description.as_deref().map(clean_description).transpose()?;
@@ -360,6 +364,8 @@ pub async fn delete(
     Extension(u): Extension<User>,
     Path(id): Path<String>,
 ) -> ApiResult<StatusCode> {
+    let Some(owner) = crate::sharing::task_editor(&s.db, &u.id, &id).await? else { return Err(ApiError::NotFound) };
+    let u = User { id: owner, name: u.name };
     let t = one(&s.db, &id, &u.id).await?;
     // Windshift items are closed there by the sync adapter; keep a tombstone.
     if t.source.as_deref().is_some_and(|src| src.starts_with("windshift:")) {
@@ -393,6 +399,8 @@ pub async fn reorder(
     Extension(u): Extension<User>,
     Json(b): Json<Order>,
 ) -> ApiResult<StatusCode> {
+    let Some(owner) = crate::sharing::project_editor(&s.db, &u.id, &b.project_id).await? else { return Err(ApiError::NotFound) };
+    let u = User { id: owner, name: u.name };
     let mut tx = s.db.begin().await?;
     for (i, id) in b.ids.iter().enumerate() {
         let done = sqlx::query("UPDATE tasks SET position = ? WHERE id = ? AND project_id = ? AND user_id = ?")
