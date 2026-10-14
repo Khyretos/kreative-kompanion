@@ -59,7 +59,7 @@ impl Grants {
     }
 
     fn is_valid_grant(grant: &Grant, index: usize) -> bool {
-        if grant.target != "system" && !grant.target.starts_with('/') {
+        if grant.target != "system" && !crate::platform::is_absolute_target(&grant.target) {
             return false;
         }
 
@@ -91,8 +91,8 @@ impl Grants {
     fn get_grant_error(grant: &Grant, index: usize) -> String {
         let mut errors = Vec::new();
 
-        if grant.target != "system" && !grant.target.starts_with('/') {
-            errors.push("target must start with '/'");
+        if grant.target != "system" && !crate::platform::is_absolute_target(&grant.target) {
+            errors.push("target must be an absolute path");
         }
 
         if grant.target != "system" && grant.target.contains("..") {
@@ -129,7 +129,7 @@ impl Grants {
     pub fn allows(&self, path: &Path, right: &Right, now: &str) -> bool {
         self.list.iter().any(|g| {
             g.target != "system"
-                && path.starts_with(Path::new(&g.target))
+                && crate::platform::starts_with_target(cfg!(windows), &path.to_string_lossy(), &g.target)
                 && g.rights.contains(right)
                 && g.expires.as_deref().is_none_or(|e| now < e)
         })
