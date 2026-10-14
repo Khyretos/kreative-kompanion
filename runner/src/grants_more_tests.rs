@@ -52,3 +52,23 @@ fn revoke_once_and_file_round_trips() {
     assert_eq!(again.list, g.list);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn windows_style_targets_are_valid_grants() {
+    let (dir, g) = grants_with(r#"[{"target":"C:\\Users\\k","rights":["read"],"granted_by":"k","granted_at":"2026-10-03T18:00:00Z"}]"#, 9);
+    assert_eq!(g.list.len(), 1);
+    assert_eq!(g.list[0].target, "C:\\Users\\k");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_relative_target_is_refused_with_a_clear_message() {
+    let dir = std::env::temp_dir().join(format!("kk-grants-rel-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("grants.json");
+    std::fs::write(&file, r#"[{"target":"relative","rights":["read"],"granted_by":"k","granted_at":"2026-10-03T18:00:00Z"}]"#).unwrap();
+    let err = Grants::load(&file).unwrap_err();
+    assert!(err.contains("target must be an absolute path"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -84,6 +84,86 @@ pub fn current_user() -> Result<String, String> {
     qualified_user(domain.as_deref(), username.as_deref())
 }
 
+/// True for an absolute path on unix (`/x`) or Windows (`C:\\x`, `c:/x`, `\\\\server\\share`); false for relative paths, `C:`, `C:x` and the empty string.
+pub fn is_absolute_target(t: &str) -> bool {
+    if t.is_empty() {
+        return false;
+    }
+    // Unix absolute: starts with '/'
+    if t.starts_with('/') {
+        return true;
+    }
+    // Windows UNC: starts with two backslashes
+    if t.starts_with("\\\\") {
+        return true;
+    }
+    // Windows drive letter: at least 3 chars, first is ASCII letter, second is ':', third is '/' or '\'
+    if t.len() >= 3 {
+        let c0 = t.chars().next().unwrap();
+        let c1 = t.chars().nth(1).unwrap();
+        let c2 = t.chars().nth(2).unwrap();
+        if c0.is_ascii_alphabetic() && c1 == ':' && (c2 == '/' || c2 == '\\') {
+            return true;
+        }
+    }
+    false
+}
+
+/// A path without the Windows `\\\\?\\` prefix that canonicalize adds (`\\\\?\\UNC\\srv\\sh` becomes `\\\\srv\\sh`).
+pub fn plain_path_str(p: &str) -> String {
+    if p.starts_with("\\\\?\\UNC\\") {
+        let rest = &p[8..];
+        format!("\\\\{}", rest)
+    } else if p.starts_with("\\\\?\\") {
+        let rest = &p[4..];
+        rest.to_string()
+    } else {
+        p.to_string()
+    }
+}
+
+/// True when `path` is the folder `target` or inside it, compared component-wise as text: on Windows (`windows` true) case-insensitive and with `/` and `\\` equal, on unix exact. A trailing separator on the target is ignored, the target `/` matches every unix path.
+pub fn starts_with_target(windows: bool, path: &str, target: &str) -> bool {
+    let p = plain_path_str(path);
+    let t = plain_path_str(target);
+
+    let mut p_norm = if windows {
+        p.replace('\\', "/").to_lowercase()
+    } else {
+        p
+    };
+    let mut t_norm = if windows {
+        t.replace('\\', "/").to_lowercase()
+    } else {
+        t
+    };
+
+    // Trim trailing separators but keep a lone "/"
+    while t_norm.len() > 1 && t_norm.ends_with('/') {
+        t_norm.pop();
+    }
+    while p_norm.len() > 1 && p_norm.ends_with('/') {
+        p_norm.pop();
+    }
+
+    // Target "/" matches every unix path
+    if t_norm == "/" && !windows {
+        return p_norm.starts_with('/');
+    }
+
+    // Exact match
+    if p_norm == t_norm {
+        return true;
+    }
+
+    // Path starts with target + separator
+    if p_norm.starts_with(&format!("{}/", t_norm)) {
+        return true;
+    }
+
+    false
+}
+
 /// Returns icacls command arguments to remove inheritance and grant full access to a user.
 #[allow(dead_code)]
 pub fn icacls_args(path: &Path, user: &str) -> Vec<String> {
@@ -235,6 +315,43 @@ mod tests {
         assert_eq!(result.unwrap(), "kees");
         let result = qualified_user(Some("PC"), None);
         assert_eq!(result.unwrap_err(), "%USERNAME% is not set");
+    }
+
+    #[test]
+    fn absolute_targets_on_both_systems() {
+        assert!(is_absolute_target("/home/k"));
+        assert!(is_absolute_target("C:\\Users\\k"));
+        assert!(is_absolute_target("c:/Users/k"));
+        assert!(is_absolute_target("\\\\server\\share\\x"));
+        assert!(!is_absolute_target("relative/dir"));
+        assert!(!is_absolute_target("C:"));
+        assert!(!is_absolute_target("C:rel"));
+        assert!(!is_absolute_target(""));
+    }
+
+    #[test]
+    fn verbatim_prefix_is_stripped() {
+        assert_eq!(plain_path_str("\\\\?\\C:\\Users\\k"), "C:\\Users\\k");
+        assert_eq!(plain_path_str("\\\\?\\UNC\\srv\\sh\\x"), "\\\\srv\\sh\\x");
+        assert_eq!(plain_path_str("/home/k"), "/home/k");
+        assert_eq!(plain_path_str("C:\\x"), "C:\\x");
+        // Test case where the UNC path has a backslash after the prefix
+        assert_eq!(plain_path_str("\\\\?\\UNC\\srv\\sh\\x\\"), "\\\\srv\\sh\\x\\");
+        // Test case with trailing backslash in input
+        assert_eq!(plain_path_str("\\\\?\\UNC\\srv\\sh\\x\\"), "\\\\srv\\sh\\x\\");
+    }
+
+    #[test]
+    fn target_prefix_match_per_system() {
+        assert!(starts_with_target(true, "C:\\Users\\Kees\\proj\\a.txt", "c:/users/kees"));
+        assert!(!starts_with_target(true, "C:\\Users\\Keesje\\a", "C:\\Users\\Kees"));
+        assert!(starts_with_target(true, "C:\\Users\\Kees", "C:\\Users\\Kees\\"));
+        assert!(starts_with_target(true, "\\\\?\\C:\\Users\\Kees\\a", "C:\\Users\\Kees"));
+        assert!(starts_with_target(false, "/home/k/p", "/home/k"));
+        assert!(starts_with_target(false, "/home/k", "/home/k/"));
+        assert!(!starts_with_target(false, "/home/k2", "/home/k"));
+        assert!(!starts_with_target(false, "/Home/k/p", "/home/k"));
+        assert!(starts_with_target(false, "/anything", "/"));
     }
 
     #[test]
