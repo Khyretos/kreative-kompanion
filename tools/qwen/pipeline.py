@@ -65,6 +65,25 @@ def dotenv(path):
     return out
 
 
+def resolve_container(host, has=None):
+    """The container to ask for host X: X-queue when that container exists (the HAProxy queue in front of OVMS), else X. A name already ending in -queue stays."""
+    if host.endswith("-queue"):
+        return host
+    if has is None:
+        def has(name):
+            import subprocess
+            import sys
+            proc = subprocess.run(
+                ["docker", "inspect", name],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return proc.returncode == 0
+    if has(f"{host}-queue"):
+        return f"{host}-queue"
+    return host
+
+
 def reachable(url):
     """The URL itself when its host resolves here, else the same URL on the Docker container's IP."""
     u = urllib.parse.urlsplit(url)
@@ -74,7 +93,7 @@ def reachable(url):
     except OSError:
         ip = (
             os.popen(
-                f"docker inspect {u.hostname} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}} {{{{end}}}}'"
+                f"docker inspect {resolve_container(u.hostname)} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}} {{{{end}}}}'"
             )
             .read()
             .split()
