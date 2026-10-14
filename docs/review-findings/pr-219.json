@@ -1,0 +1,11 @@
+{
+  "aadda26a7e26": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/windows.yml",
+    "reason": "The code correctly uses `>>` without a preceding space, which is the valid syntax for appending to a file in cmd.exe. Claude checked: in cmd 'echo X>> file' is valid and the entry ends in 'n', so it is not read as a handle number (that only happens for a single digit directly before '>'); the missing space is deliberate, a space would end up in the PATH entry (lesson 258).",
+    "title": "Incorrect Shell Command Syntax",
+    "verdict": "false_positive"
+  }
+}
