@@ -70,15 +70,17 @@ def resolve_container(host, has=None):
     if host.endswith("-queue"):
         return host
     if has is None:
+
         def has(name):
             import subprocess
-            import sys
+
             proc = subprocess.run(
                 ["docker", "inspect", name],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             return proc.returncode == 0
+
     if has(f"{host}-queue"):
         return f"{host}-queue"
     return host
