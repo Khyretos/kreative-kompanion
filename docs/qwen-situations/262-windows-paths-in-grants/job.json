@@ -1,0 +1,32 @@
+[
+  {
+    "name": "w2-1-platform",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/platform.rs",
+    "prompt": "Add three public functions directly above the line `/// Returns icacls command arguments to remove inheritance and grant full access to a user.` (copy every other line unchanged; the test module at the bottom already has tests for them). (1) `/// True for an absolute path on unix (`/x`) or Windows (`C:\\\\x`, `c:/x`, `\\\\\\\\server\\\\share`); false for relative paths, `C:`, `C:x` and the empty string.\\npub fn is_absolute_target(t: &str) -> bool`: true when t starts with '/' or with two backslashes, or when t has at least 3 characters, the first is an ASCII letter, the second is ':' and the third is '/' or '\\\\'. (2) `/// A path without the Windows `\\\\\\\\?\\\\` prefix that canonicalize adds (`\\\\\\\\?\\\\UNC\\\\srv\\\\sh` becomes `\\\\\\\\srv\\\\sh`).\\npub fn plain_path_str(p: &str) -> String`: if p starts with `\\\\\\\\?\\\\UNC\\\\` return format!(\"\\\\\\\\\\\\\\\\{}\", rest) (two backslashes then the rest); else if it starts with `\\\\\\\\?\\\\` return the rest; else p unchanged. (3) `/// True when `path` is the folder `target` or inside it, compared component-wise as text: on Windows (`windows` true) case-insensitive and with `/` and `\\\\` equal, on unix exact. A trailing separator on the target is ignored, the target `/` matches every unix path.\\npub fn starts_with_target(windows: bool, path: &str, target: &str) -> bool`: normalise both with plain_path_str; on windows replace '\\\\' by '/' and lowercase; trim trailing '/' from both (but keep a lone \"/\"); then true when the normalised target is \"/\" and the path starts with '/', or path == target, or path starts_with(format!(\"{target}/\")).",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo test --quiet platform:: && test $(grep -c 'cfg(test)' src/platform.rs) -eq 1",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "w2-2-grants-valid",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/grants.rs",
+    "prompt": "In `fn is_valid_grant` replace the condition `grant.target != \"system\" && !grant.target.starts_with('/')` by `grant.target != \"system\" && !crate::platform::is_absolute_target(&grant.target)`. In `fn get_grant_error` replace the same condition by the same new condition and the message `\"target must start with '/'\"` by `\"target must be an absolute path\"`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo test --quiet grants && grep -c 'is_absolute_target' src/grants.rs | grep -q 2",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "w2-3-grants-allows",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/grants.rs",
+    "prompt": "In `pub fn allows` replace the line `&& path.starts_with(Path::new(&g.target))` by `&& crate::platform::starts_with_target(cfg!(windows), &path.to_string_lossy(), &g.target)`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo test --quiet grants && grep -q 'starts_with_target(cfg!(windows)' src/grants.rs",
+    "precheck": false,
+    "context": []
+  }
+]
