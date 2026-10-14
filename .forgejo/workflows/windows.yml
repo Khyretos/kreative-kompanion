@@ -1,4 +1,5 @@
 # RUNNER-WIN: runs the stats crate and runner tests natively on Windows. Needs a Forgejo runner registered with the label `windows` (host mode, Rust and Git installed); until one exists the job just stays queued, so this workflow only runs by hand (Run workflow) or on pushes to main that touch the runner, never on pull requests. Add `pull_request` here once the runner exists.
+# The runner on the Windows PC must run as the logged-in user (an interactive session): from a service session git.exe fails with 0xc0000142.
 name: windows
 on:
   workflow_dispatch:
