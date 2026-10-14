@@ -1,0 +1,11 @@
+{
+  "e3c5ba26e4b9": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pairing.rs",
+    "reason": "The test explicitly calls fs::remove_dir_all(&dir) at the end of the function, and while manual cleanup can fail on panic, the finding's suggestion to use TempDir is a style improvement rather than a critical bug since the current code does attempt cleanup. Claude checked: the new test uses its own temp directory (pid-named) and removes it at the end like the existing test_newest_runner; a panicking assert leaves a small folder in the OS temp dir only, which is not a defect worth a new dependency.",
+    "title": "Test Directory Leak",
+    "verdict": "false_positive"
+  }
+}
