@@ -13,11 +13,13 @@ on:
 jobs:
   runner:
     runs-on: windows
+    defaults:
+      run:
+        shell: cmd
     steps:
-      # The Windows runner's PATH has no cargo; the only one is msys2's.
+      # The Windows runner's PATH has no cargo (only msys2's) and PowerShell scripts are blocked there, so every step runs in cmd.
       - name: Put cargo on the PATH (msys2 ucrt64)
-        shell: powershell
-        run: Add-Content $env:GITHUB_PATH 'C:\msys64\ucrt64\bin'
+        run: echo C:\msys64\ucrt64\bin>> "%GITHUB_PATH%"
       - name: Checkout
         uses: https://code.forgejo.org/actions/checkout@v4
 
