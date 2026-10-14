@@ -1,0 +1,20 @@
+{
+  "7b00024caccd": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/pipeline.py",
+    "reason": "The finding describes a lack of logging for subprocess errors, which is a code quality and observability issue rather than a security vulnerability that could be exploited by an attacker. Claude checked: docker is called with an argument list (no shell) and the name comes from the trusted kompanion.toml provider URL; a failed inspect just means 'no queue container' and falls back, so nothing to log or exploit.",
+    "title": "Security Vulnerability",
+    "verdict": "false_positive"
+  },
+  "c36b0adabf5d": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "tools/qwen/pipeline.py",
+    "reason": "The code uses subprocess.run with explicit stdout/stderr redirections in the resolve_container helper, and while reachable uses os.popen, the finding's claim about resource leaks is mitigated by Python's garbage collector and the specific context where the function is called, making it a style issue rather than a critical defect a test would catch. Claude checked: resolve_container uses subprocess.run with both streams discarded and waits for it; os.popen in reachable is the existing code, unchanged.",
+    "title": "Resource Leak / Inefficient I/O",
+    "verdict": "false_positive"
+  }
+}
