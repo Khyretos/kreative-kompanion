@@ -245,6 +245,7 @@ impl GpuReader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::symlink;
 
     fn tree(name: &str) -> PathBuf {
@@ -253,6 +254,7 @@ mod tests {
         root
     }
 
+    #[cfg(unix)]
     #[test]
     fn reads_an_amd_card_and_skips_connectors() {
         let sys = tree("amd");
@@ -292,6 +294,7 @@ mod tests {
         let _ = fs::remove_dir_all(&sys);
     }
 
+    #[cfg(unix)]
     #[test]
     fn intel_rates_need_two_reads() {
         let sys = tree("xe");
@@ -342,16 +345,5 @@ mod tests {
         for g in r.read(Path::new("/sys")) {
             eprintln!("{g:?}");
         }
-    }
-}
-
-#[cfg(all(test, unix))]
-mod unix_tests {
-    use super::*;
-
-    #[test]
-    fn cfg_marker_exists() {
-        // This test ensures the module is only compiled on Unix when tests are enabled.
-        assert!(true);
     }
 }
