@@ -30,7 +30,7 @@ jobs:
       # Only the Windows-ready tests run here: the runner's grants, file, shell and process tests assume unix paths (grant targets must start with /), RUNNER-WIN-2.
       - name: Test the runner
         working-directory: runner
-        run: 'cargo test --locked -- platform:: winsetup:: replace_tests:: sha_ok'
+        run: "cargo test --locked -- platform:: winsetup:: replace_tests:: sha_ok"
 
       - name: Build the runner
         working-directory: runner
