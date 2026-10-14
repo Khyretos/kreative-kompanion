@@ -1,0 +1,11 @@
+{
+  "04cad5203df8": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": ".forgejo/workflows/windows.yml",
+    "reason": "The provided code snippet already contains the fix for the reported issue, as line 33 correctly quotes the command string with single quotes. Claude checked: the finding was about my first push (unquoted filter text); the current head quotes it and yaml.safe_load parses the workflow with 6 steps.",
+    "title": "YAML Syntax Error",
+    "verdict": "false_positive"
+  }
+}
