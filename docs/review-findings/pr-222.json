@@ -1,0 +1,29 @@
+{
+  "43daaffea868": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pairing.rs",
+    "reason": "The code correctly maps specific file extensions to their corresponding platform binaries, meaning a Linux client requesting a Linux binary will not receive a Windows executable. Claude checked: the download names are matched exactly (kompanion-runner, .sha256, .exe, .exe.sha256) and each maps to its own file suffix; a Linux request can never receive the Windows file (test_download_names and test_newest_runner_for_windows).",
+    "title": "Hardcoded Path Assumption",
+    "verdict": "false_positive"
+  },
+  "4f1f97577534": {
+    "by": "repeat of e3c5ba26e4b9",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pairing.rs",
+    "reason": "The test explicitly calls fs::remove_dir_all(&dir) at the end of the function, and while manual cleanup can fail on panic, the finding's suggestion to use TempDir is a style improvement rather than a critical bug since the current code does attempt cleanup. Claude checked: the new test uses its own temp directory (pid-named) and removes it at the end like the existing test_newest_runner; a panicking assert leaves a small folder in the OS temp dir only, which is not a defect worth a new dependency.",
+    "title": "Test Directory Leak",
+    "verdict": "false_positive"
+  },
+  "e3c5ba26e4b9": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pairing.rs",
+    "reason": "The test explicitly calls fs::remove_dir_all(&dir) at the end of the function, and while manual cleanup can fail on panic, the finding's suggestion to use TempDir is a style improvement rather than a critical bug since the current code does attempt cleanup. Claude checked: the new test uses its own temp directory (pid-named) and removes it at the end like the existing test_newest_runner; a panicking assert leaves a small folder in the OS temp dir only, which is not a defect worth a new dependency.",
+    "title": "Test Directory Leak",
+    "verdict": "false_positive"
+  }
+}

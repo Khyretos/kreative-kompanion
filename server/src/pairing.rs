@@ -132,16 +132,22 @@ pub async fn pair(State(s): State<AppState>, Json(b): Json<PairBody>) -> ApiResu
     }))))
 }
 
+/// File name tail of the Linux runner builds in the runner directory.
+pub const RUNNER_LINUX: &str = "-x86_64-linux-musl";
+
+/// File name tail of the Windows runner builds in the runner directory.
+pub const RUNNER_WINDOWS: &str = "-x86_64-windows-gnu.exe";
+
 /// Finds the newest runner binary in a directory.
-pub fn newest_runner(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+pub fn newest_runner_for(dir: &std::path::Path, suffix: &str) -> Option<std::path::PathBuf> {
     let mut candidates: Vec<_> = std::fs::read_dir(dir).ok()?.flatten()
         .filter_map(|entry| {
             let path = entry.path();
             if !path.is_file() { return None; }
             let name = path.file_name()?.to_str()?;
-            // Match kompanion-runner-<version>-x86_64-linux-musl
-            if name.starts_with("kompanion-runner-") && name.ends_with("-x86_64-linux-musl") {
-                let version_part = &name["kompanion-runner-".len()..name.len()-"-x86_64-linux-musl".len()];
+            // Match kompanion-runner-<version><suffix>
+            if name.starts_with("kompanion-runner-") && name.ends_with(suffix) {
+                let version_part = &name["kompanion-runner-".len()..name.len()-suffix.len()];
                 // Split by dots and parse as u64
                 let parts: Vec<u64> = version_part.split('.').map(|p| p.parse::<u64>().unwrap_or(0)).collect();
                 Some((path, parts))
@@ -160,21 +166,42 @@ pub fn newest_runner(dir: &std::path::Path) -> Option<std::path::PathBuf> {
     Some(candidates.first()?.0.clone())
 }
 
+/// The newest Linux runner build.
+pub fn newest_runner(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    newest_runner_for(dir, RUNNER_LINUX)
+}
+
+/// Which build and which file a download name asks for: (suffix of the build, true for the .sha256). None for any other name.
+fn download_kind(file: &str) -> Option<(&'static str, bool)> {
+    match file {
+        "kompanion-runner" => Some((RUNNER_LINUX, false)),
+        "kompanion-runner.sha256" => Some((RUNNER_LINUX, true)),
+        "kompanion-runner.exe" => Some((RUNNER_WINDOWS, false)),
+        "kompanion-runner.exe.sha256" => Some((RUNNER_WINDOWS, true)),
+        _ => None,
+    }
+}
+
 /// Serves runner binaries or their checksums.
 pub async fn download(State(s): State<AppState>, Path(file): Path<String>) -> Response {
     let not_found = || (StatusCode::NOT_FOUND, "Not found").into_response();
-    let Some(newest) = newest_runner(&s.config.runner_dir) else { return not_found() };
+    let Some((suffix, sha)) = download_kind(&file) else { return not_found() };
+    let Some(newest) = newest_runner_for(&s.config.runner_dir, suffix) else { return not_found() };
     let Some(name) = newest.file_name().and_then(|n| n.to_str()).map(str::to_string) else { return not_found() };
-    match file.as_str() {
-        "kompanion-runner" => match tokio::fs::read(&newest).await {
+    if !sha {
+        match tokio::fs::read(&newest).await {
             Ok(bytes) => ([(header::CONTENT_TYPE, "application/octet-stream")], bytes).into_response(),
             Err(_) => not_found(),
-        },
-        "kompanion-runner.sha256" => match tokio::fs::read_to_string(s.config.runner_dir.join(format!("{name}.sha256"))).await {
-            Ok(text) => ([(header::CONTENT_TYPE, "text/plain")], text.replace(&name, "kompanion-runner")).into_response(),
+        }
+    } else {
+        let path = s.config.runner_dir.join(format!("{name}.sha256"));
+        match tokio::fs::read_to_string(path).await {
+            Ok(text) => {
+                let public = file.trim_end_matches(".sha256");
+                ([(header::CONTENT_TYPE, "text/plain")], text.replace(&name, public)).into_response()
+            }
             Err(_) => not_found(),
-        },
-        _ => not_found(),
+        }
     }
 }
 
@@ -219,6 +246,36 @@ mod tests {
     fn test_normalize() {
         assert_eq!(normalize("ab cd-ef gh"), "ABCDEFGH");
         assert_eq!(normalize("ABCD-EFGH"), "ABCDEFGH");
+    }
+
+    #[test]
+    fn test_newest_runner_for_windows() {
+        let dir = std::env::temp_dir().join(format!("kk-pair-win-{}", process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        for n in [
+            "kompanion-runner-0.6.1-x86_64-windows-gnu.exe",
+            "kompanion-runner-0.6.2-x86_64-windows-gnu.exe",
+            "kompanion-runner-0.6.9-x86_64-linux-musl",
+            "kompanion-runner-0.6.2-x86_64-windows-gnu.exe.sha256",
+        ] {
+            fs::write(dir.join(n), "x").unwrap();
+        }
+        let win = newest_runner_for(&dir, "-x86_64-windows-gnu.exe").unwrap();
+        assert_eq!(win.file_name().unwrap().to_str().unwrap(), "kompanion-runner-0.6.2-x86_64-windows-gnu.exe");
+        let lin = newest_runner(&dir).unwrap();
+        assert_eq!(lin.file_name().unwrap().to_str().unwrap(), "kompanion-runner-0.6.9-x86_64-linux-musl");
+        assert!(newest_runner_for(&dir, "-x86_64-macos").is_none());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_download_names() {
+        assert_eq!(download_kind("kompanion-runner"), Some((RUNNER_LINUX, false)));
+        assert_eq!(download_kind("kompanion-runner.sha256"), Some((RUNNER_LINUX, true)));
+        assert_eq!(download_kind("kompanion-runner.exe"), Some((RUNNER_WINDOWS, false)));
+        assert_eq!(download_kind("kompanion-runner.exe.sha256"), Some((RUNNER_WINDOWS, true)));
+        assert_eq!(download_kind("../etc/passwd"), None);
     }
 
     #[test]
