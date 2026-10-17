@@ -380,7 +380,7 @@ def patch_job(job, log):
     )
     shown = text
     if job.get("focus"):
-        # Big files: show only the lines around these regexes (OVMS Coder cuts prompts at ~8k tokens).
+        # Big files: show only the lines around these regexes (keeps the prompt small; the OVMS Coder takes about 54k tokens, the queue refuses more).
         lines = text.split("\n")
         keep = set()
         for pat in job["focus"]:
@@ -469,10 +469,10 @@ def run_job(job, log):
             job.get("max_tokens", 4000),
         )
         # The self-review needs the draft in the prompt; skip it when that
-        # wouldn't leave room for a full answer in the 16k context (~4 chars/token).
+        # wouldn't leave room for a full answer in the Coder's ~54k-token window (~4 chars/token; the queue refuses requests above ~98k estimated tokens).
         if (
             len(system) + len(job["prompt"]) + 2 * len(draft)
-        ) / 4 > 13000 or not job.get("review", True):
+        ) / 4 > 50000 or not job.get("review", True):
             out = os.path.join(REPO, job["out"])
             os.makedirs(os.path.dirname(out), exist_ok=True)
             open(out, "w").write(
