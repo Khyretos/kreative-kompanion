@@ -19,6 +19,15 @@ fn a_grant_covers_its_folder_and_everything_below() {
 }
 
 #[test]
+fn a_windows_grant_covers_its_folder_ignoring_case_and_slash_style() {
+    assert!(covers("C:\\Users\\k", "c:/users/k/app"));
+    assert!(covers("C:\\Users\\k\\", "C:\\Users\\k\\app\\"));
+    assert!(!covers("C:\\Users\\k\\app\\src", "C:\\Users\\k\\app"));
+    assert!(!covers("C:\\Users\\k", "C:\\Users\\kk"));
+    assert!(!covers("C:\\Users\\k", "/home/k"));
+}
+
+#[test]
 fn about_follows_the_description_and_is_bounded() {
     assert_eq!(with_about("A shop.", "", 1500), "A shop.");
     assert_eq!(with_about("A shop.", "  Sells plants.\n", 1500), "A shop.\n\nSells plants.");

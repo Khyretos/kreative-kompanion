@@ -1,0 +1,11 @@
+{
+  "41449bf04e89": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "machine-stats/src/paths.rs",
+    "reason": "The provided code snippet contains no variables named `p_lower` and does not exhibit the described borrow checker error, indicating the finding is based on code not shown in the snippet. Claude checked: no p_lower exists in the head (the Coder's first draft had it; Claude replaced the functions before pushing); cargo test paths:: passes 5 tests and the server overview/projects/folders/scheduler tests pass.",
+    "title": "Compiler Error",
+    "verdict": "false_positive"
+  }
+}

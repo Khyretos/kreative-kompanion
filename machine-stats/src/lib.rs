@@ -3,6 +3,7 @@
 
 pub mod fdinfo;
 pub mod gpu;
+pub mod paths;
 pub mod system;
 pub mod winsys;
 

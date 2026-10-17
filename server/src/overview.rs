@@ -63,18 +63,12 @@ pub struct ProjectRow {
     pub owner: String,
 }
 
-/// pure: true when a computer grant on `target` reaches `folder`.
+/// pure: true when a computer grant on `target` reaches `folder` (Linux or Windows paths).
 pub fn covers(target: &str, folder: &str) -> bool {
-    // "/" trimmed of its slash would be empty: keep the root as "/".
-    let trim = |p: &str| -> String {
-        let t = p.trim_end_matches('/');
-        if t.is_empty() && p.starts_with('/') { "/".into() } else { t.into() }
-    };
-    let (target, folder) = (trim(target), trim(folder));
-    if folder.is_empty() || !target.starts_with('/') {
+    if folder.is_empty() || !machine_stats::paths::is_absolute_target(target) {
         return false;
     }
-    target == "/" || target == folder || folder.starts_with(&format!("{target}/"))
+    machine_stats::paths::starts_with_target(machine_stats::paths::looks_windows(target), folder, target)
 }
 
 /// pure: the project text a prompt gets: the description, then at most `max` chars of `about`.
