@@ -19,3 +19,5 @@ Topic lessons moved into cards (live-updates, playwright, css-layout, controls),
 73. (2026-10-07) To give a `.map()` result a declared type, annotate the callback's return,
     `.map((w): StudioType => ({ ... }))`. Never cast mid-chain (`.map(...) as T[]` followed by
     `.sort(...)` on the next line): it does not parse (TS1128), and four fix rounds did not see why.
+
+- (2026-10-18, lessons 267-271) In a template literal, an inserted `${...}` goes exactly where the task says, never inside an attribute string. Edit only the lines the task names. Delegated click handlers use `e.target.closest(selector)`. Never declare the same name twice in one scope; in a repair round, change the broken lines and do not add a second copy of a block.
