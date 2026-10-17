@@ -151,9 +151,20 @@ mod tests {
         parts.iter().map(|s| s.to_string()).collect()
     }
 
+    /// The program and arguments that run a one-line script in the OS's own shell: `sh -c` on unix, `cmd /C` on Windows.
+    fn shell(unix: &str, windows: &str) -> (&'static str, Vec<String>) {
+        if cfg!(windows) {
+            ("cmd", a(&["/C", windows]))
+        } else {
+            ("sh", a(&["-c", unix]))
+        }
+    }
+
     #[test]
     fn test_echo_hi() {
-        let outcome = run_cmd("echo", &a(&["hi"]), None, &[], 10);
+        let (program, args) = shell("echo hi", "echo hi");
+        let mut outcome = run_cmd(program, &args, None, &[], 10);
+        outcome.output = outcome.output.replace("\r\n", "\n");
         assert!(outcome.ok);
         assert!(outcome.output.starts_with("hi\n"));
         assert!(outcome.output.ends_with("exit: 0"));
@@ -161,7 +172,8 @@ mod tests {
 
     #[test]
     fn test_exit_3() {
-        let outcome = run_cmd("sh", &a(&["-c", "exit 3"]), None, &[], 10);
+        let (program, args) = shell("exit 3", "exit 3");
+        let outcome = run_cmd(program, &args, None, &[], 10);
         assert!(!outcome.ok);
         assert!(outcome.output.ends_with("exit: 3"));
     }
@@ -169,7 +181,8 @@ mod tests {
     #[test]
     fn test_timeout_kills_children() {
         let start = Instant::now();
-        let outcome = run_cmd("sh", &a(&["-c", "sleep 30 & sleep 30; echo never"]), None, &[], 1);
+        let (program, args) = shell("sleep 30 & sleep 30; echo never", "ping -n 30 127.0.0.1 >nul");
+        let outcome = run_cmd(program, &args, None, &[], 1);
         let elapsed = start.elapsed();
         assert!(!outcome.ok);
         assert!(outcome.output.contains("timed out"));
@@ -186,7 +199,8 @@ mod tests {
             f2.store(true, Ordering::Relaxed);
         });
         let start = Instant::now();
-        let outcome = run_cmd("sleep", &a(&["30"]), None, &[], 60);
+        let (program, args) = shell("sleep 30", "ping -n 30 127.0.0.1 >nul");
+        let outcome = run_cmd(program, &args, None, &[], 60);
         let elapsed = start.elapsed();
         assert!(!outcome.ok);
         assert!(outcome.output.contains("stopped by you"));
@@ -206,7 +220,8 @@ mod tests {
     fn test_cwd() {
         let tmpdir = std::env::temp_dir().join(format!("kk-cwd-test-{}", std::process::id()));
         std::fs::create_dir_all(&tmpdir).expect("failed to create temp dir");
-        let outcome = run_cmd("pwd", &[], Some(&tmpdir), &[], 10);
+        let (program, args) = shell("pwd", "cd");
+        let outcome = run_cmd(program, &args, Some(&tmpdir), &[], 10);
         assert!(outcome.ok);
         assert!(outcome.output.contains(tmpdir.to_string_lossy().as_ref()));
         std::fs::remove_dir_all(&tmpdir).expect("failed to remove temp dir");
