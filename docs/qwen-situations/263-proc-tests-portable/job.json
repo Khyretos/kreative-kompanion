@@ -1,0 +1,62 @@
+[
+  {
+    "name": "pb-1-helper",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/proc.rs",
+    "prompt": "In the test module, directly after the helper `fn a(parts: &[&str]) -> Vec<String> { ... }` add a second helper (blank line between): `/// The program and arguments that run a one-line script in the OS's own shell: `sh -c` on unix, `cmd /C` on Windows.\\n    fn shell(unix: &str, windows: &str) -> (&'static str, Vec<String>) {\\n        if cfg!(windows) {\\n            (\"cmd\", a(&[\"/C\", windows]))\\n        } else {\\n            (\"sh\", a(&[\"-c\", unix]))\\n        }\\n    }`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo check --tests --quiet && test $(grep -c 'cfg(test)' src/proc.rs) -eq 1 && test $(grep -c '#\\[test\\]' src/proc.rs) -eq 7",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "pb-2-echo",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/proc.rs",
+    "prompt": "In the test `test_echo_hi` replace the line `let outcome = run_cmd(\"echo\", &a(&[\"hi\"]), None, &[], 10);` by two lines: `let (program, args) = shell(\"echo hi\", \"echo hi\");` and `let mut outcome = run_cmd(program, &args, None, &[], 10);`, and add the line `outcome.output = outcome.output.replace(\"\\\\r\\\\n\", \"\\\\n\");` directly after them (so Windows line endings match). Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo check --tests --quiet && test $(grep -c 'cfg(test)' src/proc.rs) -eq 1 && test $(grep -c '#\\[test\\]' src/proc.rs) -eq 7",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "pb-3-exit",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/proc.rs",
+    "prompt": "In the test `test_exit_3` replace the line `let outcome = run_cmd(\"sh\", &a(&[\"-c\", \"exit 3\"]), None, &[], 10);` by two lines: `let (program, args) = shell(\"exit 3\", \"exit 3\");` and `let outcome = run_cmd(program, &args, None, &[], 10);`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo check --tests --quiet && test $(grep -c 'cfg(test)' src/proc.rs) -eq 1 && test $(grep -c '#\\[test\\]' src/proc.rs) -eq 7",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "pb-4-timeout",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/proc.rs",
+    "prompt": "In the test `test_timeout_kills_children` replace the line `let outcome = run_cmd(\"sh\", &a(&[\"-c\", \"sleep 30 & sleep 30; echo never\"]), None, &[], 1);` by two lines: `let (program, args) = shell(\"sleep 30 & sleep 30; echo never\", \"ping -n 30 127.0.0.1 >nul\");` and `let outcome = run_cmd(program, &args, None, &[], 1);`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo check --tests --quiet && test $(grep -c 'cfg(test)' src/proc.rs) -eq 1 && test $(grep -c '#\\[test\\]' src/proc.rs) -eq 7",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "pb-5-stop",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/proc.rs",
+    "prompt": "In the test `test_stop_flag` replace the line `let outcome = run_cmd(\"sleep\", &a(&[\"30\"]), None, &[], 60);` by two lines: `let (program, args) = shell(\"sleep 30\", \"ping -n 30 127.0.0.1 >nul\");` and `let outcome = run_cmd(program, &args, None, &[], 60);`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo check --tests --quiet && test $(grep -c 'cfg(test)' src/proc.rs) -eq 1 && test $(grep -c '#\\[test\\]' src/proc.rs) -eq 7",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "pb-6-cwd",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "runner/src/proc.rs",
+    "prompt": "In the test `test_cwd` replace the line `let outcome = run_cmd(\"pwd\", &[], Some(&tmpdir), &[], 10);` by two lines: `let (program, args) = shell(\"pwd\", \"cd\");` and `let outcome = run_cmd(program, &args, Some(&tmpdir), &[], 10);`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-runwin-target RUSTFLAGS='-A warnings'; cd runner && cargo check --tests --quiet && test $(grep -c 'cfg(test)' src/proc.rs) -eq 1 && test $(grep -c '#\\[test\\]' src/proc.rs) -eq 7",
+    "precheck": false,
+    "context": []
+  }
+]
