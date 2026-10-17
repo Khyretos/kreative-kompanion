@@ -12,10 +12,11 @@ fn setup(tag: u32, rights: &str) -> (std::path::PathBuf, Grants) {
     let base = std::fs::canonicalize(&base).unwrap();
     std::fs::write(base.join("inside/a.txt"), "hello").unwrap();
     std::fs::write(base.join("outside/b.txt"), "secret").unwrap();
+    let target = serde_json::to_string(&base.join("inside").display().to_string()).unwrap();
     let file = base.join("grants.json");
     std::fs::write(
         &file,
-        format!(r#"[{{"target":"{}","rights":[{rights}],"granted_by":"k","granted_at":"2026-10-03T18:00:00Z"}}]"#, base.join("inside").display()),
+        format!(r#"[{{"target":{target},"rights":[{rights}],"granted_by":"k","granted_at":"2026-10-03T18:00:00Z"}}]"#,),
     )
     .unwrap();
     let g = Grants::load(&file).unwrap();
