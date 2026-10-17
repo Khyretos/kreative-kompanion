@@ -1,0 +1,15 @@
+[
+ {
+  "name": "sun-readme",
+  "role": "worker/docs",
+  "prompt": "Write tools/host/sunshine/README.md for the files in this folder (given as context). Plain, short English for the owner of the PC.\nSections (each '## ' heading followed by a blank line), after a '# Sunshine on soucouyant (SUN-01)' title:\n- Why: on 11 Oct an old keepalive restarted Sunshine 1,572 times with a dead Hyprland session's settings and hung the GPU. Now Sunshine is a user service of the live session: the login hook hands the session's variables to systemd and restarts the unit; the drop-in's ExecCondition skips any start without the live Wayland and Hyprland sockets, and StartLimitBurst caps restarts at 5 per 300 s.\n- Files: one bullet each for sun-01.conf, kk-sunshine-session.sh, install.sh.\n- Install: run `sh tools/host/sunshine/install.sh`, then in ~/.config/hypr/hyprland.lua replace the line `hl.exec_cmd(\"sleep 3 && sunshine\")` with the line the installer prints, shown in a ```lua block exactly as: hl.exec_cmd(\"sleep 3 && $HOME/.local/bin/kk-sunshine-session.sh\")\n- Check: `systemctl --user status app-dev.lizardbyte.app.Sunshine.service` and `journalctl --user -u app-dev.lizardbyte.app.Sunshine.service` (no restart loop), after a log-out and after a reboot.\n- Undo: delete the .d/sun-01.conf drop-in, move the .bak-sun01 file back, put the old hyprland.lua line back, run systemctl --user daemon-reload.\nKeep prose lines under 120 characters. End with one newline. Output only the file.",
+  "context": [
+   "tools/host/sunshine/sun-01.conf",
+   "tools/host/sunshine/kk-sunshine-session.sh",
+   "tools/host/sunshine/install.sh"
+  ],
+  "out": "tools/host/sunshine/README.md",
+  "precheck": false,
+  "check": "python3 /tmp/kk-sun01/chk/readme.py"
+ }
+]

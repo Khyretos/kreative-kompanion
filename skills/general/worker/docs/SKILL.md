@@ -22,3 +22,5 @@ paths: ["**/*.md"]
    answer, list every sentence you were told to keep and check each one is in your output.
 8. (2026-10-05) Mermaid: one edge syntax per diagram (`-->`, `-- text -->`), quote every label
    with `/` or `()`, and render it before posting.
+9. (2026-10-18, lesson 266) Put a blank line after every heading and around every code fence.
+   Never copy an instruction from the task into the file: "shown in a code block" means write the block.
