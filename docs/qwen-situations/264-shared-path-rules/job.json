@@ -1,0 +1,62 @@
+[
+  {
+    "name": "d-1-lib",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "machine-stats/src/lib.rs",
+    "prompt": "Add `pub mod paths;` after the line `pub mod gpu;` (alphabetical: fdinfo, gpu, paths, system, winsys). Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=$HOME/Docker/Personal-projects/kreative-kompanion/server/target RUSTFLAGS='-A warnings'; cd machine-stats && cargo check --quiet && grep -q 'pub mod paths;' src/lib.rs && grep -q 'pub mod winsys;' src/lib.rs",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "d-2-paths",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "machine-stats/src/paths.rs",
+    "prompt": "Implement paths.rs by inserting the code above its test module (patch: SEARCH the two lines `#[cfg(test)]` and `mod tests {` and REPLACE them with your code followed by those same two lines; keep the tests unchanged). Public functions, each with a one-line doc comment: `is_absolute_target(t: &str) -> bool`: true when t starts with '/' or with two backslashes, or t has at least 3 chars with an ASCII letter first, ':' second and '/' or backslash third. `plain_path_str(p: &str) -> String`: use strip_prefix (not slice numbers): if p has the prefix backslash-backslash-?-backslash-U-N-C-backslash return two backslashes plus the rest; else if it has the prefix backslash-backslash-?-backslash return the rest; else p unchanged. `looks_windows(s: &str) -> bool` = !s.starts_with('/'). `starts_with_target(windows: bool, path: &str, target: &str) -> bool`: normalise both with plain_path_str; when windows is true replace backslash by '/' and lowercase both; trim trailing '/' from both (but keep a lone \"/\"); true when the target is \"/\" and the path starts with '/', or path == target, or path starts_with(format!(\"{target}/\")). `folder_ok(p: &str) -> bool` = is_absolute_target(p) && !p.split(['/', '\\\\']).any(|c| c == \"..\").",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=$HOME/Docker/Personal-projects/kreative-kompanion/server/target RUSTFLAGS='-A warnings'; cd machine-stats && cargo test --quiet paths:: && test $(grep -c 'cfg(test)' src/paths.rs) -eq 1",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "d-3-covers",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/overview.rs",
+    "prompt": "Replace the whole body of `pub fn covers(target: &str, folder: &str) -> bool` (everything between its braces, including the `trim` closure) by: `if folder.is_empty() || !machine_stats::paths::is_absolute_target(target) {` newline `return false;` newline `}` newline `machine_stats::paths::starts_with_target(machine_stats::paths::looks_windows(target), folder, target)`. Update its doc comment to `/// pure: true when a computer grant on `target` reaches `folder` (Linux or Windows paths).` Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=$HOME/Docker/Personal-projects/kreative-kompanion/server/target RUSTFLAGS='-A warnings'; cd server && cargo test --quiet overview && grep -q 'starts_with_target' src/overview.rs",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "d-4-folders",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/folders.rs",
+    "prompt": "Replace the line `if !path.starts_with('/') || path.split('/').any(|c| c == \"..\") {` by `if !machine_stats::paths::folder_ok(path) {`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=$HOME/Docker/Personal-projects/kreative-kompanion/server/target RUSTFLAGS='-A warnings'; cd server && cargo check --quiet && grep -q 'folder_ok(path)' src/folders.rs",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "d-5-projects",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/projects.rs",
+    "prompt": "Replace the line `if !f.starts_with('/') || f.split('/').any(|c| c == \"..\") || f.len() > 400 {` by `if !machine_stats::paths::folder_ok(f) || f.len() > 400 {`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=$HOME/Docker/Personal-projects/kreative-kompanion/server/target RUSTFLAGS='-A warnings'; cd server && cargo check --quiet && grep -q 'folder_ok(f)' src/projects.rs",
+    "precheck": false,
+    "context": []
+  },
+  {
+    "name": "d-6-scheduler",
+    "role": "worker/rust",
+    "mode": "patch",
+    "out": "server/src/scheduler.rs",
+    "prompt": "Replace the line `if !folder.starts_with('/') || folder.split('/').any(|c| c == \"..\") {` by `if !machine_stats::paths::folder_ok(folder) {`. Copy every other line unchanged.",
+    "check": "export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=$HOME/Docker/Personal-projects/kreative-kompanion/server/target RUSTFLAGS='-A warnings'; cd server && cargo check --quiet && grep -q 'folder_ok(folder)' src/scheduler.rs",
+    "precheck": false,
+    "context": []
+  }
+]

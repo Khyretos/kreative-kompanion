@@ -72,7 +72,7 @@ impl Config {
 
     pub fn validate(&self) -> Result<(), String> {
         for (m, folder) in &self.machines {
-            if !folder.starts_with('/') || folder.split('/').any(|c| c == "..") {
+            if !machine_stats::paths::folder_ok(folder) {
                 return Err(format!("The folder for computer {m} must be an absolute path without \"..\"."));
             }
         }

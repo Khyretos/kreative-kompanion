@@ -76,7 +76,7 @@ pub struct Body {
 pub async fn api(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>, Json(b): Json<Body>) -> ApiResult<Json<Value>> {
     let path = b.path.trim().trim_end_matches('/');
     let path = if path.is_empty() { "/" } else { path };
-    if !path.starts_with('/') || path.split('/').any(|c| c == "..") {
+    if !machine_stats::paths::folder_ok(path) {
         return Err(ApiError::BadRequest("Use an absolute folder, like /home/you/projects/app.".into()));
     }
     let name: Option<(String,)> =

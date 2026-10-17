@@ -1,0 +1,134 @@
+//! Folder paths from both worlds (RUNNER-WIN-2): `/home/k/app` on Linux, `C:\Users\k\app` on Windows.
+//! Plain text rules, so the server (which never touches those disks) and the runner use the same ones.
+
+/// true when t starts with '/' or with two backslashes, or t has at least 3 chars with an ASCII letter first, ':' second and '/' or backslash third.
+pub fn is_absolute_target(t: &str) -> bool {
+    if t.starts_with('/') || t.starts_with("\\\\") {
+        return true;
+    }
+    if t.len() >= 3 && t.chars().next().map(|c| c.is_ascii_alphabetic()).unwrap_or(false) {
+        let c1 = t.chars().nth(0).unwrap();
+        let c2 = t.chars().nth(1).unwrap();
+        let c3 = t.chars().nth(2).unwrap();
+        if c2 == ':' && (c3 == '/' || c3 == '\\') {
+            return true;
+        }
+    }
+    false
+}
+
+/// use strip_prefix (not slice numbers): if p has the prefix backslash-backslash-?-backslash-U-N-C-backslash return two backslashes plus the rest; else if it has the prefix backslash-backslash-?-backslash return the rest; else p unchanged.
+pub fn plain_path_str(p: &str) -> String {
+    if p.starts_with("\\\\?\\UNC\\") {
+        return format!("\\\\{}{}", p[8..].replace('\\', "/"), "");
+    }
+    if p.starts_with("\\\\?\\") {
+        return p[4..].to_string();
+    }
+    p.to_string()
+}
+
+/// looks_windows(s: &str) = !s.starts_with('/').
+pub fn looks_windows(s: &str) -> bool {
+    !s.starts_with('/')
+}
+
+/// normalise both with plain_path_str; when windows is true replace backslash by '/' and lowercase both; trim trailing '/' from both (but keep a lone "/"); true when the target is "/" and the path starts with '/', or path == target, or path starts_with(format!("{target}/")).
+pub fn starts_with_target(windows: bool, path: &str, target: &str) -> bool {
+    let p_norm = plain_path_str(path);
+    let t_norm = plain_path_str(target);
+
+    let mut p_lower = if windows {
+        p_norm.to_lowercase()
+    } else {
+        p_norm.clone()
+    };
+    let mut t_lower = if windows {
+        t_norm.to_lowercase()
+    } else {
+        t_norm.clone()
+    };
+
+    let p_trimmed = if p_lower == "/" {
+        p_lower
+    } else {
+        p_lower.trim_end_matches('/').to_string()
+    };
+    let t_trimmed = if t_lower == "/" {
+        t_lower
+    } else {
+        t_lower.trim_end_matches('/').to_string()
+    };
+
+    if t_trimmed == "/" && p_lower.starts_with('/') {
+        return true;
+    }
+    if p_trimmed == t_trimmed {
+        return true;
+    }
+    if p_trimmed.starts_with(&format!("{t_trimmed}/")) {
+        return true;
+    }
+    false
+}
+
+/// folder_ok(p: &str) = is_absolute_target(p) && !p.split(['/', '\\']).any(|c| c == "..").
+pub fn folder_ok(p: &str) -> bool {
+    is_absolute_target(p) && !p.split(['/', '\\']).any(|c| c == "..")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn absolute_targets_on_both_systems() {
+        assert!(is_absolute_target("/home/k"));
+        assert!(is_absolute_target("C:\\Users\\k"));
+        assert!(is_absolute_target("c:/Users/k"));
+        assert!(is_absolute_target("\\\\server\\share\\x"));
+        assert!(!is_absolute_target("relative/dir"));
+        assert!(!is_absolute_target("C:"));
+        assert!(!is_absolute_target("C:rel"));
+        assert!(!is_absolute_target(""));
+    }
+
+    #[test]
+    fn verbatim_prefix_is_stripped() {
+        assert_eq!(plain_path_str("\\\\?\\C:\\Users\\k"), "C:\\Users\\k");
+        assert_eq!(plain_path_str("\\\\?\\UNC\\srv\\sh\\x"), "\\\\srv\\sh\\x");
+        assert_eq!(plain_path_str("/home/k"), "/home/k");
+        assert_eq!(plain_path_str("C:\\x"), "C:\\x");
+    }
+
+    #[test]
+    fn target_prefix_match_per_system() {
+        assert!(starts_with_target(true, "C:\\Users\\Kees\\proj\\a.txt", "c:/users/kees"));
+        assert!(!starts_with_target(true, "C:\\Users\\Keesje\\a", "C:\\Users\\Kees"));
+        assert!(starts_with_target(true, "C:\\Users\\Kees", "C:\\Users\\Kees\\"));
+        assert!(starts_with_target(true, "\\\\?\\C:\\Users\\Kees\\a", "C:\\Users\\Kees"));
+        assert!(starts_with_target(false, "/home/k/p", "/home/k"));
+        assert!(starts_with_target(false, "/home/k", "/home/k/"));
+        assert!(!starts_with_target(false, "/home/k2", "/home/k"));
+        assert!(!starts_with_target(false, "/Home/k/p", "/home/k"));
+        assert!(starts_with_target(false, "/anything", "/"));
+    }
+
+    #[test]
+    fn a_folder_is_absolute_and_has_no_dotdot() {
+        assert!(folder_ok("/home/k/app"));
+        assert!(folder_ok("C:\\Users\\k\\app"));
+        assert!(folder_ok("c:/Users/k/app"));
+        assert!(!folder_ok("C:\\Users\\..\\x"));
+        assert!(!folder_ok("/a/../b"));
+        assert!(!folder_ok("relative"));
+        assert!(!folder_ok(""));
+    }
+
+    #[test]
+    fn windows_style_means_not_starting_with_a_slash() {
+        assert!(looks_windows("C:\\x"));
+        assert!(looks_windows("\\\\srv\\sh"));
+        assert!(!looks_windows("/home/k"));
+    }
+}

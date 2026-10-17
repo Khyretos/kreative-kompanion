@@ -24,7 +24,7 @@ fn clean_folder(folder: &str) -> ApiResult<String> {
     if f.is_empty() {
         return Ok(String::new());
     }
-    if !f.starts_with('/') || f.split('/').any(|c| c == "..") || f.len() > 400 {
+    if !machine_stats::paths::folder_ok(f) || f.len() > 400 {
         return Err(ApiError::BadRequest("Use an absolute folder, like /home/you/projects/app.".into()));
     }
     Ok(f.to_string())
