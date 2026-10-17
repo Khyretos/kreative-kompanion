@@ -1,0 +1,20 @@
+{
+  "86d586a27757": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/systools.rs",
+    "reason": "The code correctly implements a platform-specific conditional check using `cfg!(windows)` to handle different error messages, which aligns with the PR description's intent. Claude checked: the service/package tests name both answers (cfg!(windows) picks 'not supported on Windows'); the grants JSON is built with serde_json::to_string, which quotes and escapes the Windows path (the doubled braces are format! escapes). The Windows run after the merge is the real proof.",
+    "title": "Test Logic Error",
+    "verdict": "false_positive"
+  },
+  "9efb18c1e0ee": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/tools_tests.rs",
+    "reason": "The code correctly escapes the inner curly braces by doubling them within the raw string literal, resulting in valid JSON syntax. Claude checked: the service/package tests name both answers (cfg!(windows) picks 'not supported on Windows'); the grants JSON is built with serde_json::to_string, which quotes and escapes the Windows path (the doubled braces are format! escapes). The Windows run after the merge is the real proof.",
+    "title": "Incorrect JSON Escaping",
+    "verdict": "false_positive"
+  }
+}

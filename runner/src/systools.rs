@@ -222,7 +222,7 @@ mod tests {
         let grants = temp_grants();
         let outcome = service(&grants, "status", Some("test.service"), "2026-06-01T00:00:00Z");
         assert!(!outcome.ok);
-        assert!(outcome.output.contains("not granted: services"));
+        assert!(outcome.output.contains(if cfg!(windows) { "not supported on Windows" } else { "not granted: services" }));
     }
 
     #[test]
@@ -230,7 +230,7 @@ mod tests {
         let grants = temp_grants();
         let outcome = package(&grants, "pacman", "install", &["htop".to_string()], "2026-06-01T00:00:00Z");
         assert!(!outcome.ok);
-        assert!(outcome.output.contains("not granted: packages"));
+        assert!(outcome.output.contains(if cfg!(windows) { "not supported on Windows" } else { "not granted: packages" }));
     }
 
     #[test]
