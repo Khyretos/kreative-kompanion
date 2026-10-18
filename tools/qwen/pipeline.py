@@ -98,13 +98,18 @@ def reachable(url, has=None, dns=socket.gethostbyname, ip_of=None):
     except OSError:
         pass
     if ip_of is None:
-        raw = (
-            os.popen(
-                f"docker inspect {host} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}} {{{{end}}}}'"
-            )
-            .read()
-            .strip()
-        )
+        raw = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                host,
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
         parts = raw.split()
         ip = parts[0] if parts else None
     else:

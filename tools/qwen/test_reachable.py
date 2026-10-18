@@ -75,5 +75,37 @@ class Reachable(unittest.TestCase):
         self.assertEqual(url, "https://api.example.com/v1")
 
 
+class DockerInspect(unittest.TestCase):
+    """The container IP comes from docker inspect run without a shell (PR 239 review)."""
+
+    def test_docker_is_called_with_an_argument_list(self):
+        calls = []
+
+        class Done:
+            stdout = "172.16.1.18 172.16.41.3\n"
+            returncode = 0
+
+        def fake_run(args, **kw):
+            calls.append((args, kw))
+            return Done()
+
+        real = pipeline.subprocess.run
+        pipeline.subprocess.run = fake_run
+        try:
+            url = pipeline.reachable(
+                "http://ovms:8000/v3",
+                has=lambda name: name == "ovms-queue",
+                dns=fake_dns(set()),
+            )
+        finally:
+            pipeline.subprocess.run = real
+        self.assertEqual(url, "http://172.16.1.18:8000/v3")
+        self.assertEqual(len(calls), 1)
+        args, kw = calls[0]
+        self.assertIsInstance(args, list)
+        self.assertEqual(args[:3], ["docker", "inspect", "ovms-queue"])
+        self.assertFalse(kw.get("shell", False))
+
+
 if __name__ == "__main__":
     unittest.main()
