@@ -1,0 +1,2 @@
+{"name": "qdns-reachable", "out": "/tmp/kk-qdns/prog/tools/qwen/_reachable.py.txt", "gpu_seconds": 15.8, "tokens": 440, "prompt_tokens": 7439, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "shared/processes", "worker/python"], "lines": 18, "model": "Coder", "at": "2026-10-18T19:58:45"}
+{"name": "qdns-reachable", "out": "/tmp/kk-qdns/prog/tools/qwen/_reachable.py.txt", "check": "sh /tmp/kk-3d01-chk/qdns-check.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-18T19:58:45"}

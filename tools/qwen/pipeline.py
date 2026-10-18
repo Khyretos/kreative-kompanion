@@ -86,25 +86,32 @@ def resolve_container(host, has=None):
     return host
 
 
-def reachable(url):
-    """The URL itself when its host resolves here, else the same URL on the Docker container's IP."""
+def reachable(url, has=None, dns=socket.gethostbyname, ip_of=None):
+    """Returns the URL to use for a provider base_url, going through the OVMS queue container when there is one."""
     u = urllib.parse.urlsplit(url)
+    host = resolve_container(u.hostname, has)
     try:
-        socket.gethostbyname(u.hostname)
-        return url
+        dns(host)
+        return urllib.parse.urlunsplit(
+            u._replace(netloc=f"{host}:{u.port}" if u.port else host)
+        )
     except OSError:
-        ip = (
+        pass
+    if ip_of is None:
+        raw = (
             os.popen(
-                f"docker inspect {resolve_container(u.hostname)} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}} {{{{end}}}}'"
+                f"docker inspect {host} --format '{{{{range .NetworkSettings.Networks}}}}{{{{.IPAddress}}}} {{{{end}}}}'"
             )
             .read()
-            .split()
+            .strip()
         )
-        return (
-            urllib.parse.urlunsplit(u._replace(netloc=f"{ip[0]}:{u.port}"))
-            if ip
-            else url
-        )
+        parts = raw.split()
+        ip = parts[0] if parts else None
+    else:
+        ip = ip_of(host)
+    if ip:
+        return urllib.parse.urlunsplit(u._replace(netloc=f"{ip}:{u.port}"))
+    return url
 
 
 def backend():
