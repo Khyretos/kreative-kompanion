@@ -1,0 +1,16 @@
+[
+  {
+    "name": "ux2-u12-queuecard",
+    "role": "worker/web",
+    "prompt": "In public/js/main.js, function cardInner(job) (STU-UX2: the queue on each card). queue.js defines the globals queueInfoHtml(job) and shortReason(text). Two changes, one SEARCH/REPLACE each; change nothing else:\n1. In the line that builds the thumbnail div (it contains `${media}${job.status === 'running' || job.status === 'queued' ? ringHtml(job.progress) : ''}`), add `${queueInfoHtml(job)}` right after the ringHtml part, still inside the div.\n2. Failed and cancelled jobs: after the `if (job.status === 'running' || job.status === 'queued') { actions = iconBtn('cancel', ...); }` branch, add a new branch `else if (job.status === 'error' || job.status === 'cancelled')` that sets actions to: for an error, `<span class=\"fail-reason\" title=\"FULL\">SHORT</span>` where FULL is escapeHtml(job.error || '') and SHORT is escapeHtml(shortReason(job.error)); then iconBtn('retry', 'Retry', `data-id=\"${escapeHtml(job.promptId)}\"`, 'accent') and iconBtn('delete', 'Delete', `data-id=\"${escapeHtml(job.promptId)}\"`, 'danger'). Also add two entries to the ICON object: retry: '<path d=\"M4 12a8 8 0 1 0 3-6.2M4 4v4h4\"/>' and delete: '<path d=\"M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6\"/>' (that is a third SEARCH/REPLACE, on the line `cancel: '<path d=\"M6 6l12 12M18 6L6 18\"/>',`).",
+    "out": "/tmp/kk-ux2/prog/public/js/main.js",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/prog && sh /tmp/kk-ux2/chk/e2e.sh queue,elapsed,failed",
+    "max_tokens": 3000,
+    "mode": "patch",
+    "focus": [
+      "function\\ cardInner\\(job\\)",
+      "cancel:\\ '<path\\ d=\"M6\\ 6l12\\ 12M18\\ 6L6\\ 18\"/>'"
+    ]
+  }
+]

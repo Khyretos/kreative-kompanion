@@ -1,0 +1,116 @@
+(function () {
+  function segmented(select) {
+    if (!select || select.disabled) return;
+
+    let labelEl = null;
+    const labels = select.labels && select.labels[0] ? select.labels[0] : null;
+    if (labels) {
+      labelEl = labels;
+    } else {
+      // Fallback: try to find a label by 'for' attribute or use the select itself as a reference
+      const foundLabel = document.querySelector(`label[for="${select.id}"]`);
+      if (foundLabel) {
+        labelEl = foundLabel;
+      }
+    }
+
+    let ariaLabel, ariaLabelledBy;
+
+    if (labelEl) {
+      if (!labelEl.id) {
+        labelEl.id = select.id + '-label';
+      }
+      ariaLabelledBy = labelEl.id;
+    } else {
+      ariaLabel = select.id;
+    }
+
+    const group = document.createElement('div');
+    group.className = 'segmented';
+    group.setAttribute('role', 'radiogroup');
+    if (ariaLabel) {
+      group.setAttribute('aria-label', ariaLabel);
+    } else if (ariaLabelledBy) {
+      group.setAttribute('aria-labelledby', ariaLabelledBy);
+    }
+
+    select.hidden = true;
+    select.parentNode.insertBefore(group, select.nextSibling);
+
+    function render() {
+      const options = Array.from(select.options);
+      const selectedValue = select.value;
+      const checkedIndex = options.findIndex((o) => o.value === selectedValue);
+
+      group.innerHTML = '';
+      options.forEach((option, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'seg-btn';
+        btn.setAttribute('role', 'radio');
+        btn.dataset.value = option.value;
+        btn.textContent = option.text;
+
+        if (index === checkedIndex) {
+          btn.setAttribute('aria-checked', 'true');
+          btn.tabIndex = 0;
+        } else {
+          btn.setAttribute('aria-checked', 'false');
+          btn.tabIndex = -1;
+        }
+
+        btn.addEventListener('click', () => choose(option.value, true));
+        group.appendChild(btn);
+      });
+    }
+
+    new MutationObserver(render).observe(select, { childList: true });
+    select.addEventListener('change', render);
+
+    function choose(value, focus) {
+      select.value = value;
+      const event = new Event('change', { bubbles: true });
+      select.dispatchEvent(event);
+      render();
+      if (focus) {
+        const buttons = Array.from(group.querySelectorAll('.seg-btn'));
+        const index = buttons.findIndex((b) => b.dataset.value === value);
+        if (index !== -1) buttons[index].focus();
+      }
+    }
+
+    function handleKeydown(e) {
+      const buttons = Array.from(group.querySelectorAll('.seg-btn'));
+      if (buttons.length === 0) return;
+
+      const currentIndex = buttons.findIndex((b) => b.tabIndex === 0);
+      let newIndex = currentIndex;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        newIndex = (currentIndex + 1) % buttons.length;
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        newIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+      } else if (e.key === 'Home') {
+        newIndex = 0;
+      } else if (e.key === 'End') {
+        newIndex = buttons.length - 1;
+      } else {
+        return;
+      }
+
+      e.preventDefault();
+      choose(buttons[newIndex].dataset.value, true);
+    }
+
+    group.addEventListener('keydown', handleKeydown);
+    render();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const selectors = ['#rating-select', '#refine-rating', '#video-size'];
+    selectors.forEach((sel) => {
+      const el = document.querySelector(sel);
+      if (el) segmented(el);
+    });
+  });
+})();

@@ -1,0 +1,5 @@
+# 288: STU-UX2 (Coder OVMS, unit 13 card players, 3 attempts)
+
+the first draft was right; the check failed for a reason outside main.js (a click on the waveform also opened the details drawer, the layout shifted and Chrome's lazily computed offsetX became negative, so the seek went to 0). The repair rounds then pasted the whole audio branch twice more and broke indentation. Lesson for repair rounds: when the error is not explained by the edited lines, the Coder should say so instead of adding code; Claude removed the copies and fixed the cause through unit 21 (library-ui ignores clicks in .wave-player, first try).
+
+Rerun: put `input-main.js.txt` back as `public/js/main.js` in a Studio tree at the stage before unit 13 (the other files as in Studio commit ca03535's parent plus the earlier units), run `job.json` with tools/qwen/pipeline.py; `wrong-*` is the last attempt, `corrected-*` the file Claude kept. The check command is in job.json (tools in ../stu-ux2-unit-checks/). Traces: kireserver /tmp/kk-ux2/trace/ux2-u13-media*.

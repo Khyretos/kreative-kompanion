@@ -1,0 +1,18 @@
+[
+  {
+    "name": "ux2-u1-groups",
+    "role": "worker/web",
+    "prompt": "In public/index.html, inside <form id=\"generate-form\">, group the first fields into fieldsets (STU-UX2: grouped fields). Change nothing outside these three groups.\n1. Wrap the whole `<div class=\"preset-group\">...</div>` in `<fieldset class=\"field-group\"><legend>What to make</legend> ... </fieldset>`.\n2. Wrap the prompt's `<div class=\"input-group\">` (label \"Prompt\", the textarea #prompt-input and the .char-counter) together with the `<div id=\"sheet-extras\" class=\"sheet-extras\">...</div>` that follows it in `<fieldset class=\"field-group\"><legend>Describe it</legend> ... </fieldset>`.\n3. Replace `<div id=\"size-group\" class=\"input-group\">` and its `<span class=\"group-label\" id=\"size-label\">Size</span>` with `<fieldset id=\"size-group\" class=\"field-group\"><legend id=\"size-label\">Size</legend>`; keep the #size-toggles div inside unchanged and close it with </fieldset> instead of </div>.\nKeep every id, class, attribute and comment that is already there. Use one SEARCH/REPLACE per group.",
+    "out": "/tmp/kk-ux2/prog/public/index.html",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/prog && sh /tmp/kk-ux2/chk/e2e.sh groups",
+    "max_tokens": 4000,
+    "mode": "patch",
+    "focus": [
+      "<div\\ class=\"preset\\-group\">",
+      "label\\ for=\"prompt\\-input\"",
+      "<div\\ id=\"sheet\\-extras\"",
+      "<div\\ id=\"size\\-group\""
+    ]
+  }
+]

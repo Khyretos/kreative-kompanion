@@ -1,0 +1,387 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kreative Studio</title>
+    <meta name="color-scheme" content="dark light">
+    <link rel="icon" type="image/png" href="/img/favicon-32.png">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/ux1.css">
+    <link rel="stylesheet" href="/css/ux1-cards.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <img src="/img/logo-on-dark.svg" alt="" class="brand-mark" width="32" height="32">
+            <h1>Kreative <span>Studio</span></h1>
+        </div>
+        <div class="header-right">
+            <!-- GPU-03: where Studio jobs run; the pill shows it at a glance, the details open on click -->
+            <details id="studio-target-pop" class="target-pop" hidden>
+                <summary><span class="dot" aria-hidden="true"></span><span id="studio-target-short">Studio</span></summary>
+                <div id="studio-target" class="studio-target"></div>
+            </details>
+            <a class="kompanion-link" href="https://kompanion.kreative-kompas.com/" target="_blank" rel="noopener">Kompanion</a>
+            <span id="user-email" class="user-chip" title=""></span>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="panel studio-form">
+        <!-- Tabs Navigation -->
+        <nav class="tabs-nav" role="tablist" aria-label="What to make">
+            <button type="button" class="tab-btn active" data-tab="image" role="tab" aria-selected="true" aria-controls="panel-image">Image</button>
+            <button type="button" class="tab-btn" data-tab="refine" role="tab" aria-selected="false" aria-controls="panel-refine">Refine</button>
+            <button type="button" class="tab-btn" data-tab="video" role="tab" aria-selected="false" aria-controls="panel-video">Video</button>
+            <button type="button" class="tab-btn" data-tab="music" role="tab" aria-selected="false" aria-controls="panel-music">Music</button>
+            <button type="button" class="tab-btn" data-tab="sfx" role="tab" aria-selected="false" aria-controls="panel-sfx">Sound</button>
+        </nav>
+
+        <!-- Image Tab Panel -->
+        <section id="panel-image" class="form-panel tab-panel active" role="tabpanel" aria-labelledby="tab-image">
+            <form id="generate-form" novalidate>
+                <!-- Preset Selection -->
+                <fieldset class="field-group">
+                    <legend>What to make</legend>
+                <div class="preset-group">
+                    <div class="preset-toggles" role="radiogroup" aria-label="Type">
+                        <button type="button" class="preset-btn active" data-preset="oc" role="radio" aria-checked="true" aria-label="OC sheet - Front, side and back views of your hero">
+                            <span class="preset-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg></span>
+                            <span class="preset-label">OC sheet</span>
+                        </button>
+                        <button type="button" class="preset-btn" data-preset="portrait" role="radio" aria-label="VN portrait - Upper-body character for visual novels">
+                            <span class="preset-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M8 18a4 4 0 0 1 8 0"/></svg></span>
+                            <span class="preset-label">VN portrait</span>
+                        </button>
+                        <button type="button" class="preset-btn" data-preset="scene" role="radio" aria-label="VN scene - Wide scene with background">
+                            <span class="preset-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg></span>
+                            <span class="preset-label">VN scene</span>
+                        </button>
+                    </div>
+                    <p id="type-hint" class="type-hint" aria-live="polite"></p>
+                </div>
+                </fieldset>
+
+                <!-- Prompt Input -->
+                <fieldset class="field-group">
+                    <legend>Describe it</legend>
+                <div class="input-group">
+                    <label for="prompt-input">Prompt</label>
+                    <textarea id="prompt-input" rows="3" maxlength="2000" placeholder="Describe your character: armour, colours, hair, weapon, powers..."></textarea>
+                    <div class="char-counter"><span id="char-count">0</span>/2000</div>
+                </div>
+
+                <!-- STU-R2: the OC sheet's face-fix prompt and background -->
+                <div id="sheet-extras" class="sheet-extras">
+                    <div class="input-group">
+                        <label for="face-prompt-input">Face details <span class="muted">(optional)</span></label>
+                        <input type="text" id="face-prompt-input" maxlength="500" placeholder="1boy, male focus, moustache, purple eyes, headphones">
+                        <p class="field-hint">The face pass paints only these, so put what must survive first.</p>
+                    </div>
+                    <!-- STU-C3: a helmeted character comes as a pair (helmet on, face visible) with one seed -->
+                    <details class="input-group helmet-group" id="helmet-group">
+                        <summary>Has a helmet</summary>
+                        <label for="helmet-input">What does the helmet look like?</label>
+                        <input type="text" id="helmet-input" maxlength="300" placeholder="hooded helmet with glowing yellow eyes">
+                        <p class="field-hint">Makes two versions with the same seed: helmet on, and without it so the face shows. Headshots and cowboy shots follow both.</p>
+                    </details>
+                    <div class="input-group">
+                        <span class="group-label" id="bg-label">Background</span>
+                        <div class="size-toggles" role="radiogroup" aria-labelledby="bg-label">
+                            <button type="button" class="size-btn active" data-bg="white" role="radio" aria-checked="true">Plain white</button>
+                            <button type="button" class="size-btn" data-bg="starry" role="radio" aria-checked="false">Purple starry sky</button>
+                        </div>
+                    </div>
+                </div>
+                </fieldset>
+
+                <!-- KS-02: sizes of Kompanion's types -->
+                <fieldset id="size-group" class="field-group">
+                    <legend id="size-label">Size</legend>
+                    <div id="size-toggles" class="size-toggles" role="radiogroup" aria-labelledby="size-label"></div>
+                </fieldset>
+
+                <!-- KS-04: Kompanion's licence warning for the chosen type (warns, never blocks) -->
+                <p id="licence-warning" class="licence-warning" hidden></p>
+
+                <!-- Advanced Details -->
+                <details id="advanced-details" class="advanced">
+                    <summary>Advanced</summary>
+                    <div class="advanced-body">
+                    <!-- Photo Upload -->
+                    <div id="face-group" class="input-group">
+                        <label for="file-upload" class="drop-zone">
+                            <span class="drop-icon">📷</span>
+                            <span class="drop-text">Your photo (optional)</span>
+                            <span class="drop-hint">Used only to match face, skin tone and hair</span>
+                            <input type="file" id="file-upload" accept="image/*" hidden>
+                        </label>
+                        <div id="preview-container" class="preview-container">
+                            <img id="preview-image" alt="Preview">
+                            <button type="button" id="remove-photo" class="icon-btn" aria-label="Remove photo">✕</button>
+                        </div>
+                    </div>
+                    <!-- Likeness Slider -->
+                    <div id="likeness-group" class="input-group">
+                        <label for="face-weight">Likeness</label>
+                        <input type="range" id="face-weight" min="0.3" max="1.1" step="0.05" value="0.85">
+                    </div>
+                    <!-- Rating Select -->
+                    <div id="rating-group" class="input-group">
+                        <label for="rating-select">Rating</label>
+                        <select id="rating-select">
+                            <option value="general">General</option>
+                            <option value="sensitive">Sensitive</option>
+                        </select>
+                    </div>
+                        <div class="input-group">
+                            <label for="negative-input">Leave out (optional)</label>
+                            <textarea id="negative-input" rows="2" maxlength="500" placeholder="blurry, extra fingers, hats"></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label for="seed-input">Seed (leave empty for random)</label>
+                            <input type="number" id="seed-input" placeholder="e.g. 12345">
+                        </div>
+                        <label id="make-four-group" class="check-row" hidden><input type="checkbox" id="make-four"> Make 4 at once</label>
+                    </div>
+                </details>
+
+                <!-- Generate Button -->
+                <div class="action-area">
+                    <button type="submit" id="generate-btn" class="primary-btn">Generate</button>
+                    <div id="error-msg" role="alert" class="error-text"></div>
+                </div>
+            </form>
+        </section>
+
+        <!-- STU-R2: Refine: one picture, one step, as often as you like (each result can be refined again) -->
+        <section id="panel-refine" class="form-panel tab-panel" role="tabpanel" aria-labelledby="tab-refine">
+            <form id="generate-form-refine" novalidate>
+                <div class="input-group">
+                    <span class="group-label">Picture</span>
+                    <div id="refine-empty" class="refine-empty">
+                        <p>Press <b>Refine</b> on one of your pictures, or upload one (a friend's design works too).</p>
+                        <label class="secondary-btn" for="refine-upload">Upload a picture</label>
+                        <input type="file" id="refine-upload" accept="image/png,image/jpeg,image/webp" hidden>
+                    </div>
+                    <div id="refine-stage" class="refine-stage" hidden>
+                        <img id="refine-img" alt="Picture to refine">
+                        <canvas id="refine-mask" aria-label="Paint over the area to change"></canvas>
+                    </div>
+                    <div id="refine-source-tools" class="row-tools" hidden>
+                        <span id="refine-source-name" class="muted"></span>
+                        <button type="button" id="refine-clear" class="ghost-btn">Other picture</button>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <span class="group-label" id="refine-step-label">Step</span>
+                    <div id="refine-steps" class="step-grid" role="radiogroup" aria-labelledby="refine-step-label"></div>
+                    <p id="refine-hint" class="type-hint" aria-live="polite"></p>
+                </div>
+                <div id="refine-paint-tools" class="paint-tools" hidden>
+                    <label for="refine-brush">Brush</label>
+                    <input type="range" id="refine-brush" min="8" max="160" step="4" value="48">
+                    <button type="button" id="refine-erase" class="ghost-btn" aria-pressed="false">Erase</button>
+                    <button type="button" id="refine-mask-clear" class="ghost-btn">Clear</button>
+                </div>
+                <div id="refine-prompt-group" class="input-group">
+                    <label for="refine-prompt" id="refine-prompt-label">What should change</label>
+                    <textarea id="refine-prompt" rows="3" maxlength="2000"></textarea>
+                </div>
+                <div id="refine-face-group" class="input-group" hidden>
+                    <label for="refine-face">Their photo <span class="muted">(optional, makes the new head look like them)</span></label>
+                    <input type="file" id="refine-face" accept="image/png,image/jpeg,image/webp">
+                </div>
+                <div id="refine-amount-group" class="input-group">
+                    <label for="refine-amount"><span id="refine-amount-label">Strength</span> <output id="refine-amount-val" for="refine-amount"></output></label>
+                    <input type="range" id="refine-amount">
+                </div>
+                <details class="advanced">
+                    <summary>Advanced</summary>
+                    <div class="advanced-body">
+                        <div id="refine-rating-group" class="input-group">
+                            <label for="refine-rating">Rating</label>
+                            <select id="refine-rating"><option value="general">General</option><option value="sensitive">Sensitive</option></select>
+                        </div>
+                        <div class="input-group">
+                            <label for="refine-seed">Seed (leave empty for random)</label>
+                            <input type="number" id="refine-seed" placeholder="e.g. 304">
+                        </div>
+                    </div>
+                </details>
+                <div class="action-area">
+                    <button type="submit" id="generate-btn-refine" class="primary-btn" disabled>Refine</button>
+                    <div id="error-msg-refine" role="alert" class="error-text"></div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Video Tab Panel -->
+        <section id="panel-video" class="form-panel tab-panel" role="tabpanel" aria-labelledby="tab-video">
+            <form id="generate-form-video" novalidate>
+                <!-- Video Prompt -->
+                <div class="input-group">
+                    <label for="video-prompt">Motion Description</label>
+                    <textarea id="video-prompt" rows="3" placeholder="Describe the motion: who moves, how, camera, lighting..."></textarea>
+                </div>
+
+                <!-- Duration & Size -->
+                <div class="input-group-row">
+                    <div class="input-group">
+                        <label for="video-seconds">Duration (sec)</label>
+                        <input type="range" id="video-seconds" min="1" max="5" step="1" value="3">
+                        <span id="video-seconds-val">3</span>s
+                    </div>
+                    <div class="input-group">
+                        <label for="video-size">Resolution</label>
+                        <select id="video-size">
+                            <option value="1280x704">Landscape 720p</option>
+                            <option value="832x480">Landscape fast</option>
+                            <option value="704x1280">Portrait</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Start Image Box -->
+                <div class="input-group">
+                    <label for="start-image-prompt-id">Animate Existing Image</label>
+                    <div id="start-image-box" class="start-image-box">
+                        <span id="start-image-placeholder" class="placeholder-text">None (text to video). Use 'Animate' on one of your images.</span>
+                        <div id="start-image-preview" class="start-image-preview" style="display:none;">
+                            <img id="start-image-thumb" src="" alt="Source image">
+                            <button type="button" id="remove-start-image" class="icon-btn" aria-label="Remove source image">✕</button>
+                        </div>
+                    </div>
+                    <input type="hidden" id="start-image-prompt-id">
+                    <input type="hidden" id="start-image-filename">
+                </div>
+
+                <details class="advanced">
+                    <summary>Advanced</summary>
+                    <div class="advanced-body">
+                        <div class="input-group">
+                            <label for="video-seed">Seed (optional)</label>
+                            <input type="number" id="video-seed" placeholder="Random if empty">
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Generate Button -->
+                <p id="licence-warning-video" class="licence-warning" hidden></p>
+                <div class="action-area">
+                    <button type="submit" id="generate-btn-video" class="primary-btn">Generate Video</button>
+                    <div id="error-msg-video" role="alert" class="error-text"></div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Music Tab Panel -->
+        <section id="panel-music" class="form-panel tab-panel" role="tabpanel" aria-labelledby="tab-music">
+            <form id="generate-form-music" novalidate>
+                <!-- Style Tags -->
+                <div class="input-group">
+                    <label for="music-style">Style Tags (comma-separated)</label>
+                    <input type="text" id="music-style" placeholder="chiptune, upbeat, 8-bit, boss battle">
+                </div>
+
+                <!-- Lyrics -->
+                <div class="input-group">
+                    <label for="music-lyrics">Lyrics (optional)</label>
+                    <textarea id="music-lyrics" rows="3" placeholder="[Instrumental]">[Instrumental]</textarea>
+                </div>
+
+                <!-- Duration & Seed -->
+                <div class="input-group-row">
+                    <div class="input-group">
+                        <label for="music-seconds">Duration (sec)</label>
+                        <input type="range" id="music-seconds" min="10" max="240" step="5" value="30">
+                        <span id="music-seconds-val">30</span>s
+                    </div>
+                </div>
+
+                <details class="advanced">
+                    <summary>Advanced</summary>
+                    <div class="advanced-body">
+                        <div class="input-group">
+                            <label for="music-seed">Seed (optional)</label>
+                            <input type="number" id="music-seed" placeholder="Random if empty">
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Generate Button -->
+                <div class="action-area">
+                    <button type="submit" id="generate-btn-music" class="primary-btn">Generate Music</button>
+                    <div id="error-msg-music" role="alert" class="error-text"></div>
+                </div>
+            </form>
+        </section>
+
+        <!-- SFX Tab Panel -->
+        <section id="panel-sfx" class="form-panel tab-panel" role="tabpanel" aria-labelledby="tab-sfx">
+            <form id="generate-form-sfx" novalidate>
+                <!-- Description -->
+                <div class="input-group">
+                    <label for="sfx-desc">Description</label>
+                    <textarea id="sfx-desc" rows="3" placeholder="A short retro 8-bit jump sound"></textarea>
+                </div>
+
+                <!-- Duration & Seed -->
+                <div class="input-group-row">
+                    <div class="input-group">
+                        <label for="sfx-seconds">Duration (sec)</label>
+                        <input type="range" id="sfx-seconds" min="1" max="30" step="1" value="4">
+                        <span id="sfx-seconds-val">4</span>s
+                    </div>
+                </div>
+
+                <details class="advanced">
+                    <summary>Advanced</summary>
+                    <div class="advanced-body">
+                        <div class="input-group">
+                            <label for="sfx-seed">Seed (optional)</label>
+                            <input type="number" id="sfx-seed" placeholder="Random if empty">
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Generate Button -->
+                <div class="action-area">
+                    <button type="submit" id="generate-btn-sfx" class="primary-btn">Generate Sound Effect</button>
+                    <div id="error-msg-sfx" role="alert" class="error-text"></div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Job List Section -->
+        </section>
+
+        <section class="panel job-panel">
+            <div class="filter-chips">
+                <button type="button" class="chip active" data-filter="all" aria-pressed="true">All</button>
+                <button type="button" class="chip" data-filter="image" aria-pressed="false">Images</button>
+                <button type="button" class="chip" data-filter="video" aria-pressed="false">Video</button>
+                <button type="button" class="chip" data-filter="audio" aria-pressed="false">Audio</button>
+            </div>
+            
+            <div class="jobs-head">
+                <h2>Your library</h2>
+                <div id="jobs-tools" class="jobs-tools" role="group" aria-label="Library actions"></div>
+            </div>
+            <div id="jobs-list" class="jobs-list">
+                <!-- Job cards injected here -->
+            </div>
+        </section>
+
+        <!-- STU-UX1: one item's details (prompt, seed, actions) beside the library; a sheet on small screens -->
+        <aside id="details-drawer" class="details-drawer" aria-label="Details" hidden></aside>
+    </main>
+
+    <script src="/js/main.js"></script>
+    <script src="/js/refine.js"></script>
+    <script src="/js/library-ui.js"></script>
+    <script src="/js/lightbox.js"></script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+(function () {
+  'use strict';
+
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  let ctx = null;
+  const peaksCache = new Map();
+
+  function getAudioContext() {
+    if (!ctx) {
+      ctx = new AudioContext();
+    }
+    return ctx;
+  }
+
+  async function peaks(url) {
+    if (peaksCache.has(url)) {
+      return peaksCache.get(url);
+    }
+
+    try {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioCtx = getAudioContext();
+      const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+      
+      const channelData = audioBuffer.getChannelData(0);
+      const sampleRate = audioCtx.sampleRate;
+      const numPeaks = 200;
+      const step = Math.floor(channelData.length / numPeaks);
+      const peakValues = [];
+
+      for (let i = 0; i < numPeaks; i++) {
+        let maxVal = 0;
+        const start = i * step;
+        const end = (i + 1) * step;
+        
+        for (let j = start; j < end && j < channelData.length; j++) {
+          const val = Math.abs(channelData[j]);
+          if (val > maxVal) {
+            maxVal = val;
+          }
+        }
+        peakValues.push(maxVal);
+      }
+
+      audioCtx.close();
+      peaksCache.set(url, peakValues);
+      return peakValues;
+    } catch (e) {
+      console.error('Failed to decode audio:', e);
+      return null;
+    }
+  }
+
+  async function draw(player) {
+    const canvas = player.querySelector('.wave');
+    if (!canvas) return;
+
+    const width = canvas.clientWidth || 300;
+    const height = canvas.clientHeight || 48;
+    
+    canvas.width = width * window.devicePixelRatio;
+    canvas.height = height * window.devicePixelRatio;
+
+    const src = player.dataset.src;
+    const peakData = src ? await peaks(src) : null;
+
+    if (!peakData || !src) {
+      canvas.dataset.ready = '0';
+      return;
+    }
+
+    const audio = player.querySelector('audio');
+    const duration = audio.duration;
+    const currentTime = audio.currentTime;
+    const progress = duration ? currentTime / duration : 0;
+
+    const ctx = canvas.getContext('2d');
+    const styleColor = getComputedStyle(canvas).color;
+    const barWidth = width / peakData.length;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = styleColor;
+
+    peakData.forEach((val, i) => {
+      const x = i * barWidth;
+      const y = (canvas.height / 2) - (val * (canvas.height / 2));
+      const h = Math.max(1, val * canvas.height);
+
+      ctx.globalAlpha = i < peakData.length * progress ? 1 : 0.45;
+      ctx.fillRect(x, y, barWidth, h);
+    });
+
+    canvas.dataset.ready = '1';
+  }
+
+  async function draw(player) {
+    const canvas = player.querySelector('.wave');
+    if (!canvas) return;
+
+    const width = canvas.clientWidth || 300;
+    const height = canvas.clientHeight || 48;
+    
+    canvas.width = width * window.devicePixelRatio;
+    canvas.height = height * window.devicePixelRatio;
+
+    const src = player.dataset.src;
+    const peakData = src ? await peaks(src) : null;
+
+    if (!peakData || !src) {
+      canvas.dataset.ready = '0';
+      return;
+    }
+
+    const audio = player.querySelector('audio');
+    const duration = audio.duration;
+    const currentTime = audio.currentTime;
+    const progress = duration ? currentTime / duration : 0;
+
+    const ctx = canvas.getContext('2d');
+    const styleColor = getComputedStyle(canvas).color;
+    const barWidth = width / peakData.length;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = styleColor;
+
+    peakData.forEach((val, i) => {
+      const x = i * barWidth;
+      const y = (canvas.height / 2) - (val * (canvas.height / 2));
+      const h = Math.max(1, val * canvas.height);
+
+      ctx.globalAlpha = i < peakData.length * progress ? 1 : 0.45;
+      ctx.fillRect(x, y, barWidth, h);
+    });
+
+    canvas.dataset.ready = '1';
+  }
+
+  function updatePlayerTime(player) {
+    const audio = player.querySelector('audio');
+    const timeSpan = player.querySelector('.wave-time');
+    if (!timeSpan || !audio) return;
+
+    const seconds = Math.floor(audio.currentTime);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    const timeString = `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    
+    timeSpan.textContent = timeString;
+    draw(player);
+  }
+
+  function handlePlayPause(e) {
+    const player = e.target.closest('.wave-player');
+    if (!player) return;
+
+    const audio = player.querySelector('audio');
+    const btn = player.querySelector('.wave-play');
+    
+    if (!audio) return;
+
+    if (audio.paused) {
+      audio.play().catch(() => {});
+      btn.setAttribute('aria-label', 'Pause');
+      player.classList.add('playing');
+    } else {
+      audio.pause();
+      btn.setAttribute('aria-label', 'Play');
+      player.classList.remove('playing');
+    }
+  }
+
+  function handleSeek(e) {
+    const player = e.target.closest('.wave-player');
+    if (!player) return;
+
+    const canvas = player.querySelector('.wave');
+    const audio = player.querySelector('audio');
+    
+    if (!canvas || !audio) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const clientWidth = canvas.clientWidth || rect.width;
+
+    if (isNaN(audio.duration)) {
+      audio.load();
+      audio.addEventListener('loadedmetadata', () => {
+        audio.currentTime = (offsetX / clientWidth) * audio.duration;
+        updatePlayerTime(player);
+      }, { once: true });
+    } else {
+      audio.currentTime = (offsetX / clientWidth) * audio.duration;
+      updatePlayerTime(player);
+    }
+  }
+
+  function initObserver() {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === 1 && node.classList.contains('wave-player')) {
+            draw(node);
+          }
+        });
+      });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initObserver();
+
+    document.addEventListener('click', handlePlayPause, true);
+    document.addEventListener('click', handleSeek, true);
+    document.addEventListener('timeupdate', updatePlayerTime, true);
+  });
+
+})();

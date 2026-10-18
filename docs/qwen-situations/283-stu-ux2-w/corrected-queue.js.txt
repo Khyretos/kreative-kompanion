@@ -1,0 +1,114 @@
+// queue.js - Classic script loaded before main.js for card queues
+// Top-level functions only; called by name from main.js
+
+/**
+ * Returns a short, human-readable reason from an error text.
+ */
+function shortReason(text) {
+  let s = String(text ?? '').trim();
+  if (!s) return 'Something went wrong';
+
+  // GPU memory errors
+  if (/out of memory|OutOfMemory|\bOOM\b/i.test(s)) {
+    return 'Ran out of GPU memory';
+  }
+
+  // Restarted
+  if (/restarted/i.test(s)) {
+    return 'The studio restarted; run it again';
+  }
+
+  // Timeout
+  if (/timed out|timeout/i.test(s)) {
+    return 'Took too long';
+  }
+
+  // Last non-empty line
+  const lines = s.split('\n');
+  let lastLine = '';
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = lines[i].trim();
+    if (trimmed) {
+      lastLine = trimmed;
+      break;
+    }
+  }
+
+  if (!lastLine) return 'Something went wrong';
+
+  // Remove leading "Error:" or "Exception:" style prefix
+  let cleaned = lastLine;
+  const prefixMatch = cleaned.match(/^(\w*(?:Error|Exception)):\s*/);
+  if (prefixMatch) {
+    cleaned = cleaned.slice(prefixMatch[0].length);
+  }
+
+  // Capitalize first letter
+  cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+
+  // Truncate to 80 chars with ellipsis
+  if (cleaned.length > 80) {
+    cleaned = cleaned.slice(0, 79) + '…';
+  }
+
+  return cleaned;
+}
+
+/**
+ * Formats milliseconds as 'm:ss' (seconds always two digits).
+ * Negative values are treated as 0. Minutes are not capped.
+ */
+function elapsedText(ms) {
+  if (ms < 0) ms = 0;
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Returns the ordinal suffix for a number (e.g., 1 -> '1st', 2 -> '2nd').
+ */
+function ordinal(n) {
+  const s = n % 100;
+  if (s >= 11 && s <= 13) return n + 'th';
+  const suffixes = ['th', 'st', 'nd', 'rd'];
+  return n + (suffixes[n % 10] || 'th');
+}
+
+/**
+ * Returns HTML for queue status info based on job state.
+ * @param {Object} job - Job object with status, position, started, created fields.
+ * @returns {string} HTML string.
+ */
+function queueInfoHtml(job) {
+  const status = job.status || '';
+  const position = job.position || 0;
+
+  if (status === 'queued') {
+    if (position === 1) return `<span class="queue-info">Next</span>`;
+    if (position > 1) return `<span class="queue-info">${ordinal(position)} in line</span>`;
+    return `<span class="queue-info">Starting</span>`;
+  }
+
+  if (status === 'running') {
+    const since = job.started != null ? job.started : job.created;
+    if (since == null) return '';
+    const elapsed = elapsedText(Date.now() - Number(since));
+    return `<span class="queue-info"><span class="elapsed" data-since="${Number(since)}">${escapeHtml(elapsed)}</span></span>`;
+  }
+
+  return '';
+}
+
+/**
+ * Updates all .elapsed[data-since] elements every second.
+ */
+setInterval(() => {
+  document.querySelectorAll('.elapsed[data-since]').forEach(el => {
+    const since = Number(el.dataset.since);
+    if (!isNaN(since)) {
+      el.textContent = elapsedText(Date.now() - since);
+    }
+  });
+}, 1000);

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "ux2-u13-media",
+    "role": "worker/web",
+    "prompt": "In public/js/main.js, function cardInner(job) (STU-UX2: players). Two changes, one SEARCH/REPLACE each; change nothing else:\n1. The video media line `media = `<video src=\"${imageUrl(job, job.images[0])}\" controls preload=\"metadata\" playsinline></video>`;` : the src gets '#t=0.1' appended (the browser then shows the first frame as the poster).\n2. The audio branch `} else if (job.status === 'done' && job.files?.length) {`: replace the `<audio controls preload=\"none\" src=\"${f(job.files[0].name)}\"></audio>` line with a wave player that players.js draws: `<div class=\"wave-player\" data-src=\"${f(job.files[0].name)}\"><button type=\"button\" class=\"wave-play\" aria-label=\"Play\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path class=\"i-play\" d=\"M7 5v14l11-7z\"/><path class=\"i-pause\" d=\"M8 5v14M16 5v14\"/></svg></button><canvas class=\"wave\" aria-hidden=\"true\"></canvas><span class=\"wave-time\">0:00</span><audio preload=\"none\" src=\"${f(job.files[0].name)}\"></audio></div>`. The OGG and WAV download links after it stay, and each gets the download attribute (`download` right after `class=\"act-btn\"`).",
+    "out": "/tmp/kk-ux2/prog/public/js/main.js",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/prog && sh /tmp/kk-ux2/chk/e2e.sh audio",
+    "max_tokens": 3000,
+    "mode": "patch",
+    "focus": [
+      "<video\\ src=\"\\$\\{imageUrl\\(job,\\ job\\.images\\[0\\]\\)\\}\"",
+      "job\\.status\\ ===\\ 'done'\\ \\&\\&\\ job\\.files\\?\\.length",
+      "<audio\\ controls\\ preload=\"none\""
+    ]
+  }
+]

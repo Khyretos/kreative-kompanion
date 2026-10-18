@@ -1,0 +1,11 @@
+[
+  {
+    "name": "ux2-u9-keys",
+    "role": "worker/web",
+    "prompt": "Write public/js/keys.js (new file, about 50 lines), a classic script loaded last (STU-UX2: Ctrl+K search and the keyboard map). Wrap it in an IIFE. index.html has `<input type=\"search\" id=\"library-search\">` above #jobs-list and `<dialog id=\"keymap\">` with a button.keymap-close. Library cards are `.job-card` elements inside #jobs-list; each has a `.job-prompt` element whose title attribute holds the whole prompt, and a `.kind-badge`.\n1. filter(): q = the search value trimmed and lower-cased; for every .job-card toggle the class search-miss on when q is not empty and neither the .job-prompt title nor the .kind-badge text (lower-cased) contains q. (The type chips hide cards with style.display; the class keeps both filters working together.) Run it on the search's 'input' event, and again whenever #jobs-list's children change (MutationObserver, childList only, not subtree).\n2. In the search, Escape clears the value and runs filter() (preventDefault, stopPropagation).\n3. A document keydown listener: Ctrl+K or Cmd+K (e.key lower-cased 'k' with ctrlKey or metaKey) anywhere -> preventDefault, focus and select the search. '?' when the focused element is not an input, textarea, select or contenteditable and no dialog is open -> preventDefault and keymap.showModal().\n4. The keymap dialog closes on its .keymap-close button and on a click on the backdrop (the click's target is the dialog itself); Escape already closes a modal dialog.\nOutput only the file.",
+    "out": "/tmp/kk-ux2/souc/public/js/keys.js",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/souc && sh /tmp/kk-ux2/chk/e2e.sh keys,keymap",
+    "max_tokens": 2500
+  }
+]

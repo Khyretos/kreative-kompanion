@@ -1,0 +1,11 @@
+[
+  {
+    "name": "ux2-u6-queue",
+    "role": "worker/web",
+    "prompt": "Write public/js/queue.js (new file, about 45 lines), a classic script loaded before main.js (STU-UX2: the queue on each card). Top-level functions, no IIFE (main.js calls them by name). escapeHtml(text) is a global you may use.\n1. `function shortReason(text)`: one short line a person understands, from an error text. s = String(text ?? '').trim(); empty -> 'Something went wrong'. If s matches /out of memory|OutOfMemory|\\bOOM\\b/i return 'Ran out of GPU memory'. If it matches /restarted/i return 'The studio restarted; run it again'. If it matches /timed out|timeout/i return 'Took too long'. Otherwise take the last non-empty line (trimmed), remove a leading word ending in 'Error' or 'Exception' followed by ':' (like 'ValueError: ' or 'Error: '), upper-case the first letter, and when longer than 80 characters cut it to 79 characters plus '\u2026' (80 in total).\n2. `function elapsedText(ms)`: minutes and seconds as 'm:ss' (seconds two digits); negative counts as 0; minutes are not capped (3725000 -> '62:05').\n3. `function ordinal(n)`: 1 -> '1st', 2 -> '2nd', 3 -> '3rd', 4 -> '4th', 11/12/13 -> '11th'/'12th'/'13th', 21 -> '21st', 22 -> '22nd', 101 -> '101st', 111 -> '111th'.\n4. `function queueInfoHtml(job)`: a queued job returns `<span class=\"queue-info\">TEXT</span>` where TEXT is 'Next' for position 1, ORDINAL + ' in line' for a position above 1, and 'Starting' otherwise; a running job returns `<span class=\"queue-info\"><span class=\"elapsed\" data-since=\"SINCE\">ELAPSED</span></span>` where SINCE is job.started, or job.created when there is no started, and ELAPSED is elapsedText(Date.now() - SINCE); every other status returns ''.\n5. `setInterval(..., 1000)` that sets the textContent of every `.elapsed[data-since]` element in the document to elapsedText(Date.now() - Number(its data-since)).\nOutput only the file.",
+    "out": "/tmp/kk-ux2/prog/public/js/queue.js",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/prog && sh /tmp/kk-ux2/chk/node.sh queue.js",
+    "max_tokens": 2000
+  }
+]

@@ -1,0 +1,74 @@
+// public/js/toast.js
+// Classic toast notification system, loaded before main.js.
+// Top-level function, no IIFE.
+
+/**
+ * Show a toast notification.
+ * @param {string} message - The text to display.
+ * @param {{ action?: string, onAction?: () => void, kind?: 'info' | 'error', timeout?: number }} [opts]
+ * @returns {HTMLElement} The created toast element.
+ */
+function toast(message, opts = {}) {
+  let stackEl = document.querySelector('.toast-stack');
+
+  // Create the stack if it doesn't exist
+  if (!stackEl) {
+    const container = document.createElement('div');
+    container.className = 'toast-stack';
+    container.setAttribute('aria-live', 'polite');
+    document.body.appendChild(container);
+    stackEl = container;
+  }
+
+  const stack = stackEl;
+
+  // Determine role and classes based on kind
+  const isError = opts.kind === 'error';
+  const role = isError ? 'alert' : 'status';
+  const toastClasses = ['toast'];
+  if (isError) {
+    toastClasses.push('toast-error');
+  }
+
+  // Create the toast element
+  const toastEl = document.createElement('div');
+  toastEl.className = toastClasses.join(' ');
+  toastEl.setAttribute('role', role);
+
+  // Create message span (textContent only, never innerHTML)
+  const msgSpan = document.createElement('span');
+  msgSpan.textContent = message;
+  toastEl.appendChild(msgSpan);
+
+  // Add action button if provided
+  if (opts.action !== undefined) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'secondary-btn';
+    btn.textContent = opts.action;
+    btn.addEventListener('click', () => {
+      if (typeof opts.onAction === 'function') {
+        opts.onAction();
+      }
+      toastEl.remove();
+    });
+    toastEl.appendChild(btn);
+  }
+
+  // Append to stack
+  stack.appendChild(toastEl);
+
+  // Handle timeout removal
+  if (opts.timeout > 0) {
+    const timer = setTimeout(() => {
+      if (stack.contains(toastEl)) {
+        toastEl.remove();
+      }
+    }, opts.timeout);
+
+    // Clear timer if user interacts with the toast (optional UX improvement)
+    toastEl.addEventListener('click', () => clearTimeout(timer));
+  }
+
+  return toastEl;
+}

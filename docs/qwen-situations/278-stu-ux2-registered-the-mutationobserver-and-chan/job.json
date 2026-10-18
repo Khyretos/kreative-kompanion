@@ -1,0 +1,11 @@
+[
+  {
+    "name": "ux2-u5-segmented",
+    "role": "worker/web",
+    "prompt": "Write public/js/segmented.js (new file, about 60 lines), a classic script (STU-UX2: segmented controls instead of drop-downs). Wrap it in an IIFE.\n`function segmented(select)` turns a <select> into a row of radio buttons while the select stays the source of the value (main.js keeps reading select.value and may replace its options):\n- hide the select (select.hidden = true) and insert after it `<div class=\"segmented\" role=\"radiogroup\">` with aria-label = the text of the select's <label> (select.labels[0]), or the select's id when it has none; the label's for attribute then points at a hidden element, so also set the label's id to select.id + '-label' if it has no id and use aria-labelledby instead of aria-label on the group.\n- render(): empty the group; for each option add `<button type=\"button\" class=\"seg-btn\" role=\"radio\" data-value=VALUE>TEXT</button>` with aria-checked 'true' for the selected option and 'false' otherwise, and tabIndex 0 for the checked one, -1 for the rest (roving tabindex).\n- choose(value, focus): set select.value, dispatch new Event('change', { bubbles: true }) on the select, render again, and when focus is true focus the newly checked button.\n- click on a .seg-btn: choose(its data-value, true). keydown on the group: ArrowRight/ArrowDown pick the next option, ArrowLeft/ArrowUp the previous one, Home the first, End the last (wrap around at the ends), preventDefault for those keys only.\n- a MutationObserver on the select (childList: true) calls render() when the options change; a 'change' listener on the select calls render() too.\nOn DOMContentLoaded run segmented() for #rating-select, #refine-rating and #video-size (skip a missing one). Output only the file.",
+    "out": "/tmp/kk-ux2/souc/public/js/segmented.js",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/souc && sh /tmp/kk-ux2/chk/e2e.sh segments",
+    "max_tokens": 3000
+  }
+]

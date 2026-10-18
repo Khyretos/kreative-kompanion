@@ -1,0 +1,11 @@
+[
+  {
+    "name": "ux2-u7-toast",
+    "role": "worker/web",
+    "prompt": "Write public/js/toast.js (new file, about 40 lines), a classic script loaded before main.js (STU-UX2: one way to tell the user things). Top-level function, no IIFE.\n`function toast(message, opts = {})` with opts { action, onAction, kind = 'info', timeout = 5000 }:\n- the stack: document.querySelector('.toast-stack'), or create `<div class=\"toast-stack\" aria-live=\"polite\">` and append it to document.body the first time;\n- create a <div class=\"toast\"> with role 'alert' when kind is 'error' and 'status' otherwise, and class toast-error for errors; inside it a <span> with the message as textContent (never innerHTML);\n- when opts.action is set, add `<button type=\"button\" class=\"secondary-btn\">` with opts.action as text; its click calls opts.onAction (when given) and then removes the toast;\n- append the toast to the stack; when timeout > 0 remove it after timeout milliseconds (only if it is still on the page);\n- return the toast element.\nOutput only the file.",
+    "out": "/tmp/kk-ux2/souc/public/js/toast.js",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/souc && sh /tmp/kk-ux2/chk/e2e.sh toastapi",
+    "max_tokens": 2000
+  }
+]

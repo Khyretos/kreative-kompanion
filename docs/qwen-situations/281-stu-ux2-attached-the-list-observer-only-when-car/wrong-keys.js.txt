@@ -1,0 +1,93 @@
+(function () {
+  'use strict';
+
+  const searchInput = document.getElementById('library-search');
+  const jobsList = document.getElementById('jobs-list');
+  const keymapDialog = document.getElementById('keymap');
+  const keymapCloseBtn = keymapDialog.querySelector('.keymap-close');
+
+  // --- Filter Logic ---
+
+  function filter() {
+    if (!searchInput) return;
+
+    const q = searchInput.value.trim().toLowerCase();
+    const cards = jobsList.querySelectorAll('.job-card');
+
+    cards.forEach(card => {
+      const promptTitle = card.querySelector('.job-prompt')?.getAttribute('title') || '';
+      const badgeText = card.querySelector('.kind-badge')?.textContent || '';
+
+      const matchesPrompt = promptTitle.toLowerCase().includes(q);
+      const matchesBadge = badgeText.toLowerCase().includes(q);
+
+      if (q && !matchesPrompt && !matchesBadge) {
+        card.classList.add('search-miss');
+      } else {
+        card.classList.remove('search-miss');
+      }
+    });
+  }
+
+  // --- Event Listeners: Search Input ---
+
+  searchInput.addEventListener('input', filter);
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      searchInput.value = '';
+      filter();
+      searchInput.focus();
+    }
+  });
+
+  // --- Event Listeners: MutationObserver ---
+
+  const observer = new MutationObserver(() => {
+    filter();
+  });
+
+  if (jobsList && jobsList.children.length > 0) {
+    observer.observe(jobsList, { childList: true });
+  }
+
+  // --- Global Keybindings ---
+
+  document.addEventListener('keydown', (e) => {
+    // Ctrl+K or Cmd+K to focus search
+    if ((e.key.toLowerCase() === 'k') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+      filter();
+      return;
+    }
+
+    // '?' to open keymap
+    const isInputFocused = document.activeElement.tagName === 'INPUT' || 
+                           document.activeElement.tagName === 'TEXTAREA' || 
+                           document.activeElement.tagName === 'SELECT';
+    const isContentEditable = document.activeElement.isContentEditable;
+    const hasOpenDialog = document.dialogs && document.dialogs.has(keymapDialog);
+
+    if (e.key === '?' && !isInputFocused && !isContentEditable && !hasOpenDialog) {
+      e.preventDefault();
+      keymapDialog.showModal();
+    }
+  });
+
+  // --- Keymap Dialog Logic ---
+
+  keymapCloseBtn.addEventListener('click', () => {
+    keymapDialog.close();
+  });
+
+  keymapDialog.addEventListener('click', (e) => {
+    if (e.target === keymapDialog) {
+      keymapDialog.close();
+    }
+  });
+
+})();
