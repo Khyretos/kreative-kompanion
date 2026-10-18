@@ -162,6 +162,25 @@ pub fn install_service() -> Result<(), String> {
     Ok(())
 }
 
+/// After a self-update on Windows: start the logon task again a few seconds after this process exits
+/// (the task does not restart on an exit code). Detached, so it outlives the runner.
+#[cfg(windows)]
+pub fn restart_task_later() {
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+    if let Err(e) = Command::new("cmd")
+        .arg("/C")
+        .raw_arg(crate::winsetup::restart_line())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(0x0000_0008 | 0x0000_0200) // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        .spawn()
+    {
+        eprintln!("could not schedule the restart: {e}");
+    }
+}
+
 /// Registers the Windows logon task that starts the runner (and restarts it when it exits, e.g. after a self-update).
 #[cfg(windows)]
 pub fn install_service() -> Result<(), String> {

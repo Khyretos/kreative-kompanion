@@ -1,0 +1,224 @@
+use std::{env, fs, io::Write, path::PathBuf, process::Command};
+use crate::platform;
+
+/// The systemd user unit the installer writes.
+#[cfg(unix)]
+const UNIT: &str = r#"[Unit]
+Description=Kreative Kompanion runner (stats and granted tools, outbound only)
+After=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/kompanion-runner
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+"#;
+
+/// Returns the path to the Kompanion runner config directory.
+fn config_dir() -> Result<PathBuf, String> {
+    platform::config_dir()
+}
+
+/// Pairs the runner with a Kompanion server.
+pub fn pair(server: &str, code: &str) -> Result<(), String> {
+    // Validate server URL
+    let server = if server.starts_with("http://localhost") || server.starts_with("http://127.0.0.1") {
+        server.to_string()
+    } else if !server.starts_with("https://") {
+        return Err(format!("Server URL must start with https:// or http://localhost/http://127.0.0.1, got: {}", server));
+    } else {
+        server.to_string()
+    };
+
+    // Remove trailing slash
+    let server = server.trim_end_matches('/');
+
+    // Get hostname
+    let hostname = platform::hostname();
+
+    // Prepare request payload
+    let payload = serde_json::json!({
+        "code": code,
+        "hostname": hostname
+    });
+
+    // Create ureq agent with timeout
+    let agent = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(20))
+        .build();
+
+    // Make POST request
+    let response = match agent
+        .post(&format!("{}/api/pair", server))
+        .set("X-Kompanion", "1")
+        .send_json(&payload)
+    {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, resp)) => {
+            let msg = resp
+                .into_json::<serde_json::Value>()
+                .ok()
+                .and_then(|v| v["error"].as_str().map(str::to_string))
+                .unwrap_or_else(|| format!("pairing failed (HTTP {code})"));
+            return Err(msg);
+        }
+        Err(e) => return Err(format!("can't reach {server}: {e}")),
+    };
+
+    // Parse success response
+    let result: serde_json::Value = response.into_json()
+        .map_err(|_| "unexpected answer from the server")?;
+
+    let machine_id = result.get("machineId")
+        .and_then(|v| v.as_str())
+        .ok_or("unexpected answer from the server")?;
+
+    let token = result.get("token")
+        .and_then(|v| v.as_str())
+        .ok_or("unexpected answer from the server")?;
+
+    let name = result.get("name").and_then(|v| v.as_str()).unwrap_or("this computer");
+
+    // Create config directory
+    let config_path = config_dir()?;
+    fs::create_dir_all(&config_path)
+        .map_err(|e| format!("failed to create config directory: {}", e))?;
+    platform::set_private(&config_path, true)?;
+
+    // Write token file
+    let token_path = config_path.join("token");
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(&token_path).map_err(|e| format!("failed to open token file: {}", e))?;
+    f.write_all(token.as_bytes()).map_err(|e| format!("failed to write token file: {}", e))?;
+    platform::set_private(&token_path, false)?;
+
+    // Write config.toml
+    let config_content = platform::config_toml(server, machine_id, &token_path, &config_path.join("grants.json"));
+    fs::write(config_path.join("config.toml"), config_content)
+        .map_err(|e| format!("failed to write config.toml: {}", e))?;
+
+    // Create grants.json with [] if it doesn't exist
+    let grants_path = config_path.join("grants.json");
+    if !grants_path.exists() {
+        fs::write(grants_path, "[]")
+            .map_err(|e| format!("failed to create grants.json: {}", e))?;
+    }
+
+    println!("Paired as \"{}\"", name);
+    Ok(())
+}
+
+/// Installs the systemd user service for the Kompanion runner.
+#[cfg(unix)]
+pub fn install_service() -> Result<(), String> {
+    let service_dir = env::var("HOME")
+        .map(|h| PathBuf::from(h).join(".config").join("systemd").join("user"))
+        .map_err(|_| "$HOME is not set".to_string())?;
+    
+    fs::create_dir_all(&service_dir)
+        .map_err(|e| format!("failed to write service file: {}", e))?;
+
+    let service_path = service_dir.join("kompanion-runner.service");
+
+    fs::write(&service_path, UNIT)
+        .map_err(|e| format!("failed to write service file: {}", e))?;
+
+    // Run systemctl commands
+    let daemon_reload = Command::new("systemctl")
+        .args(["--user", "daemon-reload"])
+        .output()
+        .map_err(|e| format!("failed to run systemctl daemon-reload: {}", e))?;
+    
+    if !daemon_reload.status.success() {
+        return Err(String::from_utf8_lossy(&daemon_reload.stderr).to_string());
+    }
+
+    let enable_cmd = Command::new("systemctl")
+        .args(["--user", "enable", "--now", "kompanion-runner.service"])
+        .output()
+        .map_err(|e| format!("failed to run systemctl enable --now: {}", e))?;
+    
+    if !enable_cmd.status.success() {
+        return Err(String::from_utf8_lossy(&enable_cmd.stderr).to_string());
+    }
+
+    let restart_cmd = Command::new("systemctl")
+        .args(["--user", "restart", "kompanion-runner.service"])
+        .output()
+        .map_err(|e| format!("failed to run systemctl restart: {}", e))?;
+    
+    if !restart_cmd.status.success() {
+        return Err(String::from_utf8_lossy(&restart_cmd.stderr).to_string());
+    }
+
+    Ok(())
+}
+
+/// After a self-update on Windows: start the logon task again a few seconds after this process exits
+/// (the task does not restart on an exit code). Detached, so it outlives the runner.
+#[cfg(windows)]
+pub fn restart_task_later() {
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+    if let Err(e) = Command::new("cmd")
+        .arg("/C")
+        .raw_arg(crate::winsetup::restart_line())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(0x0000_0008 | 0x0000_0200) // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        .spawn()
+    {
+        eprintln!("could not schedule the restart: {e}");
+    }
+}
+
+/// Registers the Windows logon task that starts the runner (and restarts it when it exits, e.g. after a self-update).
+#[cfg(windows)]
+pub fn install_service() -> Result<(), String> {
+    let exe = env::current_exe().map_err(|e| format!("can't find the runner: {e}"))?;
+    let user = platform::current_user()?;
+    let xml_path = platform::config_dir()?.join("task.xml");
+    fs::write(&xml_path, crate::winsetup::utf16le_bom(&crate::winsetup::task_xml(&exe.to_string_lossy(), &user)))
+        .map_err(|e| format!("failed to write the task file: {e}"))?;
+    let output = Command::new("schtasks")
+        .args(crate::winsetup::create_args(&xml_path.to_string_lossy()))
+        .output();
+    if let Err(e) = output {
+        return Err(format!("schtasks: {}", e));
+    }
+    let output = output.unwrap();
+    if !output.status.success() {
+        return Err(format!("schtasks: {}", String::from_utf8_lossy(&output.stderr).trim()));
+    }
+    let output = Command::new("schtasks")
+        .args(crate::winsetup::run_args())
+        .output();
+    if let Err(e) = output {
+        return Err(format!("schtasks: {}", e));
+    }
+    let output = output.unwrap();
+    if !output.status.success() {
+        return Err(format!("schtasks: {}", String::from_utf8_lossy(&output.stderr).trim()));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn test_unit_text_contains_execstart() {
+        assert!(UNIT.contains("ExecStart=%h/.local/bin/kompanion-runner"));
+    }
+}
