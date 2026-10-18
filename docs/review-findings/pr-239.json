@@ -1,0 +1,11 @@
+{
+  "b2b40f4d549f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "7ed36be",
+    "path": "tools/qwen/pipeline.py",
+    "reason": "Real but minor: the host from the local config was put into a shell string for docker inspect. Now subprocess.run with an argument list, no shell (test DockerInspect).",
+    "title": "Security Vulnerability",
+    "verdict": "bug"
+  }
+}
