@@ -1,0 +1,17 @@
+[
+  {
+    "name": "ux2-u25-polish",
+    "role": "worker/web",
+    "prompt": "In public/css/ux2.css (STU-UX2) fix three things seen on the screenshots; add or change only these rules:\n1. The play button holds two icons (svg paths .i-play and .i-pause); while paused both show on top of each other. Add `.wave-play .i-pause { display: none; }` before the existing `.wave-player.playing ...` rules (those keep switching them while playing).\n2. The waveform is squeezed: the .wave-player sits in the card's `.job-actions` flex row. Add `.job-actions .wave-player { flex: 1 1 auto; min-width: 0; }` so it takes the free width next to the two download links.\n3. The keyboard map dialog sits in the top-left corner because style.css resets every margin to 0 (`* { margin: 0 }`), which removes a dialog's centring. Add `margin: auto;` to the `.keymap` rule.",
+    "out": "/tmp/kk-ux2/prog/public/css/ux2.css",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/prog && sh /tmp/kk-ux2/chk/e2e.sh polish,audio,keymap",
+    "max_tokens": 3000,
+    "mode": "patch",
+    "focus": [
+      "\\.wave\\-player\\.playing\\ \\.wave\\-play\\ \\.i\\-play",
+      "\\.keymap\\ \\{",
+      "\\.wave\\-player\\ \\{"
+    ]
+  }
+]

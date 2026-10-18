@@ -1,0 +1,1186 @@
+// public/js/main.js
+const API_BASE = '/api';
+
+// State
+let currentUser = null;
+let isAdult = false;
+let currentPreset = 'oc';
+let kTypes = []; // KS-02: Kompanion's own types (GET /api/types)
+let presetWarn = {}; // KS-04: licence warnings of the built-in presets and video, by Kompanion workflow name
+let currentSize = null;
+let uploadedFile = null;
+let eventSource = null;
+let reconnectingTimer = null;
+let activeTab = 'image'; // 'image', 'video', 'music', 'sfx'
+
+// DOM Elements
+const userEmailEl = document.getElementById('user-email');
+const presetBtns = document.querySelectorAll('.preset-btn');
+const promptInput = document.getElementById('prompt-input');
+const charCountEl = document.getElementById('char-count');
+const fileUpload = document.getElementById('file-upload');
+const previewContainer = document.getElementById('preview-container');
+const previewImage = document.getElementById('preview-image');
+const removePhotoBtn = document.getElementById('remove-photo');
+const likenessGroup = document.getElementById('likeness-group');
+const faceWeightInput = document.getElementById('face-weight');
+const ratingSelect = document.getElementById('rating-select');
+const advancedDetails = document.getElementById('advanced-details');
+const seedInput = document.getElementById('seed-input');
+const generateBtn = document.getElementById('generate-btn');
+const makeFour = document.getElementById('make-four');
+const errorMsg = document.getElementById('error-msg');
+const jobsList = document.getElementById('jobs-list');
+const reconnectingNotice = document.getElementById('reconnecting-notice');
+
+// Tab Elements
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabPanels = document.querySelectorAll('.tab-panel');
+const startImageBox = document.getElementById('start-image-box');
+const startImagePlaceholder = document.getElementById('start-image-placeholder');
+const startImagePreview = document.getElementById('start-image-preview');
+const startImageThumb = document.getElementById('start-image-thumb');
+const removeStartImageButton = document.getElementById('remove-start-image');
+const startImagePromptIdInput = document.getElementById('start-image-prompt-id');
+const startImageFilenameInput = document.getElementById('start-image-filename');
+
+// Initialize
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadUser();
+    await loadPresets();
+    await loadTypes();
+    applyPresetOptions(); // KS-05: the first type's size and hint (also shows its licence warning)
+    await loadJobs();
+    setupEventSource();
+    
+    // Setup Listeners
+    setupPresetListeners();
+    setupFileUpload();
+    setupFormSubmit();
+    setupTabListeners();
+    setupFilterListeners();
+});
+
+function setupPresetListeners() {
+    const container = document.querySelector('.preset-toggles');
+    if (!container) return;
+    
+    container.addEventListener('click', (e) => {
+        const btn = e.target.closest('.preset-btn');
+        if (!btn) return;
+
+        container.querySelectorAll('.preset-btn').forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-checked', 'false');
+        });
+        btn.classList.add('active');
+        btn.setAttribute('aria-checked', 'true');
+        currentPreset = btn.dataset.preset;
+        applyPresetOptions();
+    });
+}
+
+async function loadUser() {
+    try {
+        const res = await fetch(`${API_BASE}/me`);
+        if (!res.ok) throw new Error('Failed to load user');
+        currentUser = await res.json();
+        userEmailEl.textContent = (currentUser.email || '?')[0].toUpperCase(); // STU-R2: an initial, the address on hover
+        userEmailEl.title = currentUser.email;
+        userEmailEl.setAttribute('aria-label', `Signed in as ${currentUser.email}`);
+        isAdult = currentUser.adult;
+        window.studioAdult = isAdult; // STU-R2: the Refine form's ratings
+        updateRatingOptions();
+    } catch (err) {
+        console.error(err);
+        userEmailEl.textContent = "Guest";
+    }
+}
+
+async function loadPresets() {
+    const presets = [
+        { id: 'oc', label: 'OC sheet', hint: 'Front, side and back views of your hero' },
+        { id: 'portrait', label: 'VN portrait', hint: 'Upper-body character for visual novels' },
+        { id: 'scene', label: 'VN scene', hint: 'Wide scene with background' }
+    ];
+    
+    presetBtns.forEach(btn => {
+        const presetId = btn.dataset.preset;
+        const preset = presets.find(p => p.id === presetId);
+        if (preset) {
+            btn.querySelector('.preset-label').textContent = preset.label;
+        }
+    });
+}
+
+// KS-02 types start
+function kType(preset) {
+  if (typeof preset !== 'string' || !preset.startsWith('k:')) return null;
+  const id = preset.slice(2);
+  for (const t of kTypes) {
+    if (t.id === id) return t;
+  }
+  return null;
+}
+
+async function loadTypes() {
+  try {
+    const res = await fetch(`${API_BASE}/types`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.enabled) document.getElementById('make-four-group').hidden = false;
+    kTypes = data.types || [];
+    presetWarn = data.warnings || {};
+    const iconMap = {
+      character: '<circle cx="12" cy="5" r="2.5"/><path d="M12 8v7M8 11h8M12 15l-3 6M12 15l3 6"/>',
+      scene: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l5-4 4 3 4-5 5 5"/>',
+      landscape: '<path d="M2 20l7-12 5 8 3-4 5 8z"/>',
+      sprite: '<path d="M7 4h10v4h3v8h-3v4H7v-4H4V8h3z"/><path d="M9 11h1M14 11h1"/>',
+      icon: '<path d="M12 3l8 9-8 9-8-9z"/>',
+      'oc-sheet-classic': '<path d="M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z"/>'
+    };
+    const container = document.querySelector('.preset-toggles');
+    if (!container) return;
+    for (const t of kTypes) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'preset-btn';
+      btn.dataset.preset = 'k:' + t.id;
+      btn.role = 'radio';
+      btn.ariaChecked = String(false);
+      btn.ariaLabel = `${t.label} - ${t.hint}`;
+      const paths = iconMap[t.id] || '<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/>';
+      btn.innerHTML = `<span class="preset-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${paths}</svg></span><span class="preset-label"></span>`;
+      const labelSpan = btn.querySelector('.preset-label');
+      if (labelSpan) labelSpan.textContent = t.label;
+      container.appendChild(btn);
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderSizes(sizes) {
+  const group = document.getElementById('size-toggles');
+  if (!group) return;
+  group.innerHTML = '';
+  for (const size of sizes) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'size-btn';
+    if (currentSize === size) btn.classList.add('active');
+    btn.role = 'radio';
+    btn.ariaChecked = currentSize === size ? 'true' : 'false';
+    btn.dataset.size = size;
+    btn.textContent = size[0].toUpperCase() + size.slice(1);
+    btn.addEventListener('click', () => {
+      currentSize = size;
+      renderSizes(sizes);
+    });
+    group.appendChild(btn);
+  }
+}
+
+const PRESET_SIZE = { oc: 'wide', portrait: 'tall', scene: 'wide' };
+const PRESET_HINT = { oc: 'Front, side and back views of your hero', portrait: 'Upper-body character for visual novels', scene: 'Wide scene with background' };
+
+function applyPresetOptions() {
+  const t = kType(currentPreset);
+  if (t) {
+    document.getElementById('size-group').hidden = false;
+    currentSize = t.sizes.includes(currentSize) ? currentSize : t.sizes[0];
+    renderSizes(t.sizes);
+    document.getElementById('face-group').hidden = !t.face;
+    if (!t.face && uploadedFile) removePhoto();
+    document.getElementById('rating-group').hidden = !t.rating;
+  } else {
+    document.getElementById('size-group').hidden = false;
+    currentSize = PRESET_SIZE[currentPreset] || 'square';
+    renderSizes([currentSize]);
+    document.getElementById('face-group').hidden = false;
+    document.getElementById('rating-group').hidden = false;
+  }
+  document.getElementById('type-hint').textContent = t ? t.hint : (PRESET_HINT[currentPreset] || '');
+  document.getElementById('sheet-extras').hidden = !isSheet(); // STU-R2
+  showLicenceWarning();
+}
+
+// STU-R2: licence warnings show two lines; a click shows them all.
+document.querySelectorAll('.licence-warning').forEach(w => {
+  w.title = 'Show all';
+  w.addEventListener('click', () => w.classList.toggle('open'));
+});
+
+// STU-R2: the OC sheet (built-in or Kompanion's) takes a face-fix prompt and a background.
+let sheetBackground = 'white';
+function isSheet() { return currentPreset === 'oc' || currentPreset === 'k:oc-sheet'; }
+document.querySelectorAll('[data-bg]').forEach(btn => btn.addEventListener('click', () => {
+  sheetBackground = btn.dataset.bg;
+  document.querySelectorAll('[data-bg]').forEach(b => {
+    b.classList.toggle('active', b === btn);
+    b.setAttribute('aria-checked', String(b === btn));
+  });
+}));
+
+// KS-04: Kompanion's licence warning for the chosen type and for video (they warn, never block).
+const PRESET_WORKFLOW = { oc: 'oc-sheet', portrait: 'vn-portrait', scene: 'vn-scene' };
+function showLicenceWarning() {
+  const t = kType(currentPreset);
+  const text = t ? (t.warning || '') : (presetWarn[PRESET_WORKFLOW[currentPreset]] || '');
+  for (const [id, w] of [['licence-warning', text], ['licence-warning-video', presetWarn.video || '']]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.textContent = w ? `Licence warning: ${w}` : '';
+    el.hidden = !w;
+  }
+}
+
+// KS-02 types end
+
+
+function setupFileUpload() {
+    fileUpload.addEventListener('change', handleFileSelect);
+    removePhotoBtn.addEventListener('click', removePhoto);
+    
+    const dropZone = document.querySelector('.drop-zone');
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--orange)'; });
+    dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.style.borderColor = ''; });
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '';
+        if (e.dataTransfer.files.length) {
+            fileUpload.files = e.dataTransfer.files;
+            handleFileSelect({ target: fileUpload });
+        }
+    });
+}
+
+function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    uploadedFile = file;
+    likenessGroup.style.display = 'flex';
+    
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        previewImage.src = evt.target.result;
+        previewContainer.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+function removePhoto() {
+    uploadedFile = null;
+    fileUpload.value = '';
+    previewContainer.style.display = 'none';
+    likenessGroup.style.display = 'none';
+    faceWeightInput.value = '0.85';
+}
+
+function updateRatingOptions() {
+    ratingSelect.innerHTML = '<option value="general">General</option><option value="sensitive">Sensitive</option>';
+    if (isAdult) {
+        ratingSelect.innerHTML += '<option value="questionable">Questionable</option><option value="explicit">Explicit</option>';
+    }
+}
+
+async function submitImage(count) {
+    const prompt = promptInput.value.trim();
+    if (!prompt) {
+        fieldError(promptInput, 'Describe what to make first.');
+        return;
+    }
+    
+    if (uploadedFile && faceWeightInput.value < 0.3) {
+        showError("Likeness must be at least 0.3 if a photo is provided.");
+        return;
+    }
+
+    generateBtn.disabled = true;
+    errorMsg.textContent = "";
+
+    const t = kType(currentPreset);
+    const formData = new FormData();
+    formData.append('preset', currentPreset);
+    formData.append('prompt', prompt);
+    if (!t || t.rating) formData.append('rating', ratingSelect.value);
+    formData.append('faceWeight', faceWeightInput.value);
+    
+    if (uploadedFile) formData.append('face', uploadedFile);
+    if (seedInput.value) formData.append('seed', seedInput.value);
+    const negative = document.getElementById('negative-input')?.value.trim();
+    if (negative) formData.append('negative', negative); // STU-N1
+    if (t) formData.append('size', currentSize);
+    if (isSheet()) {
+        formData.append('facePrompt', document.getElementById('face-prompt-input').value.trim());
+        formData.append('background', sheetBackground);
+        const helmet = document.getElementById('helmet-input').value.trim();
+        if (document.getElementById('helmet-group').open && helmet) formData.append('helmet', helmet); // STU-C3
+    }
+    if (count === 4) formData.append('count', '4');
+
+    try {
+        const res = await fetch(`${API_BASE}/generate`, { method: 'POST', body: formData });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Generation failed');
+        }
+        const result = await res.json();
+        console.log('Generation started:', result.promptId);
+    } catch (err) {
+        showError(err.message);
+    } finally {
+        generateBtn.disabled = false;
+    }
+}
+
+function setupFormSubmit() {
+    // Image Form
+    generateBtn.addEventListener('click', (e) => { e.preventDefault(); submitImage(makeFour && makeFour.checked ? 4 : 1); });
+
+    // Video Form
+    const videoSecondsRange = document.getElementById('video-seconds');
+    const videoSecondsVal = document.getElementById('video-seconds-val');
+    videoSecondsRange.addEventListener('input', (e) => {
+        videoSecondsVal.textContent = e.target.value;
+    });
+
+    document.getElementById('generate-btn-video').addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        const prompt = document.getElementById('video-prompt').value.trim();
+        if (!prompt) {
+            fieldError(document.getElementById('video-prompt'), 'Describe the motion first.');
+            return;
+        }
+
+        const seconds = parseInt(document.getElementById('video-seconds').value);
+        const size = document.getElementById('video-size').value;
+        const seed = document.getElementById('video-seed').value;
+        const promptId = startImagePromptIdInput.value;
+        const filename = startImageFilenameInput.value;
+
+        if (promptId && !filename) {
+            showError("Selected image not found.");
+            return;
+        }
+
+        const btn = document.getElementById('generate-btn-video');
+        btn.disabled = true;
+        const errorDiv = document.getElementById('error-msg-video');
+        errorDiv.textContent = "";
+
+        const formData = new FormData();
+        formData.append('kind', 'video');
+        formData.append('prompt', prompt);
+        formData.append('seconds', seconds);
+        formData.append('size', size);
+        if (seed) formData.append('seed', seed);
+        if (promptId && filename) {
+            formData.append('startJob', promptId);
+            formData.append('startFile', filename);
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/generate`, { method: 'POST', body: formData });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Generation failed');
+            }
+            const result = await res.json();
+            console.log('Video generation started:', result.promptId);
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // Music Form
+    const musicSecondsRange = document.getElementById('music-seconds');
+    const musicSecondsVal = document.getElementById('music-seconds-val');
+    musicSecondsRange.addEventListener('input', (e) => {
+        musicSecondsVal.textContent = e.target.value;
+    });
+
+    document.getElementById('generate-btn-music').addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        const style = document.getElementById('music-style').value.trim();
+        if (!style) {
+            fieldError(document.getElementById('music-style'), 'Add at least one style tag.');
+            return;
+        }
+
+        const seconds = parseInt(document.getElementById('music-seconds').value);
+        const seed = document.getElementById('music-seed').value;
+        const lyrics = document.getElementById('music-lyrics').value.trim();
+
+        const btn = document.getElementById('generate-btn-music');
+        btn.disabled = true;
+        const errorDiv = document.getElementById('error-msg-music');
+        errorDiv.textContent = "";
+
+        const payload = {
+            kind: 'music',
+            prompt: style,
+            seconds: seconds,
+            seed: seed ? parseInt(seed) : undefined
+        };
+
+        if (lyrics) payload.lyrics = lyrics;
+
+        try {
+            const res = await fetch(`${API_BASE}/audio`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Generation failed');
+            }
+            const result = await res.json();
+            console.log('Music generation started:', result.promptId);
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // SFX Form
+    const sfxSecondsRange = document.getElementById('sfx-seconds');
+    const sfxSecondsVal = document.getElementById('sfx-seconds-val');
+    sfxSecondsRange.addEventListener('input', (e) => {
+        sfxSecondsVal.textContent = e.target.value;
+    });
+
+    document.getElementById('generate-btn-sfx').addEventListener('click', async (e) => {
+        e.preventDefault();
+        
+        const desc = document.getElementById('sfx-desc').value.trim();
+        if (!desc) {
+            fieldError(document.getElementById('sfx-desc'), 'Describe the sound first.');
+            return;
+        }
+
+        const seconds = parseInt(document.getElementById('sfx-seconds').value);
+        const seed = document.getElementById('sfx-seed').value;
+
+        const btn = document.getElementById('generate-btn-sfx');
+        btn.disabled = true;
+        const errorDiv = document.getElementById('error-msg-sfx');
+        errorDiv.textContent = "";
+
+        const payload = {
+            kind: 'sfx',
+            prompt: desc,
+            seconds: seconds,
+            seed: seed ? parseInt(seed) : undefined
+        };
+
+        try {
+            const res = await fetch(`${API_BASE}/audio`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Generation failed');
+            }
+            const result = await res.json();
+            console.log('SFX generation started:', result.promptId);
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            btn.disabled = false;
+        }
+    });
+}
+
+function showError(msg) {
+    const container = activeTab === 'image' ? errorMsg : 
+                       activeTab === 'video' ? document.getElementById('error-msg-video') :
+                       activeTab === 'music' ? document.getElementById('error-msg-music') :
+                       document.getElementById('error-msg-sfx');
+    container.textContent = msg;
+}
+
+// Tab Switching
+function setupTabListeners() {
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabId = btn.dataset.tab;
+            switchTab(tabId);
+        });
+    });
+}
+
+function switchTab(tabId) {
+    activeTab = tabId;
+    
+    // Update Buttons
+    tabBtns.forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === tabId);
+        b.setAttribute('aria-selected', b.dataset.tab === tabId);
+    });
+    
+    // Update Panels
+    tabPanels.forEach(panel => {
+        panel.classList.toggle('active', panel.id === `panel-${tabId}`);
+    });
+
+    // Scroll to form
+    const form = document.getElementById(`generate-form-${tabId}`);
+    if (form) {
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// Start Image Logic
+removeStartImageButton.addEventListener('click', () => {
+    startImagePromptIdInput.value = '';
+    startImageFilenameInput.value = '';
+    startImagePreview.style.display = 'none';
+    startImagePlaceholder.style.display = 'block';
+});
+
+// Filter Logic
+function setupFilterListeners() {
+    const chips = document.querySelectorAll('.chip');
+    chips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            chips.forEach(c => {
+                c.classList.toggle('active', c.dataset.filter === chip.dataset.filter);
+                c.setAttribute('aria-pressed', c.dataset.filter === chip.dataset.filter);
+            });
+            filterJobs(chip.dataset.filter);
+        });
+    });
+}
+
+function filterJobs(filter) {
+    const cards = document.querySelectorAll('.job-card');
+    cards.forEach(card => {
+        const kind = card.dataset.kind;
+        let show = false;
+        
+        if (filter === 'all') show = true;
+        else if (filter === 'image' && kind === 'image') show = true;
+        else if (filter === 'video' && kind === 'video') show = true;
+        else if (filter === 'audio' && (kind === 'music' || kind === 'sfx')) show = true;
+        
+        card.style.display = show ? '' : 'none';
+    });
+}
+
+// SSE
+function setupEventSource() {
+    eventSource = new EventSource(`${API_BASE}/events`);
+    eventSource.onopen = () => reconnectingNotice && reconnectingNotice.classList.remove('visible');
+    eventSource.onerror = () => reconnectingNotice && reconnectingNotice.classList.add('visible');
+    eventSource.addEventListener('job', (e) => updateJob(JSON.parse(e.data)));
+    eventSource.addEventListener('preview', (e) => {
+        const d = JSON.parse(e.data);
+        updatePreview(d.promptId, d.url);
+    });
+}
+
+// STU-C3: a helmet pair (two cards with one pair id) shows one side at a time: "on" (helmet) or "off" (face).
+const pairSide = new Map();
+function pairToggleHtml(job) {
+    if (!job.pair || !job.helmet) return '';
+    const side = pairSide.get(job.pair) || 'on';
+    const p = escapeHtml(job.pair);
+    return `<span class="pair-seg" role="group" aria-label="Helmet"><button type="button" data-act="pair-side" data-pair="${p}" data-side="on" aria-pressed="${side === 'on'}">Helmet on</button><button type="button" data-act="pair-side" data-pair="${p}" data-side="off" aria-pressed="${side === 'off'}">Face</button></span>`;
+}
+function syncPairs() {
+    const cards = [...jobsList.querySelectorAll('.job-card[data-pair]')];
+    for (const card of cards) {
+        const both = cards.filter(c => c.dataset.pair === card.dataset.pair).length > 1;
+        const side = pairSide.get(card.dataset.pair) || 'on';
+        card.classList.toggle('pair-away', both && card.dataset.helmet !== side);
+        card.querySelectorAll('[data-act="pair-side"]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.side === side)));
+    }
+}
+
+// Job Rendering
+function renderJobs(jobs) {
+    jobsById = new Map(jobs.map(j => [j.promptId, j]));
+    jobsList.textContent = '';
+    if (jobs.length === 0) {
+        jobsList.innerHTML = emptyStateHtml();
+    } else {
+        [...jobs].reverse().forEach(renderJobCard);
+    }
+    syncPairs();
+    for (const id of pendingDelete?.ids || []) {
+        const card = jobsList.querySelector(`[data-prompt-id="${CSS.escape(id)}"]`);
+        if (card) card.hidden = true;
+    }
+    renderLibraryTools();
+}
+
+// STU-D1: select and delete finished jobs (round icon buttons on each card), a selection bar,
+// "Clear failed", and a 10-second Undo before the real delete.
+const FINISHED_STATES = new Set(['done', 'error', 'cancelled']);
+const picked = new Set();
+let pendingDelete = null;
+
+function headerHtml(job, kindLabel) {
+    const id = escapeHtml(job.promptId);
+    const tools = FINISHED_STATES.has(job.status) ? `<span class="job-tools">
+            <button type="button" class="round-btn" role="checkbox" aria-checked="${picked.has(job.promptId)}" data-act="pick" data-id="${id}" aria-label="Select" title="Select"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></button>
+            <button type="button" class="round-btn danger" data-act="delete" data-id="${id}" aria-label="Delete" title="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
+        </span>` : '';
+    return `<span class="kind-badge badge-type ${job.kind}">${kindLabel}</span>${statusBadge(job)}${pairToggleHtml(job)}
+        <span class="job-head-right"><span>${getRelativeTime(job.created)}</span>${tools}</span>`;
+}
+
+// STU-UX1: a card shows its state as a badge; a finished one needs none
+const STATUS_BADGE = { queued: 'Queued', running: 'Making', error: 'Failed', cancelled: 'Cancelled' };
+
+function statusBadge(job) {
+    const label = STATUS_BADGE[job.status];
+    if (!label) return '';
+    return `<span class="badge-status status-${job.status}">${label}</span>`;
+}
+
+// STU-UX2: elapsed time for running/queued jobs
+function getElapsed(job) {
+    if (job.status !== 'running' && job.status !== 'queued') return '';
+    const created = new Date(job.created).getTime();
+    const now = Date.now();
+    const seconds = Math.floor((now - created) / 1000);
+    const mins = Math.floor(seconds / 60);
+    if (mins < 60) return `${mins}s`;
+    return `${mins}m`;
+}
+
+// STU-UX1: a running job's progress as a ring over its thumbnail
+function ringHtml(progress) {
+    const pct = Math.round(Math.max(0, Math.min(1, (progress ?? NaN) || 0)) * 100);
+    return `<svg class="progress-ring" viewBox="0 0 36 36" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+        <circle class="ring-track" cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle class="ring-fill" cx="18" cy="18" r="15.9" fill="none" stroke="currentColor" stroke-width="2" pathLength="100" stroke-dasharray="${pct} 100" transform="rotate(-90 18 18)"/>
+    </svg>`;
+}
+
+function setRing(card, progress) {
+    const ring = card.querySelector('.progress-ring');
+    if (!ring) return false;
+    const pct = Math.round(Math.max(0, Math.min(1, (progress ?? NaN) || 0)) * 100);
+    ring.setAttribute('aria-valuenow', String(pct));
+    ring.querySelector('.ring-fill').setAttribute('stroke-dasharray', `${pct} 100`);
+    return true;
+}
+
+function emptyStateHtml() {
+    return `<div class="empty-state"><p>Nothing here yet. What you make shows up here, ready to refine.</p><button type="button" class="secondary-btn try-example">Try an example</button></div>`;
+}
+
+function visibleCards() {
+    return [...jobsList.querySelectorAll('.job-card')].filter(c => !c.hidden);
+}
+
+function renderLibraryTools() {
+    const bar = document.getElementById('jobs-tools');
+    if (!bar) return;
+    for (const id of [...picked]) if (!visibleCards().some(c => c.dataset.promptId === id)) picked.delete(id);
+    const failed = visibleCards().filter(c => c.dataset.status === 'error').length;
+    if (picked.size) {
+        bar.innerHTML = `<span aria-live="polite">${picked.size} selected</span>
+            <button type="button" class="secondary-btn" data-act="delete-picked">Delete ${picked.size}</button>
+            <button type="button" class="secondary-btn" data-act="pick-clear">Cancel</button>`;
+    } else if (failed) {
+        bar.innerHTML = `<button type="button" class="secondary-btn" data-act="clear-failed">Clear failed (${failed})</button>`;
+    } else {
+        bar.innerHTML = '';
+    }
+}
+
+function deleteLater(ids) {
+    if (!ids.length) return;
+    flushDelete();
+    for (const id of ids) {
+        const card = jobsList.querySelector(`[data-prompt-id="${CSS.escape(id)}"]`);
+        if (card) card.hidden = true;
+        picked.delete(id);
+    }
+    syncPicks();
+    const toast = document.createElement('div');
+    toast.className = 'undo-toast';
+    toast.setAttribute('role', 'status');
+    toast.innerHTML = `<span>${ids.length === 1 ? 'Deleted.' : `${ids.length} deleted.`}</span><button type="button" class="secondary-btn">Undo</button>`;
+    toast.querySelector('button').addEventListener('click', () => {
+        if (pendingDelete?.toast !== toast) return;
+        clearTimeout(pendingDelete.timer);
+        pendingDelete = null;
+        toast.remove();
+        for (const id of ids) {
+            const card = jobsList.querySelector(`[data-prompt-id="${CSS.escape(id)}"]`);
+            if (card) card.hidden = false;
+        }
+        renderLibraryTools();
+    });
+    document.body.append(toast);
+    pendingDelete = { ids, toast, timer: setTimeout(flushDelete, 10000) };
+}
+
+function flushDelete() {
+    const p = pendingDelete;
+    if (!p) return;
+    pendingDelete = null;
+    clearTimeout(p.timer);
+    p.toast.remove();
+    fetch(`${API_BASE}/jobs/delete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: p.ids }), keepalive: true })
+        .then(async res => {
+            if (!res.ok) throw new Error('Delete failed');
+            const r = await res.json();
+            for (const id of r.deleted) jobsList.querySelector(`[data-prompt-id="${CSS.escape(id)}"]`)?.remove();
+            for (const id of r.skipped) {
+                const card = jobsList.querySelector(`[data-prompt-id="${CSS.escape(id)}"]`);
+                if (card) card.hidden = false;
+            }
+            if (r.skipped.length) alert(`${r.skipped.length} could not be deleted: still being made, or Kompanion did not answer.`);
+            renderLibraryTools();
+        })
+        .catch(err => {
+            for (const id of p.ids) {
+                const card = jobsList.querySelector(`[data-prompt-id="${CSS.escape(id)}"]`);
+                if (card) card.hidden = false;
+            }
+            renderLibraryTools();
+            alert(err.message);
+        });
+}
+window.addEventListener('pagehide', flushDelete);
+
+function syncPicks() {
+    for (const b of jobsList.querySelectorAll('[data-act="pick"]')) b.setAttribute('aria-checked', String(picked.has(b.dataset.id)));
+    for (const c of jobsList.querySelectorAll('.job-card')) c.classList.toggle('picked', picked.has(c.dataset.promptId));
+    renderLibraryTools();
+}
+
+document.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-act]');
+    if (!el) return;
+    const act = el.dataset.act;
+    if (act === 'pick') {
+        if (picked.has(el.dataset.id)) picked.delete(el.dataset.id); else picked.add(el.dataset.id);
+        syncPicks();
+    } else if (act === 'delete') {
+        deleteLater([el.dataset.id]);
+    } else if (act === 'delete-picked') {
+        deleteLater([...picked]);
+    } else if (act === 'pick-clear') {
+        picked.clear();
+        syncPicks();
+    } else if (act === 'cancel') {
+        cancelJob(el.dataset.id);
+    } else if (act === 'pair-side') {
+        pairSide.set(el.dataset.pair, el.dataset.side === 'off' ? 'off' : 'on');
+        syncPairs();
+    } else if (act === 'headshot' || act === 'cowboy') {
+        makeShot(el);
+    } else if (act === 'animate') {
+        animateImage(el.dataset.id, el.dataset.file);
+    } else if (act === 'clear-failed') {
+        deleteLater(visibleCards().filter(c => c.dataset.status === 'error').map(c => c.dataset.promptId));
+    }
+});
+
+async function loadJobs() {
+    try {
+        const res = await fetch(`${API_BASE}/jobs`);
+        if (!res.ok) throw new Error('Failed to load jobs');
+        const jobs = await res.json();
+        renderJobs(jobs);
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function updateJob(job) {
+    jobsById.set(job.promptId, job);
+    let card = document.querySelector(`[data-prompt-id="${job.promptId}"]`);
+    
+    if (card) {
+        updateCardContent(card, job);
+    } else {
+        renderJobCard(job);
+    }
+    // STU-UX2: a queued card shows .queue-info
+    if (job.status === 'queued' && !card.querySelector('.queue-info')) {
+        const info = document.createElement('div');
+        info.className = 'queue-info';
+        info.textContent = 'Queued';
+        card.appendChild(info);
+    }
+    // STU-C2: a finished shot shows on its sheet's card
+    const sheet = job.refineOf && job.status === 'done' ? jobsById.get(job.refineOf) : null;
+    const sheetCard = sheet && document.querySelector(`[data-prompt-id="${sheet.promptId}"]`);
+    if (sheetCard) {
+        sheetCard.querySelector('.sheet-shots')?.remove();
+        sheetCard.querySelector('.job-images')?.insertAdjacentHTML('afterend', shotsHtml(sheet));
+    }
+}
+
+// STU-C2: an OC sheet's card makes its headshot and cowboy shot in one click (POST /api/refine with the
+// sheet as the source; the server reuses the sheet's prompt and seed) and shows the finished shots.
+const SHEET_PRESETS = new Set(['oc', 'k:oc-sheet']);
+let jobsById = new Map();
+function shotsHtml(job) {
+    const shots = [...jobsById.values()].filter(j => j.refineOf === job.promptId && /^refine:(headshot|cowboy)$/.test(j.preset || '') && j.status === 'done' && j.images?.length);
+    if (!shots.length) return '';
+    return `<div class="sheet-shots" aria-label="Shots of this character">${shots.map(j => `<a href="${imageUrl(j, j.images[0])}" target="_blank" class="job-image-link" data-id="${escapeHtml(j.promptId)}" data-file="${escapeHtml(j.images[0].filename)}" data-sub="${escapeHtml(j.images[0].subfolder || '')}" title="${escapeHtml(jobLabel(j))}"><img src="${imageUrl(j, j.images[0])}" alt="${escapeHtml(jobLabel(j))}" loading="lazy"></a>`).join('')}</div>`;
+}
+async function makeShot(btn) {
+    const label = btn.querySelector('span');
+    const was = label.textContent;
+    const fd = new FormData();
+    fd.append('action', btn.dataset.act);
+    fd.append('sourceJob', btn.dataset.id);
+    fd.append('sourceFile', btn.dataset.file);
+    btn.disabled = true;
+    try {
+        const res = await fetch('/api/refine', { method: 'POST', body: fd });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'Could not start it');
+        label.textContent = 'Started';
+        btn.title = 'Started. It appears in your library';
+    } catch (x) {
+        label.textContent = was;
+        btn.title = x.message;
+        const note = document.createElement('div');
+        note.className = 'undo-toast';
+        note.setAttribute('role', 'alert');
+        note.textContent = x.message;
+        document.body.appendChild(note);
+        setTimeout(() => note.remove(), 5000);
+    } finally {
+        setTimeout(() => { btn.disabled = false; label.textContent = was; btn.title = was; }, 2500);
+    }
+}
+// STU-R2: one card layout for new and updated jobs: the picture first, then type, time and tools,
+// a two-line prompt, the state, and icon actions (Refine, Animate, Download).
+const ICON = {
+    refine: '<path d="M4 20L15 9M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 11l.7 1.3L21 13l-1.3.7L19 15l-.7-1.3L17 13l1.3-.7z"/>',
+    animate: '<path d="M7 5v14l11-7z"/>',
+    download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+    cancel: '<path d="M6 6l12 12M18 6L6 18"/>',
+    retry: '<path d="M4 12a8 8 0 1 0 3-6.2M4 4v4h4"/>',
+    delete: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+    headshot: '<circle cx="12" cy="9" r="4"/><path d="M5 21c0-4 3-7 7-7s7 3 7 7"/>',
+    cowboy: '<circle cx="12" cy="5" r="2.5"/><path d="M8 21v-9a4 4 0 0 1 8 0v9M8 14h8"/>'
+};
+function iconBtn(act, label, attrs, cls = '') {
+    return `<button type="button" class="act-btn ${cls}" data-act="${act}" ${attrs} title="${label}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[act]}</svg><span>${label}</span></button>`;
+}
+function imageUrl(job, img, extra = '') {
+    return `/api/image?promptId=${encodeURIComponent(job.promptId)}&filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}${extra}`;
+}
+
+function cardInner(job) {
+    const kindLabel = jobLabel(job);
+    let media = '';
+    if (job.images && job.images.length > 0) {
+        if (job.kind === 'video') {
+            media = `<video src="${imageUrl(job, job.images[0])}" controls preload="metadata" playsinline></video>`;
+        } else {
+            media = job.images.map(img => `<a href="${imageUrl(job, img)}" target="_blank" class="job-image-link" data-id="${escapeHtml(job.promptId)}" data-file="${escapeHtml(img.filename)}" data-sub="${escapeHtml(img.subfolder || '')}"><img src="${imageUrl(job, img)}" alt="${escapeHtml(kindLabel)}" loading="lazy"></a>`).join('');
+        }
+    } else if (job.status === 'running' && job.previewUrl) {
+        media = `<a href="${job.previewUrl}" target="_blank" class="job-image-link"><img src="${job.previewUrl}" alt="Live preview"></a>`;
+    } else if (job.kind === 'image' || job.kind === 'video') {
+        media = `<div class="media-placeholder" aria-hidden="true"></div>`;
+    }
+
+    let actions = '';
+    if (job.status === 'running' || job.status === 'queued') {
+        actions = iconBtn('cancel', 'Cancel', `data-id="${escapeHtml(job.promptId)}"`);
+    } else if (job.status === 'error' || job.status === 'cancelled') {
+        const shortText = escapeHtml(shortReason(job.error));
+        const fullText = escapeHtml(job.error || '');
+        actions = `<span class="fail-reason" title="${fullText}">${shortText}</span>` +
+            iconBtn('retry', 'Retry', `data-id="${escapeHtml(job.promptId)}"`, 'accent') +
+            iconBtn('delete', 'Delete', `data-id="${escapeHtml(job.promptId)}"`, 'danger');
+    } else if (job.status === 'done' && job.kind === 'image' && job.images?.length) {
+        const img = job.images[0];
+        const at = `data-id="${escapeHtml(job.promptId)}" data-file="${escapeHtml(img.filename)}" data-sub="${escapeHtml(img.subfolder || '')}"`;
+        actions = iconBtn('refine', 'Refine', at, 'accent') + (SHEET_PRESETS.has(job.preset) ? iconBtn('headshot', 'Headshot', at) + iconBtn('cowboy', 'Cowboy shot', at) : iconBtn('animate', 'Animate', at))
+            + `<a class="act-btn" href="${imageUrl(job, img, '&download=1')}" download title="Download"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.download}</svg><span>Download</span></a>`;
+    } else if (job.status === 'done' && job.kind === 'video' && job.images?.length) {
+        actions = `<a class="act-btn" href="${imageUrl(job, job.images[0], '&download=1')}" title="Download MP4"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.download}</svg><span>MP4</span></a>`;
+    } else if (job.status === 'done' && job.files?.length) {
+        const f = (n) => `/api/audio-file?id=${encodeURIComponent(job.promptId)}&name=${encodeURIComponent(n)}`;
+        actions = `<audio controls preload="none" src="${f(job.files[0].name)}"></audio>
+            <a class="act-btn" href="${f(job.files[0].name)}&download=1" title="Download OGG"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.download}</svg><span>OGG</span></a>
+            <a class="act-btn" href="${f(job.files[1]?.name || job.files[0].name)}&download=1" title="Download WAV"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.download}</svg><span>WAV</span></a>`;
+    }
+
+    const prompt = job.prompt || '';
+    return `
+        ${media ? `<div class="job-thumb job-images count-${Math.min(job.images?.length || 1, 3)}${(job.kind !== 'video' && job.images?.length > 0) ? ' is-loading' : ''}">${media}${job.status === 'running' || job.status === 'queued' ? ringHtml(job.progress) : ''}</div>` : ''}
+        ${SHEET_PRESETS.has(job.preset) ? shotsHtml(job) : ''}
+        <div class="job-body">
+            <div class="job-header">${headerHtml(job, kindLabel)}</div>
+            <div class="job-prompt" title="${escapeHtml(prompt)}">${escapeHtml(prompt.length > 160 ? prompt.slice(0, 160) + '…' : prompt)}</div>
+            ${job.status === 'done' ? '' : `<div class="status-line">
+                <span class="job-status status-${job.status}">${escapeHtml(statusText(job))}</span>
+                ${job.position !== undefined && job.position !== 0 ? `<span>${formatPosition(job.position)}</span>` : ''}
+            </div>`}
+            <div class="job-actions">${actions}</div>
+        </div>`;
+}
+
+function renderJobCard(job) {
+    const card = document.createElement('article');
+    card.className = 'job-card';
+    card.dataset.promptId = job.promptId;
+    card.dataset.kind = job.kind;
+    card.dataset.status = job.status;
+    card.dataset.seed = job.seed ?? '';
+    if (job.pair && job.helmet) { card.dataset.pair = job.pair; card.dataset.helmet = job.helmet; }
+    card.tabIndex = 0;
+    card.innerHTML = cardInner(job);
+    const emptyState = jobsList.querySelector('.empty-state');
+    if (emptyState) { emptyState.remove(); }
+    jobsList.prepend(card);
+    syncPairs();
+}
+
+function updateCardContent(card, job) {
+    card.dataset.status = job.status;
+    if (job.pair && job.helmet) { card.dataset.pair = job.pair; card.dataset.helmet = job.helmet; }
+    card.dataset.seed = job.seed ?? '';
+    const playing = [...card.querySelectorAll('audio, video')].some(m => !m.paused);
+    if (playing) return;
+    if (job.status === 'running' && card.dataset.shown === `${job.status}:${job.images?.length || 0}:${job.previewUrl || ''}` && setRing(card, job.progress)) return;
+    card.dataset.shown = `${job.status}:${job.images?.length || 0}:${job.previewUrl || ''}`;
+    card.innerHTML = cardInner(job);
+    if (picked.has(job.promptId)) card.classList.add('picked');
+    renderLibraryTools();
+    syncPairs();
+}
+
+function updatePreview(promptId, url) {
+    const card = document.querySelector(`[data-prompt-id="${promptId}"]`);
+    if (card) {
+        const imagesDiv = card.querySelector('.job-images');
+        if (imagesDiv) {
+            imagesDiv.innerHTML = `
+                <a href="${url}" target="_blank" class="job-image-link">
+                    <img src="${url}" alt="Live Preview">
+                </a>
+            `;
+        }
+    }
+}
+
+function cancelJob(promptId) {
+    fetch(`${API_BASE}/jobs/${promptId}/cancel`, { method: 'POST' })
+        .then(res => {
+            if (!res.ok) throw new Error('Cancel failed');
+            loadJobs();
+        })
+        .catch(err => alert(err.message));
+}
+
+// Helpers
+// STU-R2: the card says what the job is (its own type, not the type picked in the form now).
+function jobLabel(job) {
+    if (job.kind !== 'image') return getKindLabel(job.kind);
+    if (String(job.preset || '').startsWith('refine:')) return window.refineLabel ? window.refineLabel(job.preset.slice(7)) : 'Refined';
+    return getPresetLabel(job.preset);
+}
+
+function getKindLabel(kind) {
+    if (kind === 'image') {
+        const t = kType(currentPreset);
+        return t ? t.label : currentPreset;
+    }
+    const map = { 
+        'video': 'Video', 
+        'music': 'Music', 
+        'sfx': 'Sound Effect' 
+    };
+    return map[kind] || kind;
+}
+
+function getPresetLabel(id) {
+    const map = { 'oc': 'OC sheet', 'portrait': 'VN portrait', 'scene': 'VN scene' };
+    const t = kType(id);
+    return t ? t.label : (map[id] || id);
+}
+
+function formatPosition(pos) {
+    if (pos === 0) return 'Starting...';
+    const suffixes = ['', 'st', 'nd', 'rd'];
+    const suffix = suffixes[pos % 100 - (pos % 10 === 0 ? 10 : 0)] || 'th';
+    return `${pos}${suffix} in line`;
+}
+
+function statusText(job) {
+    if (job.status === 'error' && job.error) return `Error: ${job.error}`;
+    return formatStatus(job.status);
+}
+
+function formatStatus(status) {
+    const map = {
+        'queued': 'Queued',
+        'running': 'Generating...',
+        'done': 'Done',
+        'error': 'Error',
+        'cancelled': 'Cancelled'
+    };
+    return map[status] || status;
+}
+
+function getRelativeTime(timestamp) {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours} hr ago`;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Animate Image Logic
+function animateImage(promptId, filename) {
+    // Set hidden inputs
+    startImagePromptIdInput.value = promptId;
+    startImageFilenameInput.value = filename;
+    
+    // Show preview
+    const thumbUrl = `/api/image?promptId=${encodeURIComponent(promptId)}&filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent('')}`;
+    startImageThumb.src = thumbUrl;
+    startImagePreview.style.display = 'flex';
+    startImagePlaceholder.style.display = 'none';
+    
+    // Switch to video tab
+    switchTab('video');
+    
+    // Scroll to form
+    const form = document.getElementById('generate-form-video');
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// STU-UX1: the lightbox and the details drawer live in lightbox.js and library-ui.js.
+
+// GPU-03: "Studio runs on" (Kompanion's setting) in the header; only the studio admin can change it.
+async function loadStudioTarget() {
+  const el = document.getElementById('studio-target');
+  if (!el) return;
+
+  try {
+    const res = await fetch('/api/studio-target');
+    if (!res.ok) {
+      el.hidden = true;
+      document.getElementById('studio-target-pop').hidden = true;
+      return;
+    }
+    const t = await res.json();
+    renderStudioTarget(t);
+  } catch (e) {
+    el.hidden = true;
+  }
+}
+
+function renderStudioTarget(t) {
+  const el = document.getElementById('studio-target');
+  if (!el) return;
+
+  el.replaceChildren();
+  el.hidden = false;
+  const pop = document.getElementById('studio-target-pop'); // STU-R2: a pill in the header, details on click
+  if (pop) {
+    pop.hidden = false;
+    const chosen = t.choices.find(c => c.value === t.target);
+    pop.querySelector('#studio-target-short').textContent = (chosen ? chosen.label : 'Studio') + (t.queued > 0 ? ` · ${t.queued}` : '');
+    pop.dataset.target = t.target;
+  }
+
+  const label = document.createElement('span');
+  label.className = 'st-label';
+  label.textContent = 'Studio runs on';
+  el.appendChild(label);
+
+  const choicesContainer = document.createElement('span');
+  choicesContainer.className = 'st-choices';
+  choicesContainer.role = 'group';
+  choicesContainer.setAttribute('aria-label', 'Studio runs on');
+
+  for (const c of t.choices) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = c.label;
+    btn.title = c.cost;
+    btn.dataset.target = c.value;
+    btn.setAttribute('aria-pressed', String(c.value === t.target));
+    btn.disabled = !t.canChange;
+
+    btn.addEventListener('click', () => setStudioTarget(c.value));
+    choicesContainer.appendChild(btn);
+  }
+
+  el.appendChild(choicesContainer);
+
+  let costText = '';
+  const chosenChoice = t.choices.find(c => c.value === t.target);
+  if (chosenChoice && chosenChoice.cost) {
+    costText = chosenChoice.cost;
+  } else if (chosenChoice) {
+    costText = `Studio jobs run on ${chosenChoice.label}.`;
+  }
+
+  const costSpan = document.createElement('span');
+  costSpan.className = 'st-cost';
+  costSpan.textContent = costText + (t.queued > 0 ? ` · ${t.queued} queued` : '');
+  el.appendChild(costSpan);
+}
+
+async function setStudioTarget(target) {
+  const el = document.getElementById('studio-target');
+  if (!el) return;
+
+  const res = await fetch('/api/studio-target', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ target })
+  });
+
+  let errorMsg = 'Could not change it';
+  if (!res.ok) {
+    try {
+      const errData = await res.json();
+      errorMsg = errData.error || errorMsg;
+    } catch (e) {
+      // ignore parse errors
+    }
+  }
+
+  const costSpan = el.querySelector('.st-cost');
+  if (!res.ok && costSpan) {
+    costSpan.textContent = errorMsg;
+    return; // keep the message visible; the 15 s refresh shows the current state again
+  }
+
+  loadStudioTarget();
+}
+
+loadStudioTarget();
+setInterval(loadStudioTarget, 15000);

@@ -1,0 +1,11 @@
+[
+  {
+    "name": "ux2-u4-forms",
+    "role": "worker/web",
+    "prompt": "Write public/js/forms.js (new file, about 40 lines), a classic script loaded before main.js (STU-UX2: validation messages next to the field). Top-level functions, no IIFE (main.js calls them by name).\n1. `function fieldError(input, message)`: the error element's id is input.id + '-error'. If no element with that id exists, create a <p> with that id, class field-error and role alert, and insert it directly after the input, or after the input's following sibling when that sibling has class char-counter (input.insertAdjacentElement / after). Set its textContent to message. Set input's aria-invalid to 'true'. Add the error id to input's aria-describedby (a space-separated list; keep the ids already there, never add it twice). Focus the input. Return the error element.\n2. `function clearFieldError(input)`: remove the error element (id input.id + '-error') if present, remove the aria-invalid attribute, and take the error id out of aria-describedby (remove the attribute when the list becomes empty).\n3. One document listener for 'input' events: when the event target has aria-invalid=\"true\", call clearFieldError(target).\nOutput only the file.",
+    "out": "/tmp/kk-ux2/prog/public/js/forms.js",
+    "precheck": false,
+    "check": "cd /tmp/kk-ux2/prog && sh /tmp/kk-ux2/chk/e2e.sh fielderr",
+    "max_tokens": 2000
+  }
+]

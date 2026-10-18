@@ -1,0 +1,96 @@
+/**
+ * forms.js - Classic validation helpers loaded before main.js.
+ * Provides fieldError and clearFieldError for inline error messages.
+ */
+
+/**
+ * Adds an error message element next to the input.
+ * @param {HTMLInputElement} input - The input element that has an error.
+ * @param {string} message - The error message text.
+ * @returns {HTMLElement} The created or existing error paragraph.
+ */
+function fieldError(input, message) {
+  const errorId = input.id + '-error';
+  let errorEl = document.getElementById(errorId);
+
+  if (!errorEl) {
+    errorEl = document.createElement('p');
+    errorEl.id = errorId;
+    errorEl.className = 'field-error';
+    errorEl.setAttribute('role', 'alert');
+    errorEl.textContent = message;
+
+    // Insert after input, or after char-counter sibling if present
+    const nextSibling = input.nextElementSibling;
+    if (nextSibling && nextSibling.classList.contains('char-counter')) {
+      input.after(errorEl);
+    } else {
+      input.parentNode.insertBefore(errorEl, input.nextSibling);
+    }
+  }
+
+  input.setAttribute('aria-invalid', 'true');
+  const currentDesc = input.getAttribute('aria-describedby') || '';
+  const ids = currentDesc.split(/\s+/).filter(Boolean);
+  if (!ids.includes(errorId)) {
+    ids.push(errorId);
+    input.setAttribute('aria-describedby', ids.join(' '));
+  }
+
+  input.focus();
+  return errorEl;
+}
+
+/**
+ * Removes the error message element and cleans up ARIA attributes.
+ * @param {HTMLInputElement} input - The input element that is no longer in error.
+ */
+function clearFieldError(input) {
+  const errorId = input.id + '-error';
+  const errorEl = document.getElementById(errorId);
+
+  if (errorEl) {
+    errorEl.remove();
+  }
+
+  input.removeAttribute('aria-invalid');
+  const currentDesc = input.getAttribute('aria-describedby');
+  if (currentDesc) {
+    const ids = currentDesc.split(/\s+/).filter(Boolean);
+    const filteredIds = ids.filter(id => id !== errorId);
+    if (filteredIds.length === 0) {
+      input.removeAttribute('aria-describedby');
+    } else {
+      input.setAttribute('aria-describedby', filteredIds.join(' '));
+    }
+  }
+}
+
+// Listen for input events to clear errors when user starts typing
+document.addEventListener('input', function onInput(event) {
+  const target = event.target;
+  if (target && target.tagName === 'INPUT' && target.getAttribute('aria-invalid') === 'true') {
+    clearFieldError(target);
+  }
+});
+
+/**
+ * Validates a form and shows inline errors.
+ * @param {HTMLFormElement} form - The form element to validate.
+ * @returns {boolean} True if the form is valid, false otherwise.
+ */
+function validateForm(form) {
+  const inputs = form.querySelectorAll('input[required]');
+  let isValid = true;
+
+  inputs.forEach(input => {
+    if (!input.checkValidity()) {
+      fieldError(input, input.validationMessage);
+      isValid = false;
+    } else {
+      clearFieldError(input);
+    }
+  });
+
+  return isValid;
+}
