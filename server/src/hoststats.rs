@@ -177,18 +177,24 @@ fn uptime_text(secs: u64) -> String {
     if d > 0 { format!("{d} d {h} h") } else { format!("{h} h {m} min") }
 }
 
-/// The newest runner version this server ships (from the files in /dist), e.g. "0.4.5".
-fn latest_runner() -> Option<String> {
-    let p = crate::pairing::newest_runner(std::path::Path::new("/dist"))?;
+/// The newest runner version this server ships for a machine's system (from the files in `dir`): the Windows build for a machine whose os starts with "Windows", the Linux build otherwise, e.g. "0.4.5".
+fn latest_runner_in(dir: &std::path::Path, os: &str) -> Option<String> {
+    let suffix = if os.starts_with("Windows") { crate::pairing::RUNNER_WINDOWS } else { crate::pairing::RUNNER_LINUX };
+    let p = crate::pairing::newest_runner_for(dir, suffix)?;
     let name = p.file_name()?.to_str()?;
-    Some(name.strip_prefix("kompanion-runner-")?.strip_suffix("-x86_64-linux-musl")?.to_string())
+    Some(name.strip_prefix("kompanion-runner-")?.strip_suffix(suffix)?.to_string())
+}
+
+/// The newest runner version shipped in /dist for this system.
+fn latest_runner(os: &str) -> Option<String> {
+    latest_runner_in(std::path::Path::new("/dist"), os)
 }
 
 /// A snapshot in the shape the web app's Machines panel shows.
 fn view(id: &str, name: &str, s: &Snapshot, h: &History, online: bool, sampled_at: &str, labels: &HashMap<String, String>, runner: Option<&str>) -> Value {
     let os = if s.os == "Linux" || s.os.is_empty() { "Linux".to_string() } else { s.os.clone() };
     json!({
-        "id": id, "name": name, "os": os, "online": online, "runnerVersion": runner, "runnerLatest": latest_runner(),
+        "id": id, "name": name, "os": os, "online": online, "runnerVersion": runner, "runnerLatest": latest_runner(&os),
         "cpu": s.cpu.or(h.cpu.back().copied()).unwrap_or(0.0),
         "cpuCount": s.cpu_count,
         "ramUsedGb": s.ram_used_gb, "ramTotalGb": s.ram_total_gb,
@@ -518,6 +524,26 @@ pub async fn report(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn latest_runner_follows_the_machines_system() {
+        let dir = std::env::temp_dir().join(format!("kk-latest-runner-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for n in [
+            "kompanion-runner-0.6.1-x86_64-linux-musl",
+            "kompanion-runner-0.6.2-x86_64-windows-gnu.exe",
+            "kompanion-runner-0.6.2-x86_64-windows-gnu.exe.sha256",
+        ] {
+            std::fs::write(dir.join(n), "x").unwrap();
+        }
+        assert_eq!(latest_runner_in(&dir, "Windows").as_deref(), Some("0.6.2"));
+        assert_eq!(latest_runner_in(&dir, "Windows 10.0.19045").as_deref(), Some("0.6.2"));
+        assert_eq!(latest_runner_in(&dir, "Linux").as_deref(), Some("0.6.1"));
+        assert_eq!(latest_runner_in(&dir, "CachyOS").as_deref(), Some("0.6.1"));
+        assert_eq!(latest_runner_in(&dir, "").as_deref(), Some("0.6.1"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     #[test]
