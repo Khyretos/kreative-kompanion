@@ -35,12 +35,12 @@ fn valid_grant(target: &str, rights: &[String]) -> bool {
         return true;
     }
 
-    if !target.starts_with('/') {
+    if !machine_stats::paths::is_absolute_target(target) {
         return false;
     }
     // Rule 11: check every grant and skip expired ones instead of returning on the first expired match.
     // Also check for ".." in any path component.
-    let components: Vec<&str> = target.split('/').collect();
+    let components: Vec<&str> = target.split(['/', '\\']).collect();
     for comp in components {
         if comp == ".." {
             return false;
@@ -269,6 +269,20 @@ mod tests {
         assert!(!valid_grant("system", &["read".to_string()]));
         assert!(!valid_grant("/home/../etc", &["read".to_string()]));
         assert!(!valid_grant("/home/k", &[]));
+    }
+
+    #[test]
+    fn windows_folders_are_valid_grants() {
+        // GRANT-WIN: Windows machines grant folders like C:\kk-runner (Kees, 2026-10-18: "I get an error")
+        let rw = ["read".to_string(), "write".to_string()];
+        assert!(valid_grant("C:\\kk-runner", &rw));
+        assert!(valid_grant("c:/Users/k/app", &rw));
+        assert!(valid_grant("\\\\server\\share", &rw));
+        assert!(!valid_grant("C:\\a\\..\\b", &rw), "a .. between backslashes is refused too");
+        assert!(!valid_grant("C:/a/../b", &rw));
+        assert!(!valid_grant("kk-runner", &rw), "a relative folder stays invalid");
+        assert!(!valid_grant("C:kk-runner", &rw), "a drive without a slash is relative");
+        assert!(!valid_grant("C:\\kk-runner", &["root".to_string()]));
     }
 }
 
