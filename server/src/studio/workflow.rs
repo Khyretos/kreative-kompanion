@@ -756,6 +756,37 @@ licence = "CreativeML OpenRAIL-M"
         }
     }
 
+    /// 3D-01: image-to-3d is a refine step (a picture in, a .glb and its preview out) on soucouyant, with its licences.
+    #[test]
+    fn image_to_3d_is_registered() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let w = all.iter().find(|(n, _)| n == "image-to-3d").expect("image-to-3d missing").1.as_ref().unwrap();
+        assert!(w.studio.as_ref().unwrap().refine, "a 3D model is made from a picture");
+        assert_eq!(w.machines, vec!["soucouyant".to_string()]);
+        assert!(w.vram_mb > 0 && w.vram_mb <= 13000, "vram_mb {}", w.vram_mb);
+        let g = w.graph_for("soucouyant").unwrap();
+        assert_eq!(w.inputs.get("source").map(String::as_str), Some("10"));
+        assert_eq!(g["10"]["class_type"], json!("LoadImage"));
+        assert_eq!(w.outputs, vec!["20".to_string(), "22".to_string()], "the .glb first, then its preview");
+        assert_eq!(g["20"]["class_type"], json!("SaveGLB"));
+        assert_eq!(g["22"]["class_type"], json!("SaveImage"));
+        for (node, v) in g.as_object().unwrap() {
+            for (_, input) in v["inputs"].as_object().unwrap() {
+                if let Some(link) = input.as_array() {
+                    assert!(g.get(link[0].as_str().unwrap()).is_some(), "node {node} links to a missing node");
+                }
+            }
+        }
+        let lic = |f: &str| w.models.iter().find(|m| m.file == f).map(|m| m.licence.clone()).unwrap_or_default();
+        for f in ["trellis_2_shape_vae_bf16.safetensors", "trellis_2_texture_vae_bf16.safetensors", "birefnet.safetensors"] {
+            assert_eq!(lic(f), "MIT", "{f}");
+        }
+        assert!(lic("dino_v3_vit_l.safetensors").contains("DINOv3"));
+        let unet = g["40"]["inputs"]["unet_name"].as_str().unwrap();
+        assert_eq!(lic(unet), "MIT", "{unet} needs its licence");
+    }
+
     #[test]
     fn face_graph_sets_the_photo_and_weight() {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
