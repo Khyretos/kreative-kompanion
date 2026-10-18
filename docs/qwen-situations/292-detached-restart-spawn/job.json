@@ -1,0 +1,13 @@
+[
+  {
+    "name": "winrestart-b-spawn",
+    "role": "worker",
+    "out": "/tmp/kk-wr/prog/runner/src/setup.rs",
+    "mode": "patch",
+    "precheck": false,
+    "max_tokens": 2000,
+    "focus": ["pub fn install_service\\(\\)", "^use "],
+    "check": "cd /tmp/kk-wr/prog && sh /tmp/kk-wr/chk/wincheck.sh",
+    "prompt": "In runner/src/setup.rs add a Windows-only function directly before the `/// Registers the Windows logon task` doc comment of install_service (WIN-RESTART). Change nothing else in the file except imports if one is missing.\n```\n/// After a self-update on Windows: start the logon task again a few seconds after this process exits\n/// (the task does not restart on an exit code). Detached, so it outlives the runner.\n#[cfg(windows)]\npub fn restart_task_later() { ... }\n```\nBody: `use std::os::windows::process::CommandExt;` inside the function; build `Command::new(\"cmd\")` with `.arg(\"/C\")`, `.raw_arg(crate::winsetup::restart_line())` (raw, so cmd sees the & and > unquoted), stdin/stdout/stderr all `Stdio::null()`, and `.creation_flags(0x0000_0008 | 0x0000_0200)` (DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP); call `.spawn()`; on an error print `eprintln!(\"could not schedule the restart: {e}\")`. Use `std::process::{Command, Stdio}` paths that exist in this file (add `Stdio` to the existing `use std::process` import if needed, under the same cfg as the rest or fully qualified).\nThen in runner/src/main.rs this job does NOT change anything (a second job does)."
+  }
+]

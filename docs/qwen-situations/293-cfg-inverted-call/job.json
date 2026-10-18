@@ -1,0 +1,13 @@
+[
+  {
+    "name": "winrestart-c-call",
+    "role": "worker",
+    "out": "/tmp/kk-wr/prog/runner/src/main.rs",
+    "mode": "patch",
+    "precheck": false,
+    "max_tokens": 1500,
+    "focus": ["std::process::exit\\(4\\);"],
+    "check": "cd /tmp/kk-wr/prog && sh /tmp/kk-wr/chk/wincheck.sh",
+    "prompt": "In runner/src/main.rs, in the \"self_update\" job branch, right before the line `std::process::exit(4);` add two lines (WIN-RESTART):\n`#[cfg(windows)]`\n`setup::restart_task_later();`\n(setup.rs defines it; the module is already declared as `mod setup;`). Also change the comment above that branch, `// RUNNER-SYNC: download, verify and swap in the newest runner, report, then exit so systemd (Linux) or the logon task (Windows) restarts it.`, to end with `then exit so systemd restarts it (Linux); on Windows it first schedules its logon task again (WIN-RESTART).` Change nothing else."
+  }
+]

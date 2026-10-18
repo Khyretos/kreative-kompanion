@@ -228,13 +228,15 @@ fn main() {
                                     }
                                 }
                                 "self_update" => {
-                                    // RUNNER-SYNC: download, verify and swap in the newest runner, report, then exit so systemd (Linux) or the logon task (Windows) restarts it.
+                                    // RUNNER-SYNC: download, verify and swap in the newest runner, report, then exit so systemd restarts it (Linux); on Windows it first schedules its logon task again (WIN-RESTART).
                                     let dl = ureq::AgentBuilder::new().timeout(Duration::from_secs(300)).build();
                                     match std::env::current_exe().map_err(|e| e.to_string()).and_then(|exe| selfupdate::update_from_server(&dl, base_url, &exe)) {
                                         Ok(msg) => {
                                             post_result(&agent, base_url, &cfg.machine_id, &token, serde_json::json!({
                                                 "job_id": id, "ok": true, "output": msg, "refused": false, "grants": grants.list
                                             }));
+                                            #[cfg(windows)]
+                                            setup::restart_task_later();
                                             std::process::exit(4);
                                         }
                                         Err(e) => output = format!("error: {e}"),
