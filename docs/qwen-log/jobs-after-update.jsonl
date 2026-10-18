@@ -1,0 +1,2 @@
+{"name": "jobupd-take-jobs", "out": "server/src/access/runner.rs", "mode": "patch", "gpu_seconds": 15.3, "tokens": 392, "prompt_tokens": 6817, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/axum-api", "worker/python"], "lines": 2, "attempts": 1, "model": "Coder", "at": "2026-10-18T05:44:11"}
+{"name": "jobupd-take-jobs", "out": "server/src/access/runner.rs", "check": "sh /tmp/kk-jobupd-chk/check.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-18T05:44:28"}

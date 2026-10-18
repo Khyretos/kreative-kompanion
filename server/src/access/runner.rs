@@ -56,6 +56,7 @@ pub async fn queue_job(
 }
 
 /// Up to 10 queued jobs, oldest first, marked as sent.
+/// A self_update ends the batch: the runner exits after it, so later jobs wait for its next poll.
 pub async fn take_jobs(db: &sqlx::SqlitePool, machine_id: &str) -> sqlx::Result<Vec<Value>> {
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT id, tool FROM machine_jobs WHERE machine_id = ? AND state = 'queued' ORDER BY created_at LIMIT 10",
@@ -67,12 +68,16 @@ pub async fn take_jobs(db: &sqlx::SqlitePool, machine_id: &str) -> sqlx::Result<
     let mut out = Vec::new();
     for (id, tool) in rows {
         let Ok(tool) = serde_json::from_str::<Value>(&tool) else { continue };
+        let is_update = tool["tool"] == "self_update";
         sqlx::query("UPDATE machine_jobs SET state = 'sent', sent_at = ? WHERE id = ?")
             .bind(&now)
             .bind(&id)
             .execute(db)
             .await?;
         out.push(json!({ "id": id, "tool": tool }));
+        if is_update {
+            break;
+        }
     }
     Ok(out)
 }
@@ -186,3 +191,7 @@ mod tests {
         assert_eq!(cut("aé", 2), "a");
     }
 }
+
+#[cfg(test)]
+#[path = "runner_tests.rs"]
+mod jobs_tests;
