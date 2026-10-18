@@ -89,6 +89,12 @@ pub fn run_args() -> Vec<String> {
     ["/Run", "/TN", TASK_NAME].map(String::from).to_vec()
 }
 
+/// Wait for logon and then run the task.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn restart_line() -> String {
+    format!("ping -n 4 127.0.0.1 >NUL & schtasks /Run /TN {}", TASK_NAME)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,6 +122,17 @@ mod tests {
     #[test]
     fn utf16le_has_a_byte_order_mark() {
         assert_eq!(utf16le_bom("aé"), vec![0xFF, 0xFE, b'a', 0, 0xE9, 0]);
+    }
+
+    #[test]
+    fn restart_line_waits_then_runs_the_task() {
+        // WIN-RESTART: after a self-update the runner exits with 4, but the logon task's RestartOnFailure only
+        // fires when the task fails to launch, so the runner starts its own task again. The wait comes first:
+        // with MultipleInstancesPolicy IgnoreNew, /Run is ignored while the old instance is still running.
+        let l = restart_line();
+        assert_eq!(l, "ping -n 4 127.0.0.1 >NUL & schtasks /Run /TN KompanionRunner");
+        assert!(l.find("ping").unwrap() < l.find("schtasks").unwrap());
+        assert!(l.contains(TASK_NAME));
     }
 
     #[test]
