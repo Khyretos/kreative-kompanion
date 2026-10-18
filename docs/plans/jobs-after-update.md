@@ -7,8 +7,9 @@ right after pressing Update) stayed "sent" forever and never ran.
 After: `take_jobs` ends the batch at a `self_update`. Later jobs stay queued and go out on the restarted runner's next
 poll.
 
-Found while checking why Kees's `C:\kk-runner` grant for DESKTOP-387PPHP (2026-10-18 ~03:35Z) never reached the PC.
-Not proven to be that case: the task database read that would show the job's state is waiting on Kees.
+Found while checking why Kees's `C:\kk-runner` grant for DESKTOP-387PPHP (2026-10-18 ~03:35Z) seemed not to reach
+the PC. That was not the cause: the job table shows the grant applied at 03:39:51 (the update went out at 03:37 in an
+earlier poll). The gap is real all the same.
 
 ## Checks
 
