@@ -78,7 +78,15 @@ line or two).
 | Findings | unmeasured (no PR-Agent on the Studio repo) |
 | Time worked vs waiting | unmeasured |
 
+## Merged, deployed, live check
+
+Kees approved the look (2026-10-18 00:00Z, "approve"). Merged into the Studio's main as d758abf and deployed
+with `docker compose up -d --build`. Live check against the running container (read-only, a fresh user on
+the docker network, nothing generated), 1300 px dark and 390 px light: the new CSS and scripts load, no page
+errors and no failed requests, the empty state shows and "Try an example" fills the prompt, the Kompanion
+link and the drawer are in place, no sideways scroll.
+
 ## Not done yet
 
-- Kees approves the look (the spec's "done when"); then merge `stu-ux1` into the Studio's main, deploy with
-  `docker compose up -d --build` in its folder, live check as the test user, and update the brand docs.
+- Brand docs for this site in Outline and Windshift BRAND (spec step 6).
+- The task row `kompanion-STU-UX1` is still queued: setting it done is a live-data write.
