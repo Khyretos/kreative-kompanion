@@ -29,3 +29,4 @@ paths: ["**/*.css"]
     adding to a container, grep its class in every media query; hide the parts, not the container.
     After a re-mount or a closed menu removes the focused element, focus falls to `<body>`: note
     whether focus was inside before the mount and give it back to the trigger after.
+294. (2026-10-18) MACHINES-CARDS unit B (Claude's spec): the job asked for `overflow: hidden` on a card inside the pane's scrolling grid (`.task-groups`). Overflow hidden sets the item's automatic minimum height to 0, so the grid squashed every card and cut off its forms; the Coder followed the spec and every check passed. Never put overflow hidden on an item of a fixed-height grid or flex scroller; round a header band with its own top radius instead, and add a test that each card's scrollHeight equals its clientHeight.

@@ -51,3 +51,4 @@ paths: ["web/src/views/**", "web/src/state.ts", "web/src/main.ts"]
 48. (2026-10-05) New state is drawn only when its key is in the redraw list of the pane that shows it
     (`rightKeys` in main.ts: tasks, access, activity, machines). A value shown on Activity but listed
     under Tasks appears only when it happens to load before the first render.
+296. (2026-10-18) MACHINES-CARDS (Kees's bug report): the live re-mount puts typed values back by `form class|data-id|name`; the per-computer grant forms had no data-id, so text typed for one computer (and the expiry choice) was copied into every computer's form, including the hidden `system` target. Every form that repeats per item needs a unique `data-id`.
