@@ -1147,3 +1147,16 @@ button[aria-busy="true"]::after {
 .overseer-chip.locked { cursor: default; }
 .project-overseer { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; font-size: 0.875rem; cursor: pointer; }
 .project-overseer .icon { width: 14px; height: 14px; color: var(--accent); }
+
+/* MACHINES-CARDS */
+.machine-card { border: 2px solid var(--brand); border-radius: 12px; background: var(--surface); gap: 0; margin-bottom: 1.25rem; }
+.machine-card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0.9rem; background: var(--brand); border-radius: 10px 10px 0 0; }
+.machine-card-head h3 { margin: 0; padding: 0; font-size: 1.05rem; font-weight: 700; color: var(--on-brand); overflow-wrap: anywhere; }
+.machine-card-os { font-size: 0.75rem; font-weight: 600; color: var(--on-brand); border: 1px solid var(--on-brand); border-radius: 999px; padding: 0.1rem 0.55rem; flex: none; }
+.machine-card-body { display: grid; gap: 0.75rem; padding: 0.9rem; }
+.grant-block { margin-top: 0; padding: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.grant-block-title { font-size: 0.9rem; font-weight: 700; color: var(--fg-strong); }
+.grant-block .grant-rights label { color: var(--fg); }
+.grant-block input:not([type]),
+.grant-block select { background: var(--surface); color: var(--fg); }
+/* end MACHINES-CARDS */

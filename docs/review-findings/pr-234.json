@@ -1,0 +1,11 @@
+{
+  "e0fdc855219f": {
+    "by": "coder",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/access.ts",
+    "reason": "The code explicitly assigns unique `data-id` attributes to each form using the machine ID and a type suffix, directly contradicting the finding's claim that no unique IDs are present.",
+    "title": "Data Loss Bug",
+    "verdict": "false_positive"
+  }
+}

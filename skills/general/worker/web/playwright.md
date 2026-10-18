@@ -26,3 +26,4 @@ paths: ["web/tests/**", "web/tests-real/**", "web/playwright*.ts", "docs/screens
     passed into `page.evaluate` cannot be serialized. WCAG luminance: `v <= 0.03928 ? v / 12.92 :
     ((v + 0.055) / 1.055) ** 2.4` (divide, never multiply). Keep every assertion the spec lists
     (focus after a choice, both colour schemes); never drop one to make a run pass.
+295. (2026-10-18) MACHINES-CARDS test (Claude): the contrast test read the header's own `backgroundColor`, which was `rgba(0, 0, 0, 0)` (transparent, luminance 0), so the dark-mode check passed before any CSS existed. A contrast test must use the first ancestor with a painted background, and a test for a new look must fail on the old tree before the unit runs (check it).

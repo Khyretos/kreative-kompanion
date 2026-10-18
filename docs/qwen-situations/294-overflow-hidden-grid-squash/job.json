@@ -1,0 +1,13 @@
+[
+  {
+    "name": "mcards-b-css",
+    "role": "worker/web",
+    "mode": "full",
+    "precheck": false,
+    "max_tokens": 1500,
+    "out": "web/src/_machinecard.css.txt",
+    "context": [],
+    "check": "sh /tmp/kk-mcards-chk/check-b.sh",
+    "prompt": "Write the CSS for the Access tab's per-computer cards (MACHINES-CARDS) for web/src/styles.css. Answer with only CSS (no comments needed). Kees cannot tell which checkboxes and buttons belong to which computer, so each computer must read as one clearly separate, bright card. Use only the existing custom properties: --brand (violet fill), --on-brand (white text on violet), --surface, --surface-2, --line, --fg, --fg-strong, --radius. Never orange for text.\n\nThe markup (already written):\n<section class=\"group machine-card\"> <div class=\"machine-card-head\"><h3>NAME</h3><span class=\"machine-card-os\">Windows</span></div>\n  <div class=\"machine-card-body\"> ...grant list... <form class=\"grant-add grant-block\"><span class=\"grant-block-title\">Folder access</span> inputs, checkboxes, select, button</form> <form class=\"grant-add grant-block\">...</form></div></section>\n\nRules to write, one per selector:\n1. `.machine-card`: border 2px solid var(--brand); border-radius 12px; background var(--surface); overflow hidden; gap 0; margin-bottom 1.25rem.\n2. `.machine-card-head`: flex row, items centred, space-between, gap 0.5rem; padding 0.6rem 0.9rem; background var(--brand).\n3. `.machine-card-head h3`: margin 0; padding 0; font-size 1.05rem; font-weight 700; color var(--on-brand); overflow-wrap anywhere.\n4. `.machine-card-os`: font-size 0.75rem; font-weight 600; color var(--on-brand); border 1px solid var(--on-brand); border-radius 999px; padding 0.1rem 0.55rem; flex none.\n5. `.machine-card-body`: display grid; gap 0.75rem; padding 0.9rem.\n6. `.grant-block`: margin-top 0; padding 0.75rem; border 1px solid var(--line); border-radius var(--radius); background var(--surface-2).\n7. `.grant-block-title`: font-size 0.9rem; font-weight 700; color var(--fg-strong).\n8. `.grant-block .grant-rights label`: color var(--fg).\n9. `.grant-block input:not([type]), .grant-block select`: background var(--surface); color var(--fg).\nNothing else."
+  }
+]

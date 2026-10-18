@@ -20,6 +20,8 @@ document.addEventListener("toggle", (e) => {
     else openKeys.delete(d.dataset.keep);
   }
 }, true);
+// MACHINES-CARDS: Windows computers get a Windows folder example.
+const isWindows = (os?: string) => /^windows/i.test(os ?? "");
 const RENEW: [string, string][] = [["1", "1 hour"], ["24", "1 day"], ["168", "1 week"], ["", "Permanent…"]];
 const chips = (g: GrantView) => html`<span class="grant-rights">${g.rights.map((r) => html`<span class="chip ${r === "root" ? "root" : ""}">${r}</span>`)}</span>`;
 
@@ -50,58 +52,66 @@ export function grantFromForm(form: HTMLFormElement): { target: string; rights: 
   return { target, rights, expiresHours };
 }
 
-export function renderAccess(machines: { id: string; name: string }[], grants: Record<string, GrantView[]>, _history: AccessEvent[]): SafeHtml {
+// MACHINES-CARDS card
+function machineCard(m: { id: string; name: string; os?: string }, list: GrantView[], now: number): SafeHtml {
+  const active = list.filter((g) => !expired(g, now)).sort((a, b) => (a.expires ? Date.parse(a.expires) : Infinity) - (b.expires ? Date.parse(b.expires) : Infinity));
+  const old = list.filter((g) => expired(g, now) && now - Date.parse(g.expires ?? "") <= 7 * 86_400_000).sort((a, b) => Date.parse(b.expires ?? "") - Date.parse(a.expires ?? ""));
+  const example = isWindows(m.os) ? "C:\\Users\\you\\projects" : "/home/you/projects/app";
+
+  return html`
+    <section class="group machine-card" id="access-${m.id}" data-machine="${m.id}" aria-labelledby="access-${m.id}-name">
+      <div class="machine-card-head"><h3 id="access-${m.id}-name">${m.name}</h3>${m.os ? html`<span class="machine-card-os">${m.os}</span>` : ""}</div>
+      <div class="machine-card-body">
+        ${active.length ? html`<ul class="grants">${active.map((g) => grantRow(m.id, g, now))}</ul>` : html`<p class="muted small">No access granted on this computer.</p>`}
+        ${old.length ? html`<details class="grants-expired" data-keep="expired|${m.id}" ${openKeys.has(`expired|${m.id}`) ? "open" : ""}><summary>Expired (${old.length})</summary><ul class="grants-old">${old.map((g) => expiredRow(m.id, g))}</ul></details>` : ""}
+        <form class="grant-add grant-block" data-machine="${m.id}" data-id="${m.id}|folder" aria-label="Folder access on ${m.name}">
+          <span class="grant-block-title">Folder access</span>
+          <input name="target" placeholder="${example}" aria-label="Folder on ${m.name}" required>
+          <span class="grant-rights">
+            <label><input type="checkbox" name="rights" value="read" checked> read</label>
+            <label><input type="checkbox" name="rights" value="write"> write</label>
+            <label><input type="checkbox" name="rights" value="shell"> shell</label>
+          </span>
+          <select name="expires" aria-label="Expires">
+            <option value="1">1 hour</option>
+            <option value="24" selected>1 day</option>
+            <option value="168">1 week</option>
+            <option value="">permanent</option>
+          </select>
+          <button class="btn small" type="submit">Grant folder access</button>
+        </form>
+        <form class="grant-add grant-block" data-machine="${m.id}" data-id="${m.id}|system" aria-label="System access on ${m.name}">
+          <span class="grant-block-title">System access</span>
+          <input type="hidden" name="target" value="system">
+          <span class="muted small">System rights. Root actions still ask for your password on that PC.</span>
+          <span class="grant-rights">
+            <label><input type="checkbox" name="rights" value="packages"> packages</label>
+            <label><input type="checkbox" name="rights" value="services"> user services</label>
+            <label><input type="checkbox" name="rights" value="desktop"> desktop reload</label>
+            <label><input type="checkbox" name="rights" value="gpu"> GPU apps (start or stop the studio apps, unload Ollama)</label>
+            <label><input type="checkbox" name="rights" value="root"> root (pkexec prompt on the PC)</label>
+          </span>
+          <select name="expires" aria-label="Expires">
+            <option value="1">1 hour</option>
+            <option value="24" selected>1 day</option>
+            <option value="168">1 week</option>
+            <option value="">permanent</option>
+          </select>
+          <button class="btn small" type="submit">Grant system access</button>
+        </form>
+      </div>
+    </section>`;
+}
+// end machineCard
+
+export function renderAccess(machines: { id: string; name: string; os?: string }[], grants: Record<string, GrantView[]>, _history: AccessEvent[]): SafeHtml {
   const now = Date.now();
   const summary = machines.length > 0 ? html`<section class="access-summary" aria-label="All computers"><h3 class="label">All computers</h3><ul>${machines.map((m) => { const a = (grants[m.id] ?? []).filter((g) => !expired(g, now)); return html`<li data-machine="${m.id}"><a href="#access-${m.id}">${m.name}</a> <span class="muted small">${a.length} active · ${a.filter((g) => !g.expires).length} permanent · ${a.filter((g) => g.rights.includes("root")).length} with root</span></li>`; })}</ul></section>` : "";
 
   return html`
     <div class="task-groups">
       ${summary}
-      ${machines.map((m) => {
-        const list = grants[m.id] ?? [];
-        const active = list.filter((g) => !expired(g, now)).sort((a, b) => (a.expires ? Date.parse(a.expires) : Infinity) - (b.expires ? Date.parse(b.expires) : Infinity));
-        const old = list.filter((g) => expired(g, now) && now - Date.parse(g.expires ?? "") <= 7 * 86_400_000).sort((a, b) => Date.parse(b.expires ?? "") - Date.parse(a.expires ?? ""));
-
-        return html`
-          <section class="group" id="access-${m.id}" data-machine="${m.id}">
-            <h3 class="label">${m.name}</h3>
-            ${active.length ? html`<ul class="grants">${active.map((g) => grantRow(m.id, g, now))}</ul>` : html`<p class="muted small">No access granted on this computer.</p>`}
-            ${old.length ? html`<details class="grants-expired" data-keep="expired|${m.id}" ${openKeys.has(`expired|${m.id}`) ? "open" : ""}><summary>Expired (${old.length})</summary><ul class="grants-old">${old.map((g) => expiredRow(m.id, g))}</ul></details>` : ""}
-            <form class="grant-add" data-machine="${m.id}">
-              <input name="target" placeholder="/home/you/projects/app" aria-label="Folder or system" required>
-              <span class="grant-rights">
-                <label><input type="checkbox" name="rights" value="read" checked> read</label>
-                <label><input type="checkbox" name="rights" value="write"> write</label>
-                <label><input type="checkbox" name="rights" value="shell"> shell</label>
-              </span>
-              <select name="expires" aria-label="Expires">
-                <option value="1">1 hour</option>
-                <option value="24" selected>1 day</option>
-                <option value="168">1 week</option>
-                <option value="">permanent</option>
-              </select>
-              <button class="btn small" type="submit">Grant</button>
-            </form>
-            <form class="grant-add" data-machine="${m.id}">
-              <input type="hidden" name="target" value="system">
-              <span class="muted small">System rights. Root actions still ask for your password on that PC.</span>
-              <span class="grant-rights">
-                <label><input type="checkbox" name="rights" value="packages"> packages</label>
-                <label><input type="checkbox" name="rights" value="services"> user services</label>
-                <label><input type="checkbox" name="rights" value="desktop"> desktop reload</label>
-                <label><input type="checkbox" name="rights" value="gpu"> GPU apps (start or stop the studio apps, unload Ollama)</label>
-                <label><input type="checkbox" name="rights" value="root"> root (pkexec prompt on the PC)</label>
-              </span>
-              <select name="expires" aria-label="Expires">
-                <option value="1">1 hour</option>
-                <option value="24" selected>1 day</option>
-                <option value="168">1 week</option>
-                <option value="">permanent</option>
-              </select>
-              <button class="btn small" type="submit">Grant system access</button>
-            </form>
-          </section>`;
-      })}
+      ${machines.map((m) => machineCard(m, grants[m.id] ?? [], now))}
       <p class="muted small pad">The history of grants and steps is in the Activity tab.</p>
     </div>`;
 }

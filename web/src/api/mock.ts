@@ -306,6 +306,10 @@ const machines: MachineStats[] = [
     id: "macbook", name: "MacBook", os: "macOS", online: false, cpu: 0, ramUsedGb: 0, ramTotalGb: 16,
     kompanionShare: 0, history: [], gpus: [],
   },
+  {
+    id: "desktop-387pphp", name: "DESKTOP-387PPHP", os: "Windows", online: false, cpu: 0, ramUsedGb: 0, ramTotalGb: 32,
+    kompanionShare: 0, history: [], gpus: [],
+  },
 ];
 
 const servers: Server[] = [
