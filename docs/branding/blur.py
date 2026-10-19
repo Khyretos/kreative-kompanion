@@ -9,12 +9,16 @@ Usage: python3 docs/branding/blur.py IMAGE.png X0 Y0 X1 Y1 [RADIUS]
 """
 
 import sys
+
 from PIL import Image, ImageFilter
 
 
 def main():
     if len(sys.argv) != 6 and len(sys.argv) != 7:
-        print("Usage: python3 docs/branding/blur.py IMAGE.png X0 Y0 X1 Y1 [RADIUS]", file=sys.stderr)
+        print(
+            "Usage: python3 docs/branding/blur.py IMAGE.png X0 Y0 X1 Y1 [RADIUS]",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     img_path = sys.argv[1]
@@ -25,13 +29,13 @@ def main():
         with Image.open(img_path) as img:
             # Crop the box region
             crop = img.crop((x0, y0, x1, y1))
-            
+
             # Apply strong Gaussian blur
             blurred = crop.filter(ImageFilter.GaussianBlur(radius=radius))
-            
+
             # Paste the blurred region back onto the original image
             img.paste(blurred, (x0, y0))
-            
+
             # Save over the same file, preserving original mode
             img.save(img_path)
     except Exception as e:
