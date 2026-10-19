@@ -81,6 +81,40 @@ pub async fn chat_editor(db: &SqlitePool, user_id: &str, chat_id: &str) -> sqlx:
     }
 }
 
+/// Returns everyone who may read this chat: the chat's owner, plus the project's owner and members if the chat belongs to a project.
+pub async fn chat_audience(db: &SqlitePool, chat_id: &str) -> sqlx::Result<Vec<String>> {
+    let chat: Option<(String, Option<String>)> = sqlx::query_as("SELECT user_id, project_id FROM chats WHERE id = ?").bind(chat_id).fetch_optional(db).await?;
+    let mut set = std::collections::BTreeSet::new();
+    let Some((owner, project_id)) = chat else { return Ok(Vec::new()); };
+    set.insert(owner.clone());
+    if let Some(pid) = project_id {
+        // Add project owner
+        let proj_owner: Option<String> = sqlx::query_scalar("SELECT user_id FROM projects WHERE id = ?").bind(&pid).fetch_optional(db).await?;
+        if let Some(uid) = proj_owner { set.insert(uid); }
+        // Add project members
+        let members: Vec<String> = sqlx::query_scalar("SELECT user_id FROM project_members WHERE project_id = ?")
+            .bind(&pid)
+            .fetch_all(db)
+            .await?;
+        for m in members { set.insert(m); }
+    }
+    Ok(set.into_iter().collect())
+}
+
+/// Returns the user plus everyone who shares at least one project with them: owners of projects the user is a member of, and members of projects the user owns or is a member of.
+pub async fn collaborators(db: &SqlitePool, user_id: &str) -> sqlx::Result<Vec<String>> {
+    let rows: Vec<String> = sqlx::query_scalar(
+        "SELECT p.user_id FROM projects p JOIN project_members m ON m.project_id = p.id WHERE m.user_id = ?1 OR p.user_id = ?1 UNION SELECT m2.user_id FROM project_members m2 JOIN projects p2 ON p2.id = m2.project_id LEFT JOIN project_members me ON me.project_id = p2.id AND me.user_id = ?1 WHERE p2.user_id = ?1 OR me.user_id IS NOT NULL",
+    )
+    .bind(user_id)
+    .fetch_all(db)
+    .await?;
+    let mut set = std::collections::BTreeSet::new();
+    set.insert(user_id.to_string());
+    for r in rows { set.insert(r); }
+    Ok(set.into_iter().collect())
+}
+
 /// Body for adding a member to a project.
 #[derive(Deserialize)]
 pub struct AddBody {
