@@ -329,3 +329,6 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - Name an insertion point by the text on both sides of it, and rerun the earlier units' checks in every unit's check (lessons 267, 272).
 - A "shown when X" check also asserts "not shown otherwise"; a removal job's check covers the neighbouring lines (lesson 268).
 - New files over about 60 lines: function-sized jobs spliced by script; name the exact DOM attributes and what each helper returns (lessons 270, 271).
+- One change per job: a new parameter, a helper, a request branch and main() wiring are separate units, each with its own test; a unit that touches start-up code has a check that runs it (lessons 362, 366).
+- JS checks run `node --check` first so a fix round gets line:column; never ask the model to cut code out of a very long one-line function, give the new function as its own unit and swap the call site by script (lessons 363, 365).
+- Order units so each check only depends on units that already passed (database grants before the code that needs them) (lesson 364).

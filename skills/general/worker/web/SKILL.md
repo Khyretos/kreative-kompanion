@@ -21,3 +21,5 @@ Topic lessons moved into cards (live-updates, playwright, css-layout, controls),
     `.sort(...)` on the next line): it does not parse (TS1128), and four fix rounds did not see why.
 
 - (2026-10-18, lessons 267-271) In a template literal, an inserted `${...}` goes exactly where the task says, never inside an attribute string. Edit only the lines the task names. Delegated click handlers use `e.target.closest(selector)`. Never declare the same name twice in one scope; in a repair round, change the broken lines and do not add a second copy of a block.
+
+- (2026-10-19, lessons 363, 365) Read a JSON error body with `r.json().catch(() => ({})).then(j => ...)`; `r.json()` is a Promise, never a value. Count braces in a `.then(r => { ... })` chain before answering. When asked to move code out of a long one-line function into a new function, write the whole new function, every call site the task names and the export; replacing only one call site leaves an undefined name.

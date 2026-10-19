@@ -34,3 +34,8 @@ paths: ["**/*.py"]
     load the wrong file just to make an assert pass. Cache exactly what the spec names (loaded models), not results
     keyed by an input path (a server sees a new temp path every request). Ultralytics boxes: `r.boxes.xyxy.tolist()`
     and `r.boxes.conf.tolist()`; `float()` of a 4-number tensor fails.
+362. (2026-10-19, lessons 362, 364, 366) A new parameter goes on the `def` line the error names; read a
+    `takes N positional arguments but M were given` error as "add that parameter there". Pass new arguments by
+    keyword (`rerun=make_rerun(dsn)`), never as extra positionals. psycopg 3: `rowcount` is on the cursor that
+    `conn.execute()` returns, not on the connection. A value for a UNIQUE column (`uuid.uuid4()`) is made inside
+    the loop, once per row. Count `%s` placeholders against the values tuple.
