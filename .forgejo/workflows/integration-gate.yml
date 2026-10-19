@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   gate:
-    runs-on: kireserver
+    runs-on: linux-docker
     timeout-minutes: 60
     # The bare runner image has no web/node_modules and no cargo: the web check runs npm ci itself and the
     # server check runs in a rust container on the runner's Docker (tools/gate-server.sh).
