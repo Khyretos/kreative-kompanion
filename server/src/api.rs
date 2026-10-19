@@ -252,7 +252,7 @@ pub async fn send(
     let Some(owner_id) = crate::sharing::chat_editor(&s.db, &u.id, &chat_id).await? else {
         return Err(ApiError::NotFound);
     };
-    let to = crate::sharing::chat_audience(&s.db, &chat_id).await.unwrap_or_else(|_| vec![u.id.clone()]);
+    let to = crate::sharing::chat_audience(&s.db, &chat_id).await?;
     // PROJECT-SHARING: an editor writes in the owner's chat; computers and tools stay the owner's.
     if owner_id != u.id && b.machine_id.as_deref().is_some_and(|m| !m.is_empty()) {
         return Err(ApiError::Forbidden("Only the owner can use a computer in this chat.".into()));
@@ -354,7 +354,13 @@ pub(crate) async fn insert_message(
 
 /// `tools`: the chat's MCP tools only run for the owner (PROJECT-SHARING: an editor's message is answered without them).
 async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool) {
-    let to = crate::sharing::chat_audience(&s.db, &chat_id).await.unwrap_or_else(|_| vec![user_id.clone()]);
+    let to = match crate::sharing::chat_audience(&s.db, &chat_id).await {
+        Ok(to) => to,
+        Err(e) => {
+            tracing::warn!(error = %e, chat = %chat_id, "chat audience failed; answering the owner only");
+            vec![user_id.clone()]
+        }
+    };
     let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?")
         .bind(&chat_id)
         .fetch_optional(&s.db)

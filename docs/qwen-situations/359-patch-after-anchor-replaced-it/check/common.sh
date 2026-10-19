@@ -1,6 +1,6 @@
 #!/bin/sh
 # SHARED-LIVE unit checks: sourced, run from the repo root
-export PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=$HOME/Docker/Personal-projects/kreative-kompanion/server/target
+export PATH="$HOME/.cargo/bin:$PATH" CARGO_TARGET_DIR="$HOME/Docker/Personal-projects/kreative-kompanion/server/target"
 ctest() { # ctest <filter> <file>
     out=$(cd server && timeout 1500 nice cargo test -q --locked "$1" 2>&1)
     printf '%s\n' "$out" | awk '/^error/{p=1} /^warning/{p=0} p' | head -60 | sed "s|^|error: $2: |"
