@@ -343,3 +343,13 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - A file that runs in Node and the browser is checked in both (a `vm` load in index.html order); a browser unit is checked in a browser (its e2e sections), not with `node --check` or a grep.
 - Checks print the values: a failing test must show expected and actual numbers, or the repair rounds are blind. One test file per unit, requiring only that unit and earlier ones; a unit runs only after the units it requires pass.
 - Checks test behaviour, never the absence of a string (`need.stage` passed a grep for `[^.]stage`).
+
+## STU-PE3 (pose check, 2026-10-19, lessons 407-418)
+
+- Comparison units: the spec says which argument is the reference and every test case names both inputs (407).
+- Ask for named top-level functions and one `api` object listing them; the check must load the file first (408).
+- Python units: list the imports and where they go; name vectorised numpy (meshgrid) for grid maths (414). A
+  pipeline module gets one end-to-end test with fake sessions, not only per-function tests (415).
+- Browser units: list the exact globals the file may call; the check is the e2e, never node --check (416).
+- Specs that name every helper and the exact data (palette, box layout) passed first try (411: partmap).
+- Fake data URLs in tests are built by concatenation: the ovms-queue size guard reads every data URL (412).

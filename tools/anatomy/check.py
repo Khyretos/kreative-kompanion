@@ -13,6 +13,9 @@ FACE_CONF = 0.7
 HAND_CONF = 0.55
 WRIST_IOU = 0.3
 _MODELS = {}
+# STU-PE3: DWPose (Apache-2.0, yolox_l.onnx + dw-ll_ucoco_384.onnx) for POST /pose, loaded on first use
+POSE_MODELS = os.environ.get("POSE_MODELS", "/pose-models")
+_DWPOSE = []
 
 
 def iou(a, b):
@@ -148,6 +151,9 @@ class AnatomyHandler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "not found"})
 
     def do_POST(self):
+        if self.path.split("?")[0] == "/pose":
+            self.pose()
+            return
         try:
             clen = int(self.headers.get("Content-Length", 0))
             if clen == 0:
@@ -170,6 +176,33 @@ class AnatomyHandler(BaseHTTPRequestHandler):
                 self.send_json(200, res)
             finally:
                 os.unlink(tmp_path)
+        except (OSError, ValueError, RuntimeError, ImportError) as e:
+            self.send_json(500, {"error": str(e)})
+
+    def pose(self):
+        # STU-PE3: a PNG or JPEG body -> OpenPose JSON of the people DWPose finds
+        try:
+            clen = int(self.headers.get("Content-Length", 0))
+            if clen == 0:
+                self.send_json(400, {"error": "no body"})
+                return
+            if not os.path.exists(os.path.join(POSE_MODELS, "yolox_l.onnx")):
+                self.send_json(503, {"error": "The DWPose models are not installed."})
+                return
+            import cv2
+            import numpy as np
+
+            from dwpose import DWPose
+
+            img = cv2.imdecode(
+                np.frombuffer(self.rfile.read(clen), np.uint8), cv2.IMREAD_COLOR
+            )
+            if img is None:
+                self.send_json(400, {"error": "not a PNG or JPEG image"})
+                return
+            if not _DWPOSE:
+                _DWPOSE.append(DWPose(POSE_MODELS))
+            self.send_json(200, _DWPOSE[0](img))
         except (OSError, ValueError, RuntimeError, ImportError) as e:
             self.send_json(500, {"error": str(e)})
 

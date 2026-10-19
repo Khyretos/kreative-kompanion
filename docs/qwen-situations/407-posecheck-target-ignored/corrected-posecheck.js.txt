@@ -1,0 +1,120 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+
+  // Body bones checked on screen, parents first. a and b are body indices; several indices = their average.
+  const BONES = [
+    { name: 'torso', a: [1], b: [8, 11], joint: 'spine' },
+    { name: 'head', a: [1], b: [0], joint: 'neck' },
+    { name: 'l_upper_arm', a: [5], b: [6], joint: 'l_shoulder' },
+    { name: 'l_forearm', a: [6], b: [7], joint: 'l_elbow' },
+    { name: 'r_upper_arm', a: [2], b: [3], joint: 'r_shoulder' },
+    { name: 'r_forearm', a: [3], b: [4], joint: 'r_elbow' },
+    { name: 'l_thigh', a: [11], b: [12], joint: 'l_hip' },
+    { name: 'l_shin', a: [12], b: [13], joint: 'l_knee' },
+    { name: 'r_thigh', a: [8], b: [9], joint: 'r_hip' },
+    { name: 'r_shin', a: [9], b: [10], joint: 'r_knee' },
+  ];
+
+  const PAIRS = [[2, 5], [3, 6], [4, 7], [8, 11], [9, 12], [10, 13], [14, 15], [16, 17]];
+
+  function read(arr, n, minConf) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      if (!Array.isArray(arr) || arr.length < 3 * i + 3) { out.push(null); continue; }
+      const x = arr[3 * i];
+      const y = arr[3 * i + 1];
+      const c = arr[3 * i + 2];
+      out.push(c < minConf || (x === 0 && y === 0) ? null : [x, y]);
+    }
+    return out;
+  }
+
+  function fromOpenPose(json, opts = {}) {
+    const obj = Array.isArray(json) ? json[0] : json;
+    if (!obj || !Array.isArray(obj.people) || obj.people.length === 0) throw new Error('No person in the keypoints.');
+    const person = obj.people[0];
+    const minConf = opts.minConf ?? 0.3;
+    return {
+      width: obj.canvas_width,
+      height: obj.canvas_height,
+      body: read(person.pose_keypoints_2d, 18, minConf),
+      left: read(person.hand_left_keypoints_2d, 21, minConf),
+      right: read(person.hand_right_keypoints_2d, 21, minConf),
+    };
+  }
+
+  function swapSides(kp) {
+    const body = kp.body.slice();
+    for (const [a, b] of PAIRS) {
+      body[a] = kp.body[b];
+      body[b] = kp.body[a];
+    }
+    return { ...kp, body, left: kp.right.slice(), right: kp.left.slice() };
+  }
+
+  function point(kp, idx) {
+    let x = 0;
+    let y = 0;
+    for (const i of idx) {
+      const p = kp.body[i];
+      if (!p) return null;
+      x += p[0];
+      y += p[1];
+    }
+    return [x / idx.length, y / idx.length];
+  }
+
+  function angle(u, v) {
+    const cross = u[0] * v[1] - u[1] * v[0];
+    const dot = u[0] * v[0] + u[1] * v[1];
+    return Math.round((Math.abs(Math.atan2(cross, dot)) * 180) / Math.PI * 10) / 10;
+  }
+
+  function bonesOf(target, det, tol) {
+    return BONES.map((b) => {
+      const ta = point(target, b.a);
+      const tb = point(target, b.b);
+      if (!ta || !tb) return { name: b.name, joint: b.joint, err: null, status: 'skip' };
+      const da = point(det, b.a);
+      const db = point(det, b.b);
+      if (!da || !db) return { name: b.name, joint: b.joint, err: null, status: 'missing' };
+      const err = angle([tb[0] - ta[0], tb[1] - ta[1]], [db[0] - da[0], db[1] - da[1]]);
+      return { name: b.name, joint: b.joint, err, status: err > tol ? 'wrong' : 'ok' };
+    });
+  }
+
+  const wrongCount = (bones) => bones.filter((b) => b.status === 'wrong').length;
+  const measured = (bones) => bones.filter((b) => b.err !== null).length;
+  const errSum = (bones) => bones.reduce((s, b) => s + (typeof b.err === 'number' ? b.err : 0), 0);
+
+  function compare(target, detected, opts = {}) {
+    const tol = opts.tol ?? 20;
+    let bones = bonesOf(target, detected, tol);
+    let swapped = false;
+    if (opts.swap !== false) {
+      const alt = bonesOf(target, swapSides(detected), tol);
+      // The swapped reading must measure as many bones as the plain one: losing points is not a better match.
+      const wa = wrongCount(alt);
+      const wb = wrongCount(bones);
+      if (measured(alt) >= measured(bones) && (wa < wb || (wa === wb && errSum(alt) < errSum(bones)))) {
+        bones = alt;
+        swapped = true;
+      }
+    }
+    let pass = !bones.some((b) => b.status === 'wrong');
+    if (opts.strict && bones.some((b) => b.status === 'missing')) pass = false;
+    let worst = null;
+    let max = -1;
+    for (const b of bones) {
+      if (b.status === 'wrong' && b.err > max) {
+        max = b.err;
+        worst = b.name;
+      }
+    }
+    return { pass, swapped, worst, tol, bones };
+  }
+
+  const api = { BONES, fromOpenPose, swapSides, compare };
+  if (NS) NS.posecheck = api; else module.exports = api;
+})();

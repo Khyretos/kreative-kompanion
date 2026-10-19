@@ -1,0 +1,191 @@
+// public/js/pose-check.js: STU-PE3 "Check a picture" in the Pose tab. A generated picture (read by DWPose on the
+// server) or its OpenPose JSON is checked against the puppet bone by bone; "Match the picture" applies the fit as
+// PE1 ops; "Repaint mask PNG" downloads white boxes around the parts that differ.
+// The Coder's draft (3 attempts) called functions that do not exist (KKPose.raster.createBitmap), read
+// check.wrong_bones instead of the bones list and hid the canvas by style; Claude rewrote it (lesson 416).
+(function () {
+  'use strict';
+
+  const LABELS = {
+    torso: 'Torso', head: 'Head', l_upper_arm: 'Left upper arm', l_forearm: 'Left forearm',
+    r_upper_arm: 'Right upper arm', r_forearm: 'Right forearm', l_thigh: 'Left thigh', l_shin: 'Left shin',
+    r_thigh: 'Right thigh', r_shin: 'Right shin',
+  };
+  const $ = (id) => document.getElementById(id);
+  const stage = () => window.KKPoseEditor.stage;
+  const deg = (e) => String(Math.round(e));
+  let input = null;
+  let last = null;
+
+  function setError(msg) { $('error-msg-check').textContent = msg || ''; }
+
+  function reset() {
+    setError('');
+    $('check-bones').replaceChildren();
+    $('check-summary').textContent = '';
+    $('check-overlay').hidden = true;
+    $('check-apply').disabled = true;
+    $('check-mask').disabled = true;
+    last = null;
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('That picture could not be read.'));
+      img.src = src;
+    });
+  }
+
+  async function onFile() {
+    reset();
+    const file = $('check-file').files[0];
+    input = null;
+    $('check-run').disabled = true;
+    if (!file) return;
+    try {
+      if (/\.json$/i.test(file.name) || file.type === 'application/json') {
+        try { input = { keypoints: JSON.parse(await file.text()) }; } catch { throw new Error('That file is not OpenPose JSON.'); }
+      } else {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result);
+          r.onerror = () => reject(new Error('That picture could not be read.'));
+          r.readAsDataURL(file);
+        });
+        input = { image: dataUrl, bitmap: await loadImage(dataUrl) };
+      }
+      $('check-run').disabled = false;
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function run() {
+    if (!input) return;
+    setError('');
+    const v = stage().getView();
+    const body = { pose: stage().getPose(), view: { yaw: v.yaw, pitch: v.pitch }, tol: Number($('check-tol').value) };
+    if (input.keypoints) body.keypoints = input.keypoints; else body.image = input.image;
+    $('check-run').disabled = true;
+    try {
+      const r = await fetch('/api/pose/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        reset();
+        setError(data.error || `Check failed (HTTP ${r.status}).`);
+        return;
+      }
+      last = data;
+      render();
+    } catch (e) {
+      reset();
+      setError('Check failed: ' + e.message);
+    } finally {
+      $('check-run').disabled = !input;
+    }
+  }
+
+  function render() {
+    const bones = last.check.bones;
+    $('check-bones').replaceChildren(...bones.map((b) => {
+      const li = document.createElement('li');
+      li.dataset.bone = b.name;
+      li.dataset.status = b.status;
+      const name = document.createElement('span');
+      name.textContent = LABELS[b.name] || b.name;
+      const res = document.createElement('span');
+      res.textContent = b.status === 'ok' ? deg(b.err) + '°' : b.status === 'wrong' ? deg(b.err) + '° off'
+        : b.status === 'missing' ? 'not found' : 'not in the pose';
+      li.append(name, res);
+      return li;
+    }));
+    const wrong = bones.filter((b) => b.status === 'wrong').sort((a, b) => b.err - a.err);
+    $('check-summary').textContent = last.pass ? 'The picture matches the pose.'
+      : 'Off: ' + wrong.map((b) => LABELS[b.name] || b.name).join(', ') + '.';
+    $('check-apply').disabled = !last.suggestion;
+    $('check-mask').disabled = !(last.regions && last.regions.length);
+    drawOverlay();
+  }
+
+  function drawOverlay() {
+    const K = window.KKPose;
+    const canvas = $('check-overlay');
+    const W = last.detected.canvas_width;
+    const H = last.detected.canvas_height;
+    canvas.width = W;
+    canvas.height = H;
+    canvas.hidden = false;
+    const ctx = canvas.getContext('2d');
+    if (input && input.bitmap) ctx.drawImage(input.bitmap, 0, 0, W, H);
+    else { ctx.fillStyle = '#0c0917'; ctx.fillRect(0, 0, W, H); }
+    // the target skeleton over the picture, black left out, 70% alpha
+    const img = K.raster.create(W, H);
+    K.draw.drawOpenPose(img, K.posecheck.fromOpenPose(last.target));
+    const px = new ImageData(W, H);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const lit = img.data[i] || img.data[i + 1] || img.data[i + 2];
+      px.data[i] = img.data[i]; px.data[i + 1] = img.data[i + 1]; px.data[i + 2] = img.data[i + 2];
+      px.data[i + 3] = lit ? 179 : 0;
+    }
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    off.getContext('2d').putImageData(px, 0, 0);
+    ctx.drawImage(off, 0, 0);
+    ctx.strokeStyle = '#f3941f';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
+    for (const r of last.regions) {
+      const [x1, y1, x2, y2] = r.box;
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+    }
+  }
+
+  async function apply() {
+    if (!last || !last.suggestion) return;
+    try {
+      stage().apply(last.suggestion.ops);
+    } catch (e) {
+      setError(e.message);
+      return;
+    }
+    await run();
+  }
+
+  function mask() {
+    if (!last) return;
+    const W = last.detected.canvas_width;
+    const H = last.detected.canvas_height;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    for (const r of last.regions) {
+      const [x1, y1, x2, y2] = r.box;
+      ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+    }
+    c.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pose-check-mask.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+
+  function setup() {
+    $('check-tol').addEventListener('input', () => { $('check-tol-val').textContent = $('check-tol').value + '°'; });
+    $('check-file').addEventListener('change', onFile);
+    $('check-run').addEventListener('click', run);
+    $('check-apply').addEventListener('click', apply);
+    $('check-mask').addEventListener('click', mask);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
+})();
