@@ -1,7 +1,10 @@
 #!/bin/sh
 # BANNER-HOST unit b1: docs/branding/blur.py blurs one box of a PNG in place and leaves the rest untouched
 F=docs/branding/blur.py
-test -e $F || { echo "error: $F: not written"; exit 1; }
+test -e $F || {
+    echo "error: $F: not written"
+    exit 1
+}
 T=$(mktemp -d)
 python3 - "$T/a.png" <<'PY'
 import sys
@@ -30,5 +33,7 @@ px = b.crop((60, 30, 140, 70)).convert("L").getextrema()
 if px[1] - px[0] > 160:
     sys.exit("error: %s: the box is still sharp (contrast %d), use a stronger blur" % (f, px[1] - px[0]))
 PY
-r=$?; rm -rf "$T"; [ $r -eq 0 ] || exit 1
+r=$?
+rm -rf "$T"
+[ $r -eq 0 ] || exit 1
 echo "ok: $F"
