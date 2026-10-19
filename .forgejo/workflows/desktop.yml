@@ -13,7 +13,7 @@ env:
 
 jobs:
   linux:
-    runs-on: kireserver
+    runs-on: ubuntu-latest
     container:
       image: node:22-bookworm
     steps:

@@ -16,7 +16,7 @@ on:
 jobs:
   decide:
     if: github.event.comment.user.login == github.repository_owner
-    runs-on: kireserver
+    runs-on: ubuntu-latest
     container:
       image: node:22
     env:

@@ -1,7 +1,7 @@
 # Tests and builds on both runners (Kees, 2026-10-05: "enable the soucouyant runner as
 # well"): the Rust builds on soucouyant (more cores, cargo caches in its Docker volumes),
-# the web build and the browser tests on kireserver (one job at a time, 4 cores), so a
-# PR's checks run in parallel. AI drafting and Coder stay on kireserver.
+# the web build and the browser tests on any ubuntu-latest runner (kireserver or the Windows
+# PC's WSL runner; 2026-10-19, CI spread over all PCs). AI drafting and Coder stay on kireserver.
 name: build
 on:
   push:
@@ -47,7 +47,7 @@ jobs:
 
   skills:
     # SK-01: every skill file has a header, model notes only hold model quirks, the loader works.
-    runs-on: kireserver
+    runs-on: ubuntu-latest
     container:
       image: node:22 # has python3 too; checkout needs Node
     steps:
@@ -72,7 +72,7 @@ jobs:
           python3 tools/blender-mcp/check_ondemand.py
 
   web:
-    runs-on: kireserver
+    runs-on: ubuntu-latest
     container:
       image: node:22
     steps:
@@ -87,7 +87,7 @@ jobs:
 
   web-live:
     # Browser tests in demo mode: every page updates without a reload.
-    runs-on: kireserver
+    runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
     steps:
