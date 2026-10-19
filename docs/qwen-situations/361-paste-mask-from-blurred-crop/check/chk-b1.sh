@@ -12,8 +12,8 @@ for x in range(0, 200, 4):
     d.line((x, 0, x, 99), fill="white")
 im.save(sys.argv[1])
 PY
-cp $T/a.png $T/orig.png
-timeout 60 python3 -I $F $T/a.png 50 20 150 80 2>&1 | sed "s|^|error: $F: |"
+cp "$T/a.png" "$T/orig.png"
+timeout 60 python3 -I $F "$T/a.png" 50 20 150 80 2>&1 | sed "s|^|error: $F: |"
 python3 - "$T/orig.png" "$T/a.png" "$F" <<'PY'
 import sys
 from PIL import Image, ImageChops
@@ -30,5 +30,5 @@ px = b.crop((60, 30, 140, 70)).convert("L").getextrema()
 if px[1] - px[0] > 160:
     sys.exit("error: %s: the box is still sharp (contrast %d), use a stronger blur" % (f, px[1] - px[0]))
 PY
-r=$?; rm -rf $T; [ $r -eq 0 ] || exit 1
+r=$?; rm -rf "$T"; [ $r -eq 0 ] || exit 1
 echo "ok: $F"
