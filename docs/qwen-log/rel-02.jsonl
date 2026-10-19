@@ -2,3 +2,5 @@
 {"name": "r1-macsign", "out": "release/Dockerfile.macos", "check": "sh /tmp/kk-rel02-chk/chk-r1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-19T07:12:14"}
 {"name": "r2-notes", "out": "release/notes/v0.1.0.md", "gpu_seconds": 125.2, "tokens": 630, "prompt_tokens": 15295, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/android"], "lines": 23, "model": "Coder", "at": "2026-10-19T07:14:20"}
 {"name": "r2-notes", "out": "release/notes/v0.1.0.md", "check": "sh /tmp/kk-rel02-chk/chk-r2.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-19T07:14:20"}
+{"name": "r3-bareurl", "out": "release/notes/v0.1.0.md", "mode": "patch", "gpu_seconds": 4.8, "tokens": 71, "prompt_tokens": 5740, "skills": ["work-habits", "shared/SKILL", "worker/rust/SKILL", "_model-notes/qwen3/SKILL", "worker/rust/axum-api"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-19T07:55:17"}
+{"name": "r3-bareurl", "out": "release/notes/v0.1.0.md", "check": "sh /tmp/kk-rel02-chk/chk-r3.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-19T07:55:17"}
