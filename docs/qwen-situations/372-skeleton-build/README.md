@@ -2,4 +2,4 @@ Lesson 372 (STU-PE1 pe1-skeleton, 2 prompts, 3 attempts): First prompt: the 62-j
 
 Rule: When a table is expanded (twins, mirrored rows), give the loop itself and the helper signatures (scale(vector, number)).
 
-Files: job.json (the pipeline job; its check needs the Kreative Studio tree at /tmp/kk-pe1/studio and the kreative-studio:local image), wrong-* (the Coder's last output), corrected-* (what was kept). Code files carry a .txt suffix so the lint gate skips them.
+Files: job.json (the pipeline job; its check needs the Kreative Studio tree at /tmp/kk-pe1/studio and the kreative-studio:local image), `wrong-*` (the Coder's last output), `corrected-*` (what was kept). Code files carry a .txt suffix so the lint gate skips them.

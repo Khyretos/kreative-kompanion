@@ -1,16 +1,14 @@
 [
- {
-  "name": "pe1-mount",
-  "role": "worker/web",
-  "out": "/tmp/kk-pe1/studio/server.js",
-  "precheck": false,
-  "max_tokens": 1500,
-  "context": [],
-  "check": "cd /tmp/kk-pe1/studio && grep -q \"require('./lib/pose-api').poseRouter\" server.js && docker run --rm --memory 512m -u 1000:1000 -v /tmp/kk-pe1/studio:/w:ro -w /w -e NODE_PATH=/app/node_modules kreative-studio:local node -e \"require('./server.js')\" && echo ok",
-  "prompt": "Kreative Studio pose editor (STU-PE1). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\n\nIn server.js mount the pose editor API (STU-PE1; lib/pose-api.js exists and exports poseRouter). One SEARCH/REPLACE edit, change nothing else: right after the line\nconst JOBS_FILE = path.join(DATA_DIR, 'jobs.json');\ninsert the two lines\n// STU-PE1: pose editor API (ops, OpenPose/depth renders, saved poses with provenance)\napp.use('/api', require('./lib/pose-api').poseRouter({ dataDir: DATA_DIR }));\n",
-  "mode": "patch",
-  "focus": [
-   "const JOBS_FILE = path.join\\(DATA_DIR, 'jobs.json'\\);"
-  ]
- }
+  {
+    "name": "pe1-mount",
+    "role": "worker/web",
+    "out": "/tmp/kk-pe1/studio/server.js",
+    "precheck": false,
+    "max_tokens": 1500,
+    "context": [],
+    "check": "cd /tmp/kk-pe1/studio && grep -q \"require('./lib/pose-api').poseRouter\" server.js && docker run --rm --memory 512m -u 1000:1000 -v /tmp/kk-pe1/studio:/w:ro -w /w -e NODE_PATH=/app/node_modules kreative-studio:local node -e \"require('./server.js')\" && echo ok",
+    "prompt": "Kreative Studio pose editor (STU-PE1). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\n\nIn server.js mount the pose editor API (STU-PE1; lib/pose-api.js exists and exports poseRouter). One SEARCH/REPLACE edit, change nothing else: right after the line\nconst JOBS_FILE = path.join(DATA_DIR, 'jobs.json');\ninsert the two lines\n// STU-PE1: pose editor API (ops, OpenPose/depth renders, saved poses with provenance)\napp.use('/api', require('./lib/pose-api').poseRouter({ dataDir: DATA_DIR }));\n",
+    "mode": "patch",
+    "focus": ["const JOBS_FILE = path.join\\(DATA_DIR, 'jobs.json'\\);"]
+  }
 ]

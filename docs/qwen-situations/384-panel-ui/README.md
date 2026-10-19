@@ -2,4 +2,4 @@ Lesson 384 (STU-PE1 pe1-panel, 1 draft + 1 review repair (patches half failed)):
 
 Rule: Keep UI state in variables the prompt names; one place logs.
 
-Files: job.json (the pipeline job; its check needs the Kreative Studio tree at /tmp/kk-pe1/studio and the kreative-studio:local image), wrong-* (the Coder's last output), corrected-* (what was kept). Code files carry a .txt suffix so the lint gate skips them.
+Files: job.json (the pipeline job; its check needs the Kreative Studio tree at /tmp/kk-pe1/studio and the kreative-studio:local image), `wrong-*` (the Coder's last output), `corrected-*` (what was kept). Code files carry a .txt suffix so the lint gate skips them.

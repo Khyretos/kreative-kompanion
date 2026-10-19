@@ -1,16 +1,16 @@
 [
- {
-  "name": "pe1-fk",
-  "role": "worker/web",
-  "out": "/tmp/kk-pe1/studio/public/js/pose/fk.js",
-  "precheck": false,
-  "max_tokens": 4000,
-  "context": [
-   "/tmp/kk-pe1/studio/test/pose-fk.test.js",
-   "/tmp/kk-pe1/studio/public/js/pose/vec.js",
-   "/tmp/kk-pe1/studio/public/js/pose/skeleton.js"
-  ],
-  "check": "cd /tmp/kk-pe1/studio && sh /tmp/kk-pe1-chk/sttest.sh test/pose-fk.test.js",
-  "prompt": "Kreative Studio pose editor (STU-PE1). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\n\nWrite public/js/pose/fk.js (NAME = fk), joint frames and forward kinematics. Use need('vec','./vec.js') and need('skeleton','./skeleton.js') inside the functions.\n\nExport:\n- defaultPose(): returns a NEW object {version: 1, root: {pos: [0, 0, 0.95]}, joints: {}}. pose.joints maps a joint name to {bend, side, twist} (degrees, missing fields and missing joints mean 0).\n- frame(name): for a joint with aim === null return identity(). Else Y = norm(rest(aim) - rest(joint)), X = norm(cross(Y, joint.front)), Z = cross(X, Y); return fromBasis(X, Y, Z). Cache the result per name.\n- local(name, e): identity() for a leaf (aim null) or when e is missing. Else take bend = e.bend||0, side = e.side||0, twist = e.twist||0; for names starting with 'r_' use side = -side and twist = -twist (so the same numbers mirror on the right). Return B * eulerToMat({bend, side, twist}) * transpose(B) with B = frame(name).\n- solve(pose): returns {pos, rot}, objects keyed by joint name. Walk skeleton.JOINTS in order (parents come first). For pelvis: pos = pose.root && pose.root.pos ? copy of it : copy of the rest; rot = local('pelvis', pose.joints.pelvis). For any other joint j with parent p: pos[j] = pos[p] + matVec(rot[p], rest(j) - rest(p)); rot[j] = matMul(rot[p], local(j, pose.joints[j])).\n"
- }
+  {
+    "name": "pe1-fk",
+    "role": "worker/web",
+    "out": "/tmp/kk-pe1/studio/public/js/pose/fk.js",
+    "precheck": false,
+    "max_tokens": 4000,
+    "context": [
+      "/tmp/kk-pe1/studio/test/pose-fk.test.js",
+      "/tmp/kk-pe1/studio/public/js/pose/vec.js",
+      "/tmp/kk-pe1/studio/public/js/pose/skeleton.js"
+    ],
+    "check": "cd /tmp/kk-pe1/studio && sh /tmp/kk-pe1-chk/sttest.sh test/pose-fk.test.js",
+    "prompt": "Kreative Studio pose editor (STU-PE1). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\n\nWrite public/js/pose/fk.js (NAME = fk), joint frames and forward kinematics. Use need('vec','./vec.js') and need('skeleton','./skeleton.js') inside the functions.\n\nExport:\n- defaultPose(): returns a NEW object {version: 1, root: {pos: [0, 0, 0.95]}, joints: {}}. pose.joints maps a joint name to {bend, side, twist} (degrees, missing fields and missing joints mean 0).\n- frame(name): for a joint with aim === null return identity(). Else Y = norm(rest(aim) - rest(joint)), X = norm(cross(Y, joint.front)), Z = cross(X, Y); return fromBasis(X, Y, Z). Cache the result per name.\n- local(name, e): identity() for a leaf (aim null) or when e is missing. Else take bend = e.bend||0, side = e.side||0, twist = e.twist||0; for names starting with 'r_' use side = -side and twist = -twist (so the same numbers mirror on the right). Return B * eulerToMat({bend, side, twist}) * transpose(B) with B = frame(name).\n- solve(pose): returns {pos, rot}, objects keyed by joint name. Walk skeleton.JOINTS in order (parents come first). For pelvis: pos = pose.root && pose.root.pos ? copy of it : copy of the rest; rot = local('pelvis', pose.joints.pelvis). For any other joint j with parent p: pos[j] = pos[p] + matVec(rot[p], rest(j) - rest(p)); rot[j] = matMul(rot[p], local(j, pose.joints[j])).\n"
+  }
 ]
