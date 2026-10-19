@@ -17,7 +17,7 @@ jobs:
   sweep:
     # A comment on an issue (not a PR) has nothing to gate.
     if: github.event_name != 'issue_comment' || github.event.issue.pull_request
-    runs-on: kireserver
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     container:
       image: node:22 # has python3 and git

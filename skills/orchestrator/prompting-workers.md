@@ -22,3 +22,7 @@ extends: orchestrator/prompting-workers
     first job's log line for "error" before the next job, or give the next job a check that greps
     for the new function. Test fixtures for layered folders keep each layer in its own temp dir
     (a local folder inside root is read twice).
+26. (2026-10-19, lessons 350-351) Comments are code too. When a job may change a comment, give
+    the comment's new facts in the prompt and quote the facts that must stay (where a model or
+    service runs); otherwise the model rewrites true comments into vague or wrong ones. The check
+    compares comment lines too, or Claude reads every changed comment before accepting the draft.

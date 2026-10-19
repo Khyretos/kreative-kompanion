@@ -14,7 +14,7 @@ on:
 
 jobs:
   fix:
-    runs-on: kireserver
+    runs-on: ubuntu-latest
     container:
       image: oxsecurity/megalinter-cupcake:v9
     env:

@@ -19,7 +19,7 @@ on:
 
 jobs:
   megalinter:
-    runs-on: soucouyant # MegaLinter's 10.9 GB image is cached there
+    runs-on: ubuntu-latest # MegaLinter's image is pulled once by kompas-builder and windows-wsl, then cached on both
     container:
       image: oxsecurity/megalinter-cupcake:v9
     steps:

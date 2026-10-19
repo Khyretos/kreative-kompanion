@@ -102,7 +102,7 @@ jobs:
     name: Forgejo release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build]
-    runs-on: soucouyant
+    runs-on: ubuntu-latest
     container:
       image: node:22-alpine
     steps:
