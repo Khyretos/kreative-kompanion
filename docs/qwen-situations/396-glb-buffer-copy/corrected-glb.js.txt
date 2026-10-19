@@ -1,0 +1,84 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+
+  // Pad to a multiple of 4 with the given byte (0x20 for the JSON chunk, 0x00 for BIN)
+  function padToMultiple(arr, fill) {
+    const padded = new Uint8Array((arr.length + 3) & ~3).fill(fill);
+    padded.set(arr);
+    return padded;
+  }
+
+  const api = {
+    pack(json, bin) {
+      const text = JSON.stringify(json);
+      const jsonBytes = new TextEncoder().encode(text);
+      
+      // Pad JSON to multiple of 4
+      const paddedJson = padToMultiple(jsonBytes, 0x20);
+      
+      // Pad BIN to multiple of 4
+      const paddedBin = padToMultiple(bin, 0x00);
+      const jsonChunkLen = paddedJson.length;
+      const binChunkLen = paddedBin.length;
+      const totalLength = 12 + 8 + jsonChunkLen + (binChunkLen > 0 ? 8 + binChunkLen : 0);
+
+      const out = new Uint8Array(totalLength);
+      const dv = new DataView(out.buffer, 0, totalLength);
+
+      // Header
+      dv.setUint32(0, 0x46546C67, true); // magic "glTF"
+      dv.setUint32(4, 2, true);          // version
+      dv.setUint32(8, totalLength, true); // total length
+
+      // JSON chunk
+      dv.setUint32(12, jsonChunkLen, true); // length
+      dv.setUint32(16, 0x4E4F534A, true);   // type "JSON"
+      out.set(paddedJson, 20);
+
+      // BIN chunk (only if bin.length > 0)
+      if (bin.length > 0) {
+        dv.setUint32(20 + jsonChunkLen, binChunkLen, true); // length
+        dv.setUint32(24 + jsonChunkLen, 0x004E4942, true);   // type "BIN"
+        out.set(paddedBin, 28 + jsonChunkLen);
+      }
+
+      return out;
+    },
+
+    unpack(bytes) {
+      if (bytes.length < 20) {
+        throw new Error('not a glb file');
+      }
+
+      const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const magic = dv.getUint32(0, true);
+      if (magic !== 0x46546C67) {
+        throw new Error('not a glb file');
+      }
+
+      // Read JSON chunk
+      const jsonLen = dv.getUint32(12, true);
+      const jsonType = dv.getUint32(16, true);
+      if (jsonType !== 0x4E4F534A) {
+        throw new Error('not a glb file');
+      }
+
+      const jsonText = new TextDecoder().decode(bytes.subarray(20, 20 + jsonLen));
+      const json = JSON.parse(jsonText);
+
+      let bin = new Uint8Array(0);
+      if (28 + jsonLen <= bytes.length) {
+        const binLen = dv.getUint32(20 + jsonLen, true);
+        const binType = dv.getUint32(24 + jsonLen, true);
+        if (binType === 0x004E4942) {
+          bin = bytes.subarray(28 + jsonLen, 28 + jsonLen + binLen);
+        }
+      }
+
+      return { json, bin };
+    }
+  };
+
+  if (NS) NS.glb = api; else module.exports = api;
+})();

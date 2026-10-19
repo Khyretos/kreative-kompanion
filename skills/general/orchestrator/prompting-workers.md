@@ -343,3 +343,14 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - A file that runs in Node and the browser is checked in both (a `vm` load in index.html order); a browser unit is checked in a browser (its e2e sections), not with `node --check` or a grep.
 - Checks print the values: a failing test must show expected and actual numbers, or the repair rounds are blind. One test file per unit, requiring only that unit and earlier ones; a unit runs only after the units it requires pass.
 - Checks test behaviour, never the absence of a string (`need.stage` passed a grep for `[^.]stage`).
+
+## Exports, file formats and UI units (lessons 395-406, STU-PE2)
+
+- Derive every expected number in a test from the spec formula, with the arithmetic in a comment (395).
+- A file-format builder over ~100 lines is several units (binary builder, structure, animation), and each format test loads the file with the real consumer (Blender in a capped container) before the unit counts as done (399, 400).
+- Check format rules against the format, not our own list order: BVH columns follow the hierarchy (398).
+- Test buffer layouts exactly (index per box), not only their bounds (401).
+- Browser+Node files use Uint8Array/DataView only (`out.set`, never `Buffer.copy`) (396).
+- CLI jobs list every flag and whether it takes a value, and test each input branch on its own (402).
+- A browser file that needs another file's DOMContentLoaded result looks it up when used (403); when repair rounds make an e2e worse, keep the first draft.
+- HTML insert jobs name the closing tags that stay; UI unit checks are a no-undef lint, a tag-balance check and every existing e2e, never `node --check` or a grep alone (405, 406).

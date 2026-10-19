@@ -1,0 +1,41 @@
+// STU-PE2: public/js/pose/mannequin.js (a box along every bone, for the skinned .glb), written before the code.
+const test = require('node:test');
+const assert = require('node:assert');
+const V = require('../public/js/pose/vec.js');
+const S = require('../public/js/pose/skeleton.js');
+const BVH = require('../public/js/pose/bvh.js');
+const MQ = require('../public/js/pose/mannequin.js');
+
+
+test('mannequin: one box of 8 corners per bone, rigid weights, corners r*sqrt2 from the bone', () => {
+  const names = BVH.jointNames(false);
+  const m = MQ.mannequin(names);
+  assert.ok(m.positions instanceof Float32Array && m.joints instanceof Uint16Array && m.weights instanceof Float32Array && m.indices instanceof Uint16Array);
+  assert.strictEqual(m.positions.length, names.length * 8 * 3);
+  assert.strictEqual(m.joints.length, names.length * 8 * 4);
+  assert.strictEqual(m.weights.length, names.length * 8 * 4);
+  assert.strictEqual(m.indices.length, names.length * 36);
+  for (let b = 0; b < names.length; b++) {
+    const j = S.byName[names[b]];
+    const a = j.rest;
+    const e = S.byName[j.aim].rest;
+    const d = V.norm(V.sub(e, a));
+    const r = MQ.radius(names[b]);
+    for (let k = 0; k < 8; k++) {
+      const vi = b * 8 + k;
+      assert.deepStrictEqual([...m.joints.subarray(vi * 4, vi * 4 + 4)], [b, 0, 0, 0]);
+      assert.deepStrictEqual([...m.weights.subarray(vi * 4, vi * 4 + 4)], [1, 0, 0, 0]);
+      const y = m.positions.subarray(vi * 3, vi * 3 + 3);
+      const p = [y[0], -y[2], y[1]]; // back to Z-up
+      const along = V.dot(V.sub(p, a), d);
+      const off = V.len(V.sub(V.sub(p, a), V.scale(d, along)));
+      assert.ok(Math.abs(off - r * Math.SQRT2) < 1e-5, `${names[b]} corner ${k} off the bone by ${off}`);
+      assert.ok(Math.abs(along) < 1e-5 || Math.abs(along - V.len(V.sub(e, a))) < 1e-5, `${names[b]} corner ${k} not at an end`);
+    }
+  }
+  const box = [0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6, 0, 1, 4, 1, 5, 4, 2, 6, 3, 3, 6, 7, 0, 4, 2, 2, 4, 6, 1, 3, 5, 3, 7, 5];
+  for (let b = 0; b < names.length; b++) {
+    assert.deepStrictEqual([...m.indices.subarray(b * 36, b * 36 + 36)], box.map((i) => i + b * 8), `box ${b} indices`);
+  }
+  assert.ok(MQ.radius('head') > MQ.radius('spine') && MQ.radius('spine') > MQ.radius('l_index_pip'));
+});
