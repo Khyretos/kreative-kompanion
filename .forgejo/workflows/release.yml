@@ -106,6 +106,8 @@ jobs:
     container:
       image: node:22-alpine
     steps:
+      - name: Tools for the release action
+        run: apk add --no-cache -q bash curl jq
       - uses: https://code.forgejo.org/actions/checkout@v4
       - uses: https://code.forgejo.org/forgejo/download-artifact@v4
         with:
