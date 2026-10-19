@@ -805,6 +805,13 @@
       "conditioning_2": ["211", 0]
     }
   },
+  "218": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["219", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
   "212": {
     "class_type": "ImageScale",
     "inputs": {
@@ -826,7 +833,7 @@
     "class_type": "KSampler",
     "inputs": {
       "model": ["41", 0],
-      "positive": ["219", 0],
+      "positive": ["218", 0],
       "negative": ["5", 0],
       "latent_image": ["213", 0],
       "seed": 46,
@@ -964,6 +971,13 @@
       "conditioning_2": ["231", 0]
     }
   },
+  "238": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["239", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
   "232": {
     "class_type": "ImageScale",
     "inputs": {
@@ -985,7 +999,7 @@
     "class_type": "KSampler",
     "inputs": {
       "model": ["41", 0],
-      "positive": ["239", 0],
+      "positive": ["238", 0],
       "negative": ["5", 0],
       "latent_image": ["233", 0],
       "seed": 46,
@@ -1123,6 +1137,13 @@
       "conditioning_2": ["251", 0]
     }
   },
+  "258": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["259", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
   "252": {
     "class_type": "ImageScale",
     "inputs": {
@@ -1144,7 +1165,7 @@
     "class_type": "KSampler",
     "inputs": {
       "model": ["41", 0],
-      "positive": ["259", 0],
+      "positive": ["258", 0],
       "negative": ["5", 0],
       "latent_image": ["253", 0],
       "seed": 46,
@@ -1282,6 +1303,13 @@
       "conditioning_2": ["271", 0]
     }
   },
+  "278": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["279", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
   "272": {
     "class_type": "ImageScale",
     "inputs": {
@@ -1303,7 +1331,7 @@
     "class_type": "KSampler",
     "inputs": {
       "model": ["41", 0],
-      "positive": ["279", 0],
+      "positive": ["278", 0],
       "negative": ["5", 0],
       "latent_image": ["273", 0],
       "seed": 46,
