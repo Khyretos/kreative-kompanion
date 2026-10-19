@@ -268,3 +268,60 @@ async fn a_viewer_and_a_stranger_cannot_write_in_the_chat() {
     let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM messages WHERE chat_id = 'c1'").fetch_one(&db).await.unwrap();
     assert_eq!(n, 0);
 }
+
+#[tokio::test]
+async fn chat_audience_is_the_owner_plus_the_project_members() {
+    let db = db().await;
+    let s = state(db.clone());
+    for q in [
+        "INSERT INTO chats (id, title, user_id, project_id, updated_at) VALUES ('c1', 'Shop chat', 'u1', 'p1', '2026'), ('c2', 'Private', 'u1', NULL, '2026')",
+    ] {
+        sqlx::query(q).execute(&db).await.unwrap_or_else(|e| panic!("{e}: {q}"));
+    }
+    assert_eq!(chat_audience(&db, "c1").await.unwrap(), vec!["u1".to_string()]);
+    add_as(&s, "u1", "p1", "mara", "editor").await.unwrap();
+    add_as(&s, "u1", "p1", "stranger", "viewer").await.unwrap();
+    assert_eq!(chat_audience(&db, "c1").await.unwrap(), vec!["u1".to_string(), "u2".to_string(), "u3".to_string()]);
+    // A chat outside any project stays the owner's alone.
+    assert_eq!(chat_audience(&db, "c2").await.unwrap(), vec!["u1".to_string()]);
+    assert!(chat_audience(&db, "nope").await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn collaborators_share_a_project_either_way() {
+    let db = db().await;
+    let s = state(db.clone());
+    assert_eq!(collaborators(&db, "u1").await.unwrap(), vec!["u1".to_string()]);
+    add_as(&s, "u1", "p1", "mara", "editor").await.unwrap();
+    // u2 owns p2 too: nobody else is in it, so it adds no one.
+    assert_eq!(collaborators(&db, "u1").await.unwrap(), vec!["u1".to_string(), "u2".to_string()]);
+    assert_eq!(collaborators(&db, "u2").await.unwrap(), vec!["u1".to_string(), "u2".to_string()]);
+    add_as(&s, "u1", "p1", "stranger", "viewer").await.unwrap();
+    // Two members of the same project see each other's changes too.
+    assert_eq!(collaborators(&db, "u3").await.unwrap(), vec!["u1".to_string(), "u2".to_string(), "u3".to_string()]);
+}
+
+#[tokio::test]
+async fn an_editor_sees_the_question_and_answer_live_in_a_shared_chat() {
+    // SHARED-LIVE: the answer used to go to the chat's owner only, so the editor saw it after a reload.
+    let db = db().await;
+    let s = state(db.clone());
+    sqlx::query("INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES ('c1', 'p1', 'Plan', '2026', 'u1')").execute(&db).await.unwrap();
+    add_as(&s, "u1", "p1", "mara", "editor").await.unwrap();
+    let mut rx = s.bus.subscribe();
+    let body = Json(serde_json::from_value(json!({ "text": "hi" })).unwrap());
+    crate::api::send(State(s.clone()), Extension(user("u2")), Path("c1".into()), body).await.unwrap();
+    let mut got: Vec<(String, String)> = Vec::new();
+    while let Ok((to, e)) = rx.try_recv() {
+        if let Event::Message { message } = e {
+            got.push((to, message.author));
+        }
+    }
+    // No model is set in this test, so the answer is the orchestrator's "pick a model" note, sent at once.
+    for who in ["u1", "u2"] {
+        for author in ["user", "orchestrator"] {
+            assert!(got.contains(&(who.to_string(), author.to_string())), "{who} {author}: {got:?}");
+        }
+    }
+    assert!(!got.iter().any(|(to, _)| to == "u3"), "a stranger hears nothing");
+}

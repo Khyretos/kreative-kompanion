@@ -1,0 +1,16 @@
+[
+ {
+  "name": "u1-sharing",
+  "role": "worker/rust",
+  "mode": "patch",
+  "precheck": false,
+  "out": "server/src/sharing.rs",
+  "context": [
+   "server/src/sharing.rs",
+   "server/src/sharing_tests.rs",
+   "server/migrations/0133_project_members.sql"
+  ],
+  "check": "sh /tmp/kk-sharelive-chk/chk-u1.sh",
+  "prompt": "Bug: in a shared project, an editor or viewer does not see live updates (chat answers, task changes) until they reload the page, because live events go only to one user. Add two functions to server/src/sharing.rs, right after `pub async fn chat_editor(...)` and before `/// Body for adding a member to a project.`. Change nothing else.\n\n1. `pub async fn chat_audience(db: &SqlitePool, chat_id: &str) -> sqlx::Result<Vec<String>>`: everyone who may read this chat. The chat row is `SELECT user_id, project_id FROM chats WHERE id = ?`. No row: an empty Vec. Always the chat's user_id. When project_id is Some: also that project's owner (`projects.user_id`) and every `project_members.user_id` of that project. Return the ids sorted and without duplicates (collect into a std::collections::BTreeSet<String>, then into a Vec).\n\n2. `pub async fn collaborators(db: &SqlitePool, user_id: &str) -> sqlx::Result<Vec<String>>`: the user plus everyone who shares at least one project with them: owners of projects the user is a member of, and members of projects the user owns or is a member of. One SQL query is fine, e.g. `SELECT p.user_id FROM projects p JOIN project_members m ON m.project_id = p.id WHERE m.user_id = ?1 OR p.user_id = ?1 UNION SELECT m2.user_id FROM project_members m2 JOIN projects p2 ON p2.id = m2.project_id LEFT JOIN project_members me ON me.project_id = p2.id AND me.user_id = ?1 WHERE p2.user_id = ?1 OR me.user_id IS NOT NULL` with sqlx::query_scalar and .bind(user_id). Always include user_id itself. Sorted, no duplicates (BTreeSet).\n\nGive each function a one-line /// doc comment. The tests `chat_audience_is_the_owner_plus_the_project_members` and `collaborators_share_a_project_either_way` in sharing_tests.rs must pass."
+ }
+]

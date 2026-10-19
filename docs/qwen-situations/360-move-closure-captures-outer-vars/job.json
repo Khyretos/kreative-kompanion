@@ -1,0 +1,19 @@
+[
+ {
+  "name": "u4-answer",
+  "role": "worker/rust",
+  "mode": "patch",
+  "precheck": false,
+  "out": "server/src/api.rs",
+  "focus": [
+   "^async fn answer\\(",
+   "^pub async fn send\\("
+  ],
+  "context": [
+   "server/src/events.rs",
+   "server/src/sharing.rs"
+  ],
+  "check": "sh /tmp/kk-sharelive-chk/chk-u4.sh",
+  "prompt": "Bug: in a shared project chat an editor writes a message; `send` spawns `answer(s.clone(), owner_id.clone(), chat_id, role, owner_id == u.id)`, and `answer` streams the reply with `s.bus.send(&user_id, ...)` / `bus.send(&uid, ...)`, i.e. only to the chat's OWNER. The editor sees the answer only after a reload. Fix it in server/src/api.rs:\n\n1. In `async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool)`: as the first line add `let to = crate::sharing::chat_audience(&s.db, &chat_id).await.unwrap_or_else(|_| vec![user_id.clone()]);` (everyone who may read the chat). Then change EVERY `s.bus.send(&user_id, Event::...)` inside `answer` to `s.bus.send_many(&to, Event::...)`. Where a spawned closure captures `(s.bus.clone(), user_id.clone(), ...)` as `(bus, uid, ...)`, capture `to.clone()` instead of `user_id.clone()` and change `bus.send(&uid, ...)` to `bus.send_many(&uid, ...)` (uid is then the Vec). Keep `user_id` for everything that is not a bus send (roles, costs, overseer, project context).\n2. In `pub async fn send(`: after the chat's owner is known, compute `let to = crate::sharing::chat_audience(&s.db, &chat_id).await.unwrap_or_else(|_| vec![u.id.clone()]);` before the user's message is inserted, and change each `s.bus.send(&u.id, Event::Message { message: ... })` in `send` to `s.bus.send_many(&to, Event::Message { message: ... })`.\n3. Do not change the line `tokio::spawn(answer(s.clone(), owner_id.clone(), chat_id, role, owner_id == u.id));` or any other function."
+ }
+]
