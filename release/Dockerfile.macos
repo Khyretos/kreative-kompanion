@@ -1,9 +1,13 @@
 # REL-01: the desktop app for macOS (Intel and Apple Silicon in one universal .app, zipped),
 # cross-compiled with osxcross like 3dco+ does. Tauri's bundler only runs on macOS, so the
-# .app is put together here from release/macos/Info.plist. Not notarized: the first start
-# needs right-click > Open (see release/README.md).
+# .app is put together here from release/macos/Info.plist. Ad-hoc signed with rcodesign to
+# enable notifications; not notarized (first start needs right-click > Open).
 ARG OSXCROSS_VERSION=26.1-r0
 FROM crazymax/osxcross:${OSXCROSS_VERSION}-ubuntu AS osxcross
+
+# rcodesign (apple-codesign, MPL-2.0) for the ad-hoc signature.
+FROM rust:1.85-bookworm AS rcodesign
+RUN cargo install --locked apple-codesign --version 0.29.0
 
 # Same Ubuntu as the osxcross image: its tools need that glibc.
 FROM ubuntu:24.04
@@ -14,6 +18,7 @@ RUN apt-get update -qq && \
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal -q \
         -t x86_64-apple-darwin -t aarch64-apple-darwin
 COPY --from=osxcross /osxcross /osxcross
+COPY --from=rcodesign /usr/local/cargo/bin/rcodesign /usr/local/bin/rcodesign
 ENV PATH=/osxcross/bin:/root/.cargo/bin:$PATH LD_LIBRARY_PATH=/osxcross/lib MACOSX_DEPLOYMENT_TARGET=11.0
 ENV CC_x86_64_apple_darwin=o64-clang CXX_x86_64_apple_darwin=o64-clang++ \
     CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=o64-clang \
@@ -39,7 +44,8 @@ RUN for t in x86_64-apple-darwin aarch64-apple-darwin; do \
         target/aarch64-apple-darwin/release/kreative-kompanion-desktop \
         -output "$app/Contents/MacOS/kreative-kompanion" && \
     sed "s/@VERSION@/$APP_VERSION/g" /src/release/macos/Info.plist > "$app/Contents/Info.plist" && \
-    cp icons/icon.icns "$app/Contents/Resources/icon.icns"
+    cp icons/icon.icns "$app/Contents/Resources/icon.icns" && \
+    rcodesign sign "$app"
 WORKDIR /tmp
 RUN mkdir -p /out && \
     zip -qry "/out/kreative-kompanion-$APP_VERSION-macos-universal.zip" "Kreative Kompanion.app"
