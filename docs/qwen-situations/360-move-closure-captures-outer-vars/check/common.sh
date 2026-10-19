@@ -9,5 +9,11 @@ ctest() { # ctest <filter> <file>
     printf '%s\n' "$out" | grep -q 'FAILED' && exit 1
     return 0
 }
-need() { grep -qF -- "$2" "$1" || { echo "error: $1: missing: $2"; exit 1; }; }
-gone() { if grep -qF -- "$2" "$1"; then echo "error: $1: still has: $2"; exit 1; fi; }
+need() { grep -qF -- "$2" "$1" || {
+    echo "error: $1: missing: $2"
+    exit 1
+}; }
+gone() { if grep -qF -- "$2" "$1"; then
+    echo "error: $1: still has: $2"
+    exit 1
+fi; }

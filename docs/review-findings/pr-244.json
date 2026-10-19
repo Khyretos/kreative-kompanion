@@ -1,20 +1,20 @@
 {
- "4955c46ea46f": {
-  "by": "claude",
-  "checked": true,
-  "fixed": "9a2d5d1b7ef506f9617442acc18d48fde26e4f86",
-  "path": "server/src/api.rs",
-  "reason": "answer() runs in a spawned task, so the fallback to the owner is right, but the database error must be logged (tracing::warn) instead of dropped. Coder said false_positive.",
-  "title": "Possible Panic",
-  "verdict": "bug"
- },
- "f6a5956999b7": {
-  "by": "claude",
-  "checked": true,
-  "fixed": "9a2d5d1b7ef506f9617442acc18d48fde26e4f86",
-  "path": "server/src/api.rs",
-  "reason": "send() is a handler returning ApiResult: a failed chat_audience query should end the request with an error (?) instead of quietly sending only to the writer. Coder said false_positive.",
-  "title": "Possible Panic",
-  "verdict": "bug"
- }
+  "4955c46ea46f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "9a2d5d1b7ef506f9617442acc18d48fde26e4f86",
+    "path": "server/src/api.rs",
+    "reason": "answer() runs in a spawned task, so the fallback to the owner is right, but the database error must be logged (tracing::warn) instead of dropped. Coder said false_positive.",
+    "title": "Possible Panic",
+    "verdict": "bug"
+  },
+  "f6a5956999b7": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "9a2d5d1b7ef506f9617442acc18d48fde26e4f86",
+    "path": "server/src/api.rs",
+    "reason": "send() is a handler returning ApiResult: a failed chat_audience query should end the request with an error (?) instead of quietly sending only to the writer. Coder said false_positive.",
+    "title": "Possible Panic",
+    "verdict": "bug"
+  }
 }
