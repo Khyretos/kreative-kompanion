@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""
+Blur sensitive boxes in images before publishing.
+
+The README screenshots and banner showed an internal host name. This script
+blurs rectangular regions (defined by coordinates) to obscure text or data,
+then saves the modified image back to the original file path.
+Usage: python3 docs/branding/blur.py IMAGE.png X0 Y0 X1 Y1 [RADIUS]
+"""
+
+import sys
+from PIL import Image, ImageFilter
+
+
+def main():
+    if len(sys.argv) != 6 and len(sys.argv) != 7:
+        print("Usage: python3 docs/branding/blur.py IMAGE.png X0 Y0 X1 Y1 [RADIUS]", file=sys.stderr)
+        sys.exit(2)
+
+    img_path = sys.argv[1]
+    x0, y0, x1, y1 = map(int, sys.argv[2:6])
+    radius = int(sys.argv[6]) if len(sys.argv) == 7 else 12
+
+    try:
+        with Image.open(img_path) as img:
+            # Crop the box region
+            crop = img.crop((x0, y0, x1, y1))
+            
+            # Apply strong Gaussian blur
+            blurred = crop.filter(ImageFilter.GaussianBlur(radius=radius))
+            
+            # Paste the blurred region back onto the original image
+            img.paste(blurred, (x0, y0), mask=blurred if blurred.mode == 'L' else None)
+            
+            # Save over the same file, preserving original mode
+            img.save(img_path)
+    except Exception as e:
+        print(f"Error processing image: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
