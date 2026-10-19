@@ -1,0 +1,24 @@
+[
+ {
+  "name": "b1-blur",
+  "role": "worker/python",
+  "precheck": false,
+  "out": "docs/branding/blur.py",
+  "context": [],
+  "check": "sh /tmp/kk-bannerhost-chk/chk-b1.sh",
+  "prompt": "Write docs/branding/blur.py, a small Python 3 script (Pillow only, no other libraries, about 25 lines, no classes). Usage: `python3 docs/branding/blur.py IMAGE.png X0 Y0 X1 Y1 [RADIUS]`. It blurs the box (X0, Y0)-(X1, Y1) of the PNG in place with a strong Gaussian blur (default RADIUS 12) so text inside it cannot be read, and leaves every pixel outside the box unchanged: crop the box, apply ImageFilter.GaussianBlur(radius) to the crop, paste it back at (X0, Y0), save over the same file keeping the image mode. Wrong argument count: print the usage line to stderr and exit 2. Module docstring: why it exists (the README screenshots and banner showed an internal host name; blur such boxes before publishing)."
+ },
+ {
+  "name": "b2-mock",
+  "role": "worker/web",
+  "mode": "patch",
+  "precheck": false,
+  "out": "web/src/api/mock.ts",
+  "focus": [
+   "kireserver\\.lan"
+  ],
+  "context": [],
+  "check": "sh /tmp/kk-bannerhost-chk/chk-b2.sh",
+  "prompt": "In web/src/api/mock.ts the demo data lists a discovered server with the internal host name https://kompanion.kireserver.lan, which shows up in public screenshots. Change only that one line so it reads exactly:\n  { url: \"https://kompanion.home.arpa\", name: \"kireserver\", version: \"0.1.0\", discovered: true },\n(home.arpa is the reserved name for home networks). Change nothing else."
+ }
+]

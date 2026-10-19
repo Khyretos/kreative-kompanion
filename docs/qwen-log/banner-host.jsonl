@@ -1,0 +1,4 @@
+{"name": "b1-blur", "out": "docs/branding/blur.py", "gpu_seconds": 164.8, "tokens": 788, "prompt_tokens": 6180, "skills": ["work-habits", "shared/SKILL", "_model-notes/qwen3/SKILL", "worker/python"], "lines": 43, "model": "Coder", "at": "2026-10-19T07:06:29"}
+{"name": "b1-blur", "out": "docs/branding/blur.py", "check": "sh /tmp/kk-bannerhost-chk/chk-b1.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-19T07:06:30"}
+{"name": "b2-mock", "out": "web/src/api/mock.ts", "mode": "patch", "gpu_seconds": 21.7, "tokens": 98, "prompt_tokens": 5652, "skills": ["work-habits", "shared/SKILL", "worker/web/SKILL", "_model-notes/qwen3/SKILL", "worker/web/playwright"], "lines": 1, "attempts": 1, "model": "Coder", "at": "2026-10-19T07:06:51"}
+{"name": "b2-mock", "out": "web/src/api/mock.ts", "check": "sh /tmp/kk-bannerhost-chk/chk-b2.sh", "check_attempts": 1, "check_passed": true, "at": "2026-10-19T07:06:51"}

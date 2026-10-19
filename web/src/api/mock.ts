@@ -313,7 +313,7 @@ const machines: MachineStats[] = [
 ];
 
 const servers: Server[] = [
-  { url: "https://kompanion.kireserver.lan", name: "kireserver", version: "0.1.0", discovered: true },
+  { url: "https://kompanion.home.arpa", name: "kireserver", version: "0.1.0", discovered: true },
 ];
 
 const replies = [
