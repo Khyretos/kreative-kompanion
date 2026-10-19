@@ -72,7 +72,31 @@ impl Bus {
     pub fn send_all(&self, e: Event) {
         self.send(ALL, e);
     }
+    /// The same event to several users (everyone who can read a shared chat).
+    pub fn send_many(&self, user_ids: &[String], e: Event) {
+        for id in user_ids {
+            self.send(id, e.clone());
+        }
+    }
     pub fn subscribe(&self) -> broadcast::Receiver<(String, Event)> {
         self.0.subscribe()
     }
+}
+
+/// Whether the live stream of user `me` passes on an event addressed to `user_id`.
+/// True when user_id == me or user_id == ALL. Otherwise true only when `event` is
+/// `Event::Changed { what, .. }` with `what` one of "tasks", "projects", "chats",
+/// "project-assets" (lists shared through a project) AND collab contains user_id.
+/// Everything else false. `collab` is everyone who shares a project with `me`
+/// (sharing::collaborators).
+pub fn passes(me: &str, collab: &std::collections::HashSet<String>, user_id: &str, event: &Event) -> bool {
+    if user_id == me || user_id == ALL {
+        return true;
+    }
+    if let Event::Changed { what, .. } = event {
+        if collab.contains(user_id) && matches!(*what, "tasks" | "projects" | "chats" | "project-assets") {
+            return true;
+        }
+    }
+    false
 }

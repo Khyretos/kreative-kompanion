@@ -252,6 +252,7 @@ pub async fn send(
     let Some(owner_id) = crate::sharing::chat_editor(&s.db, &u.id, &chat_id).await? else {
         return Err(ApiError::NotFound);
     };
+    let to = crate::sharing::chat_audience(&s.db, &chat_id).await?;
     // PROJECT-SHARING: an editor writes in the owner's chat; computers and tools stay the owner's.
     if owner_id != u.id && b.machine_id.as_deref().is_some_and(|m| !m.is_empty()) {
         return Err(ApiError::Forbidden("Only the owner can use a computer in this chat.".into()));
@@ -269,7 +270,8 @@ pub async fn send(
     }
     // The files travel with the message as a `:::files` block, like the sources under an answer.
     let user_msg = insert_message(&s, &chat_id, "user", &format!("{text}{}", crate::chat_attach::block(&b.attachments))).await?;
-    s.bus.send(&u.id, Event::Message { message: user_msg });
+    s.bus.send_many(&to, Event::Message { message: user_msg });
+
 
     // In a project thread, "pause" and "go on" steer the project's running tasks (SK-02);
     // anything else is a question for the orchestrator, answered below as usual.
@@ -282,7 +284,8 @@ pub async fn send(
     {
         let reply = crate::thread::steer(&s, &u.id, &project_id, cmd).await;
         let m = insert_message(&s, &chat_id, "orchestrator", &reply).await?;
-        s.bus.send(&u.id, Event::Message { message: m });
+        s.bus.send_many(&to, Event::Message { message: m });
+
         return Ok(StatusCode::ACCEPTED);
     }
 
@@ -301,7 +304,7 @@ pub async fn send(
             "No model is set for the orchestrator role yet. Pick one under Models and roles.",
         )
         .await?;
-        s.bus.send(&u.id, Event::Message { message: m });
+        s.bus.send_many(&to, Event::Message { message: m });
         return Ok(StatusCode::ACCEPTED);
     };
 
@@ -351,6 +354,13 @@ pub(crate) async fn insert_message(
 
 /// `tools`: the chat's MCP tools only run for the owner (PROJECT-SHARING: an editor's message is answered without them).
 async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool) {
+    let to = match crate::sharing::chat_audience(&s.db, &chat_id).await {
+        Ok(to) => to,
+        Err(e) => {
+            tracing::warn!(error = %e, chat = %chat_id, "chat audience failed; answering the owner only");
+            vec![user_id.clone()]
+        }
+    };
     let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?")
         .bind(&chat_id)
         .fetch_optional(&s.db)
@@ -360,19 +370,16 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default().resolve();
     let reply_id = util::new_id();
     let at = util::now();
-    s.bus.send(
-        &user_id,
-        Event::Message {
-            message: Message {
-                id: reply_id.clone(),
-                chat_id: chat_id.clone(),
-                author: "orchestrator".into(),
-                text: String::new(),
-                at: at.clone(),
-                streaming: true,
-            },
+    s.bus.send_many(&to, Event::Message {
+        message: Message {
+            id: reply_id.clone(),
+            chat_id: chat_id.clone(),
+            author: "orchestrator".into(),
+            text: String::new(),
+            at: at.clone(),
+            streaming: true,
         },
-    );
+    });
 
     // Conversation so far, oldest first (last 40 messages).
     let history: Vec<(String, String)> = sqlx::query_as(
@@ -469,9 +476,9 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
     if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none(), s.config.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| m.wire(false)).collect();
-        let (bus, uid, rid, cid) = (s.bus.clone(), user_id.clone(), reply_id.clone(), chat_id.clone());
+        let (bus, uid, rid, cid) = (s.bus.clone(), to.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
-            bus.send(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
+            bus.send_many(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
         let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
         for u in &uses {
@@ -536,18 +543,15 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
                     .fetch_one(&s.db)
                     .await
                     .unwrap_or(0);
-                s.bus.send(
-                    &user_id,
-                    Event::MessageDelta {
-                        message_id: reply_id.clone(),
-                        chat_id: chat_id.clone(),
-                        text: format!(
-                            "*Coder is paused while the A770 works for the studio ({left} studio job{} left); the answer starts when it is back.*\n\n",
-                            if left == 1 { "" } else { "s" }
-                        ),
-                        done: false,
-                    },
-                );
+                s.bus.send_many(&to, Event::MessageDelta {
+                    message_id: reply_id.clone(),
+                    chat_id: chat_id.clone(),
+                    text: format!(
+                        "*Coder is paused while the A770 works for the studio ({left} studio job{} left); the answer starts when it is back.*\n\n",
+                        if left == 1 { "" } else { "s" }
+                    ),
+                    done: false,
+                });
             }
             llm::stream_chat(&s.http, &p, &model_id, &convo).await
         } {
@@ -558,15 +562,12 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
                     match chunk {
                         Ok(Chunk::Text(t)) => {
                             text.push_str(&t);
-                            s.bus.send(
-                                &user_id,
-                                Event::MessageDelta {
-                                    message_id: reply_id.clone(),
-                                    chat_id: chat_id.clone(),
-                                    text: t,
-                                    done: false,
-                                },
-                            );
+                            s.bus.send_many(&to, Event::MessageDelta {
+                                message_id: reply_id.clone(),
+                                chat_id: chat_id.clone(),
+                                text: t,
+                                done: false,
+                            });
                         }
                         Ok(Chunk::Usage {
                             tokens_in: i,
@@ -592,7 +593,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     if error.is_none() && used != role.model_id {
         let note = format!("\n\n_({} was busy, so `{used}` answered.)_", role.model_id);
         text.push_str(&note);
-        s.bus.send(&user_id, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: note, done: false });
+        s.bus.send_many(&to, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: note, done: false });
     }
 
     // CHAT-05: after a render the picture is already above the answer; a picture the model adds itself is a broken link.
@@ -608,7 +609,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         let block = crate::overseer::finish(&s, &user_id, name, *interject, scan, &text).await;
         if !block.is_empty() {
             text.push_str(&block);
-            s.bus.send(&user_id, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: block, done: false });
+            s.bus.send_many(&to, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: block, done: false });
         }
     }
 
@@ -617,7 +618,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         let block = crate::chat_tools::sources_block(&all_uses, &text);
         if !block.is_empty() {
             text.push_str(&block);
-            s.bus.send(&user_id, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: block, done: false });
+            s.bus.send_many(&to, Event::MessageDelta { message_id: reply_id.clone(), chat_id: chat_id.clone(), text: block, done: false });
         }
     }
 
@@ -629,25 +630,19 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
             e.chars().take(300).collect::<String>()
         );
         text.push_str(&note);
-        s.bus.send(
-            &user_id,
-            Event::MessageDelta {
-                message_id: reply_id.clone(),
-                chat_id: chat_id.clone(),
-                text: note,
-                done: false,
-            },
-        );
-    }
-    s.bus.send(
-        &user_id,
-        Event::MessageDelta {
+        s.bus.send_many(&to, Event::MessageDelta {
             message_id: reply_id.clone(),
             chat_id: chat_id.clone(),
-            text: String::new(),
-            done: true,
-        },
-    );
+            text: note,
+            done: false,
+        });
+    }
+    s.bus.send_many(&to, Event::MessageDelta {
+        message_id: reply_id.clone(),
+        chat_id: chat_id.clone(),
+        text: String::new(),
+        done: true,
+    });
 
     let saved = sqlx::query(
         "INSERT INTO messages (id, chat_id, author, text, at) VALUES (?, ?, 'orchestrator', ?, ?)",
@@ -1021,16 +1016,31 @@ pub async fn calls(
 // Tasks and machines arrive with milestones 2 and 3.
 // ---- Live events ----
 
+// SHARED-LIVE: list changes by people who share a project with me reach me too.
 pub async fn events(State(s): State<AppState>, Extension(u): Extension<User>) -> impl IntoResponse {
     let me = u.id;
+    let collab: std::collections::HashSet<String> = crate::sharing::collaborators(&s.db, &me).await.unwrap_or_default().into_iter().collect();
+    let collab = std::sync::Arc::new(std::sync::RwLock::new(collab));
+    let db = s.db.clone();
     let stream = BroadcastStream::new(s.bus.subscribe()).filter_map(move |e| {
         let me = me.clone();
+        let collab = collab.clone();
+        let db = db.clone();
         async move {
             match e {
-                Ok((user_id, _)) if user_id != me && user_id != crate::events::ALL => None,
-                Ok((_, event)) => Some(Ok::<_, Infallible>(
-                    SseEvent::default().json_data(event).unwrap_or_default(),
-                )),
+                Ok((user_id, event)) => {
+                    if user_id == me {
+                        if let Event::Changed { what, .. } = &event {
+                            if *what == "projects" {
+                                if let Ok(ids) = crate::sharing::collaborators(&db, &me).await {
+                                    *collab.write().unwrap() = ids.into_iter().collect();
+                                }
+                            }
+                        }
+                    }
+                    let pass = crate::events::passes(&me, &collab.read().unwrap(), &user_id, &event);
+                    pass.then(|| Ok::<_, Infallible>(SseEvent::default().json_data(event).unwrap_or_default()))
+                },
                 // A slow client missed events; tell it to reload instead of guessing.
                 Err(BroadcastStreamRecvError::Lagged(_)) => {
                     Some(Ok(SseEvent::default().event("resync").data("{}")))
