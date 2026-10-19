@@ -38,8 +38,8 @@
     "class_type": "KSampler",
     "inputs": {
       "model": ["41", 0],
-      "positive": ["82", 0],
-      "negative": ["82", 1],
+      "positive": ["66", 0],
+      "negative": ["66", 1],
       "latent_image": ["6", 0],
       "seed": 42,
       "steps": 28,
@@ -148,7 +148,7 @@
     "class_type": "ImageUpscaleWithModel",
     "inputs": {
       "upscale_model": ["70", 0],
-      "image": ["10", 0]
+      "image": ["162", 0]
     }
   },
   "72": {
@@ -245,6 +245,59 @@
       "y": 0,
       "resize_source": false,
       "mask": ["94", 0]
+    }
+  },
+  "64": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/weapon-sheet-depth.png"
+    }
+  },
+  "65": {
+    "class_type": "SetUnionControlNetType",
+    "inputs": {
+      "control_net": ["61", 0],
+      "type": "depth"
+    }
+  },
+  "66": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["82", 0],
+      "negative": ["82", 1],
+      "control_net": ["65", 0],
+      "image": ["64", 0],
+      "vae": ["1", 2],
+      "strength": 0.5,
+      "start_percent": 0.0,
+      "end_percent": 0.6
+    }
+  },
+  "160": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 504,
+      "height": 1008,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "161": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["160", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "162": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["10", 0],
+      "source": ["161", 0],
+      "x": 1008,
+      "y": 0,
+      "resize_source": false
     }
   }
 }

@@ -18,6 +18,7 @@ px = { wide = [1344, 672] }
 
 [images]
 "80" = "lines.png"
+"64" = "depth.png"
 "93" = "lines-final.png"
 # built by tools/pose-sheet/sheet_v3.py weapon
 

@@ -131,7 +131,15 @@ def build_oc(depth_v2, width=OC_SIZE[0], height=OC_SIZE[1]):
 
 
 def build_weapon(width=WEAPON_SIZE[0], height=WEAPON_SIZE[1]):
-    return {"lines": layout.draw_lines("weapon", width, height)}
+    depth = Image.new("RGB", (width, height), (0, 0, 0))
+    for cell in layout.cells_px("weapon", width, height):
+        if cell["name"] not in ("right", "left"):
+            continue  # front and back: no depth guidance
+        x0, y0, x1, y1 = cell["box"]
+        cx, half = (x0 + x1) // 2, round((x1 - x0) * 0.04)
+        top, bottom = y0 + round((y1 - y0) * 0.075), y1 - round((y1 - y0) * 0.075)
+        depth.paste((180, 180, 180), (cx - half, top, cx + half + 1, bottom))
+    return {"lines": layout.draw_lines("weapon", width, height), "depth": depth}
 
 
 def main(argv):

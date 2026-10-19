@@ -86,8 +86,17 @@ class Build(unittest.TestCase):
 
     def test_weapon(self):
         w = sv3.build_weapon(1344, 672)
-        self.assertEqual(set(w), {"lines"})
+        self.assertEqual(set(w), {"lines", "depth"})
         self.assertEqual(w["lines"].size, (1344, 672))
+        d = w["depth"]
+        self.assertEqual((d.mode, d.size), ("RGB", (1344, 672)))
+        # edge-on cells (right, left) get a thin upright bar; the front and back cells stay empty
+        self.assertEqual(d.getpixel((504, 336)), (180, 180, 180))  # centre of the right cell (336-672)
+        self.assertEqual(d.getpixel((1176, 336)), (180, 180, 180))  # centre of the left cell
+        self.assertEqual(d.getpixel((504 + 20, 336)), (0, 0, 0))  # the bar is 8% of 336 px wide: +-13 px
+        self.assertEqual(d.getpixel((504, 30)), (0, 0, 0))  # 85% of the height: 50-622
+        self.assertEqual(d.getpixel((168, 336)), (0, 0, 0))
+        self.assertEqual(d.getpixel((840, 336)), (0, 0, 0))
 
 
 
@@ -119,6 +128,7 @@ class Cli(unittest.TestCase):
             p = subprocess.run([sys.executable, SCRIPT, "weapon", wdir], capture_output=True, text=True, timeout=120)
             self.assertEqual(p.returncode, 0, p.stderr)
             self.assertEqual(Image.open(os.path.join(wdir, "lines.png")).size, (1344, 672))
+            self.assertTrue(os.path.exists(os.path.join(wdir, "depth.png")))
             self.assertEqual(Image.open(os.path.join(wdir, "lines-final.png")).size, (3024, 1512))
             p = subprocess.run([sys.executable, SCRIPT], capture_output=True, text=True, timeout=60)
             self.assertEqual(p.returncode, 2)
