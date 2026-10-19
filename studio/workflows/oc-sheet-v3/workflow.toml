@@ -64,7 +64,7 @@ type = "string"
 default = ""
 node = "5"
 input = "text"
-template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, {bg_neg}child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, weapon, sword, holding a weapon, separate weapon, {bg_neg}child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
 
 # STU-R2: the face fix (node 13) gets its own short prompt, so a moustache or eye colour the whole-sheet
 # prompt mentions late is not painted away; empty uses the main prompt.
@@ -77,6 +77,7 @@ node = "16"
 input = "text"
 template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}"
 
+# STU-SHEET3D (Kees 2026-10-19): weapons belong on the weapon sheet; the negative keeps them off the body views.
 # STU-SHEET3D: the helmet column's own prompt (node 85, masked to column 2). Empty: a second bare-head take.
 [[param]]
 name = "helmet_look"
