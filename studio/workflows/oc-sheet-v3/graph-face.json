@@ -339,7 +339,7 @@
     "class_type": "ImageUpscaleWithModel",
     "inputs": {
       "upscale_model": ["70", 0],
-      "image": ["151", 0]
+      "image": ["178", 0]
     }
   },
   "72": {
@@ -876,7 +876,7 @@
       "cfg": 5.5,
       "sampler_name": "euler_ancestral",
       "scheduler": "normal",
-      "denoise": 0.7
+      "denoise": 0.55
     }
   },
   "215": {
@@ -1035,7 +1035,7 @@
       "cfg": 5.5,
       "sampler_name": "euler_ancestral",
       "scheduler": "normal",
-      "denoise": 0.7
+      "denoise": 0.55
     }
   },
   "235": {
@@ -1194,7 +1194,7 @@
       "cfg": 5.5,
       "sampler_name": "euler_ancestral",
       "scheduler": "normal",
-      "denoise": 0.7
+      "denoise": 0.55
     }
   },
   "255": {
@@ -1353,7 +1353,7 @@
       "cfg": 5.5,
       "sampler_name": "euler_ancestral",
       "scheduler": "normal",
-      "denoise": 0.7
+      "denoise": 0.55
     }
   },
   "275": {
@@ -1380,6 +1380,87 @@
       "source": ["276", 0],
       "x": 2160,
       "y": 720,
+      "resize_source": false
+    }
+  },
+  "170": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["151", 0],
+      "width": 480,
+      "height": 960,
+      "x": 960,
+      "y": 0
+    }
+  },
+  "171": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["170", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "172": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["151", 0],
+      "source": ["171", 0],
+      "x": 480,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "173": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["172", 0],
+      "width": 240,
+      "height": 240,
+      "x": 1920,
+      "y": 480
+    }
+  },
+  "174": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["173", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "175": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["172", 0],
+      "source": ["174", 0],
+      "x": 1920,
+      "y": 240,
+      "resize_source": false
+    }
+  },
+  "176": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["175", 0],
+      "width": 240,
+      "height": 240,
+      "x": 2160,
+      "y": 480
+    }
+  },
+  "177": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["176", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "178": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["175", 0],
+      "source": ["177", 0],
+      "x": 2160,
+      "y": 240,
       "resize_source": false
     }
   }

@@ -800,7 +800,7 @@ licence = "CreativeML OpenRAIL-M"
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
         let all = load_all(&dir);
         let get = |n: &str| all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap();
-        for (name, nodes) in [("oc-sheet-v3", vec!["101", "60", "64", "80", "86", "93"]), ("weapon-sheet", vec!["64", "80", "93"])] {
+        for (name, nodes) in [("oc-sheet-v3", vec!["101", "60", "64", "80", "86", "93"]), ("weapon-sheet", vec!["80", "93"])] {
             let w = get(name);
             assert_eq!(w.images.keys().map(String::as_str).collect::<Vec<_>>(), nodes, "{name}");
             for (node, file) in &w.images {

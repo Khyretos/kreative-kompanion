@@ -85,7 +85,7 @@ type = "string"
 default = ""
 node = "85"
 input = "text"
-template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, head close-up, portrait, helmet, {value}"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, head close-up, helmet, {value}"
 
 # STU-R2: plain white (the reference sheet) or the purple starry sky seed 304 painted by itself.
 [[param]]
