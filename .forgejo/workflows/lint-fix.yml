@@ -14,7 +14,7 @@ on:
 
 jobs:
   fix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # MegaLinter images are big: kireserver and soucouyant only, not the Windows PC (small disk)
     container:
       image: oxsecurity/megalinter-cupcake:v9
     env:

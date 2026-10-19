@@ -1,5 +1,5 @@
 # MegaLinter (AGPL-3.0): ~100 linters and security scanners in one step, run on
-# any ubuntu-latest runner. Free alternative to SonarQube. Copy to .forgejo/workflows/lint.yml
+# kireserver or soucouyant. Free alternative to SonarQube. Copy to .forgejo/workflows/lint.yml
 # and pick the flavour image for the repo's main language:
 #   megalinter-python, -javascript (TS/Angular/React), -java, -cupcake (C/C++ and
 #   most others), -go, -rust, or megalinter (everything, ~10 GB).
@@ -19,7 +19,7 @@ on:
 
 jobs:
   megalinter:
-    runs-on: ubuntu-latest # MegaLinter's image is pulled once by kompas-builder and windows-wsl, then cached on both
+    runs-on: ubuntu-24.04 # MegaLinter images are big: kireserver and soucouyant only, not the Windows PC (small disk)
     container:
       image: oxsecurity/megalinter-cupcake:v9
     steps:
