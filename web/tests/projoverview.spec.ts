@@ -198,7 +198,7 @@ test("tiles follow the width of the overview, not the window; the progress bar i
   await o.evaluate((el) => (el.style.width = "760px"));
   await expect.poll(columns).toBe(4);
   // The progress bar uses the primary plum (--brand), not the orange accent.
-  const fill = await o.locator(".ov-bar > span").evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(document.documentElement).getPropertyValue("--brand").trim()]);
-  expect(fill[0]).toBe("rgb(92, 57, 142)");
-  expect(fill[1].toLowerCase()).toBe("#5c398e");
+  await expect(o.locator(".ov-bar > span")).toHaveCSS("background-color", "rgb(92, 57, 142)");
+  const brand = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--brand").trim());
+  expect(brand.toLowerCase()).toBe("#5c398e");
 });
