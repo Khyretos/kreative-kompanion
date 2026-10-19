@@ -1,0 +1,165 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load vec.js and skeleton.js inside functions to ensure correct loading order in browser
+  function getVec() { return need('vec', './vec.js'); }
+  function getSkeleton() { return need('skeleton', './skeleton.js'); }
+
+  const V = getVec();
+  const S = getSkeleton();
+
+  // --- Cache for frame results ---
+  const frameCache = new Map();
+
+  // --- Helper: copy a vector ---
+  function copyVec(v) {
+    return [v[0], v[1], v[2]];
+  }
+
+  // --- Helper: copy a matrix ---
+  function copyMat(m) {
+    return [m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]];
+  }
+
+  /**
+   * Returns a NEW object {version: 1, root: {pos: [0, 0, 0.95]}, joints: {}}.
+   * pose.joints maps a joint name to {bend, side, twist} (degrees, missing fields and missing joints mean 0).
+   */
+  function defaultPose() {
+    return {
+      version: 1,
+      root: { pos: [0, 0, 0.95] },
+      joints: {}
+    };
+  }
+
+  /**
+   * Computes the local frame for a joint.
+   * For a joint with aim === null returns identity().
+   * Else Y = norm(rest(aim) - rest(joint)), X = norm(cross(Y, joint.front)), Z = cross(X, Y);
+   * Returns fromBasis(X, Y, Z). Caches the result per name.
+   */
+  function frame(name) {
+    if (frameCache.has(name)) {
+      return frameCache.get(name);
+    }
+
+    const j = S.byName[name];
+    if (!j) {
+      // Unknown joint, return identity
+      const id = V.identity();
+      frameCache.set(name, id);
+      return id;
+    }
+
+    if (j.aim === null) {
+      const id = V.identity();
+      frameCache.set(name, id);
+      return id;
+    }
+
+    const aimRest = S.byName[j.aim].rest;
+    const boneDir = V.norm(V.sub(aimRest, j.rest));
+    const Y = boneDir;
+
+    const front = j.front;
+    const X = V.norm(V.cross(Y, front));
+    const Z = V.cross(X, Y);
+
+    const B = V.fromBasis(X, Y, Z);
+    frameCache.set(name, B);
+    return B;
+  }
+
+  /**
+   * Computes the local transform for a joint given pose data.
+   * For a leaf (aim null) or when e is missing returns identity().
+   * Else take bend = e.bend||0, side = e.side||0, twist = e.twist||0;
+   * for names starting with 'r_' use side = -side and twist = -twist (so the same numbers mirror on the right).
+   * Return B * eulerToMat({bend, side, twist}) * transpose(B) with B = frame(name).
+   */
+  function local(name, e) {
+    const j = S.byName[name];
+    if (!j || !e) {
+      return V.identity();
+    }
+
+    if (j.aim === null) {
+      return V.identity();
+    }
+
+    let bend = e.bend !== undefined ? e.bend : 0;
+    let side = e.side !== undefined ? e.side : 0;
+    let twist = e.twist !== undefined ? e.twist : 0;
+
+    // Mirror logic for right side joints
+    if (name.startsWith('r_')) {
+      side = -side;
+      twist = -twist;
+    }
+
+    const B = frame(name);
+    const eulerMat = V.eulerToMat({ bend, side, twist });
+    const Bt = V.transpose(B);
+
+    return V.matMul(V.matMul(B, eulerMat), Bt);
+  }
+
+  /**
+   * Solves forward kinematics for a given pose.
+   * Returns {pos, rot}, objects keyed by joint name.
+   * Walk skeleton.JOINTS in order (parents come first).
+   * For pelvis: pos = pose.root && pose.root.pos ? copy of it : copy of the rest; rot = local('pelvis', pose.joints.pelvis).
+   * For any other joint j with parent p: pos[j] = pos[p] + matVec(rot[p], rest(j) - rest(p)); rot[j] = matMul(rot[p], local(j, pose.joints[j])).
+   */
+  function solve(pose) {
+    const joints = pose.joints || {};
+    const resultPos = {};
+    const resultRot = {};
+
+    // Ensure we have a root position even if not provided in joints
+    let rootPos = [0, 0, 0.95];
+    if (pose.root && pose.root.pos) {
+      rootPos = copyVec(pose.root.pos);
+    }
+
+    // Process joints in order (parents come first as per skeleton.js construction)
+    for (const j of S.JOINTS) {
+      if (j.name === 'pelvis') {
+        resultPos[j.name] = copyVec(rootPos);
+        const l = local('pelvis', joints.pelvis);
+        resultRot[j.name] = copyMat(l);
+      } else {
+        const parent = j.parent;
+        let parentPos = resultPos[parent];
+        let parentRot = resultRot[parent];
+
+        // If parent hasn't been computed yet (shouldn't happen if order is correct), skip or use rest
+        if (parentPos === undefined) {
+          parentPos = copyVec(j.rest);
+          parentRot = V.identity();
+        }
+
+        const localTransform = local(j.name, joints[j.name]);
+        resultRot[j.name] = copyMat(V.matMul(parentRot, localTransform));
+
+        const offset = V.sub(j.rest, parentPos);
+        const transformedOffset = V.matVec(parentRot, offset);
+        resultPos[j.name] = V.add(parentPos, transformedOffset);
+      }
+    }
+
+    return { pos: resultPos, rot: resultRot };
+  }
+
+  const api = {
+    defaultPose,
+    frame,
+    local,
+    solve
+  };
+
+  if (NS) NS.fk = api; else module.exports = api;
+})();

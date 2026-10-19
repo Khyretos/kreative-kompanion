@@ -1,0 +1,1138 @@
+const express = require('express');
+const multer = require('multer');
+const { build, mergeTags, PRESETS } = require('./lib/graphs');
+const { cleanNegative } = require('./lib/negative');
+const { refineRequest } = require('./lib/refine');
+const { Comfy } = require('./lib/comfy');
+const { buildVideo } = require('./lib/video');
+const { Gpu } = require('./lib/gpu');
+const { Kompanion, presetType, sizeName, videoFrames, importPayload, runJob, typeList, presetWarnings } = require('./lib/kompanion');
+const poseApi = require('./lib/pose-api').poseRouter;
+const skeleton = require('./public/js/pose/skeleton.js');
+const fs = require('fs/promises');
+const path = require('path');
+const crypto = require('crypto');
+const stream = require('stream');
+
+// --- Configuration ---
+const PORT = process.env.PORT || 3000;
+const COMFY_URL = process.env.COMFY_URL || 'http://192.168.178.80:8188';
+const OVMS_URL = process.env.OVMS_URL || 'http://ovms:8000';
+const OVMS_KEY = process.env.OVMS_KEY || '';
+const MAX_UPLOAD_MB = parseInt(process.env.MAX_UPLOAD_MB) || 12;
+const OLLAMA_URL = process.env.OLLAMA_URL || ''; // soucouyant's Ollama: unload its models before a run
+const ADULT_USERS = (process.env.ADULT_USERS || '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean);
+
+// soucouyant has one 16 GB GPU and 30 GB RAM: an Ollama model left loaded makes ComfyUI swap.
+async function freeOllama() {
+  if (!OLLAMA_URL) return;
+  try {
+    const ps = await (await fetch(`${OLLAMA_URL}/api/ps`, { signal: AbortSignal.timeout(5000) })).json();
+    for (const m of ps.models || []) {
+      await fetch(`${OLLAMA_URL}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: m.name, keep_alive: 0 }), signal: AbortSignal.timeout(60000) });
+      console.log(`unloaded Ollama model ${m.name}`);
+    }
+  } catch (e) {
+    console.error('Ollama check failed:', e.message);
+  }
+}
+
+// --- Identity & Helpers ---
+function getSafeUserId(email) {
+  if (!email) return null;
+  let id = email.toLowerCase();
+  // Keep [a-z0-9._-], replace everything else with "_"
+  id = id.replace(/[^a-z0-9._-]/g, '_');
+  return id;
+}
+
+function isAdultUser(email) {
+  if (!email) return false;
+  const lowerEmail = email.toLowerCase();
+  return ADULT_USERS.includes(lowerEmail);
+}
+
+function isValidRating(rating, email) {
+  if (!rating) return true; // default allowed
+  if (isAdultUser(email)) return ['general', 'sensitive', 'explicit', 'questionable'].includes(rating);
+  return ['general', 'sensitive'].includes(rating);
+}
+
+// --- Globals ---
+const app = express();
+const comfy = new Comfy(COMFY_URL);
+// Music and SFX run on the same card as ComfyUI (soucouyant): Gpu runs one service at a time
+const MUSIC_URL = process.env.MUSIC_URL || 'http://192.168.178.80:8190';
+const SFX_URL = process.env.SFX_URL || 'http://192.168.178.80:8191';
+const gpu = new Gpu({ comfyUrl: COMFY_URL, musicUrl: MUSIC_URL, sfxUrl: SFX_URL });
+const jobs = new Map(); // promptId -> job object
+let jobCount = 0;
+
+// SSE Clients: userId -> Set of Response objects
+const sseClients = new Map();
+
+// Multer config for memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage, 
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, or WebP images are allowed.'), false);
+    }
+  }
+});
+
+// --- Middleware ---
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Auth check for API routes
+app.use('/api', (req, res, next) => {
+  const email = req.headers['x-forwarded-email'] || req.headers['x-auth-request-email'];
+  if (!email) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  req.userEmail = email;
+  req.userId = getSafeUserId(email);
+  if (!req.userId) {
+    return res.status(400).json({ error: 'Invalid user identity' });
+  }
+  next();
+});
+
+// --- Global Event Listeners (Single Instance) ---
+
+// 1. Message Events
+// Finished jobs: read the outputs once from history. Used by the websocket listener and the
+// poller (Claude rewrote this part: two drafts appended images twice and compared status_str
+// against "Success" while ComfyUI sends "success").
+async function finishFromHistory(job, entry) {
+  if (job.finished) return;
+  const st = entry.status || {};
+  if (st.status_str === 'success') {
+    job.images = Object.values(entry.outputs || {})
+      .flatMap(o => [...(o.images || []), ...(o.videos || []), ...(o.gifs || [])])
+      .filter(i => i.type === 'output')
+      .map(i => ({ filename: i.filename, subfolder: i.subfolder }));
+    job.status = 'done';
+    job.progress = 1;
+  } else if (st.status_str === 'error') {
+    const m = (st.messages || []).find(x => x[0] === 'execution_error');
+    const interrupted = (st.messages || []).some(x => x[0] === 'execution_interrupted');
+    job.status = interrupted ? 'cancelled' : 'error';
+    job.error = interrupted ? undefined : (m?.[1]?.exception_message || 'ComfyUI reported an error');
+  } else {
+    return; // not finished yet
+  }
+  job.finished = true;
+  notify(job);
+}
+
+// KS-01: follow a Kompanion run; its outputs become this job's images (image, video) or files (music, sfx).
+async function followKompanion(job) {
+  try {
+    await kompanion.follow(job.email, job.kompanionId, job, j => { if (!j.finished) notify(j); });
+  } catch (e) {
+    job.status = 'error';
+    job.error = e.message;
+    job.finished = true;
+  }
+  if (job.status === 'done') {
+    const outs = job.outputs || [];
+    if (job.kind === 'music' || job.kind === 'sfx') {
+      job.files = outs.map((p, n) => ({ name: path.basename(p), mime: p.endsWith('.wav') ? 'audio/wav' : 'audio/ogg', kompanion: n }));
+    } else {
+      job.images = outs.map((p, n) => ({ filename: path.basename(p), subfolder: '', kompanion: n }));
+    }
+  }
+  notify(job);
+}
+
+// KS-01: stream one of a Kompanion run's files to the browser.
+async function pipeKompanion(res, job, n, downloadName) {
+  const r = await kompanion.file(job.email, job.kompanionId, n);
+  res.setHeader('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  if (downloadName) res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+  stream.Readable.fromWeb(r.body).pipe(res);
+}
+
+comfy.on('message', async ({ type, data }) => {
+  const job = data && jobs.get(data.prompt_id);
+  if (!job || job.finished) return;
+  try {
+    if (type === 'execution_start') {
+      job.status = 'running';
+      notify(job);
+    } else if (type === 'progress' && data.max) {
+      job.progress = data.value / data.max;
+      notify(job);
+    } else if (type === 'execution_success' || type === 'execution_error' || type === 'execution_interrupted') {
+      const h = await comfy.history(data.prompt_id);
+      if (h[data.prompt_id]) await finishFromHistory(job, h[data.prompt_id]);
+      else if (type === 'execution_error') { job.status = 'error'; job.error = data.exception_message; job.finished = true; notify(job); }
+      else if (type === 'execution_interrupted') { job.status = 'cancelled'; job.finished = true; notify(job); }
+    }
+  } catch (e) {
+    console.error('job update failed:', e.message);
+  }
+});
+
+// 2. Preview Events
+comfy.on('preview', (msg) => {
+  const { promptId, mime, buffer } = msg;
+  const job = jobs.get(promptId);
+  
+  if (job) {
+    // Throttle previews: at most one per 1.5s per job
+    const lastPreviewTime = job.lastPreviewTime || 0;
+    if (Date.now() - lastPreviewTime >= 1500) {
+      const base64 = buffer.toString('base64');
+      notifyPreview(job, {
+        promptId,
+        url: `data:${mime};base64,${base64}`
+      });
+      job.lastPreviewTime = Date.now();
+    }
+  }
+});
+
+// 3. Polling fallback every 5 s, in case a websocket event was missed
+setInterval(async () => {
+  for (const job of jobs.values()) {
+    if (job.finished || job.kompanionId) continue;
+    try {
+      const h = await comfy.history(job.promptId);
+      if (h[job.promptId]) await finishFromHistory(job, h[job.promptId]);
+    } catch { /* ComfyUI busy or down; try again next round */ }
+  }
+}, 5000);
+
+// Helper to notify all SSE clients for a specific user's job
+// Jobs survive restarts: saved to DATA_DIR/jobs.json a second after the last change
+const DATA_DIR = process.env.DATA_DIR || '/data';
+// STU-PE1: pose editor API (ops, OpenPose/depth renders, saved poses with provenance)
+app.use('/api', poseApi({ dataDir: DATA_DIR }));
+const JOBS_FILE = path.join(DATA_DIR, 'jobs.json');
+let saveTimer = null;
+function saveJobs() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const list = [...jobs.values()].map(({ lastPreviewTime, ...j }) => j);
+      await fs.writeFile(JOBS_FILE + '.tmp', JSON.stringify(list));
+      await fs.rename(JOBS_FILE + '.tmp', JOBS_FILE);
+    } catch (e) { console.error('saving jobs failed:', e.message); }
+  }, 1000);
+}
+async function loadJobs() {
+  try {
+    for (const j of JSON.parse(await fs.readFile(JOBS_FILE, 'utf8'))) {
+      // Anything unfinished when the server stopped is lost on the GPU side (a Kompanion run is followed again)
+      if (!j.finished && !j.kompanionId) { j.status = 'error'; j.error = 'The studio restarted while this was waiting; please run it again.'; j.finished = true; }
+      j.position = 0;
+      jobs.set(j.promptId, j);
+      if (!j.finished && j.kompanionId) followKompanion(j);
+    }
+    console.log(`loaded ${jobs.size} jobs`);
+  } catch (e) { if (e.code !== 'ENOENT') console.error('loading jobs failed:', e.message); }
+}
+
+function notify(job) {
+  saveJobs();
+  const clients = sseClients.get(job.user);
+  if (clients) {
+    clients.forEach(res => {
+      const payload = JSON.stringify(job);
+      res.write(`event: job\ndata: ${payload}\n\n`);
+    });
+  }
+}
+
+function notifyPreview(job, previewData) {
+  const clients = sseClients.get(job.user);
+  if (clients) {
+    clients.forEach(res => {
+      const payload = JSON.stringify(previewData);
+      res.write(`event: preview\ndata: ${payload}\n\n`);
+    });
+  }
+}
+
+// --- Routes ---
+
+// 1. GET /api/me
+app.get('/api/me', async (req, res) => {
+  try {
+    res.json({
+      email: req.userEmail,
+      adult: isAdultUser(req.userEmail)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const KOMPANION_URL = process.env.KOMPANION_URL || 'http://kreative-kompanion:8080';
+const KOMPANION_STUDIO_TOKEN = process.env.KOMPANION_STUDIO_TOKEN || '';
+// KS-01: jobs go through Kompanion when it is set up (KOMPANION_JOBS=off: straight to the GPUs as before).
+const kompanion = new Kompanion({ url: process.env.KOMPANION_JOBS === 'off' ? '' : KOMPANION_URL, token: KOMPANION_STUDIO_TOKEN });
+const STUDIO_ADMINS = (process.env.STUDIO_ADMINS || '').split(',').map(u => u.trim().toLowerCase()).filter(Boolean);
+
+function isStudioAdmin(email) {
+  return STUDIO_ADMINS.includes(email.toLowerCase());
+}
+
+async function kompanionTarget(method, body) {
+  const r = await fetch(`${KOMPANION_URL}/api/studio/target/service`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${KOMPANION_STUDIO_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) throw new Error(`Kompanion answered ${r.status}`);
+  return r.json();
+}
+
+// GPU-03: where the studio runs (Kompanion's setting), shown and changed in the header.
+app.get('/api/studio-target', async (req, res) => {
+  try {
+    const t = await kompanionTarget('GET');
+    res.json({ ...t, canChange: isStudioAdmin(req.userEmail) });
+  } catch (err) {
+    res.status(502).json({ error: `Kompanion is not reachable: ${err.message}` });
+  }
+});
+
+app.put('/api/studio-target', async (req, res) => {
+  if (!isStudioAdmin(req.userEmail)) {
+    return res.status(403).json({ error: 'Only the studio admin can change where the studio runs.' });
+  }
+  const target = String((req.body && req.body.target) || '');
+  try {
+    res.json(await kompanionTarget('PUT', { target, by: req.userEmail }));
+  } catch (err) {
+    res.status(502).json({ error: `Kompanion refused: ${err.message}` });
+  }
+});
+
+/** GPU-03: why this app may not queue now ("" when it may). This app only drives soucouyant;
+ * when Kompanion can't be reached, it keeps working as before. */
+async function studioBlocked() {
+  try {
+    const t = await kompanionTarget('GET');
+    if (t.target === 'off') return 'The studio is off. The studio admin can switch it on in the header.';
+    const chosen = (t.choices || []).find(c => c.value === t.target);
+    if (t.target !== 'auto' && chosen && !chosen.label.startsWith('soucouyant')) {
+      return `The studio runs on ${chosen.label} now, not on soucouyant. Ask the studio admin to switch it back.`;
+    }
+  } catch (err) { /* Kompanion down: no change in behaviour */ }
+  return '';
+}
+
+// KS-02: Kompanion's own studio types for the type picker (none without Kompanion).
+app.get('/api/types', async (req, res) => {
+  if (!kompanion.enabled) return res.json({ enabled: false, types: [] });
+  try {
+    const rows = await kompanion.workflows(req.userEmail);
+    res.json({ enabled: true, types: typeList(rows), warnings: presetWarnings(rows) });
+  } catch (err) {
+    res.json({ enabled: true, types: [], error: err.message });
+  }
+});
+
+// 2. GET /api/presets
+app.get('/api/presets', async (req, res) => {
+  try {
+    const presets = Object.entries(PRESETS).map(([id, label]) => ({
+      id,
+      label,
+      width: PRESETS[id].width,
+      height: PRESETS[id].height
+    }));
+    res.json(presets);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. POST /api/generate
+app.post('/api/generate', upload.single('face'), async (req, res) => {
+  try {
+    const blocked = await studioBlocked();
+    if (blocked) return res.status(409).json({ error: blocked });
+    const { preset, prompt, rating = 'general', seed, faceWeight = 0.85 } = req.body;
+    // STU-N1: the Leave out words (same rules as Kompanion: 500 characters, adult guard stays).
+    let negative;
+    try { negative = cleanNegative(req.body.negative); } catch (e) { return res.status(400).json({ error: e.message }); }
+
+    // Validation
+    if (!prompt || prompt.length > 2000) {
+      return res.status(400).json({ error: 'Prompt is required and must be under 2000 characters.' });
+    }
+    // KS-02: 'k:<type>' is one of Kompanion's own types (GET /api/types).
+    if (!preset || !(PRESETS[preset] || preset === 'video' || (kompanion.enabled && preset.startsWith('k:')))) {
+      return res.status(400).json({ error: 'Invalid preset.' });
+    }
+    if (!isValidRating(rating, req.userEmail)) {
+      return res.status(403).json({ error: 'Rating not allowed for this user.' });
+    }
+
+    // KS-01: through Kompanion, except a video from a start image (Kompanion has no start image yet)
+    const viaKompanion = kompanion.enabled && !(preset === 'video' && req.body.startJob);
+    let faceTags = '';
+    let faceBuffer = null;
+    let faceFilename = null;
+
+    if (req.file) {
+      // Validate mimetype explicitly
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(req.file.mimetype)) {
+        return res.status(400).json({ error: 'Invalid image format.' });
+      }
+
+      // Upload to ComfyUI
+      const subfolder = `faces/${req.userId}`;
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const randomHex = crypto.randomBytes(8).toString('hex');
+      faceFilename = `${randomHex}${ext}`;
+      
+      if (!viaKompanion) faceFilename = await comfy.upload(req.file.buffer, faceFilename, subfolder); // LoadImage name
+      faceBuffer = req.file.buffer; // Keep for OVMS description
+    }
+
+    // Step 3a: Describe with OVMS if key exists and face provided
+    // KS-02: Kompanion describes the photo itself (its face tags come back in the answer).
+    if (OVMS_KEY && faceBuffer && !viaKompanion) {
+      try {
+        const describePrompt = "Describe this person's appearance as comma-separated Danbooru-style tags, at most 12, lowercase, nothing else. Cover: 1man or 1woman, skin tone (for example dark skin, brown skin, tan skin, pale skin), hair colour, hair length and style, facial hair, glasses, eye colour, build. Do not describe clothing, pose, background or age.";
+        
+        const response = await fetch(`${OVMS_URL}/v3/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OVMS_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: "Coder",
+            max_tokens: 120,
+            temperature: 0.2,
+            chat_template_kwargs: { enable_thinking: false },
+            messages: [{
+              role: "user",
+              content: [
+                { type: "text", text: describePrompt },
+                { 
+                  type: "image_url", 
+                  image_url: { url: `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}` } 
+                }
+              ]
+            }]
+          }),
+          signal: AbortSignal.timeout(90000)
+        });
+
+        if (!response.ok) throw new Error(`OVMS Error: ${response.status}`);
+        const data = await response.json();
+        const rawContent = data.choices[0]?.message?.content || '';
+        
+        // Parse tags
+        const potentialTags = rawContent.split(/[,\n]+/).map(t => t.trim().toLowerCase()).filter(t => t);
+        
+        // Filter out forbidden words
+        const forbidden = ['child', 'kid', 'teen', 'young', 'boy', 'girl', 'loli', 'shota', 'minor'];
+        const cleanTags = potentialTags.filter(tag => {
+          if (tag.startsWith('no ') || tag.startsWith('without ')) return false;
+          if (forbidden.some(f => tag.includes(f))) return false;
+          return true;
+        });
+
+        faceTags = mergeTags(cleanTags, prompt);
+      } catch (e) {
+        console.error('OVMS Description failed:', e.message);
+        // Continue with no tags
+      }
+    }
+
+    // Build Graph
+    // Seed: parse with parseInt; if missing or NaN use crypto.randomInt(0, 2 ** 31)
+    let finalSeed = parseInt(seed, 10);
+    if (Number.isNaN(finalSeed) || finalSeed < 0) {
+      finalSeed = crypto.randomInt(0, 2 ** 31);
+    }
+
+    // faceWeight: parseFloat, clamp to 0..1.2, default 0.85 when missing or NaN
+    let finalFaceWeight = parseFloat(faceWeight);
+    if (isNaN(finalFaceWeight)) finalFaceWeight = 0.85;
+    if (finalFaceWeight < 0) finalFaceWeight = 0;
+    if (finalFaceWeight > 1.2) finalFaceWeight = 1.2;
+
+    let graph;
+    if (viaKompanion) {
+      const type = preset.startsWith('k:') ? preset.slice(2) : presetType(preset);
+      let size;
+      let length;
+      if (preset === 'video') {
+        const [w, h] = String(req.body.size || '1280x704').split('x').map(n => parseInt(n, 10));
+        size = sizeName(w, h);
+        length = videoFrames(Math.min(5, Math.max(1, parseFloat(req.body.seconds) || 3)));
+      } else if (preset.startsWith('k:')) {
+        size = String(req.body.size || 'square');
+      } else {
+        size = preset === 'portrait' ? 'tall' : 'wide';
+      }
+      const count = preset !== 'video' && String(req.body.count) === '4' ? 4 : undefined;
+      // STU-R2: the OC sheet's own face-fix prompt and background
+      let params;
+      if (type === 'oc-sheet') {
+        const facePrompt = String(req.body.facePrompt || '').trim();
+        if (facePrompt.length > 500) return res.status(400).json({ error: 'Keep the face description under 500 characters.' });
+        const background = ['white', 'starry'].includes(req.body.background) ? req.body.background : 'white';
+        params = { face_prompt: facePrompt, background };
+        // STU-C3: a helmet description makes a pair (helmet on, face visible) in Kompanion
+        const helmet = String(req.body.helmet || '').trim();
+        if (helmet.length > 300) return res.status(400).json({ error: 'Keep the helmet description under 300 characters.' });
+        if (helmet) params.helmet_desc = helmet;
+      }
+      const sentRating = preset === 'video' ? undefined : (preset.startsWith('k:') ? req.body.rating : rating);
+      const made = await kompanion.make(req.userEmail, { type, prompt, size, count, rating: sentRating, seed: finalSeed, length, negative: negative || undefined, params, face: req.file ? { buffer: req.file.buffer, mime: req.file.mimetype, name: req.file.originalname } : undefined, faceWeight: req.file ? finalFaceWeight : undefined });
+      faceTags = made.faceTags || '';
+      const promptIds = made.ids.map((kompanionId, n) => {
+        const pair = made.pairs?.[n] || undefined;
+        const newJob = {
+          promptId: crypto.randomUUID(),
+          kind: preset === 'video' ? 'video' : 'image',
+          user: req.userId,
+          email: req.userEmail,
+          preset,
+          prompt,
+          seed: finalSeed + (pair ? Math.floor(n / 2) : n), // STU-C3: both sides of a pair share a seed
+          rating: sentRating, // STU-C2: a sheet's shots reuse its rating and extras
+          params,
+          helmet: made.helmet?.[n] || undefined,
+          pair,
+          created: Date.now(),
+          status: 'queued',
+          progress: 0,
+          images: [],
+          faceTags,
+          lastPreviewTime: 0,
+          kompanionId
+        };
+        jobs.set(newJob.promptId, newJob);
+        jobCount++;
+        notify(newJob);
+        followKompanion(newJob);
+        return newJob.promptId;
+      });
+      trimJobs();
+      console.log(`[${new Date().toISOString()}] Generate via Kompanion: user=${req.userId}, preset=${preset}, rating=${rating}, runs=${made.ids.join(',')}`);
+      return res.json({ promptId: promptIds[0], promptIds, faceTags });
+    }
+    if (preset === 'video') {
+      // Video: Wan 2.2. An optional start image is one of this user's finished images.
+      let start = null;
+      if (req.body.startJob && req.body.startFile) {
+        const src = jobs.get(req.body.startJob);
+        const img = src && src.user === req.userId && src.images.find(i => i.filename === req.body.startFile);
+        if (!img) return res.status(404).json({ error: 'start image not found' });
+        const r = await fetch(`${COMFY_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=output`, { signal: AbortSignal.timeout(60000) });
+        if (!r.ok) throw new Error(`could not read the start image (${r.status})`);
+        start = await comfy.upload(Buffer.from(await r.arrayBuffer()), `${crypto.randomBytes(8).toString('hex')}.png`, `starts/${req.userId}`);
+      }
+      const [w, h] = String(req.body.size || '1280x704').split('x').map(n => parseInt(n, 10));
+      graph = buildVideo({ prompt, seed: finalSeed, seconds: parseFloat(req.body.seconds) || 3, width: w, height: h, start });
+    } else {
+      graph = build({
+        preset,
+        prompt,
+        seed: finalSeed,
+        rating,
+        face: faceFilename || null,
+        faceWeight: finalFaceWeight,
+        faceTags: faceTags,
+        negative
+      });
+    }
+
+    // Set filename prefix
+    // Timestamp: YYYYMMDD-HHMMSS in local time (pad every part)
+    const now = new Date();
+    const dateStr = 
+      String(now.getFullYear()).padStart(4, '0') +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0') + '-' +
+      String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0') +
+      String(now.getSeconds()).padStart(2, '0');
+    
+    graph["20"].inputs.filename_prefix = `${req.userId}/${preset}/${dateStr}-${preset}`;
+
+    // Our own prompt id, so the job is visible at once even while the GPU is busy with audio
+    const promptId = crypto.randomUUID();
+    const newJob = {
+      promptId,
+      kind: preset === 'video' ? 'video' : 'image',
+      user: req.userId,
+      preset,
+      prompt, // Store full prompt
+      seed: finalSeed,
+      created: Date.now(),
+      status: 'queued',
+      progress: 0,
+      images: [],
+      faceTags: faceTags,
+      lastPreviewTime: 0
+    };
+    jobs.set(promptId, newJob);
+    jobCount++;
+    enqueue(newJob);
+    gpu.comfyTurn(async () => {
+      dequeue(newJob);
+      notify(newJob);
+      await freeOllama();
+      await comfy.queue(graph, promptId);
+    }, newJob.kind).catch(e => {
+      dequeue(newJob);
+      if (!newJob.finished) { newJob.status = 'error'; newJob.error = e.message; newJob.finished = true; notify(newJob); }
+    });
+
+    trimJobs();
+
+    // Logging
+    console.log(`[${new Date().toISOString()}] Generate: user=${req.userId}, preset=${preset}, rating=${rating}, promptId=${promptId}`);
+
+    res.json({ promptId, faceTags });
+
+  } catch (err) {
+    console.error('Generate error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// STU-R2: refine a picture again and again (4K, recolour, repaint, chibi, parts) through Kompanion's
+// refine-* types: one of this user's finished images (sourceJob + sourceFile) or an uploaded one.
+const refineUpload = multer({ storage, limits: { fileSize: 40 * 1024 * 1024 } });
+const PICTURE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+async function jobPicture(job, img) {
+  if (job.kompanionId) {
+    const r = await kompanion.file(job.email, job.kompanionId, img.kompanion);
+    return { buffer: Buffer.from(await r.arrayBuffer()), mime: (r.headers.get('content-type') || 'image/png').split(';')[0], name: img.filename };
+  }
+  const r = await fetch(`${COMFY_URL}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}&type=output`, { signal: AbortSignal.timeout(60000) }).catch(() => null);
+  if (r && r.ok) return { buffer: Buffer.from(await r.arrayBuffer()), mime: (r.headers.get('content-type') || 'image/png').split(';')[0], name: img.filename };
+  const full = path.resolve(GENERATED, 'images', img.subfolder || '', img.filename);
+  if (!full.startsWith(path.resolve(GENERATED) + path.sep)) throw new Error('bad path');
+  return { buffer: await fs.readFile(full), mime: img.filename.endsWith('.png') ? 'image/png' : 'image/jpeg', name: img.filename };
+}
+
+app.post('/api/refine', refineUpload.fields([{ name: 'source', maxCount: 1 }, { name: 'mask', maxCount: 1 }, { name: 'face', maxCount: 1 }]), async (req, res) => {
+  try {
+    if (!kompanion.enabled) return res.status(503).json({ error: 'Refine runs through Kompanion, which is off here.' });
+    const blocked = await studioBlocked();
+    if (blocked) return res.status(409).json({ error: blocked });
+    const files = req.files || {};
+    const pic = (f) => (f && f[0] ? { buffer: f[0].buffer, mime: f[0].mimetype, name: f[0].originalname || 'picture.png' } : undefined);
+    const mask = pic(files.mask);
+    const face = pic(files.face);
+    const upload = pic(files.source);
+    let src = null;
+    let img = null;
+    if (!upload && req.body.sourceJob) {
+      src = jobs.get(req.body.sourceJob);
+      img = src && src.user === req.userId && (src.images || []).find(i => i.filename === req.body.sourceFile);
+      if (!img) return res.status(404).json({ error: 'That picture is not in your library.' });
+    }
+    // STU-C2: an OC sheet gives its shots the prompt, seed, rating, face prompt and background it was made with.
+    const sheet = src && ['oc', 'k:oc-sheet'].includes(src.preset) ? { prompt: src.prompt, seed: src.seed, rating: src.rating, params: src.params } : undefined;
+    let r;
+    try { r = refineRequest(req.body, { hasMask: Boolean(mask), hasFace: Boolean(face), sheet }); } catch (e) { return res.status(400).json({ error: e.message }); }
+    if (r.rating && !isValidRating(r.rating, req.userEmail)) return res.status(403).json({ error: 'Rating not allowed for this user.' });
+    if ([mask, face].some(p => p && !PICTURE_TYPES.includes(p.mime))) return res.status(400).json({ error: 'The picture must be a PNG, JPEG or WebP.' });
+    let faceWeight = parseFloat(req.body.faceWeight);
+    if (Number.isNaN(faceWeight)) faceWeight = 0.85;
+    faceWeight = Math.min(1.2, Math.max(0, faceWeight));
+    // STU-C3: a shot of one side of a helmet pair is made for both sides (one new pair id), each from its own sheet.
+    const runs = [{ src, img, r, helmet: undefined, pair: undefined }];
+    if (sheet && r.params.shot && src.pair && src.helmet && src.params?.helmet_desc) {
+      const partner = [...jobs.values()].find(j => j.pair === src.pair && j.promptId !== src.promptId && j.user === req.userId && j.status === 'done' && j.images?.length);
+      const shotPair = crypto.randomUUID();
+      runs.length = 0;
+      for (const s of [src, partner].filter(Boolean)) {
+        const rs = refineRequest(req.body, { hasMask: false, hasFace: false, sheet: { prompt: s.prompt, seed: s.seed, rating: s.rating, params: s.params } });
+        rs.params.helmet_desc = s.params.helmet_desc;
+        rs.params.helmet = s.helmet;
+        rs.params.pair = shotPair;
+        runs.push({ src: s, img: s === src ? img : s.images[0], r: rs, helmet: s.helmet, pair: shotPair });
+      }
+    }
+    const ids = [];
+    for (const run of runs) {
+      let source = run.src ? await jobPicture(run.src, run.img) : upload;
+      if (!source) return res.status(400).json({ error: 'Pick a picture to refine.' });
+      if (!PICTURE_TYPES.includes(source.mime)) return res.status(400).json({ error: 'The picture must be a PNG, JPEG or WebP.' });
+      let seed = parseInt(req.body.seed, 10);
+      if (Number.isNaN(seed) || seed < 0) seed = run.r.seed ?? crypto.randomInt(0, 2 ** 31);
+      const made = await kompanion.make(req.userEmail, { type: run.r.type, prompt: run.r.prompt, size: run.r.size, rating: run.r.rating, seed, params: run.r.params, source, mask, face, faceWeight: face ? faceWeight : undefined });
+      const job = {
+        promptId: crypto.randomUUID(),
+        kind: 'image',
+        user: req.userId,
+        email: req.userEmail,
+        preset: `refine:${req.body.action}`,
+        prompt: run.r.prompt,
+        refineOf: run.src ? run.src.promptId : null,
+        seed,
+        helmet: run.helmet,
+        pair: run.pair,
+        created: Date.now(),
+        status: 'queued',
+        progress: 0,
+        images: [],
+        faceTags: made.faceTags || '',
+        lastPreviewTime: 0,
+        kompanionId: made.ids[0]
+      };
+      jobs.set(job.promptId, job);
+      jobCount++;
+      notify(job);
+      followKompanion(job);
+      ids.push(job.promptId);
+      console.log(`[${new Date().toISOString()}] Refine via Kompanion: user=${req.userId}, step=${req.body.action}, run=${made.ids[0]}${run.helmet ? `, helmet ${run.helmet}` : ''}`);
+    }
+    trimJobs();
+    res.json({ promptId: ids[0], promptIds: ids });
+  } catch (err) {
+    console.error('Refine error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3b. POST /api/audio: music (HeartMuLa) or a sound effect (MOSS) on soucouyant
+app.post('/api/audio', async (req, res) => {
+  try {
+    const blocked = await studioBlocked();
+    if (blocked) return res.status(409).json({ error: blocked });
+    const { kind, prompt = '', lyrics = '[Instrumental]' } = req.body || {};
+    if (!['music', 'sfx'].includes(kind)) return res.status(400).json({ error: 'kind must be music or sfx' });
+    if (!prompt.trim() || prompt.length > 1000) return res.status(400).json({ error: 'A description (up to 1000 characters) is required.' });
+    if (String(lyrics).length > 3000) return res.status(400).json({ error: 'Lyrics can be at most 3000 characters.' });
+    let seed = parseInt(req.body.seed, 10);
+    if (Number.isNaN(seed) || seed < 0) seed = crypto.randomInt(0, 2 ** 31);
+    const max = kind === 'music' ? 240 : 30;
+    let seconds = parseInt(req.body.seconds, 10);
+    if (Number.isNaN(seconds)) seconds = kind === 'music' ? 30 : 4;
+    seconds = Math.min(max, Math.max(kind === 'music' ? 5 : 1, seconds));
+
+    if (kompanion.enabled) {
+      const kompanionId = await kompanion.makeAudio(req.userEmail, { kind, prompt, lyrics: kind === 'music' ? lyrics : '', seconds });
+      const id = crypto.randomUUID();
+      const job = { promptId: id, kind, user: req.userId, email: req.userEmail, preset: kind, prompt, lyrics: kind === 'music' ? lyrics : undefined,
+        seed, seconds, created: Date.now(), status: 'queued', progress: 0, images: [], files: [], kompanionId };
+      jobs.set(id, job);
+      trimJobs();
+      notify(job);
+      followKompanion(job);
+      console.log(`[${new Date().toISOString()}] Audio via Kompanion: user=${req.userId}, kind=${kind}, seconds=${seconds}, run=${job.kompanionId}`);
+      return res.json({ promptId: id });
+    }
+    const id = crypto.randomUUID();
+    const job = { promptId: id, kind, user: req.userId, preset: kind, prompt, lyrics: kind === 'music' ? lyrics : undefined,
+      seed, seconds, created: Date.now(), status: 'queued', progress: 0, images: [], files: [] };
+    jobs.set(id, job);
+    trimJobs();
+    console.log(`[${new Date().toISOString()}] Audio: user=${req.userId}, kind=${kind}, seconds=${seconds}, id=${id}`);
+    res.json({ promptId: id });
+
+    // Runs after the answer; the browser follows it through /api/events
+    const onStart = () => { dequeue(job); job.status = 'running'; notify(job); };
+    enqueue(job);
+    try {
+      await freeOllama();
+      const r = kind === 'music'
+        ? await gpu.music({ tags: prompt, lyrics, seconds, seed }, onStart)
+        : await gpu.sfx({ prompt, seconds, seed }, onStart);
+      job.files = [{ name: r.file, mime: 'audio/ogg' }, { name: r.wav, mime: 'audio/wav' }];
+      job.elapsed = r.elapsed_s;
+      job.status = 'done';
+      job.progress = 1;
+    } catch (e) {
+      dequeue(job);
+      job.status = 'error';
+      job.error = e.message;
+    }
+    job.finished = true;
+    notify(job);
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// 3c. GET /api/audio-file?id=&name=: one of this user's audio files, streamed from soucouyant
+app.get('/api/audio-file', async (req, res) => {
+  try {
+    const job = jobs.get(req.query.id);
+    if (!job || job.user !== req.userId) return res.status(404).json({ error: 'not found' });
+    const f = (job.files || []).find(x => x.name === req.query.name);
+    if (!f) return res.status(404).json({ error: 'not found' });
+    if (job.kompanionId) return pipeKompanion(res, job, f.kompanion, req.query.download ? f.name : '');
+    let r;
+    try { r = await gpu.fetchFile(job.kind, f.name); } catch { return sendGenerated(res, `audio/${f.name}`, req.query.download); }
+    res.setHeader('Content-Type', r.headers.get('content-type') || f.mime);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    if (req.query.download) res.setHeader('Content-Disposition', `attachment; filename="${f.name}"`);
+    stream.Readable.fromWeb(r.body).pipe(res);
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// Visible queue: jobs waiting for soucouyant's GPU, in order. Each waiting job carries its
+// position (1 = next) so the page can show "2nd in line".
+const waiting = [];
+function enqueue(job) {
+  waiting.push(job);
+  job.position = waiting.length;
+  notify(job);
+}
+function dequeue(job) {
+  const i = waiting.indexOf(job);
+  if (i >= 0) waiting.splice(i, 1);
+  job.position = 0;
+  waiting.forEach((j, n) => { if (j.position !== n + 1) { j.position = n + 1; notify(j); } });
+}
+
+// soucouyant's mover takes finished files out of the generators' output folders within about
+// 2 minutes and puts them in kireserver's /media/Generated, mounted here read-only.
+const GENERATED = process.env.GENERATED_DIR || '/generated';
+async function sendGenerated(res, rel, download) {
+  const full = path.resolve(GENERATED, rel);
+  if (!full.startsWith(path.resolve(GENERATED) + path.sep)) return res.status(400).json({ error: 'bad path' });
+  try { await fs.access(full); } catch { return res.status(404).json({ error: 'file not found yet; try again in a minute' }); }
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  return download ? res.download(full) : res.sendFile(full);
+}
+
+function trimJobs() {
+  while (jobs.size > 500) jobs.delete(jobs.keys().next().value);
+}
+
+// KS-03: one library with Kompanion: this user's finished local jobs go to Kompanion once, and the runs they made there show here.
+
+const lastSync = new Map();
+async function syncLibrary(req) {
+  if (!kompanion.enabled) return;
+  const now = Date.now();
+  if (now - (lastSync.get(req.userId) || 0) < 15000) return;
+  lastSync.set(req.userId, now);
+
+  let changed = false;
+  for (const job of jobs.values()) {
+    if (job.user !== req.userId || job.imported) continue;
+    const payload = importPayload(job, GENERATED);
+    if (!payload) continue;
+    try {
+      await kompanion.importJob(req.userEmail, payload);
+      job.imported = true;
+      changed = true;
+    } catch (e) {
+      console.warn(`[KS-03] import ${job.promptId}: ${e.message}`);
+    }
+  }
+
+  let runs = [];
+  let mined = false;
+  try {
+    runs = await kompanion.mine(req.userEmail);
+    mined = true;
+  } catch (e) {
+    console.warn(`[KS-03] mine: ${e.message}`);
+  }
+
+  // STU-D1: a run deleted in Kompanion leaves this library too (/mine lists at most 200 runs,
+  // so only a shorter list is complete enough to tell).
+  if (mined && runs.length < 200) {
+    const live = new Set(runs.map(r => r.id));
+    for (const [key, job] of jobs) {
+      const runId = kompanionRunId(job);
+      if (job.user === req.userId && FINISHED.has(job.status) && runId && !live.has(runId)) {
+        jobs.delete(key);
+        changed = true;
+      }
+    }
+  }
+
+  const known = new Set();
+  for (const job of jobs.values()) {
+    known.add(job.promptId);
+    if (job.kompanionId) known.add(job.kompanionId);
+  }
+
+  for (const run of runs) {
+    if (known.has(run.id) || (run.state !== 'done' && run.state !== 'failed')) continue;
+    const job = runJob(run, req.userId, req.userEmail);
+    jobs.set(job.promptId, job);
+    changed = true;
+  }
+
+  if (changed) {
+    trimJobs();
+    saveJobs();
+  }
+}
+// 4. GET /api/jobs
+app.get('/api/jobs', async (req, res) => {
+  try {
+    await syncLibrary(req);
+    const userJobs = Array.from(jobs.values())
+      .filter(job => job.user === req.userId)
+      .sort((a, b) => b.created - a.created)
+      .slice(0, 50);
+    
+    res.json(userJobs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 5. GET /api/jobs/:id
+app.get('/api/jobs/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const job = jobs.get(id);
+    
+    if (!job || job.user !== req.userId) {
+      return res.status(404).json({ error: 'Job not found or unauthorized' });
+    }
+    
+    res.json(job);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 6. POST /api/jobs/:id/cancel
+app.post('/api/jobs/:id/cancel', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const job = jobs.get(id);
+    
+    if (!job || job.user !== req.userId) {
+      return res.status(404).json({ error: 'Job not found or unauthorized' });
+    }
+
+    if (job.kompanionId) {
+      return res.status(409).json({ error: 'This job runs in Kompanion; it cannot be cancelled here yet.' });
+    }
+    if (job.status === 'running') {
+      await comfy.interrupt();
+      job.status = 'cancelled';
+      notify(job);
+    } else if (job.status === 'queued') {
+      return res.status(409).json({ error: 'only a running job can be cancelled' });
+    } else {
+      return res.status(400).json({ error: 'Job cannot be cancelled in current state' });
+    }
+
+    res.json({ status: job.status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// STU-D1: delete finished jobs. A job linked to Kompanion (made there, or imported) deletes its
+// Kompanion run too; a local job's files under GENERATED go as well. A running job stays.
+const FINISHED = new Set(['done', 'error', 'cancelled']);
+function kompanionRunId(job) {
+  return job.kompanionId || (job.imported ? job.promptId : null);
+}
+
+async function deleteJob(req, id) {
+  const job = jobs.get(id);
+  if (!job || job.user !== req.userId) return 'missing';
+  if (!FINISHED.has(job.status)) return 'running';
+  const runId = kompanionRunId(job);
+  if (runId && kompanion.enabled) {
+    try {
+      await kompanion.deleteRun(req.userEmail, runId);
+    } catch (e) {
+      if (!/404|not found/i.test(e.message)) throw e;
+    }
+  }
+  if (!job.kompanionId) {
+    const root = path.resolve(GENERATED);
+    const rels = [
+      ...(job.images || []).map(i => path.join('images', i.subfolder || '', i.filename)),
+      ...(job.files || []).map(f => path.join('audio', f.name))
+    ];
+    for (const rel of rels) {
+      const full = path.resolve(root, rel);
+      if (full.startsWith(root + path.sep)) await fs.unlink(full).catch(() => {});
+    }
+  }
+  jobs.delete(id);
+  return 'deleted';
+}
+
+app.delete('/api/jobs/:id', async (req, res) => {
+  try {
+    const r = await deleteJob(req, req.params.id);
+    if (r === 'missing') return res.status(404).json({ error: 'Job not found or unauthorized' });
+    if (r === 'running') return res.status(409).json({ error: 'This job is still going. Cancel it first, then delete it.' });
+    saveJobs();
+    res.status(204).end();
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Several at once: { ids: [...] } and/or { failed: true } for every failed job of this user.
+app.post('/api/jobs/delete', async (req, res) => {
+  const ids = new Set(Array.isArray(req.body?.ids) ? req.body.ids.filter(x => typeof x === 'string') : []);
+  if (req.body?.failed) {
+    for (const job of jobs.values()) if (job.user === req.userId && job.status === 'error') ids.add(job.promptId);
+  }
+  if (ids.size > 500) return res.status(400).json({ error: 'Delete at most 500 jobs at once.' });
+  const deleted = [];
+  const skipped = [];
+  for (const id of ids) {
+    try {
+      if ((await deleteJob(req, id)) === 'deleted') deleted.push(id);
+      else skipped.push(id);
+    } catch (e) {
+      console.warn(`[STU-D1] delete ${id}: ${e.message}`);
+      skipped.push(id);
+    }
+  }
+  if (deleted.length) saveJobs();
+  res.json({ deleted, skipped });
+});
+
+// 7. GET /api/events (Server-Sent Events)
+app.get('/api/events', (req, res) => {
+  // Security: Use req.userId only, never query string
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).send('Unauthorized');
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Store client reference to remove on close
+  const clientSet = new Set();
+  let pingInterval = null;
+
+  const sendEvent = (type, data) => {
+    const payload = typeof data === 'object' ? JSON.stringify(data) : data;
+    res.write(`event: ${type}\ndata: ${payload}\n\n`);
+  };
+
+  const sendPing = () => {
+    res.write(': ping\n\n');
+  };
+
+  // Initial state
+  const userJobs = Array.from(jobs.values()).filter(j => j.user === userId);
+  userJobs.forEach(job => {
+    clientSet.add(job.promptId);
+    sendEvent('job', job);
+  });
+
+  // Interval for pings
+  pingInterval = setInterval(sendPing, 20000);
+
+  // Cleanup on close
+  res.on('close', () => {
+    clearInterval(pingInterval);
+    const set = sseClients.get(userId);
+    if (set) { set.delete(res); if (!set.size) sseClients.delete(userId); }
+  });
+
+  // Register client
+  if (!sseClients.has(userId)) {
+    sseClients.set(userId, new Set());
+  }
+  sseClients.get(userId).add(res);
+
+});
+
+// 8. GET /api/image
+app.get('/api/image', async (req, res) => {
+  try {
+    const { promptId, filename } = req.query;
+    // subfolder may be an empty string, so only require promptId and filename
+    
+    if (!promptId || !filename) {
+      return res.status(400).json({ error: 'Missing parameters' });
+    }
+
+    const job = jobs.get(promptId);
+    if (!job || job.user !== req.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Check if image belongs to this job
+    const foundImage = job.images.find(img => img.filename === filename && img.subfolder === (req.query.subfolder || ''));
+    if (!foundImage) {
+      return res.status(404).json({ error: 'Image not found in job' });
+    }
+
+    if (job.kompanionId) return pipeKompanion(res, job, foundImage.kompanion, req.query.download ? foundImage.filename : '');
+
+    // Stream from ComfyUI
+    const imageUrl = `${COMFY_URL}/view?filename=${encodeURIComponent(filename)}&subfolder=${encodeURIComponent(req.query.subfolder || '')}&type=output`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(imageUrl, { signal: controller.signal });
+    
+    if (!response.ok) {
+      clearTimeout(timeoutId);
+      // Already moved to /media/Generated by soucouyant's mover
+      const sub = req.query.subfolder ? `${req.query.subfolder}/` : '';
+      return sendGenerated(res, `images/${sub}${filename}`, req.query.download);
+    }
+
+    clearTimeout(timeoutId);
+
+    // Copy headers except host
+    const contentType = response.headers.get('content-type');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    
+    // Pipe stream using Readable.fromWeb
+    stream.Readable.fromWeb(response.body).pipe(res);
+
+  } catch (err) {
+    console.error('Image fetch error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 9. Static files
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Start Server (not when a test requires this file)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    // Ensure connection is established
+    comfy.connect();
+    loadJobs();
+    console.log(`Kreative Studio server running on port ${PORT}`);
+  });
+}
+
+module.exports = { app, loadJobs };

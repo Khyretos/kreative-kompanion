@@ -1,0 +1,334 @@
+const fs = require('fs/promises');
+const path = require('path');
+const crypto = require('crypto');
+const zlib = require('zlib');
+
+// Helper to load pose modules dynamically inside functions
+function need(name, file) {
+  const mod = require(file);
+  if (!mod || !mod[name]) {
+    throw new Error(`Module ${file} does not export '${name}'`);
+  }
+  return mod[name];
+}
+
+/**
+ * Validates and normalizes a pose object.
+ * - undefined/null -> returns FK.defaultPose()
+ * - version === 1 -> returns as is
+ * - else -> throws 400 error
+ */
+function checkPose(pose) {
+  if (pose == null) {
+    const FK = need('FK', './public/js/pose/fk.js');
+    return FK.defaultPose();
+  }
+  if (pose.version === 1) {
+    return pose;
+  }
+  throw new Error('pose must be a version 1 pose.');
+}
+
+/**
+ * Validates and normalizes a view object.
+ * - width/height default to 512/768
+ * - must be integers between 64 and 2048
+ */
+function checkView(view = {}) {
+  let width = view.width ?? 512;
+  let height = view.height ?? 768;
+
+  if (!Number.isInteger(width) || !Number.isInteger(height)) {
+    throw new Error('width and height must be whole numbers from 64 to 2048.');
+  }
+  if (width < 64 || width > 2048 || height < 64 || height > 2048) {
+    throw new Error('width and height must be whole numbers from 64 to 2048.');
+  }
+
+  return { ...view, width, height };
+}
+
+/**
+ * Renders a pose into OpenPose and Depth PNGs.
+ */
+function renderPose(pose, view) {
+  const S = need('S', './public/js/pose/skeleton.js');
+  const FK = need('FK', './public/js/pose/fk.js');
+  const P = need('P', './public/js/pose/project.js');
+  const R = need('R', './public/js/pose/raster.js');
+  const D = need('D', './public/js/pose/draw-openpose.js');
+  const DEPTH = need('DEPTH', './public/js/pose/depth.js');
+
+  // Solve forward kinematics
+  const w = FK.solve(pose);
+
+  // Create view and get keypoints
+  const v = P.makeView(view, w);
+  const kp = P.keypoints(v, w);
+
+  // Draw OpenPose
+  const a = R.create(v.width, v.height);
+  D.drawOpenPose(a, kp);
+
+  // Render Depth
+  const b = R.create(v.width, v.height);
+  DEPTH.render(v, w, b);
+
+  return {
+    openpose: Buffer.from(R.encodePNG(a, zlib.deflateSync)),
+    depth: Buffer.from(R.encodePNG(b, zlib.deflateSync)),
+    keypoints: P.openposeJSON(kp),
+    view: {
+      yaw: view.yaw || 0,
+      pitch: view.pitch || 0,
+      width: v.width,
+      height: v.height,
+      scale: v.scale,
+      center: v.center
+    }
+  };
+}
+
+/**
+ * Creates the Express router for the pose editor API.
+ */
+function poseRouter({ dataDir }) {
+  const router = require('express').Router();
+  const S = need('S', './public/js/pose/skeleton.js');
+
+  // Ensure poses directory exists
+  const posesBase = path.join(dataDir, 'poses');
+
+  /**
+   * GET /pose/info
+   */
+  router.get('/pose/info', (req, res) => {
+    try {
+      const presets = require('./public/js/pose/presets.js').NAMES;
+      const ops = ['set_joint', 'curl_finger', 'mirror', 'look_at', 'ik', 'move_root', 'reset', 'preset'];
+      const joints = S.JOINTS.filter(j => j.aim !== null).map(j => ({
+        name: j.name,
+        limits: j.limits
+      }));
+
+      res.json({ presets, ops, joints });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /**
+   * POST /pose/ops
+   */
+  router.post('/pose/ops', (req, res) => {
+    try {
+      const { pose, ops: opsInput } = req.body;
+
+      if (!Array.isArray(opsInput) && typeof opsInput !== 'object' || opsInput === null) {
+        throw new Error('ops must be an op object or a list of them.');
+      }
+
+      const normalizedPose = checkPose(pose);
+      const OPS = need('OPS', './public/js/pose/ops.js');
+
+      const result = OPS.apply(normalizedPose, opsInput);
+
+      res.json({ pose: result.pose, notes: result.notes });
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('pose must be')) {
+        res.status(400).json({ error: e.message });
+      } else {
+        res.status(400).json({ error: e.message });
+      }
+    }
+  });
+
+  /**
+   * POST /pose/render
+   */
+  router.post('/pose/render', (req, res) => {
+    try {
+      const { pose, view } = req.body;
+      const result = renderPose(checkPose(pose), checkView(view));
+
+      res.json({
+        openpose: 'data:image/png;base64,' + result.openpose.toString('base64'),
+        depth: 'data:image/png;base64,' + result.depth.toString('base64'),
+        keypoints: result.keypoints,
+        view: result.view
+      });
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('pose must be')) {
+        res.status(400).json({ error: e.message });
+      } else {
+        res.status(400).json({ error: e.message });
+      }
+    }
+  });
+
+  /**
+   * GET /poses
+   */
+  router.get('/poses', async (req, res) => {
+    try {
+      const userPosesDir = path.join(posesBase, req.userId);
+      let poses = [];
+
+      if (await fs.access(userPosesDir).then(() => true).catch(() => false)) {
+        const files = await fs.readdir(userPosesDir);
+        const metaFiles = files.filter(f => f === 'meta.json');
+
+        for (const mf of metaFiles) {
+          const metaPath = path.join(userPosesDir, mf);
+          const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8'));
+          poses.push(meta);
+        }
+
+        // Sort by provenance.created descending
+        poses.sort((a, b) => new Date(b.provenance.created) - new Date(a.provenance.created));
+      }
+
+      res.json({ poses });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /**
+   * POST /poses
+   */
+  router.post('/poses', async (req, res) => {
+    try {
+      const { name: rawName, pose, view, provenance } = req.body;
+
+      let name = String(rawName || '').trim();
+      if (name.length < 1 || name.length > 80) {
+        throw new Error('Give the pose a name (up to 80 characters).');
+      }
+
+      const normalizedPose = checkPose(pose);
+      const rendered = renderPose(normalizedPose, checkView(view));
+      const id = crypto.randomUUID();
+
+      const meta = {
+        id,
+        name,
+        pose: normalizedPose,
+        view: rendered.view,
+        provenance: {
+          source: String(provenance?.source || 'editor'),
+          ops: Array.isArray(provenance?.ops) ? provenance.ops : [],
+          parent: provenance?.parent || null,
+          by: req.userEmail,
+          created: new Date().toISOString()
+        }
+      };
+
+      const userId = req.userId;
+      const poseId = id;
+      const folderPath = path.join(posesBase, userId, poseId);
+
+      // Create directory recursively
+      await fs.mkdir(folderPath, { recursive: true });
+
+      // Write files
+      await fs.writeFile(path.join(folderPath, 'meta.json'), JSON.stringify(meta, null, 2));
+      await fs.writeFile(path.join(folderPath, 'openpose.png'), rendered.openpose);
+      await fs.writeFile(path.join(folderPath, 'depth.png'), rendered.depth);
+      await fs.writeFile(path.join(folderPath, 'keypoints.json'), JSON.stringify(rendered.keypoints, null, 2));
+
+      res.status(201).json({ id });
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('pose must be')) {
+        res.status(400).json({ error: e.message });
+      } else {
+        res.status(400).json({ error: e.message });
+      }
+    }
+  });
+
+  /**
+   * GET /poses/:id
+   */
+  router.get('/poses/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const isValidId = /^[0-9a-f-]{36}$/.test(id);
+
+      if (!isValidId) {
+        return res.status(404).json({ error: 'No such pose.' });
+      }
+
+      const folderPath = path.join(posesBase, req.userId, id);
+      const metaPath = path.join(folderPath, 'meta.json');
+
+      if (!(await fs.access(metaPath).then(() => true).catch(() => false))) {
+        return res.status(404).json({ error: 'No such pose.' });
+      }
+
+      const meta = JSON.parse(await fs.readFile(metaPath, 'utf-8'));
+      res.json(meta);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /**
+   * GET /poses/:id/:file
+   */
+  router.get('/poses/:id/:file', async (req, res) => {
+    try {
+      const { id, file } = req.params;
+      const isValidId = /^[0-9a-f-]{36}$/.test(id);
+
+      if (!isValidId) {
+        return res.status(404).json({ error: 'No such file.' });
+      }
+
+      const allowedFiles = ['openpose.png', 'depth.png', 'keypoints.json'];
+      if (!allowedFiles.includes(file)) {
+        return res.status(404).json({ error: 'No such file.' });
+      }
+
+      const folderPath = path.join(posesBase, req.userId, id);
+      const filePath = path.join(folderPath, file);
+
+      if (!(await fs.access(filePath).then(() => true).catch(() => false))) {
+        return res.status(404).json({ error: 'No such file.' });
+      }
+
+      const ext = path.extname(file);
+      const contentType = ext === '.png' ? 'image/png' : 'application/json';
+
+      res.setHeader('Content-Type', contentType);
+      res.sendFile(filePath);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /**
+   * DELETE /poses/:id
+   */
+  router.delete('/poses/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const isValidId = /^[0-9a-f-]{36}$/.test(id);
+
+      if (!isValidId) {
+        return res.status(404).json({ error: 'No such pose.' });
+      }
+
+      const folderPath = path.join(posesBase, req.userId, id);
+      await fs.rm(folderPath, { recursive: true, force: true });
+
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  return router;
+}
+
+module.exports = { poseRouter, renderPose, need };

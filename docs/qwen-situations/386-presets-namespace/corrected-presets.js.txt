@@ -1,0 +1,62 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+
+  const PRESETS = {
+    t_pose: [
+      { op: 'set_joint', joint: 'l_shoulder', side: 70 },
+      { op: 'set_joint', joint: 'l_elbow', bend: 0 },
+      { op: 'mirror', from: 'l' }
+    ],
+    cowboy_shot: [
+      { op: 'ik', chain: 'l_arm', target: [0.17, -0.04, 1.0], pole: [0.6, 0.1, 1.25] },
+      { op: 'set_joint', joint: 'r_shoulder', side: 8 },
+      { op: 'set_joint', joint: 'r_elbow', bend: 15 },
+      { op: 'set_joint', joint: 'spine', side: 3 },
+      { op: 'set_joint', joint: 'l_hip', side: 4 },
+      { op: 'look_at', yaw: 10, pitch: 5 }
+    ],
+    action: [
+      { op: 'set_joint', joint: 'spine', bend: 15 },
+      { op: 'set_joint', joint: 'chest', twist: 15 },
+      { op: 'set_joint', joint: 'r_hip', bend: 70 },
+      { op: 'set_joint', joint: 'r_knee', bend: -90 },
+      { op: 'set_joint', joint: 'l_hip', bend: -20 },
+      { op: 'set_joint', joint: 'l_knee', bend: -30 },
+      { op: 'set_joint', joint: 'l_shoulder', bend: 60 },
+      { op: 'set_joint', joint: 'l_elbow', bend: 90 },
+      { op: 'set_joint', joint: 'r_shoulder', bend: -40 },
+      { op: 'set_joint', joint: 'r_elbow', bend: 70 },
+      { op: 'curl_finger', hand: 'both', finger: 'all', amount: 0.8 },
+      { op: 'move_root', pos: [0, 0, 0.82] }
+    ],
+    sitting: [
+      { op: 'move_root', pos: [0, 0, 0.52] },
+      { op: 'set_joint', joint: 'l_hip', bend: 90 },
+      { op: 'set_joint', joint: 'l_knee', bend: -90 },
+      { op: 'set_joint', joint: 'l_shoulder', bend: 30 },
+      { op: 'set_joint', joint: 'l_elbow', bend: 60 },
+      { op: 'mirror', from: 'l' },
+      { op: 'set_joint', joint: 'spine', bend: 5 }
+    ],
+    waving: [
+      { op: 'ik', chain: 'r_arm', target: [-0.45, -0.05, 1.75], pole: [-0.6, 0.1, 1.2] },
+      { op: 'set_joint', joint: 'l_elbow', bend: 10 },
+      { op: 'look_at', yaw: -10, pitch: 0 }
+    ],
+    fists: [
+      { op: 'set_joint', joint: 'l_shoulder', bend: 30 },
+      { op: 'set_joint', joint: 'l_elbow', bend: 100 },
+      { op: 'mirror', from: 'l' },
+      { op: 'curl_finger', hand: 'both', finger: 'all', amount: 1 }
+    ]
+  };
+
+  const NAMES = Object.keys(PRESETS);
+
+  if (NS) {
+    NS.presets = { PRESETS, NAMES };
+  } else {
+    module.exports = { PRESETS, NAMES };
+  }
+})();

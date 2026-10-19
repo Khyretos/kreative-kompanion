@@ -332,3 +332,14 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - One change per job: a new parameter, a helper, a request branch and main() wiring are separate units, each with its own test; a unit that touches start-up code has a check that runs it (lessons 362, 366).
 - JS checks run `node --check` first so a fix round gets line:column; never ask the model to cut code out of a very long one-line function, give the new function as its own unit and swap the call site by script (lessons 363, 365).
 - Order units so each check only depends on units that already passed (database grants before the code that needs them) (lesson 364).
+
+## Numeric, binary and browser units (lessons 370-394, STU-PE1)
+
+- A math recipe of more than ~8 steps is two units, each with a numeric test (IK: aim/pole, then hinge/middle). Give matrices row by row and say where a sign comes from (`atan2(dot(axis, cross), dot)`).
+- Give helper signatures inline (`scale(vector, number)`) and each lookup's object verbatim (`w.pos[j]`, `S.byName[j].rest`); the 9B model invents `S.pos`, swaps arguments and calls functions that do not exist.
+- Expanding a table (mirrored twins, generated rows): put the loop itself in the prompt and ask for "under N lines"; otherwise the model unrolls every row and hits the token cap.
+- Binary formats: hand over the helper code (`u32` big-endian, `chunk(type, data)`) and let the model only call it.
+- CommonJS files get the exact `require` lines; the model never writes its own loader. Never pass a context file that has not passed its own check: the model copies its mistakes.
+- A file that runs in Node and the browser is checked in both (a `vm` load in index.html order); a browser unit is checked in a browser (its e2e sections), not with `node --check` or a grep.
+- Checks print the values: a failing test must show expected and actual numbers, or the repair rounds are blind. One test file per unit, requiring only that unit and earlier ones; a unit runs only after the units it requires pass.
+- Checks test behaviour, never the absence of a string (`need.stage` passed a grep for `[^.]stage`).

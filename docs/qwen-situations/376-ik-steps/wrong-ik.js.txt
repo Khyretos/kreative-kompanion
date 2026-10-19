@@ -1,0 +1,217 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load vec.js and skeleton.js inside functions to ensure correct loading order in browser
+  function getVec() { return need('vec', './vec.js'); }
+  function getSkeleton() { return need('skeleton', './skeleton.js'); }
+  function getFK() { return need('fk', './fk.js'); }
+  function getLookAt() { return need('lookat', '../public/js/pose/lookat.js'); }
+
+  const V = getVec();
+  const S = getSkeleton();
+  const FK = getFK();
+
+  /**
+   * Returns the rest position of a joint.
+   */
+  function rest(name) {
+    return S.byName[name].rest;
+  }
+
+  /**
+   * CHAINS defines the two-bone chains for arms and legs.
+   */
+  const CHAINS = {
+    l_arm: { joints: ['l_shoulder', 'l_elbow', 'l_wrist'], sign: 1 },
+    r_arm: { joints: ['r_shoulder', 'r_elbow', 'r_wrist'], sign: 1 },
+    l_leg: { joints: ['l_hip', 'l_knee', 'l_ankle'], sign: -1 },
+    r_leg: { joints: ['r_hip', 'r_knee', 'r_ankle'], sign: -1 }
+  };
+
+  /**
+   * Solves inverse kinematics for a given chain.
+   * @param {Object} pose - The current pose object.
+   * @param {Object} opts - Options containing chain, target, and optional pole.
+   * @returns {Object} Result with joints and reached status.
+   * @throws {Error} If chain is unknown or target is invalid.
+   */
+  function solve(pose, { chain, target, pole }) {
+    if (!CHAINS[chain]) {
+      throw new Error('chain must be l_arm, r_arm, l_leg or r_leg.');
+    }
+
+    if (!Array.isArray(target) || target.length !== 3 || !target.every(n => typeof n === 'number' && isFinite(n))) {
+      throw new Error('target must be [x, y, z].');
+    }
+
+    const u = CHAINS[chain].joints[0]; // upper
+    const m = CHAINS[chain].joints[1]; // middle
+    const e = CHAINS[chain].joints[2]; // end
+    const sign = CHAINS[chain].sign;
+
+    // 1. Forward kinematics to get world positions and rotations
+    const w = FK.solve(pose);
+    
+    if (!w || !w.pos) {
+      throw new Error('FK.solve returned invalid result.');
+    }
+    
+    const posU = w.pos[u];
+    const posM = w.pos[m];
+    const posE = w.pos[e];
+    const rotP = w.rot[S.byName[u].parent];
+
+    // Bone lengths in world space
+    const la = V.len(V.sub(posM, posU));
+    const lb = V.len(V.sub(posE, posM));
+
+    // 2. Distance to target and reachability check
+    const full = V.len(V.sub(target, posU));
+    const minLen = Math.abs(la - lb) + 1e-4;
+    const maxLen = la + lb - 1e-4;
+    const reached = full >= minLen && full <= maxLen;
+
+    let d = full;
+    if (d < minLen) d = minLen;
+    if (d > maxLen) d = maxLen;
+
+    const dir = V.norm(V.sub(target, posU));
+
+    // 3. Pole vector calculation
+    let polePoint;
+    if (pole) {
+      polePoint = pole;
+    } else {
+      // Determine parent joint name
+      const parentName = S.byName[u].parent;
+      const off = (u.startsWith('l_') || u.startsWith('r_')) && u.endsWith('_shoulder') 
+        ? [0, 0.3, -0.4] // Arms: behind and below
+        : [0, -0.4, -0.3]; // Legs: in front and below
+      
+      // Get rotation of parent joint
+      const P_rot = w.rot[parentName];
+      
+      // Apply offset in local space of parent, then transform to world
+      const localOffset = V.matVec(P_rot, off);
+      polePoint = V.add(posU, localOffset);
+    }
+
+    // Project pole point onto the plane perpendicular to dir at posU
+    const sideVec = V.sub(polePoint, posU);
+    const proj = V.dot(sideVec, dir);
+    const side = V.sub(sideVec, scale(dir, proj));
+    
+    if (V.len(side) < 1e-9) {
+      // Fallback: use parent rotation axis
+      const fallbackAxis = V.matVec(rotP, [0, -1, 0]);
+      side = V.norm(fallbackAxis);
+    } else {
+      side = V.norm(side);
+    }
+
+    // 4. Law of cosines to find angles
+    const cosA = (la * la + d * d - lb * lb) / (2 * la * d);
+    const cosASq = cosA * cosA;
+    let sinA = Math.sqrt(Math.max(0, 1 - cosASq));
+
+    // E = A + la*(cosA*dir + sinA*side)
+    const term1 = scale(dir, cosA);
+    const term2 = scale(side, sinA);
+    const E = V.add(posU, V.add(term1, term2));
+
+    // T = A + d*dir (the end point actually reached)
+    const T = V.add(posU, scale(dir, d));
+
+    // 5. Upper joint rotation
+    // r0 = normalized rest direction from upper to middle
+    const r0 = V.norm(V.sub(rest(m), rest(u)));
+    
+    // upperDir = normalized direction from upper to new middle
+    const upperDir = V.norm(V.sub(E, posU));
+    
+    // Ensure upperDir is not zero vector (fallback to parent axis)
+    if (V.len(upperDir) < 1e-9) {
+      upperDir = V.matVec(rotP, [0, -1, 0]);
+    }
+    
+    // r = rotate r0 by parent rotation
+    const r = V.matVec(V.transpose(rotP), r0);
+    
+    // L1 = rotation to align r0 with r
+    const L1 = V.rotBetween(r0, r);
+
+    // hinge0 = column 0 of FK.frame(m)
+    const frameM = FK.frame(m);
+    const hinge0 = [frameM[0], frameM[3], frameM[6]];
+    
+    // hingeNow = apply parent rotation to hinge0
+    const hingeNow = V.matVec(rotP, hinge0);
+    
+    // want = desired side direction
+    const crossVec = V.cross(V.sub(E, posU), V.sub(T, E));
+    const want = V.scale(V.norm(crossVec), sign);
+    
+    // phi = signed angle between hingeNow and want around upperDir
+    const phi = V.signedAngle(hingeNow, want, upperDir);
+    
+    // L = rotate L1 by phi around r
+    const R_axisAngle = V.axisAngle(r, phi);
+    const L = V.matMul(R_axisAngle, L1);
+
+    // 6. Middle joint rotation
+    const Ru = V.matMul(rotP, L);
+    
+    // f0 = normalized rest direction from middle to end
+    const f0 = V.norm(V.sub(rest(e), rest(m)));
+    
+    // f = direction from new middle to actual end
+    const f = V.matVec(V.transpose(Ru), V.norm(V.sub(T, E)));
+    
+    // Lm = rotation to align f0 with f
+    const Lm = V.rotBetween(f0, f);
+
+    // 7. Convert matrices to joint values
+    const B_u = FK.frame(u);
+    const B_m = FK.frame(m);
+    
+    const B_uT = V.transpose(B_u);
+    const B_mT = V.transpose(B_m);
+    
+    const eulerU = V.matToEuler(V.matMul(V.matMul(B_uT, L), B_u));
+    const eulerM = V.matToEuler(V.matMul(V.matMul(B_mT, Lm), B_m));
+    
+    // Mirror right side joints
+    if (u.startsWith('r_')) {
+      eulerU.side = -eulerU.side;
+      eulerU.twist = -eulerU.twist;
+    }
+    if (m.startsWith('r_')) {
+      eulerM.side = -eulerM.side;
+      eulerM.twist = -eulerM.twist;
+    }
+
+    return {
+      joints: {
+        [u]: eulerU,
+        [m]: eulerM
+      },
+      reached
+    };
+  }
+
+  /**
+   * Helper function to scale a vector.
+   */
+  function scale(v, s) {
+    return [v[0] * s, v[1] * s, v[2] * s];
+  }
+
+  const api = {
+    CHAINS,
+    solve
+  };
+
+  if (NS) NS.ik = api; else module.exports = api;
+})();

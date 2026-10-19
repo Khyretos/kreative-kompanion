@@ -1,0 +1,171 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load vec.js and skeleton.js inside functions to ensure correct loading order in browser
+  let V, S;
+
+  function _loadModules() {
+    if (!V) V = need('vec', './vec.js');
+    if (!S) S = need('skeleton', './skeleton.js');
+  }
+
+  // --- makeView ---
+  function makeView(opts, w) {
+    _loadModules();
+    const { yaw = 0, pitch = 0, width = 512, height = 768, pad = 0.06, scale, center } = opts;
+    const R = V.matMul(V.axisAngle([1, 0, 0], pitch), V.axisAngle([0, 0, 1], yaw));
+
+    if (scale !== undefined && center !== undefined) {
+      const c = V.matVec(R, center);
+      return { R, s: scale, c, width, height, scale, center: V.matVec(V.transpose(R), c) };
+    }
+
+    // Fit every point of w.pos
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const p of Object.values(w.pos)) {
+      const v = V.matVec(R, p);
+      if (v[0] < minX) minX = v[0];
+      if (v[0] > maxX) maxX = v[0];
+      if (v[2] < minZ) minZ = v[2];
+      if (v[2] > maxZ) maxZ = v[2];
+    }
+
+    const s = Math.min(width * (1 - 2 * pad) / (maxX - minX), height * (1 - 2 * pad) / (maxZ - minZ));
+    const c = [(minX + maxX) / 2, 0, (minZ + maxZ) / 2];
+    return { R, s, c, width, height, scale: s, center: V.matVec(V.transpose(R), c) };
+  }
+
+  // --- toScreen ---
+  function toScreen(view, p) {
+    _loadModules();
+    const v = V.matVec(view.R, p);
+    return [
+      view.width / 2 + view.s * (v[0] - view.c[0]),
+      view.height / 2 - view.s * (v[2] - view.c[2]),
+      -view.s * (v[1] - view.c[1])
+    ];
+  }
+
+  // --- fromScreen ---
+  function fromScreen(view, x, y, z) {
+    _loadModules();
+    const v = [
+      (x - view.width / 2) / view.s + view.c[0],
+      view.c[1] - z / view.s,
+      (view.height / 2 - y) / view.s + view.c[2]
+    ];
+    return V.matVec(V.transpose(view.R), v);
+  }
+
+  // --- keypoints ---
+  function keypoints(view, w) {
+    _loadModules();
+    const kpBody = [];
+    const kpLeft = [];
+    const kpRight = [];
+    const facePoints = ['nose', 'l_eye', 'r_eye', 'l_ear', 'r_ear'];
+
+    // Body points
+    for (let i = 0; i < S.BODY18.length; i++) {
+      const name = S.BODY18[i];
+      const pos = w.pos[name];
+      const screen = toScreen(view, pos);
+      let pt = null;
+      if (screen[0] >= 0 && screen[1] >= 0 && screen[0] < view.width && screen[1] < view.height) {
+        pt = [Math.round(screen[0] * 10) / 10, Math.round(screen[1] * 10) / 10];
+      }
+      if (facePoints.includes(name)) {
+        // turned away from the camera: the head-to-point direction, in view space, flattened
+        const d = V.matVec(view.R, V.sub(pos, w.pos.head));
+        const l = Math.hypot(d[0], d[1]);
+        if (l > 0 && -d[1] / l < -0.2) pt = null;
+      }
+      kpBody.push(pt);
+    }
+
+    // Left hand
+    for (let i = 0; i < S.HAND.length; i++) {
+      const name = 'l_' + S.HAND[i];
+      const pos = w.pos[name];
+      const screen = toScreen(view, pos);
+      let pt = null;
+      if (screen[0] >= 0 && screen[1] >= 0 && screen[0] < view.width && screen[1] < view.height) {
+        pt = [Math.round(screen[0] * 10) / 10, Math.round(screen[1] * 10) / 10];
+      }
+      kpLeft.push(pt);
+    }
+
+    // Right hand
+    for (let i = 0; i < S.HAND.length; i++) {
+      const name = 'r_' + S.HAND[i];
+      const pos = w.pos[name];
+      const screen = toScreen(view, pos);
+      let pt = null;
+      if (screen[0] >= 0 && screen[1] >= 0 && screen[0] < view.width && screen[1] < view.height) {
+        pt = [Math.round(screen[0] * 10) / 10, Math.round(screen[1] * 10) / 10];
+      }
+      kpRight.push(pt);
+    }
+
+    return { width: view.width, height: view.height, body: kpBody, left: kpLeft, right: kpRight };
+  }
+
+  // --- openposeJSON ---
+  function openposeJSON(kp) {
+    const { body, left, right } = kp;
+    const poseKeypoints = [];
+    const handLeftKeypoints = [];
+    const handRightKeypoints = [];
+
+    for (let i = 0; i < body.length; i++) {
+      const pt = body[i];
+      if (pt !== null) {
+        poseKeypoints.push(pt[0], pt[1], 1);
+      } else {
+        poseKeypoints.push(0, 0, 0);
+      }
+    }
+
+    for (let i = 0; i < left.length; i++) {
+      const pt = left[i];
+      if (pt !== null) {
+        handLeftKeypoints.push(pt[0], pt[1], 1);
+      } else {
+        handLeftKeypoints.push(0, 0, 0);
+      }
+    }
+
+    for (let i = 0; i < right.length; i++) {
+      const pt = right[i];
+      if (pt !== null) {
+        handRightKeypoints.push(pt[0], pt[1], 1);
+      } else {
+        handRightKeypoints.push(0, 0, 0);
+      }
+    }
+
+    return {
+      canvas_width: kp.width,
+      canvas_height: kp.height,
+      people: [{
+        pose_keypoints_2d: poseKeypoints,
+        hand_left_keypoints_2d: handLeftKeypoints,
+        hand_right_keypoints_2d: handRightKeypoints,
+        face_keypoints_2d: []
+      }]
+    };
+  }
+
+  // --- Export ---
+  const api = {
+    makeView,
+    toScreen,
+    fromScreen,
+    keypoints,
+    openposeJSON
+  };
+
+  if (NS) NS.project = api; else module.exports = api;
+})();

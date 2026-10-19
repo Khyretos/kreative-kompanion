@@ -1,0 +1,15 @@
+[
+  {
+    "name": "pe1-cli",
+    "role": "worker/web",
+    "out": "/tmp/kk-pe1/studio/tools/pose-cli.js",
+    "precheck": false,
+    "max_tokens": 4000,
+    "context": [
+      "/tmp/kk-pe1/studio/test/pose-cli.test.js",
+      "/tmp/kk-pe1/studio/lib/pose-api.js"
+    ],
+    "check": "cd /tmp/kk-pe1/studio && sh /tmp/kk-pe1-chk/sttest.sh test/pose-cli.test.js",
+    "prompt": "Kreative Studio pose editor (STU-PE1). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\n\nWrite tools/pose-cli.js for Kreative Studio: a Node 22 CommonJS command line tool (shebang `#!/usr/bin/env node`) so Claude and local models can fix a pose without the browser. It requires '../lib/pose-api.js' (renderPose) and '../public/js/pose/ops.js' and '../public/js/pose/fk.js', plus fs and path.\n\nUsage: node tools/pose-cli.js [--pose pose.json] [--ops ops.json | --op '<one op as JSON>'] [--out DIR] [--yaw N] [--pitch N] [--width N] [--height N]\n- Start pose: the --pose file's JSON (a saved pose meta.json with a .pose field is accepted too: use .pose), else FK.defaultPose().\n- Ops: the --ops file's JSON (an op or a list), or --op given inline; none means no ops. Apply with OPS.apply.\n- Print JSON to stdout: { pose, notes }, 2-space indented.\n- With --out DIR: create DIR, write pose.json (the pose), then r = renderPose(pose, { yaw, pitch, width, height }) (numbers parsed with Number, missing ones left out) and write openpose.png, depth.png and keypoints.json (2-space JSON); print the written paths to stderr, one per line.\n- On any error print `error: <message>` to stderr and exit with code 1. Unknown flags are an error: `unknown flag <flag>`.\nWrite it as main(argv, io = { out: s => process.stdout.write(s), err: s => process.stderr.write(s) }) that parses argv with a small loop (each flag takes the next argument as its value), writes only through io.out / io.err, and returns the exit code (0 or 1). End the file with: `if (require.main === module) process.exitCode = main(process.argv.slice(2));` and `module.exports = { main };`.\n"
+  }
+]

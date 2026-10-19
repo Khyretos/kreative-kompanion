@@ -1,0 +1,322 @@
+(function () {
+  'use strict';
+
+  // --- Utilities ---
+
+  const jointLabel = (name) => {
+    if (!name) return '';
+    let label = name;
+    
+    // Handle side prefix l_/r_ -> Left/Right
+    if (label.startsWith('l_')) label = label.slice(2);
+    else if (label.startsWith('r_')) label = label.slice(2);
+    
+    // Handle underscores to spaces and Capitalize first letter
+    label = label.replace(/_/g, ' ');
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+    
+    // Add side back
+    if (name.startsWith('l_')) label = 'Left ' + label;
+    else if (name.startsWith('r_')) label = 'Right ' + label;
+    
+    return label;
+  };
+
+  // --- State & Globals ---
+
+  let stage = null;
+  let log = [];
+  let parent = null;
+  
+  // DOM Elements cache
+  const els = {};
+
+  // --- Setup ---
+
+  function setup() {
+    // Cache elements
+    els.canvas = document.getElementById('pose-canvas');
+    els.presets = document.getElementById('pose-presets');
+    els.notes = document.getElementById('pose-notes');
+    els.yawInput = document.getElementById('pose-yaw');
+    els.yawVal = document.getElementById('pose-yaw-val');
+    els.pitchInput = document.getElementById('pose-pitch');
+    els.pitchVal = document.getElementById('pose-pitch-val');
+    els.showSelect = document.getElementById('pose-show');
+    els.jointName = document.getElementById('pose-joint-name');
+    els.jointSliders = document.getElementById('pose-joint-sliders');
+    els.handSelect = document.getElementById('pose-hand');
+    els.fingersContainer = document.getElementById('pose-fingers');
+    els.fistBtn = document.getElementById('pose-fist');
+    els.openBtn = document.getElementById('pose-open');
+    els.mirrorLr = document.getElementById('pose-mirror-lr');
+    els.mirrorRl = document.getElementById('pose-mirror-rl');
+    els.flipBtn = document.getElementById('pose-flip');
+    els.undoBtn = document.getElementById('pose-undo');
+    els.resetBtn = document.getElementById('pose-reset');
+    els.errorMsg = document.getElementById('error-msg-pose');
+
+    // 1. Initialize Stage
+    stage = KKPoseStage.create(els.canvas, {
+      onChange: handleStageChange,
+      onSelect: showJoint
+    });
+
+    // 2. Presets
+    const NAMES = KKPose.presets.NAMES;
+    const LABELS = {
+      t_pose: 'T-pose',
+      cowboy_shot: 'Cowboy shot',
+      action: 'Action',
+      sitting: 'Sitting',
+      waving: 'Waving',
+      fists: 'Fists'
+    };
+
+    const presetButtons = [];
+    NAMES.forEach(name => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip pose-chip';
+      btn.textContent = LABELS[name] || name;
+      btn.addEventListener('click', () => {
+        run({ op: 'preset', name }, { refit: true });
+        log = [{ op: 'preset', name }];
+        parent = null;
+      });
+      els.presets.appendChild(btn);
+      presetButtons.push(btn);
+    });
+
+    // 3. Turn and Tilt
+    els.yawInput.addEventListener('input', () => {
+      const val = +els.yawInput.value;
+      stage.setView({ yaw: val });
+      els.yawVal.textContent = `${val}°`;
+    });
+
+    els.pitchInput.addEventListener('input', () => {
+      const val = +els.pitchInput.value;
+      stage.setView({ pitch: val });
+      els.pitchVal.textContent = `${val}°`;
+    });
+
+    // 4. Show Mode
+    els.showSelect.addEventListener('change', () => {
+      stage.setShow(els.showSelect.value);
+    });
+
+    // 5. Mirror & Controls
+    els.mirrorLr.addEventListener('click', () => run({ op: 'mirror', from: 'l' }));
+    els.mirrorRl.addEventListener('click', () => run({ op: 'mirror', from: 'r' }));
+    els.flipBtn.addEventListener('click', () => run({ op: 'mirror', from: 'swap' }));
+    els.undoBtn.addEventListener('click', () => stage.undoLast());
+    els.resetBtn.addEventListener('click', () => {
+      run({ op: 'reset' }, { refit: true });
+      log = [];
+    });
+
+    // 6. Fingers
+    const fingers = ['thumb', 'index', 'middle', 'ring', 'pinky'];
+    const handSel = els.handSelect;
+    
+    // Build finger sliders
+    fingers.forEach(f => {
+      const row = document.createElement('div');
+      row.style.marginBottom = '8px';
+      
+      const label = document.createElement('label');
+      label.textContent = f.charAt(0).toUpperCase() + f.slice(1);
+      
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = '0';
+      input.max = '100';
+      input.step = '1';
+      input.dataset.finger = f;
+      
+      // Input for live preview (no commit)
+      input.addEventListener('input', (e) => {
+        const val = e.target.value;
+        run({ op: 'curl_finger', hand: handSel.value, finger: f, amount: val / 100 }, { commit: false });
+      });
+      
+      // Change for commit
+      input.addEventListener('change', (e) => {
+        const val = e.target.value;
+        run({ op: 'curl_finger', hand: handSel.value, finger: f, amount: val / 100 }, { commit: true });
+      });
+      
+      row.appendChild(label);
+      row.appendChild(input);
+      els.fingersContainer.appendChild(row);
+    });
+
+    els.fistBtn.addEventListener('click', () => {
+      run({ op: 'curl_finger', hand: handSel.value, finger: 'all', amount: 1 });
+    });
+
+    els.openBtn.addEventListener('click', () => {
+      run({ op: 'curl_finger', hand: handSel.value, finger: 'all', amount: 0 });
+    });
+
+    handSel.addEventListener('change', syncFingers);
+
+    // 7. Joint Legend & Sliders
+    // Initial render of sliders is handled by showJoint when a joint is selected.
+    // We need to ensure the container exists even if empty.
+    if (!els.jointSliders.children.length) {
+       els.jointSliders.innerHTML = '<div style="color:#999; font-style:italic;">Select a joint on stage to edit angles...</div>';
+    }
+
+    // 8. Run Helper
+    window.KKPoseEditor = {
+      startLog: (ops, parentId) => {
+        log = ops.slice();
+        parent = parentId;
+      },
+      log: () => log.slice(),
+      parent: () => parent
+    };
+
+    // 9. Stage Change Handler
+    function handleStageChange({ pose, notes, op, commit }) {
+      // Update Notes
+      els.notes.textContent = notes.join('. ');
+      
+      // Update Undo button state
+      els.undoBtn.disabled = !stage.canUndo();
+
+      // If commit happened, sync fingers and refresh sliders if a joint is selected
+      if (commit) {
+        syncFingers();
+        if (els.jointName && els.jointName.textContent) {
+          refreshSliders();
+        }
+      }
+
+      // Handle drag ops from canvas (they have commit=true and op set): push them to log.
+      // We only push if the op is not one of the explicit UI actions we handle in `run`.
+      // This prevents double-logging when the user clicks buttons that call `run`.
+      if (op && commit && !['preset', 'mirror', 'curl_finger', 'set_joint', 'reset'].includes(op.op)) {
+        log.push(op);
+      }
+    }
+
+    // 10. Sync Fingers
+    function syncFingers() {
+      const pose = stage.getPose();
+      const hand = handSel.value;
+      const skeleton = KKPose.skeleton.byName[hand];
+      
+      fingers.forEach(f => {
+        const input = els.fingersContainer.querySelector(`input[data-finger="${f}"]`);
+        if (!input) return;
+        
+        const jointName = `${hand}_${KKPose.skeleton.FINGERS[f][0]}`;
+        const bend = pose.joints[jointName]?.bend || 0;
+        const hi = KKPose.skeleton.byName[jointName].limits.bend[1];
+        
+        const val = Math.round(100 * bend / hi);
+        input.value = val;
+      });
+    }
+
+    // Refresh sliders for selected joint
+    function refreshSliders() {
+      const name = els.jointName.textContent;
+      if (!name) return;
+      
+      const pose = stage.getPose();
+      const jointData = pose.joints[name];
+      const skeleton = KKPose.skeleton.byName[name];
+      
+      els.jointSliders.innerHTML = ''; // Clear
+      
+      const keys = ['bend', 'side', 'twist'];
+      
+      keys.forEach(k => {
+        const limits = skeleton.limits[k];
+        if (!limits || limits[0] >= limits[1]) return;
+        
+        const lo = limits[0];
+        const hi = limits[1];
+        const val = jointData ? jointData[k] : 0;
+        
+        const row = document.createElement('div');
+        row.style.marginBottom = '8px';
+        
+        const label = document.createElement('label');
+        label.textContent = k.charAt(0).toUpperCase() + k.slice(1);
+        
+        const output = document.createElement('output');
+        output.textContent = `${val}°`;
+        
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = lo;
+        input.max = hi;
+        input.step = '1';
+        input.dataset.key = k;
+        
+        // Input for live preview
+        input.addEventListener('input', (e) => {
+          const v = +e.target.value;
+          run({ op: 'set_joint', joint: name, [k]: v }, { commit: false });
+        });
+        
+        // Change for commit
+        input.addEventListener('change', (e) => {
+          const v = +e.target.value;
+          run({ op: 'set_joint', joint: name, [k]: v }, { commit: true });
+        });
+        
+        row.appendChild(label);
+        row.appendChild(output);
+        row.appendChild(input);
+        els.jointSliders.appendChild(row);
+      });
+    }
+
+    // Show Joint Handler
+    function showJoint(name) {
+      els.jointName.textContent = name;
+      refreshSliders();
+    }
+
+    // Run Helper
+    function run(op, opts = {}) {
+      els.errorMsg.textContent = '';
+      try {
+        stage.apply(op, opts);
+        if (opts.commit !== false) {
+          // Exclude presets and reset as per instructions
+          if (op.op !== 'preset' && op.op !== 'reset') {
+            log.push(op);
+          }
+        }
+      } catch (e) {
+        els.errorMsg.textContent = e.message;
+      }
+    }
+
+    // Expose API
+    window.KKPoseEditor = {
+      stage,
+      log: () => log.slice(),
+      parent: () => parent,
+      startLog: (ops, parentId) => {
+        log = ops.slice();
+        parent = parentId;
+      }
+    };
+  }
+
+  // Run on DOMContentLoaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setup);
+  } else {
+    setup();
+  }
+
+})();

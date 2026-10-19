@@ -1,0 +1,20 @@
+[
+  {
+    "name": "pe1-stagezoom",
+    "role": "worker/web",
+    "out": "/tmp/kk-pe1/studio/public/js/pose-stage.js",
+    "mode": "patch",
+    "precheck": false,
+    "max_tokens": 2500,
+    "focus": [
+      "refit\\(\\) \\{",
+      "setShow\\(mode\\) \\{",
+      "this.draw\\(!commit\\);",
+      "self.draw\\(false\\);",
+      "this.zoom|this.drag = null;"
+    ],
+    "context": [],
+    "check": "cd /tmp/kk-pe1/studio && docker run --rm --memory 512m -u 1000:1000 -v /tmp/kk-pe1/studio:/w:ro -w /w kreative-studio:local node --check public/js/pose-stage.js && grep -q 'setZoom(zoom)' public/js/pose-stage.js && grep -q 'outOfFrame()' public/js/pose-stage.js && echo ok",
+    "prompt": "In public/js/pose-stage.js (the PoseStage class) add a hand zoom and keep the figure in frame (STU-PE1). SEARCH/REPLACE edits only, change nothing else:\n1. In the constructor state add `this.zoom = 'body';`.\n2. Replace the body of refit() with:\n      const w = K.fk.solve(this.pose);\n      const view = K.project.makeView({ yaw: this.yaw, pitch: this.pitch, width: this.canvas.width, height: this.canvas.height }, w);\n      if (this.zoom === 'body') {\n        this.frame = { scale: view.scale, center: view.center };\n      } else {\n        // a hand fills the canvas: 5 times the body scale, centred on its middle knuckle\n        this.frame = { scale: view.scale * 5, center: w.pos[`${this.zoom}_middle_mcp`] };\n      }\n      this.lastView = this.lastViewPixels = view;\n3. Add a method after setShow(mode):\n    setZoom(zoom) {\n      // 'body', 'l' or 'r'\n      this.zoom = zoom;\n      this.refit();\n      this.draw(false);\n    }\n4. Add a method `outOfFrame()` that returns true when, with w = K.fk.solve(this.pose) and the full-size view `K.project.makeView({ yaw: this.yaw, pitch: this.pitch, width: this.canvas.width, height: this.canvas.height, scale: this.frame.scale, center: this.frame.center }, w)`, any point of w.pos has toScreen x < 0, y < 0, x > width or y > height. In the body zoom only (when this.zoom !== 'body' return false).\n5. In apply(), right before `this.draw(!commit);` insert: `if (commit && this.frame && this.outOfFrame()) this.refit();`. In the pointerup and pointercancel handlers, right before `self.draw(false);` insert: `if (self.outOfFrame()) self.refit();`.\n"
+  }
+]

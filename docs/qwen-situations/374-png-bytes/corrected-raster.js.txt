@@ -1,0 +1,152 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+
+  // CRC-32 table generation
+  const crcTable = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) {
+      c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    }
+    crcTable[i] = c >>> 0;
+  }
+
+  function crc32(buf) {
+    let crc = -1;
+    for (let i = 0; i < buf.length; i++) {
+      crc = crcTable[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ -1) >>> 0;
+  }
+
+  function create(width, height, rgb = [0, 0, 0]) {
+    const data = new Uint8ClampedArray(width * height * 4);
+    const r = rgb[0], g = rgb[1], b = rgb[2];
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+    }
+    return { width, height, data };
+  }
+
+  function fillPolygon(img, pts, rgb) {
+    if (!pts || pts.length < 3) return;
+    const xs = pts.map(p => p[0]);
+    const ys = pts.map(p => p[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+    const r = rgb[0], g = rgb[1], b = rgb[2];
+
+    for (let py = Math.max(0, Math.floor(minY)); py <= Math.min(img.height - 1, Math.ceil(maxY)); py++) {
+      const yc = py + 0.5;
+      const edges = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        if ((a[1] <= yc) !== (b[1] <= yc)) {
+          const x = a[0] + (yc - a[1]) * (b[0] - a[0]) / (b[1] - a[1]);
+          edges.push(x);
+        }
+      }
+      edges.sort((x, y) => x - y);
+      for (let k = 0; k < edges.length - 1; k += 2) {
+        const x0 = edges[k];
+        const x1 = edges[k + 1];
+        const pxStart = Math.max(0, Math.ceil(x0 - 0.5));
+        const pxEnd = Math.min(img.width - 1, Math.ceil(x1 - 0.5) - 1);
+        if (pxStart <= pxEnd) {
+          for (let px = pxStart; px <= pxEnd; px++) {
+            const idx = (py * img.width + px) * 4;
+            img.data[idx] = r;
+            img.data[idx + 1] = g;
+            img.data[idx + 2] = b;
+          }
+        }
+      }
+    }
+  }
+
+  function fillCircle(img, cx, cy, r, rgb) {
+    const r2 = r * r;
+    const rCol = rgb[0], gCol = rgb[1], bCol = rgb[2];
+    const minX = Math.max(0, Math.floor(cx - r));
+    const maxX = Math.min(img.width - 1, Math.ceil(cx + r));
+    const minY = Math.max(0, Math.floor(cy - r));
+    const maxY = Math.min(img.height - 1, Math.ceil(cy + r));
+
+    for (let py = minY; py <= maxY; py++) {
+      const yc = py + 0.5;
+      const dy = yc - cy;
+      const dxMax = Math.sqrt(Math.max(0, r2 - dy * dy));
+      const pxStart = Math.max(0, Math.floor(cx - dxMax));
+      const pxEnd = Math.min(img.width - 1, Math.ceil(cx + dxMax));
+      if (pxStart > pxEnd) continue;
+      for (let px = pxStart; px <= pxEnd; px++) {
+        const xc = px + 0.5;
+        const distSq = (xc - cx) ** 2 + (yc - cy) ** 2;
+        if (distSq <= r2) {
+          const idx = (py * img.width + px) * 4;
+          img.data[idx] = rCol;
+          img.data[idx + 1] = gCol;
+          img.data[idx + 2] = bCol;
+        }
+      }
+    }
+  }
+
+  function thickLine(img, x1, y1, x2, y2, width, rgb) {
+    if (x1 === x2 && y1 === y2) return;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len === 0) return;
+    const nx = -dy / len;
+    const ny = dx / len;
+    const hw = width / 2;
+    const pts = [
+      [x1 + nx * hw, y1 + ny * hw],
+      [x2 + nx * hw, y2 + ny * hw],
+      [x2 - nx * hw, y2 - ny * hw],
+      [x1 - nx * hw, y1 - ny * hw]
+    ];
+    fillPolygon(img, pts, rgb);
+  }
+
+  function encodePNG(img, deflateSync) {
+    const ascii = (s) => [...s].map((c) => c.charCodeAt(0));
+    const u32 = (n) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+    const chunk = (type, data) => {
+      const body = new Uint8Array(4 + data.length);
+      body.set(ascii(type), 0);
+      body.set(data, 4);
+      return [...u32(data.length), ...body, ...u32(crc32(body))];
+    };
+    const stride = img.width * 4;
+    const raw = new Uint8Array((stride + 1) * img.height);
+    for (let y = 0; y < img.height; y++) {
+      raw[y * (stride + 1)] = 0; // filter: none
+      raw.set(img.data.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
+    }
+    const ihdr = [...u32(img.width), ...u32(img.height), 8, 6, 0, 0, 0];
+    return new Uint8Array([
+      137, 80, 78, 71, 13, 10, 26, 10,
+      ...chunk('IHDR', ihdr),
+      ...chunk('IDAT', new Uint8Array(deflateSync(raw))),
+      ...chunk('IEND', []),
+    ]);
+  }
+
+  const api = {
+    create,
+    fillPolygon,
+    fillCircle,
+    thickLine,
+    encodePNG
+  };
+
+  if (NS) NS.raster = api; else module.exports = api;
+})();

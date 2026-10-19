@@ -1,0 +1,181 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load vec.js inside the function to ensure correct loading order in browser
+  const V = need('vec', './vec.js');
+
+  // --- Data definitions ---
+
+  const BODY = [
+    ['pelvis', null, [0, 0, 0.95], 'spine', [0, -1, 0], [-180, 180, -180, 180, -180, 180]],
+    ['spine', 'pelvis', [0, 0, 1.13], 'chest', [0, -1, 0], [-30, 45, -30, 30, -40, 40]],
+    ['chest', 'spine', [0, 0, 1.36], 'neck', [0, -1, 0], [-20, 30, -20, 20, -30, 30]],
+    ['neck', 'chest', [0, 0, 1.49], 'head', [0, -1, 0], [-40, 50, -30, 30, -60, 60]],
+    ['head', 'neck', [0, 0, 1.68], 'head_top', [0, -1, 0], [-40, 40, -30, 30, -60, 60]],
+    ['head_top', 'head', [0, 0, 1.80], null, [0, -1, 0], null],
+    ['nose', 'head', [0, -0.105, 1.66], null, [0, -1, 0], null],
+    ['l_eye', 'head', [0.035, -0.092, 1.70], null, [0, -1, 0], null],
+    ['l_ear', 'head', [0.088, 0, 1.68], null, [0, -1, 0], null],
+    ['l_shoulder', 'chest', [0.19, 0, 1.46], 'l_elbow', [0, -1, 0], [-60, 180, -40, 170, -90, 90]],
+    ['l_elbow', 'l_shoulder', [0.29, 0, 1.18], 'l_wrist', [0, -1, 0], [0, 150, -10, 10, -90, 90]],
+    ['l_wrist', 'l_elbow', [0.37, -0.03, 0.93], 'l_middle_mcp', 'PALM', [-70, 80, -30, 40, -20, 20]],
+    ['l_hip', 'pelvis', [0.10, 0, 0.95], 'l_knee', [0, -1, 0], [-30, 130, -30, 70, -45, 45]],
+    ['l_knee', 'l_hip', [0.11, -0.01, 0.52], 'l_ankle', [0, -1, 0], [-150, 0, -5, 5, -30, 30]],
+    ['l_ankle', 'l_knee', [0.11, 0.01, 0.09], 'l_toe', [0, 0, -1], [-30, 50, -25, 25, -20, 20]],
+    ['l_toe', 'l_ankle', [0.11, -0.13, 0.02], null, [0, -1, 0], null],
+  ];
+
+  const FINGER_UVW = {
+    thumb: [[0.025, 0.020, 0.010], [0.050, 0.035, 0.015], [0.075, 0.045, 0.020], [0.095, 0.050, 0.020]],
+    index: [[0.090, 0.025, 0], [0.130, 0.027, 0], [0.155, 0.028, 0], [0.175, 0.029, 0]],
+    middle: [[0.095, 0, 0], [0.140, 0, 0], [0.168, 0, 0], [0.190, 0, 0]],
+    ring: [[0.090, -0.010, 0], [0.130, -0.011, 0], [0.155, -0.012, 0], [0.175, -0.013, 0]],
+    pinky: [[0.080, -0.027, 0], [0.110, -0.030, 0], [0.130, -0.032, 0], [0.146, -0.034, 0]],
+  };
+
+  const FINGER_LIMITS = {
+    thumb: [[-20, 50, -30, 40, -10, 10], [0, 60, 0, 0, 0, 0], [-10, 80, 0, 0, 0, 0], null],
+    others: [[-20, 90, -20, 20, -5, 5], [0, 110, 0, 0, 0, 0], [0, 80, 0, 0, 0, 0], null],
+  };
+
+  const FINGERS = {
+    thumb: ['thumb_cmc', 'thumb_mcp', 'thumb_ip'],
+    index: ['index_mcp', 'index_pip', 'index_dip'],
+    middle: ['middle_mcp', 'middle_pip', 'middle_dip'],
+    ring: ['ring_mcp', 'ring_pip', 'ring_dip'],
+    pinky: ['pinky_mcp', 'pinky_pip', 'pinky_dip'],
+  };
+
+  const HAND = ['wrist', 'thumb_cmc', 'thumb_mcp', 'thumb_ip', 'thumb_tip', 'index_mcp', 'index_pip', 'index_dip', 'index_tip', 'middle_mcp', 'middle_pip', 'middle_dip', 'middle_tip', 'ring_mcp', 'ring_pip', 'ring_dip', 'ring_tip', 'pinky_mcp', 'pinky_pip', 'pinky_dip', 'pinky_tip'];
+
+  const mirrorName = (name) => {
+    if (name.startsWith('l_')) return name.replace('l_', 'r_');
+    if (name.startsWith('r_')) return name.replace('r_', 'l_');
+    return name;
+  };
+
+  // --- Build JOINTS ---
+
+  const JOINTS = [];
+
+  // 1. Compute palm normals and thumb axes for left and right hands
+  const wristRests = {};
+  const elbowRests = {};
+
+  for (let i = 0; i < BODY.length; i++) {
+    const row = BODY[i];
+    if (!row || !Array.isArray(row)) continue;
+    const name = row[0];
+    const rest = row[2];
+    if (name.endsWith('_wrist')) wristRests[name] = rest;
+    if (name.endsWith('_elbow')) elbowRests[name] = rest;
+  }
+
+  const buildHandAxes = (side) => {
+    const s = side === 'l' ? 'l' : 'r';
+    const wrist = wristRests[`${s}_wrist`];
+    const elbow = elbowRests[`${s}_elbow`];
+    const d = V.norm(V.sub(wrist, elbow));
+    const n0 = side === 'l' ? [-1, 0, 0] : [1, 0, 0];
+    const dotNd = V.dot(n0, d);
+    const n = V.norm(V.sub(n0, V.scale(d, dotNd)));
+    const t = side === 'l' ? V.cross(n, d) : V.cross(d, n);
+    return { n, t };
+  };
+
+  const lAxes = buildHandAxes('l');
+  const rAxes = buildHandAxes('r');
+
+  // 2. Add body joints (left first, then right twin)
+  for (let i = 0; i < BODY.length; i++) {
+    const row = BODY[i];
+    if (!row || !Array.isArray(row)) continue;
+    const name = row[0];
+    const parent = row[1];
+    const rest = row[2];
+    const aim = row[3];
+    const front = row[4];
+    const limits = row[5];
+
+    // Left side
+    JOINTS.push({ name, parent, rest, aim, front, limits });
+
+    // Right side (skip pelvis as it has no twin)
+    if (i > 0) {
+      const twinName = mirrorName(name);
+      const twinParent = mirrorName(parent);
+      const twinRest = [-rest[0], rest[1], rest[2]];
+      let twinFront = [-front[0], front[1], front[2]];
+      if (front[0] === 0 && front[1] === -1 && front[2] === 0) {
+        twinFront = [0, -1, 0];
+      } else if (aim === 'PALM') {
+        twinFront = rAxes.n;
+      }
+      JOINTS.push({ name: twinName, parent: twinParent, rest: twinRest, aim, front: twinFront, limits });
+    }
+  }
+
+  // 3. Add hand joints
+  const fingerNames = Object.keys(FINGERS);
+  for (const s of ['l', 'r']) {
+    const wristName = `${s}_wrist`;
+    const wrist = wristRests[wristName];
+    const axes = s === 'l' ? lAxes : rAxes;
+    const n = axes.n;
+    const t = axes.t;
+
+    for (let fIdx = 0; fIdx < fingerNames.length; fIdx++) {
+      const f = fingerNames[fIdx];
+      const uvw = FINGER_UVW[f];
+      const limitsData = FINGER_LIMITS[f === 'thumb' ? 'thumb' : 'others'];
+      const isThumb = f === 'thumb';
+      const pointNames = isThumb ? ['cmc', 'mcp', 'ip'] : ['mcp', 'pip', 'dip'];
+      
+      let prevPoint = null;
+      for (let k = 0; k <= 3; k++) {
+        const isTip = k === 3;
+        const pointName = isTip ? f + '_tip' : pointNames[k - 1];
+        const fullName = `${s}_${pointName}`;
+        
+        const u = uvw[k][0];
+        const v = uvw[k][1];
+        const w = uvw[k][2];
+        const pos = V.add(V.add(wrist, V.scale(u, t)), V.scale(v, n));
+        
+        const aim = isTip ? null : pointNames[k];
+        const limits = isTip ? { bend: [0, 0], side: [0, 0], twist: [0, 0] } : { bend: limitsData[0], side: limitsData[1], twist: limitsData[2] };
+        
+        JOINTS.push({
+          name: fullName,
+          parent: prevPoint || wristName,
+          rest: pos,
+          aim,
+          front: n,
+          limits
+        });
+        
+        prevPoint = fullName;
+      }
+    }
+  }
+
+  // --- Export ---
+
+  const byName = {};
+  for (const j of JOINTS) {
+    byName[j.name] = j;
+  }
+
+  const api = {
+    JOINTS,
+    byName,
+    HAND,
+    BODY18: ['nose', 'neck', 'r_shoulder', 'r_elbow', 'r_wrist', 'l_shoulder', 'l_elbow', 'l_wrist', 'r_hip', 'r_knee', 'r_ankle', 'l_hip', 'l_knee', 'l_ankle', 'r_eye', 'l_eye', 'r_ear', 'l_ear'],
+    FINGERS,
+    mirrorName
+  };
+
+  if (NS) NS.skeleton = api; else module.exports = api;
+})();
