@@ -1,3 +1,4 @@
+#!/bin/sh
 # BANNER-HOST unit b1: docs/branding/blur.py blurs one box of a PNG in place and leaves the rest untouched
 F=docs/branding/blur.py
 test -e $F || { echo "error: $F: not written"; exit 1; }
