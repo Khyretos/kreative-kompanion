@@ -297,7 +297,7 @@
       "negative": ["5", 0],
       "control_net": ["62", 0],
       "image": ["60", 0],
-      "strength": 0.7,
+      "strength": 0.9,
       "start_percent": 0.0,
       "end_percent": 0.8,
       "vae": ["1", 2]
@@ -323,7 +323,7 @@
       "negative": ["63", 1],
       "control_net": ["65", 0],
       "image": ["64", 0],
-      "strength": 0.4,
+      "strength": 0.6,
       "start_percent": 0.0,
       "end_percent": 0.6,
       "vae": ["1", 2]
@@ -740,10 +740,646 @@
   "151": {
     "class_type": "ImageCompositeMasked",
     "inputs": {
-      "destination": ["10", 0],
+      "destination": ["277", 0],
       "source": ["15", 0],
       "x": 0,
       "y": 0,
+      "resize_source": false
+    }
+  },
+  "200": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 149,
+      "y": 96
+    }
+  },
+  "201": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, front view, facing the viewer"
+    }
+  },
+  "202": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["200", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "203": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["202", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "204": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["201", 0],
+      "negative": ["5", 0],
+      "latent_image": ["203", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "205": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["204", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "206": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["205", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "207": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["10", 0],
+      "source": ["206", 0],
+      "x": 1920,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "210": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 149,
+      "y": 96
+    }
+  },
+  "211": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, front view, facing the viewer"
+    }
+  },
+  "219": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["211", 0]
+    }
+  },
+  "212": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["210", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "213": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["212", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "214": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["219", 0],
+      "negative": ["5", 0],
+      "latent_image": ["213", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "215": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["214", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "216": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["215", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "217": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["207", 0],
+      "source": ["216", 0],
+      "x": 2160,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "220": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 629,
+      "y": 96
+    }
+  },
+  "221": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing right"
+    }
+  },
+  "222": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["220", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "223": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["222", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "224": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["221", 0],
+      "negative": ["5", 0],
+      "latent_image": ["223", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "225": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["224", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "226": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["225", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "227": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["217", 0],
+      "source": ["226", 0],
+      "x": 1920,
+      "y": 240,
+      "resize_source": false
+    }
+  },
+  "230": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 629,
+      "y": 96
+    }
+  },
+  "231": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing right"
+    }
+  },
+  "239": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["231", 0]
+    }
+  },
+  "232": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["230", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "233": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["232", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "234": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["239", 0],
+      "negative": ["5", 0],
+      "latent_image": ["233", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "235": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["234", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "236": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["235", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "237": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["227", 0],
+      "source": ["236", 0],
+      "x": 2160,
+      "y": 240,
+      "resize_source": false
+    }
+  },
+  "240": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1109,
+      "y": 96
+    }
+  },
+  "241": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing left"
+    }
+  },
+  "242": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["240", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "243": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["242", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "244": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["241", 0],
+      "negative": ["5", 0],
+      "latent_image": ["243", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "245": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["244", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "246": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["245", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "247": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["237", 0],
+      "source": ["246", 0],
+      "x": 1920,
+      "y": 480,
+      "resize_source": false
+    }
+  },
+  "250": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1109,
+      "y": 96
+    }
+  },
+  "251": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing left"
+    }
+  },
+  "259": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["251", 0]
+    }
+  },
+  "252": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["250", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "253": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["252", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "254": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["259", 0],
+      "negative": ["5", 0],
+      "latent_image": ["253", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "255": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["254", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "256": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["255", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "257": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["247", 0],
+      "source": ["256", 0],
+      "x": 2160,
+      "y": 480,
+      "resize_source": false
+    }
+  },
+  "260": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1589,
+      "y": 96
+    }
+  },
+  "261": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, back of the head, from behind"
+    }
+  },
+  "262": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["260", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "263": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["262", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "264": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["261", 0],
+      "negative": ["5", 0],
+      "latent_image": ["263", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "265": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["264", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "266": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["265", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "267": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["257", 0],
+      "source": ["266", 0],
+      "x": 1920,
+      "y": 720,
+      "resize_source": false
+    }
+  },
+  "270": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1589,
+      "y": 96
+    }
+  },
+  "271": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, back of the head, from behind"
+    }
+  },
+  "279": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["271", 0]
+    }
+  },
+  "272": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["270", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "273": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["272", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "274": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["279", 0],
+      "negative": ["5", 0],
+      "latent_image": ["273", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "275": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["274", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "276": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["275", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "277": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["267", 0],
+      "source": ["276", 0],
+      "x": 2160,
+      "y": 720,
       "resize_source": false
     }
   }
