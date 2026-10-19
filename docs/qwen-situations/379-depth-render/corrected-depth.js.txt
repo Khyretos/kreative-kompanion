@@ -1,0 +1,96 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+  // STU-PE1: the Coder's draft (3 attempts) read view.R as rows of rows, called vec functions that do not exist,
+  // moved every shape to the screen once per pixel and normalised depth while still searching for its range;
+  // Claude rewrote render() (lesson 379). Shapes come from depth-parts.js.
+
+  function primitives(w) {
+    return need('depthParts', './depth-parts.js').primitives(w);
+  }
+
+  // Shapes in screen space: x right, y down, depth toward the camera (bigger = nearer), all in pixels.
+  function toScreenShapes(view, w) {
+    const V = need('vec', './vec.js');
+    const P = need('project', './project.js');
+    const R = view.R;
+    const Ms = [R[0], R[1], R[2], -R[6], -R[7], -R[8], -R[3], -R[4], -R[5]];
+    return primitives(w).map((p) => {
+      if (p.type === 'capsule') {
+        const a = P.toScreen(view, p.a), b = P.toScreen(view, p.b), r = p.r * view.s;
+        const ab = V.sub(b, a), L = V.len(ab);
+        return { type: 'capsule', a, b, r, d: L > 1e-12 ? V.scale(ab, 1 / L) : [0, 0, 1], L,
+          box: [Math.min(a[0], b[0]) - r, Math.max(a[0], b[0]) + r, Math.min(a[1], b[1]) - r, Math.max(a[1], b[1]) + r] };
+      }
+      const c = P.toScreen(view, p.c), radii = p.radii.map((x) => x * view.s);
+      const Mt = V.transpose(V.matMul(Ms, p.rot)); // screen -> ellipsoid axes
+      const k = V.matVec(Mt, [0, 0, 1]).map((x, i) => x / radii[i]);
+      const big = Math.max(...radii);
+      return { type: 'ellipsoid', c, radii, Mt, k, box: [c[0] - big, c[0] + big, c[1] - big, c[1] + big] };
+    });
+  }
+
+  // Nearest surface depth of one shape at pixel centre (x, y), or -Infinity.
+  function hit(s, x, y) {
+    let best = -Infinity;
+    const sphere = (C, r) => {
+      const dx = x - C[0], dy = y - C[1], q = r * r - dx * dx - dy * dy;
+      if (q >= 0) best = Math.max(best, C[2] + Math.sqrt(q));
+    };
+    if (s.type === 'capsule') {
+      sphere(s.a, s.r);
+      sphere(s.b, s.r);
+      const d = s.d, w0 = [x - s.a[0], y - s.a[1], -s.a[2]];
+      const w0d = w0[0] * d[0] + w0[1] * d[1] + w0[2] * d[2];
+      const q0 = [w0[0] - d[0] * w0d, w0[1] - d[1] * w0d, w0[2] - d[2] * w0d];
+      const q1 = [-d[0] * d[2], -d[1] * d[2], 1 - d[2] * d[2]];
+      const a = q1[0] * q1[0] + q1[1] * q1[1] + q1[2] * q1[2];
+      const b = 2 * (q0[0] * q1[0] + q0[1] * q1[1] + q0[2] * q1[2]);
+      const c = q0[0] * q0[0] + q0[1] * q0[1] + q0[2] * q0[2] - s.r * s.r;
+      const disc = b * b - 4 * a * c;
+      if (a > 1e-12 && disc >= 0) {
+        const t = (-b + Math.sqrt(disc)) / (2 * a);
+        const along = w0d + t * d[2];
+        if (along >= 0 && along <= s.L) best = Math.max(best, t);
+      }
+      return best;
+    }
+    const v = [x - s.c[0], y - s.c[1], -s.c[2]], M = s.Mt;
+    const o = [0, 1, 2].map((i) => (M[i * 3] * v[0] + M[i * 3 + 1] * v[1] + M[i * 3 + 2] * v[2]) / s.radii[i]);
+    const k = s.k;
+    const a = k[0] * k[0] + k[1] * k[1] + k[2] * k[2];
+    const b = 2 * (o[0] * k[0] + o[1] * k[1] + o[2] * k[2]);
+    const c = o[0] * o[0] + o[1] * o[1] + o[2] * o[2] - 1;
+    const disc = b * b - 4 * a * c;
+    if (a > 1e-12 && disc >= 0) best = (-b + Math.sqrt(disc)) / (2 * a);
+    return best;
+  }
+
+  // Grey depth into img (RGBA raster): nearest 255, farthest hit 0.15 * 255, misses untouched.
+  function render(view, w, img) {
+    const shapes = toScreenShapes(view, w);
+    const depth = new Float64Array(img.width * img.height).fill(-Infinity);
+    for (const s of shapes) {
+      const x0 = Math.max(0, Math.floor(s.box[0])), x1 = Math.min(img.width - 1, Math.ceil(s.box[1]));
+      const y0 = Math.max(0, Math.floor(s.box[2])), y1 = Math.min(img.height - 1, Math.ceil(s.box[3]));
+      for (let py = y0; py <= y1; py++) {
+        for (let px = x0; px <= x1; px++) {
+          const t = hit(s, px + 0.5, py + 0.5), i = py * img.width + px;
+          if (t > depth[i]) depth[i] = t;
+        }
+      }
+    }
+    let zmin = Infinity, zmax = -Infinity;
+    for (const t of depth) if (t !== -Infinity) { zmin = Math.min(zmin, t); zmax = Math.max(zmax, t); }
+    for (let i = 0; i < depth.length; i++) {
+      if (depth[i] === -Infinity) continue;
+      const g = zmax === zmin ? 255 : Math.round(255 * (0.15 + 0.85 * (depth[i] - zmin) / (zmax - zmin)));
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = g;
+    }
+    return img;
+  }
+
+  const api = { render, primitives };
+  if (NS) NS.depth = api; else module.exports = api;
+})();

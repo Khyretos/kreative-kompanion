@@ -1,0 +1,169 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+
+  // --- Vector helpers (3-vectors) ---
+  function add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function scale(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) {
+    return [
+      a[1] * b[2] - a[2] * b[1],
+      a[2] * b[0] - a[0] * b[2],
+      a[0] * b[1] - a[1] * b[0]
+    ];
+  }
+  function len(a) { return Math.sqrt(dot(a, a)); }
+  function norm(a) {
+    const l = len(a);
+    if (l < 1e-12) return [0, 0, 0];
+    return [a[0] / l, a[1] / l, a[2] / l];
+  }
+
+  // --- Matrix helpers (9 numbers, row-major) ---
+  function identity() { return [1, 0, 0, 0, 1, 0, 0, 0, 1]; }
+  function transpose(M) {
+    return [
+      M[0], M[3], M[6],
+      M[1], M[4], M[7],
+      M[2], M[5], M[8]
+    ];
+  }
+  function matMul(A, B) {
+    // A and B are 9-element arrays (row-major)
+    const out = new Array(9);
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        let sum = 0;
+        for (let k = 0; k < 3; k++) {
+          sum += A[i * 3 + k] * B[k * 3 + j];
+        }
+        out[i * 3 + j] = sum;
+      }
+    }
+    return out;
+  }
+  function matVec(M, v) {
+    // M is 9-element row-major, v is 3-vector
+    return [
+      M[0] * v[0] + M[1] * v[1] + M[2] * v[2],
+      M[3] * v[0] + M[4] * v[1] + M[5] * v[2],
+      M[6] * v[0] + M[7] * v[1] + M[8] * v[2]
+    ];
+  }
+  function fromBasis(x, y, z) {
+    // Columns are x, y, z -> rows are [x0,y0,z0], [x1,y1,z1], [x2,y2,z2]
+    return [
+      x[0], y[0], z[0],
+      x[1], y[1], z[1],
+      x[2], y[2], z[2]
+    ];
+  }
+
+  // --- Rotation helpers ---
+  function axisAngle(axis, deg) {
+    const u = norm(axis);
+    const rad = deg * Math.PI / 180;
+    const c = Math.cos(rad);
+    const s = Math.sin(rad);
+    const t = 1 - c;
+    const ux = u[0], uy = u[1], uz = u[2];
+    return [
+      ux * ux * t + c, uy * ux * t + uz * s, uz * ux * t - uy * s,
+      ux * uy * t - uz * s, uy * uy * t + c, uz * uy * t + ux * s,
+      ux * uz * t + uy * s, uy * uz * t - ux * s, uz * uz * t + c
+    ];
+  }
+
+  function eulerToMat(e) {
+    const bend = e.bend || 0;
+    const side = e.side || 0;
+    const twist = e.twist || 0;
+
+    const Rx = axisAngle([1, 0, 0], bend);
+    const Ry = axisAngle([0, 1, 0], twist);
+    const Rz = axisAngle([0, 0, 1], side);
+
+    // R = Rz(side) * Rx(bend) * Ry(twist)
+    return matMul(matMul(Rz, Rx), Ry);
+  }
+
+  function matToEuler(M) {
+    // M = Rz(side) * Rx(bend) * Ry(twist)
+    // bend = asin(clamp(M[7], -1, 1))
+    // twist = atan2(-M[6], M[8])
+    // side = atan2(-M[1], M[4])
+    const m7 = M[7];
+    let bendRad;
+    if (m7 > 1) bendRad = Math.PI / 2;
+    else if (m7 < -1) bendRad = -Math.PI / 2;
+    else bendRad = Math.asin(m7);
+
+    const twistRad = Math.atan2(-M[6], M[8]);
+    const sideRad = Math.atan2(-M[1], M[4]);
+
+    return {
+      bend: bendRad * 180 / Math.PI,
+      side: sideRad * 180 / Math.PI,
+      twist: twistRad * 180 / Math.PI
+    };
+  }
+
+  function rotBetween(a, b) {
+    const ua = norm(a);
+    const ub = norm(b);
+    const c = cross(ua, ub);
+    const clen = len(c);
+    const d = dot(ua, ub);
+
+    if (clen < 1e-9 && d >= 0) {
+      return identity();
+    }
+
+    if (clen < 1e-9 && d < 0) {
+      // Opposite directions: rotate 180 about any unit axis perpendicular to a
+      const p1 = [1, 0, 0];
+      const p2 = cross(ua, p1);
+      const perp = (len(p2) < 1e-9) ? cross(ua, [0, 1, 0]) : p2;
+      const up = norm(perp);
+      return axisAngle(up, 180);
+    }
+
+    const angle = Math.atan2(clen, d);
+    return axisAngle(norm(c), angle * 180 / Math.PI);
+  }
+
+  function signedAngle(a, b, axis) {
+    const ua = norm(a);
+    const ub = norm(b);
+    const uax = norm(axis);
+
+    // Remove parts along the axis
+    const pa = sub(ua, scale(uax, dot(ua, uax)));
+    const pb = sub(ub, scale(uax, dot(ub, uax)));
+
+    const palen = len(pa);
+    const pblen = len(pb);
+
+    if (palen < 1e-12 || pblen < 1e-12) return 0;
+
+    const paNorm = [pa[0] / palen, pa[1] / palen, pa[2] / palen];
+    const pbNorm = [pb[0] / pblen, pb[1] / pblen, pb[2] / pblen];
+
+    const cp = cross(paNorm, pbNorm);
+    const clen = len(cp);
+    const dp = dot(paNorm, pbNorm);
+
+    const rad = Math.atan2(clen, dp);
+    return rad * 180 / Math.PI;
+  }
+
+  const api = {
+    add, sub, scale, dot, cross, len, norm,
+    identity, transpose, matMul, matVec, fromBasis,
+    axisAngle, eulerToMat, matToEuler, rotBetween, signedAngle
+  };
+
+  if (NS) NS.vec = api; else module.exports = api;
+})();

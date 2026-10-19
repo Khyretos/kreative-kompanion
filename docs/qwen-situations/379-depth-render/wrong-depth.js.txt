@@ -1,0 +1,190 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  let V, P;
+
+  function _loadModules() {
+    if (!V) V = need('vec', './vec.js');
+    if (!P) P = need('project', './project.js');
+  }
+
+  // --- primitives ---
+  function primitives(w) {
+    _loadModules();
+    const parts = need('depthParts', './depth-parts.js');
+    return parts.primitives(w);
+  }
+
+  // --- render ---
+  function render(view, w, img) {
+    _loadModules();
+    const prims = primitives(w);
+    const { width, height, s, R } = view;
+    const imgData = img.data;
+
+    // Precompute Ms rows for ellipsoid axis transformation
+    // Ms maps view space (x right, z up, y away) to screen (x right, y down, depth toward camera).
+    // Rows of Ms: R0, -R2, -R1.
+    const R0 = R[0];
+    const R1 = R[1];
+    const R2 = R[2];
+    const Ms = [
+      R0[0], R0[1], R0[2],
+      -R2[0], -R2[1], -R2[2],
+      -R1[0], -R1[1], -R1[2]
+    ];
+
+    // Bounding box for all primitives in screen space
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of prims) {
+      let r = p.r;
+      let x0, x1, y0, y1;
+      if (p.type === 'capsule') {
+        const a = P.toScreen(view, p.a);
+        const b = P.toScreen(view, p.b);
+        x0 = Math.min(a[0], b[0]) - r;
+        x1 = Math.max(a[0], b[0]) + r;
+        y0 = Math.min(a[1], b[1]) - r;
+        y1 = Math.max(a[1], b[1]) + r;
+      } else if (p.type === 'ellipsoid') {
+        const c = P.toScreen(view, p.c);
+        const axes = V.matMul3x3(Ms, p.rot); // Ms * rot
+        const rx = axes[0] * p.radii[0];
+        const ry = axes[1] * p.radii[1];
+        const rz = axes[2] * p.radii[2];
+        x0 = c[0] - Math.max(rx, ry, rz);
+        x1 = c[0] + Math.max(rx, ry, rz);
+        y0 = c[1] - Math.max(rx, ry, rz);
+        y1 = c[1] + Math.max(rx, ry, rz);
+      }
+      if (x0 < minX) minX = x0;
+      if (x1 > maxX) maxX = x1;
+      if (y0 < minY) minY = y0;
+      if (y1 > maxY) maxY = y1;
+    }
+
+    let zmin = Infinity;
+    let zmax = -Infinity;
+    let hitCount = 0;
+
+    // Ray-cast every pixel
+    for (let py = 0; py < height; py++) {
+      for (let px = 0; px < width; px++) {
+        const ix = px + 0.5;
+        const iy = py + 0.5;
+
+        // Skip if outside bounding box
+        if (ix < minX || ix > maxX || iy < minY || iy > maxY) continue;
+
+        let bestT = -1;
+
+        for (const p of prims) {
+          let t = -1;
+          let hit = false;
+
+          if (p.type === 'sphere') {
+            const C = P.toScreen(view, p.c);
+            const dx = ix - C[0];
+            const dy = iy - C[1];
+            const r = p.r;
+            if (dx * dx + dy * dy <= r * r) {
+              t = C[2] + Math.sqrt(r * r - dx * dx - dy * dy);
+              hit = true;
+            }
+          } else if (p.type === 'capsule') {
+            const A = P.toScreen(view, p.a);
+            const B = P.toScreen(view, p.b);
+            const r = p.r;
+            const d = V.sub(B, A);
+            const L = Math.hypot(d[0], d[1]);
+            const w0 = [ix - A[0], iy - A[1], -A[2]];
+            const k = [0, 0, 1];
+            const q0 = V.sub(w0, V.scale(d, V.dot(w0, d)));
+            const q1 = V.sub(k, V.scale(d, V.dot(k, d)));
+            const a = V.dot(q1, q1);
+            const b = 2 * V.dot(q0, q1);
+            const c = V.dot(q0, q0) - r * r;
+
+            if (a > 1e-12 && b * b - 4 * a * c >= 0) {
+              const disc = Math.sqrt(b * b - 4 * a * c);
+              const t1 = (-b - disc) / (2 * a);
+              const t2 = (-b + disc) / (2 * a);
+              let tVal = -1;
+              if (t1 >= 0 && t1 <= L) tVal = t1;
+              if (t2 >= 0 && t2 <= L && (tVal < 0 || t2 > tVal)) tVal = t2;
+              if (tVal >= 0) {
+                t = tVal;
+                hit = true;
+              }
+            }
+          } else if (p.type === 'ellipsoid') {
+            const C = P.toScreen(view, p.c);
+            const axes = V.matMul3x3(Ms, p.rot);
+            const rx = axes[0] * p.radii[0];
+            const ry = axes[1] * p.radii[1];
+            const rz = axes[2] * p.radii[2];
+            
+            // Solve |o + t k|^2 = 1 where o = M^T * [x-C, y-C, -Cz] / radii, k = M^T * [0,0,1] / radii
+            const v = [ix - C[0], iy - C[1], -C[2]];
+            const M_T = V.transpose(V.matMul3x3(Ms, p.rot)); // Ms * rot, then transpose
+            const o = V.matVec(V.map3(M_T, v), [1/rx, 1/ry, 1/rz]);
+            const k_vec = V.matVec(V.map3(M_T, [0, 0, 1]), [1/rx, 1/ry, 1/rz]);
+            
+            // Solve quadratic: |o + t*k|^2 = 1
+            // (o + t*k).(o + t*k) = 1
+            // o.o + 2*t*(o.k) + t^2*(k.k) = 1
+            const oo = V.dot(o, o);
+            const ok = V.dot(o, k_vec);
+            const kk = V.dot(k_vec, k_vec);
+            const A = kk;
+            const B = 2 * ok;
+            const C_val = oo - 1;
+            
+            if (A > 1e-12 && B*B - 4*A*C_val >= 0) {
+              const disc = Math.sqrt(B*B - 4*A*C_val);
+              const t1 = (-B - disc) / (2*A);
+              const t2 = (-B + disc) / (2*A);
+              let tVal = -1;
+              if (t1 > t2) { tVal = t1; } else { tVal = t2; }
+              if (tVal > bestT) bestT = tVal;
+            }
+          }
+
+          if (hit && t > bestT) {
+            bestT = t;
+          }
+        }
+
+        if (bestT > 0) {
+          if (bestT < zmin) zmin = bestT;
+          if (bestT > zmax) zmax = bestT;
+          hitCount++;
+          
+          const g = Math.round(255 * (0.15 + 0.85 * (bestT - zmin) / (zmax - zmin)));
+          if (zmax === zmin) g = 255;
+          
+          const i = (py * width + px) * 4;
+          imgData[i] = g;
+          imgData[i+1] = g;
+          imgData[i+2] = g;
+        }
+      }
+    }
+  }
+
+  const api = {
+    render,
+    primitives
+  };
+
+  if (NS) {
+    NS.depth = api;
+    // Also expose individual functions for direct access
+    NS.primitives = primitives;
+    NS.render = render;
+  } else {
+    module.exports = api;
+  }
+})();

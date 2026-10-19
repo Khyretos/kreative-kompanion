@@ -1,0 +1,184 @@
+#!/usr/bin/env node
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+// Helper to load pose modules dynamically inside functions
+function need(name, file) {
+  const mod = require(file);
+  if (!mod || !mod[name]) {
+    throw new Error(`Module ${file} does not export '${name}'`);
+  }
+  return mod[name];
+}
+
+/**
+ * Parses command line arguments.
+ * @param {string[]} argv - The process.argv array (without node and script name).
+ * @returns {{ pose: string|null, ops: string|null, op: string|null, out: string|null, yaw: number|null, pitch: number|null, width: number|null, height: number|null }}
+ */
+function parseArgs(argv) {
+  const args = {};
+  let i = 0;
+  while (i < argv.length) {
+    const arg = argv[i];
+    if (arg.startsWith('--')) {
+      const key = arg.slice(2);
+      if (argv[i + 1] && !argv[i + 1].startsWith('--')) {
+        args[key] = argv[++i];
+      } else {
+        // Flag without value, treat as boolean or error if expecting value
+        if (['--pose', '--ops', '--op', '--out'].includes(arg)) {
+          throw new Error(`Flag ${arg} requires a value.`);
+        }
+        args[key] = true;
+      }
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+    i++;
+  }
+  return args;
+}
+
+/**
+ * Main entry point for the CLI tool.
+ * @param {string[]} argv - Command line arguments.
+ * @param {Object} io - I/O helpers { out: (s:string)=>void, err: (s:string)=>void }.
+ * @returns {number} Exit code (0 or 1).
+ */
+function main(argv, io = { out: s => process.stdout.write(s), err: s => process.stderr.write(s) }) {
+  try {
+    const args = parseArgs(argv);
+
+    // Determine pose source
+    let poseData = null;
+    if (args.pose) {
+      const posePath = args.pose;
+      const ext = path.extname(posePath);
+      let content;
+      try {
+        content = fs.readFileSync(posePath, 'utf8');
+      } catch (e) {
+        io.err(`error: Cannot read pose file: ${e.message}\n`);
+        return 1;
+      }
+      let poseObj;
+      try {
+        poseObj = JSON.parse(content);
+      } catch (e) {
+        io.err(`error: Invalid JSON in pose file: ${e.message}\n`);
+        return 1;
+      }
+      
+      // Accept .pose extension as meta.json with .pose field
+      if (ext === '.pose' || (poseObj && poseObj.pose)) {
+        poseData = poseObj.pose;
+      } else {
+        poseData = poseObj;
+      }
+    }
+
+    // Determine ops source
+    let opsInput = null;
+    if (args.ops) {
+      try {
+        opsInput = JSON.parse(args.ops);
+      } catch (e) {
+        io.err(`error: Invalid JSON in ops file: ${e.message}\n`);
+        return 1;
+      }
+    } else if (args.op) {
+      try {
+        opsInput = [JSON.parse(args.op)];
+      } catch (e) {
+        io.err(`error: Invalid JSON in inline op: ${e.message}\n`);
+        return 1;
+      }
+    }
+
+    // Load required modules
+    const API = need('checkPose', '../lib/pose-api.js');
+    const OPS = need('OPS', '../public/js/pose/ops.js');
+    // FK is not needed for CLI operations, skip loading it to avoid export errors
+    // const FK = need('FK', '../public/js/pose/fk.js');
+
+    // Normalize pose
+    let pose = API(poseData);
+
+    // Apply operations
+    let notes = [];
+    if (opsInput) {
+      const result = OPS.apply(pose, opsInput);
+      pose = result.pose;
+      notes = result.notes;
+    }
+
+    // Print JSON to stdout
+    const output = JSON.stringify({ pose, notes }, null, 2);
+    io.out(output);
+
+    // Handle --out directory
+    if (args.out) {
+      const outDir = args.out;
+      
+      // Create directory if it doesn't exist
+      try {
+        fs.mkdirSync(outDir, { recursive: true });
+      } catch (e) {
+        io.err(`error: Cannot create output directory: ${e.message}\n`);
+        return 1;
+      }
+
+      // Write pose.json
+      const posePath = path.join(outDir, 'pose.json');
+      fs.writeFileSync(posePath, JSON.stringify(pose, null, 2));
+
+      // Prepare view options
+      const viewOptions = {};
+      if (args.yaw !== undefined) viewOptions.yaw = Number(args.yaw);
+      if (args.pitch !== undefined) viewOptions.pitch = Number(args.pitch);
+      if (args.width !== undefined) viewOptions.width = Number(args.width);
+      if (args.height !== undefined) viewOptions.height = Number(args.height);
+
+      // Render pose
+      const renderResult = API.renderPose(pose, viewOptions);
+
+      // Write openpose.png
+      const openposePath = path.join(outDir, 'openpose.png');
+      fs.writeFileSync(openposePath, renderResult.openpose);
+
+      // Write depth.png
+      const depthPath = path.join(outDir, 'depth.png');
+      fs.writeFileSync(depthPath, renderResult.depth);
+
+      // Write keypoints.json
+      const keypointsPath = path.join(outDir, 'keypoints.json');
+      fs.writeFileSync(keypointsPath, JSON.stringify(renderResult.keypoints, null, 2));
+
+      // Print paths to stderr
+      io.err(`${openposePath}\n`);
+      io.err(`${depthPath}\n`);
+      io.err(`${keypointsPath}\n`);
+    }
+
+    return 0;
+  } catch (e) {
+    if (e instanceof Error) {
+      io.err(`error: ${e.message}\n`);
+    } else {
+      io.err(`error: Unknown error\n`);
+    }
+    return 1;
+  }
+}
+
+// Export for testing and module usage
+module.exports = { main };
+
+// Run if executed directly
+if (require.main === module) {
+  process.exitCode = main(process.argv.slice(2));
+}

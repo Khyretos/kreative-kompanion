@@ -1,0 +1,83 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  function _load() {
+    const S = need('skeleton', './skeleton.js');
+    const V = need('vec', './vec.js');
+    const FK = need('fk', './fk.js');
+
+    function primitives(w) {
+      const parts = [];
+      // a point given in rest coordinates, carried by joint j
+      const at = (joint, rest) => V.add(w.pos[joint], V.matVec(w.rot[joint], V.sub(rest, S.byName[joint].rest)));
+      const pos = (joint) => w.pos[joint];
+
+      // Ellipsoids
+      if (w.rot) {
+        parts.push({ type: 'ellipsoid', c: at('head', [0, 0, 1.68]), rot: w.rot.head, radii: [0.088, 0.10, 0.118] });
+        parts.push({ type: 'ellipsoid', c: at('head', [0, -0.105, 1.66]), rot: w.rot.head, radii: [0.016, 0.02, 0.02] });
+        parts.push({ type: 'ellipsoid', c: at('chest', [0, -0.02, 1.33]), rot: w.rot.chest, radii: [0.165, 0.105, 0.17] });
+        parts.push({ type: 'ellipsoid', c: at('spine', [0, -0.005, 1.13]), rot: w.rot.spine, radii: [0.135, 0.09, 0.13] });
+        parts.push({ type: 'ellipsoid', c: at('pelvis', [0, 0, 0.98]), rot: w.rot.pelvis, radii: [0.155, 0.10, 0.11] });
+      } else {
+        return parts;
+      }
+
+      // Capsules
+      const sides = ['l', 'r'];
+      const segments = [
+        { from: 'shoulder', to: 'elbow', r: 0.046 },
+        { from: 'elbow', to: 'wrist', r: 0.038 },
+        { from: 'hip', to: 'knee', r: 0.075 },
+        { from: 'knee', to: 'ankle', r: 0.055 },
+        { from: 'ankle', to: 'toe', r: 0.04 },
+      ];
+
+      // Neck
+      parts.push({ type: 'capsule', a: pos('neck'), b: pos('head'), r: 0.048 });
+
+      // Limbs and palms
+      for (const s of sides) {
+        for (const seg of segments) {
+          const f = `${s}_${seg.from}`;
+          const t = `${s}_${seg.to}`;
+          parts.push({ type: 'capsule', a: pos(f), b: pos(t), r: seg.r });
+        }
+
+        // Palm segments
+        const palmPoints = [`${s}_thumb_cmc`, `${s}_index_mcp`, `${s}_middle_mcp`, `${s}_ring_mcp`, `${s}_pinky_mcp`];
+        for (const p of palmPoints) {
+          parts.push({ type: 'capsule', a: pos(`${s}_wrist`), b: pos(p), r: 0.012 });
+        }
+      }
+
+      // Fingers
+      const fingerData = [
+        { name: 'thumb', points: ['thumb_cmc', 'thumb_mcp', 'thumb_ip', 'thumb_tip'], r: 0.011 },
+        { name: 'index', points: ['index_mcp', 'index_pip', 'index_dip', 'index_tip'], r: 0.009 },
+        { name: 'middle', points: ['middle_mcp', 'middle_pip', 'middle_dip', 'middle_tip'], r: 0.009 },
+        { name: 'ring', points: ['ring_mcp', 'ring_pip', 'ring_dip', 'ring_tip'], r: 0.009 },
+        { name: 'pinky', points: ['pinky_mcp', 'pinky_pip', 'pinky_dip', 'pinky_tip'], r: 0.009 },
+      ];
+
+      for (const side of sides) {
+        for (const fd of fingerData) {
+          for (let i = 0; i < fd.points.length - 1; i++) {
+            const p1 = `${side}_${fd.points[i]}`;
+            const p2 = `${side}_${fd.points[i + 1]}`;
+            parts.push({ type: 'capsule', a: pos(p1), b: pos(p2), r: fd.r });
+          }
+        }
+      }
+
+      return parts;
+    }
+
+    return { primitives };
+  }
+
+  const api = _load();
+  if (NS) NS.depthParts = api; else module.exports = api;
+})();

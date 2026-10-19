@@ -1,0 +1,240 @@
+(function () {
+  'use strict';
+
+  const NS = globalThis.KKPose || {};
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // --- Utilities ---
+
+  function slugify(str) {
+    if (!str) return '';
+    let s = str.toLowerCase();
+    s = s.replace(/[^a-z0-9]+/g, '-');
+    s = s.replace(/^-+|-+$/g, '');
+    return s;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg-pose');
+    if (el) el.textContent = msg;
+  }
+
+  function clearError() {
+    const el = document.getElementById('error-msg-pose');
+    if (el) el.textContent = '';
+  }
+
+  function showToast(message, kind = 'info') {
+    if (typeof toast === 'function') {
+      toast(message, { kind });
+    } else {
+      console.warn('toast not available', message);
+    }
+  }
+
+  // --- Elements ---
+
+  const els = {
+    input: document.getElementById('pose-ops-input'),
+    applyBtn: document.getElementById('pose-ops-apply'),
+    copyBtn: document.getElementById('pose-copy'),
+    nameInput: document.getElementById('pose-name'),
+    saveBtn: document.getElementById('pose-save'),
+    dlOpen: document.getElementById('pose-dl-openpose'),
+    dlDepth: document.getElementById('pose-dl-depth'),
+    listContainer: document.getElementById('pose-library'),
+  };
+
+  // --- Actions ---
+
+  async function applyOps() {
+    clearError();
+    if (!els.input.value.trim()) return;
+
+    try {
+      const ops = JSON.parse(els.input.value);
+      stage.apply(ops);
+      KKPoseEditor.startLog([...KKPoseEditor.log(), ...[].concat(ops)], KKPoseEditor.parent());
+      els.input.value = '';
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+
+  async function copyPose() {
+    try {
+      const json = JSON.stringify(stage.getPose(), null, 2);
+      await navigator.clipboard.writeText(json);
+      showToast('Pose JSON copied');
+    } catch (e) {
+      showError('Failed to copy: ' + e.message);
+    }
+  }
+
+  async function downloadPNG(kind) {
+    try {
+      const blob = await stage.exportPNG(kind);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const name = els.nameInput.value.trim() || 'pose';
+      a.href = url;
+      a.download = `${slugify(name)}-${kind}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      showError('Export failed: ' + e.message);
+    }
+  }
+
+  async function savePose() {
+    const name = els.nameInput.value.trim();
+    if (!name) {
+      showError('Give the pose a name.');
+      els.nameInput.focus();
+      return;
+    }
+
+    clearError();
+    try {
+      const response = await fetch('/api/poses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          name,
+          pose: stage.getPose(),
+          view: stage.getView(),
+          provenance: {
+            source: 'editor',
+            ops: KKPoseEditor.log(),
+            parent: KKPoseEditor.parent(),
+          },
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showToast(`Saved "${name}"`);
+        KKPoseEditor.startLog([], data.id);
+        loadList();
+      } else {
+        const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+        showError(err.error || 'Save failed');
+      }
+    } catch (e) {
+      showError('Network error: ' + e.message);
+    }
+  }
+
+  function createCard(meta) {
+    const fig = document.createElement('figure');
+    fig.className = 'pose-card';
+
+    const img = document.createElement('img');
+    img.src = `/api/poses/${meta.id}/openpose.png`;
+    img.alt = '';
+    img.loading = 'lazy';
+
+    const cap = document.createElement('figcaption');
+    cap.textContent = meta.name;
+
+    const div = document.createElement('div');
+    div.className = 'pose-card-actions';
+
+    const btnLoad = document.createElement('button');
+    btnLoad.type = 'button';
+    btnLoad.className = 'ghost-btn';
+    btnLoad.dataset.act = 'load';
+    btnLoad.textContent = 'Load';
+
+    const btnDel = document.createElement('button');
+    btnDel.type = 'button';
+    btnDel.className = 'ghost-btn danger';
+    btnDel.dataset.act = 'delete';
+    btnDel.textContent = 'Delete';
+
+    div.appendChild(btnLoad);
+    div.appendChild(btnDel);
+
+    fig.appendChild(img);
+    fig.appendChild(cap);
+    fig.appendChild(div);
+
+    return fig;
+  }
+
+  async function loadList() {
+    els.listContainer.innerHTML = '';
+
+    try {
+      const res = await fetch('/api/poses', { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('Failed to load list');
+      const data = await res.json();
+      const poses = data.poses || [];
+
+      if (poses.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'muted';
+        p.textContent = 'No saved poses yet.';
+        els.listContainer.appendChild(p);
+        return;
+      }
+
+      poses.forEach((meta) => {
+        els.listContainer.appendChild(createCard(meta));
+      });
+    } catch (e) {
+      showError('Could not load library: ' + e.message);
+    }
+  }
+
+  // --- Event Listeners ---
+
+  els.applyBtn.addEventListener('click', applyOps);
+  els.copyBtn.addEventListener('click', copyPose);
+  els.saveBtn.addEventListener('click', savePose);
+  els.dlOpen.addEventListener('click', () => downloadPNG('openpose'));
+  els.dlDepth.addEventListener('click', () => downloadPNG('depth'));
+
+  els.listContainer.addEventListener('click', (e) => {
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+
+    const card = act.closest('.pose-card');
+    const id = card.dataset.id;
+    const name = card.dataset.name;
+
+    if (act.dataset.act === 'load') {
+      fetch(`/api/poses/${id}`, { credentials: 'same-origin' })
+        .then((r) => r.json())
+        .then((meta) => {
+          stage.setPose(meta.pose);
+          els.nameInput.value = meta.name;
+          KKPoseEditor.startLog([], meta.id);
+        })
+        .catch((err) => showError('Load failed: ' + err.message));
+    } else if (act.dataset.act === 'delete') {
+      if (!confirm(`Delete "${name}"?`)) return;
+      fetch(`/api/poses/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      })
+        .then(() => loadList())
+        .catch((err) => showError('Delete failed: ' + err.message));
+    }
+  });
+
+  // --- Init ---
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  function init() {
+    loadList();
+  }
+})();

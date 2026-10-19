@@ -1,0 +1,432 @@
+(function () {
+  'use strict';
+  const K = window.KKPose;
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPoseStage = globalThis.KKPoseStage || {});
+
+  // --- Constants & Config ---
+  const CANVAS_WIDTH = 512;
+  const CANVAS_HEIGHT = 768;
+  
+  const HANDLES = [
+    { joint: 'l_wrist', kind: 'ik', chain: 'l_arm' },
+    { joint: 'r_wrist', kind: 'ik', chain: 'r_arm' },
+    { joint: 'l_ankle', kind: 'ik', chain: 'l_leg' },
+    { joint: 'r_ankle', kind: 'ik', chain: 'r_leg' },
+    { joint: 'l_elbow', kind: 'pole', chain: 'l_arm', end: 'l_wrist' },
+    { joint: 'r_elbow', kind: 'pole', chain: 'r_arm', end: 'r_wrist' },
+    { joint: 'l_knee', kind: 'pole', chain: 'l_leg', end: 'l_ankle' },
+    { joint: 'r_knee', kind: 'pole', chain: 'r_leg', end: 'r_ankle' },
+    { joint: 'nose', kind: 'look' },
+    { joint: 'pelvis', kind: 'root' }
+  ];
+
+  const IK_COLORS = 'rgba(243,148,31,0.9)';
+  const POLE_COLORS = 'rgba(110,71,168,0.9)';
+  const STROKE_COLOR = '#ffffff';
+  const HANDLE_RADIUS = 10;
+  const SELECTED_RING_RADIUS = 14;
+
+  // --- Helper Functions ---
+
+  function getNearestJoint(w, view, x, y, radius) {
+    let nearest = null;
+    let minDist = Infinity;
+
+    for (const joint of K.skeleton.JOINTS) {
+      if (joint.aim === null) continue;
+      
+      const screen = K.project.toScreen(view, w.pos[joint]);
+      if (screen[0] < 0 || screen[1] < 0 || screen[0] >= view.width || screen[1] >= view.height) continue;
+
+      const dx = screen[0] - x;
+      const dy = screen[1] - y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < minDist && dist <= radius) {
+        minDist = dist;
+        nearest = joint;
+      }
+    }
+    return nearest;
+  }
+
+  function getNearestHandle(w, view, x, y, radius) {
+    let nearest = null;
+    let minDist = Infinity;
+
+    for (const h of HANDLES) {
+      const jointName = h.joint;
+      const screen = K.project.toScreen(view, w.pos[jointName]);
+      if (screen[0] < 0 || screen[1] < 0 || screen[0] >= view.width || screen[1] >= view.height) continue;
+
+      const dx = screen[0] - x;
+      const dy = screen[1] - y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < minDist && dist <= radius) {
+        minDist = dist;
+        nearest = h;
+      }
+    }
+    return nearest;
+  }
+
+  function createOffscreenCanvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return c;
+  }
+
+  // --- Main Class ---
+
+  class PoseStage {
+    constructor(canvas, opts = {}) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+      
+      // State
+      this.pose = null;
+      this.yaw = 0;
+      this.pitch = 0;
+      this.show = 'both';
+      this.selected = null;
+      this.frame = null;
+      this.undo = [];
+      this.drag = null;
+      this.lastView = null;
+      
+      // Callbacks
+      this.onChange = opts.onChange || (() => {});
+      this.onSelect = opts.onSelect || (() => {});
+
+      // Setup Canvas
+      this.canvas.width = CANVAS_WIDTH;
+      this.canvas.height = CANVAS_HEIGHT;
+      this.canvas.style.touchAction = 'none';
+
+      // Pointer Events
+      this.setupPointerEvents();
+
+      // Initial Load
+      this.loadDefaultPose();
+      this.refit();
+      this.draw(false);
+    }
+
+    loadDefaultPose() {
+      this.pose = K.fk.defaultPose();
+    }
+
+    setupPointerEvents() {
+      const self = this;
+      const captureId = new Set();
+
+      function pos(e) {
+        const rect = self.canvas.getBoundingClientRect();
+        const scaleX = self.canvas.width / rect.width;
+        const scaleY = self.canvas.height / rect.height;
+        return [e.offsetX * scaleX, e.offsetY * scaleY];
+      }
+
+      self.canvas.addEventListener('pointerdown', (e) => {
+        const p = pos(e);
+        const w = K.fk.solve(self.pose);
+        
+        // Try handles first
+        const handle = getNearestHandle(w, self.lastView, p[0], p[1], 24);
+        if (handle) {
+          e.preventDefault();
+          const screenPos = K.project.toScreen(self.lastView, w.pos[handle.joint]);
+          self.drag = {
+            h: handle,
+            base: self.pose,
+            z: screenPos[2],
+            world: w.pos
+          };
+          self.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+
+        // Try joints
+        const joint = getNearestJoint(w, self.lastView, p[0], p[1], 18);
+        if (joint) {
+          self.select(joint);
+        }
+      });
+
+      self.canvas.addEventListener('pointermove', (e) => {
+        if (!self.drag) return;
+        e.preventDefault();
+        
+        const p = pos(e);
+        const target = K.project.fromScreen(self.lastView, p[0], p[1], self.drag.z);
+        
+        let op;
+        switch (self.drag.h.kind) {
+          case 'ik':
+            op = { op: 'ik', chain: self.drag.h.chain, target };
+            break;
+          case 'pole':
+            op = { op: 'ik', chain: self.drag.h.chain, target: self.drag.world[self.drag.h.end], pole: target };
+            break;
+          case 'look':
+            op = { op: 'look_at', target };
+            break;
+          case 'root':
+            op = { op: 'move_root', pos: target };
+            break;
+        }
+
+        try {
+          const r = K.ops.apply(self.drag.base, op);
+          self.pose = r.pose;
+          self.drag.op = op;
+          self.draw(true);
+          self.onChange({ pose: self.pose, notes: r.notes, op: op, commit: false });
+        } catch (err) {
+          console.error("Apply failed", err);
+        }
+      });
+
+      self.canvas.addEventListener('pointerup', (e) => {
+        if (self.drag) {
+          if (self.drag.op) {
+            if (self.undo.length >= 50) self.undo.shift();
+            self.undo.push(self.drag.base);
+            self.draw(false);
+            self.onChange({ pose: self.pose, notes: [], op: self.drag.op, commit: true });
+          }
+          self.drag = null;
+        }
+      });
+
+      self.canvas.addEventListener('pointercancel', (e) => {
+        if (self.drag) {
+          if (self.drag.op) {
+            if (self.undo.length >= 50) self.undo.shift();
+            self.undo.push(self.drag.base);
+            self.draw(false);
+            self.onChange({ pose: self.pose, notes: [], op: self.drag.op, commit: true });
+          }
+          self.drag = null;
+        }
+      });
+    }
+
+    // --- API Methods ---
+
+    getPose() {
+      return this.pose;
+    }
+
+    getView() {
+      return { yaw: this.yaw, pitch: this.pitch, width: this.canvas.width, height: this.canvas.height };
+    }
+
+    getSelected() {
+      return this.selected;
+    }
+
+    refit() {
+      const w = K.fk.solve(this.pose);
+      const view = K.project.makeView({ yaw: this.yaw, pitch: this.pitch, width: this.canvas.width, height: this.canvas.height }, w);
+      this.frame = { scale: view.scale, center: view.center };
+      this.lastView = view;
+      this.lastViewPixels = view;
+    }
+
+    setView(opts) {
+      this.yaw = opts.yaw;
+      this.pitch = opts.pitch;
+      this.refit();
+      this.draw(false);
+    }
+
+    setShow(mode) {
+      this.show = mode;
+      this.draw(false);
+    }
+
+    select(name) {
+      this.selected = name;
+      this.onSelect(name);
+      this.draw(false);
+    }
+
+    apply(op, opts = {}) {
+      const doRefit = opts.refit !== false;
+      let r;
+      try {
+        r = K.ops.apply(this.pose, op);
+      } catch (e) {
+        throw e;
+      }
+
+      if (opts.commit) {
+        if (this.undo.length >= 50) this.undo.shift();
+        this.undo.push(this.pose);
+        this.pose = r.pose;
+        if (doRefit) this.refit();
+        this.draw(!opts.commit);
+        this.onChange({ pose: this.pose, notes: r.notes, op: op, commit: true });
+      } else {
+        this.pose = r.pose;
+        if (doRefit) this.refit();
+        this.draw(!opts.commit);
+        this.onChange({ pose: this.pose, notes: r.notes, op: op, commit: false });
+      }
+      return r;
+    }
+
+    undoLast() {
+      if (this.undo.length > 0) {
+        this.pose = this.undo.pop();
+        this.refit();
+        this.draw(false);
+        this.onChange({ pose: this.pose, notes: [], op: null, commit: true });
+      }
+    }
+
+    canUndo() {
+      return this.undo.length > 0;
+    }
+
+    setPose(p) {
+      if (this.undo.length >= 50) this.undo.shift();
+      this.undo.push(this.pose);
+      this.pose = p;
+      this.refit();
+      this.draw(false);
+      this.onChange({ pose: this.pose, notes: [], op: null, commit: true });
+    }
+
+    exportPNG(kind) {
+      const off = createOffscreenCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+      const ctx = off.getContext('2d');
+      const w = K.fk.solve(this.pose);
+      const view = K.project.makeView({ yaw: this.yaw, pitch: this.pitch, width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, w);
+
+      if (kind === 'openpose') {
+        const img = K.raster.create(CANVAS_WIDTH, CANVAS_HEIGHT);
+        K.draw.drawOpenPose(img, K.project.keypoints(view, w));
+        ctx.putImageData(new ImageData(img.data, CANVAS_WIDTH, CANVAS_HEIGHT), 0, 0);
+      } else if (kind === 'depth') {
+        const img = K.raster.create(CANVAS_WIDTH, CANVAS_HEIGHT);
+        K.depth.render(view, w, img);
+        ctx.putImageData(new ImageData(img.data, CANVAS_WIDTH, CANVAS_HEIGHT), 0, 0);
+      }
+
+      return new Promise((res) => {
+        off.toBlob(res, 'image/png');
+      });
+    }
+
+    draw(fast) {
+      if (!this.frame) this.refit();
+
+      const renderWidth = fast ? 256 : CANVAS_WIDTH;
+      const renderHeight = fast ? 384 : CANVAS_HEIGHT;
+
+      const w = K.fk.solve(this.pose);
+      const view = K.project.makeView({ yaw: this.yaw, pitch: this.pitch, width: renderWidth, height: renderHeight, scale: this.frame.scale * renderWidth / this.canvas.width, center: this.frame.center }, w);
+      this.lastViewPixels = view;
+      
+      let img;
+      if (this.show === 'both') {
+        const depthImg = K.raster.create(renderWidth, renderHeight);
+        const opImg = K.raster.create(renderWidth, renderHeight);
+        
+        K.depth.render(view, w, depthImg);
+        K.draw.drawOpenPose(opImg, K.project.keypoints(view, w));
+
+        img = K.raster.create(renderWidth, renderHeight);
+        const data = depthImg.data;
+        const opData = opImg.data;
+        const outData = img.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const d = data[i];
+          const g = data[i+1];
+          const b = data[i+2];
+          const a = data[i+3];
+
+          if (a > 0 || d > 0 || g > 0 || b > 0) {
+            outData[i] = d;
+            outData[i+1] = g;
+            outData[i+2] = b;
+            outData[i+3] = a;
+          } else {
+            outData[i] *= 0.55;
+            outData[i+1] *= 0.55;
+            outData[i+2] *= 0.55;
+            outData[i+3] = a;
+          }
+        }
+      } else {
+        img = K.raster.create(renderWidth, renderHeight);
+        if (this.show === 'openpose') {
+          K.draw.drawOpenPose(img, K.project.keypoints(view, w));
+        } else {
+          K.depth.render(view, w, img);
+        }
+      }
+
+      const off = createOffscreenCanvas(renderWidth, renderHeight);
+      const offCtx = off.getContext('2d');
+      offCtx.imageSmoothingEnabled = true;
+      offCtx.putImageData(new ImageData(img.data, renderWidth, renderHeight), 0, 0);
+      
+      this.ctx.drawImage(off, 0, 0, this.canvas.width, this.canvas.height);
+
+      // Draw Handles
+      const lastViewPixels = this.lastViewPixels;
+      
+      HANDLES.forEach(h => {
+        const screen = K.project.toScreen(lastViewPixels, w.pos[h.joint]);
+        const cx = screen[0];
+        const cy = screen[1];
+
+        this.ctx.beginPath();
+        this.ctx.arc(cx, cy, HANDLE_RADIUS, 0, Math.PI * 2);
+        
+        const color = (h.kind === 'ik' || h.kind === 'root') ? IK_COLORS : POLE_COLORS;
+        this.ctx.fillStyle = color;
+        this.ctx.fill();
+        this.ctx.strokeStyle = STROKE_COLOR;
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+      });
+
+      // Draw selected ring
+      if (this.selected) {
+        const screen = K.project.toScreen(lastViewPixels, w.pos[this.selected]);
+        const cx = screen[0];
+        const cy = screen[1];
+
+        this.ctx.beginPath();
+        this.ctx.arc(cx, cy, SELECTED_RING_RADIUS, 0, Math.PI * 2);
+        this.ctx.strokeStyle = STROKE_COLOR;
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+      }
+    }
+
+    screenOf(name) {
+      const joint = K.skeleton.JOINTS.find(j => j.name === name);
+      if (!joint) return [NaN, NaN];
+      
+      const screen = K.project.toScreen(this.lastViewPixels, w.pos[name]);
+      const x = screen[0] * this.canvas.clientWidth / this.canvas.width;
+      const y = screen[1] * this.canvas.clientHeight / this.canvas.height;
+      return [x, y];
+    }
+  }
+
+  window.KKPoseStage = {
+    create: function(canvas, opts) {
+      return new PoseStage(canvas, opts);
+    }
+  };
+
+})();
