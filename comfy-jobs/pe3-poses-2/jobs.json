@@ -1,0 +1,32 @@
+{
+ "about": "STU-PE3 round 2 for the three weak renders: OpenPose 1.0 to 90%, depth 0.6 to 70%, pose words in the prompt, sitting from a 35 degree turn (thighs pointing at the camera read as standing).",
+ "jobs": [
+  {
+   "graph": "comfy-jobs/pe3-poses-2/action.json",
+   "inputs": {
+    "kompanion/pe3/action-2-openpose.png": "comfy-jobs/pe3-poses-2/inputs/action-openpose.png",
+    "kompanion/pe3/action-2-depth.png": "comfy-jobs/pe3-poses-2/inputs/action-depth.png"
+   },
+   "output": "comfy-jobs/pe3-poses-2/out/action.png",
+   "timeout_s": 300
+  },
+  {
+   "graph": "comfy-jobs/pe3-poses-2/sitting.json",
+   "inputs": {
+    "kompanion/pe3/sitting-2-openpose.png": "comfy-jobs/pe3-poses-2/inputs/sitting-openpose.png",
+    "kompanion/pe3/sitting-2-depth.png": "comfy-jobs/pe3-poses-2/inputs/sitting-depth.png"
+   },
+   "output": "comfy-jobs/pe3-poses-2/out/sitting.png",
+   "timeout_s": 300
+  },
+  {
+   "graph": "comfy-jobs/pe3-poses-2/waving.json",
+   "inputs": {
+    "kompanion/pe3/waving-2-openpose.png": "comfy-jobs/pe3-poses-2/inputs/waving-openpose.png",
+    "kompanion/pe3/waving-2-depth.png": "comfy-jobs/pe3-poses-2/inputs/waving-depth.png"
+   },
+   "output": "comfy-jobs/pe3-poses-2/out/waving.png",
+   "timeout_s": 300
+  }
+ ]
+}
