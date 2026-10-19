@@ -1,4 +1,6 @@
-. /tmp/kk-sharelive-chk/common.sh
+#!/bin/sh
+# shellcheck source=/dev/null
+. "$(dirname "$0")/common.sh"
 F=server/src/api.rs
 need $F 'crate::sharing::chat_audience(&s.db, &chat_id)'
 # answer() and send() talk to the chat's audience, not one user
