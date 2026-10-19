@@ -1,7 +1,8 @@
 # Tests and builds on both runners (Kees, 2026-10-05: "enable the soucouyant runner as
-# well"): the Rust builds on soucouyant (more cores, cargo caches in its Docker volumes),
-# the web build and the browser tests on any ubuntu-latest runner (kireserver or the Windows
-# PC's WSL runner; 2026-10-19, CI spread over all PCs). AI drafting and Coder stay on kireserver.
+# well"): the Rust builds on any linux-docker runner (more cores, cargo caches in its Docker
+# volumes), the web build and the browser tests on any ubuntu-latest runner (kireserver or the
+# Windows PC's WSL runner; 2026-10-19, CI spread over all PCs). AI drafting and Coder stay on
+# kireserver.
 name: build
 on:
   push:
@@ -16,10 +17,10 @@ jobs:
   server:
     # Same musl image as the Dockerfile, so C dependencies that break on musl fail here
     # (2026-10-04: sqlite-vec built on glibc in CI but not in the deploy).
-    # Cargo runs in a sibling container on soucouyant's Docker (jobs there get the host
-    # socket) so the registry and target dir live in named volumes between runs; before,
+    # Cargo runs in a sibling container on the runner's Docker daemon (kompas-builder or
+    # windows-wsl) so the registry and target dir live in named volumes between runs; before,
     # every push recompiled every crate.
-    runs-on: soucouyant
+    runs-on: linux-docker
     container:
       image: docker:cli
     env:
@@ -100,7 +101,7 @@ jobs:
 
   runner:
     # Cached the same way as the server job.
-    runs-on: soucouyant
+    runs-on: linux-docker
     container:
       image: docker:cli
     env:
@@ -128,7 +129,7 @@ jobs:
 
   runner-windows:
     # RUNNER-WIN: the runner and the shared stats crate must compile for Windows (cross-check from Linux with mingw; the tests run on a Windows PC, see windows.yml).
-    runs-on: soucouyant
+    runs-on: linux-docker
     container:
       image: docker:cli
     env:

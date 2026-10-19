@@ -21,9 +21,9 @@ env:
 jobs:
   build:
     name: ${{ matrix.name }}
-    # Docker on soucouyant (jobs there get the host socket); docker build sends the
+    # Docker on a linux-docker runner (kompas-builder or windows-wsl); docker build sends the
     # checkout as its context, so no host paths are mounted.
-    runs-on: soucouyant
+    runs-on: linux-docker
     container:
       image: docker:cli
     strategy:

@@ -1,4 +1,4 @@
-# TEN-01: a stranger's install. Builds the image from this commit and starts it with ONLY server/kompanion.example.toml, the way docker-compose.yml runs it, and checks that it comes up and offers first-time setup. Runs on soucouyant (its jobs get the host's Docker; image builds are heavy).
+# TEN-01: a stranger's install. Builds the image from this commit and starts it with ONLY server/kompanion.example.toml, the way docker-compose.yml runs it, and checks that it comes up and offers first-time setup. Runs on a linux-docker runner (kompas-builder or windows-wsl; its jobs reach a Docker daemon; image builds are heavy).
 name: fresh-install
 on:
   push:
@@ -22,7 +22,7 @@ on:
 
 jobs:
   fresh-install:
-    runs-on: soucouyant
+    runs-on: linux-docker
     container: docker:cli
     env:
       TOKEN: ${{ github.token }}
