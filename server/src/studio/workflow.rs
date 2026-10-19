@@ -158,6 +158,9 @@ pub struct Check {
     pub retries: u32,
     #[serde(default)]
     pub face_views: Vec<String>,
+    /// STU-SHEET3D: the sheet layout the checker reads ("oc-v3"); None: the v2 sheet's four columns.
+    #[serde(default)]
+    pub layout: Option<String>,
 }
 
 fn three() -> u32 {
@@ -789,6 +792,30 @@ licence = "CreativeML OpenRAIL-M"
         }
         assert!(get("oc-sheet-classic").images.is_empty());
         assert_eq!(get("oc-sheet-classic").title, "OC sheet (classic)");
+    }
+
+    /// STU-SHEET3D: the v3 OC sheet and the weapon sheet ship their templates; v3 is one run (no helmet pair).
+    #[test]
+    fn sheet3d_types_ship_their_templates() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let get = |n: &str| all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap();
+        for (name, nodes) in [("oc-sheet-v3", vec!["101", "60", "64", "80", "86", "93"]), ("weapon-sheet", vec!["80", "93"])] {
+            let w = get(name);
+            assert_eq!(w.images.keys().map(String::as_str).collect::<Vec<_>>(), nodes, "{name}");
+            for (node, file) in &w.images {
+                assert!(w.dir.join(file).is_file(), "{name}: {file} missing");
+                assert_eq!(w.graph_for("rx9070").unwrap()[node.as_str()]["class_type"], json!("LoadImage"), "{name} node {node}");
+            }
+        }
+        let v3 = get("oc-sheet-v3");
+        assert_eq!(v3.check.as_ref().and_then(|c| c.layout.as_deref()), Some("oc-v3"));
+        assert!(v3.params.iter().all(|p| p.name != "helmet"), "a helmet param would split the run into a pair");
+        let neg = &v3.params.iter().find(|p| p.name == "negative").unwrap().template;
+        assert!(neg.as_deref().is_some_and(|t| t.contains("childlike body") && t.contains("{rating_neg}")), "the minor-safety tags stay");
+        assert_eq!(v3.face_graph("x.png", 0.7).unwrap()["80"]["class_type"], json!("LoadImage"));
+        assert!(get("weapon-sheet").check.is_none());
+        assert!(get("weapon-sheet").face_graph("x.png", 0.7).is_err());
     }
 
     fn rated() -> Workflow {

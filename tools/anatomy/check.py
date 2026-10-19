@@ -14,6 +14,35 @@ HAND_CONF = 0.55
 WRIST_IOU = 0.3
 _MODELS = {}
 
+CELLS = {
+    "v2": [("front", 0.0, 0.0, 0.25, 1.0), ("left", 0.25, 0.0, 0.5, 1.0), ("back", 0.5, 0.0, 0.75, 1.0), ("right", 0.75, 0.0, 1.0, 1.0)],
+    "oc-v3": [
+        ("front", 0.0, 0.0, 0.2, 1.0),
+        ("right", 0.2, 0.0, 0.4, 1.0),
+        ("left", 0.4, 0.0, 0.6, 1.0),
+        ("back", 0.6, 0.0, 0.8, 1.0),
+        ("head-front", 0.8, 0.0, 0.9, 0.25),
+        ("helmet-front", 0.9, 0.0, 1.0, 0.25),
+        ("head-right", 0.8, 0.25, 0.9, 0.5),
+        ("helmet-right", 0.9, 0.25, 1.0, 0.5),
+        ("head-left", 0.8, 0.5, 0.9, 0.75),
+        ("helmet-left", 0.9, 0.5, 1.0, 0.75),
+        ("head-back", 0.8, 0.75, 0.9, 1.0),
+        ("helmet-back", 0.9, 0.75, 1.0, 1.0),
+    ],
+}
+
+
+def cell_index(box, width, height, cells):
+    fx = (box[0] + box[2]) / 2 / width
+    fy = (box[1] + box[3]) / 2 / height
+    fx = max(0.0, min(0.999999, fx))
+    fy = max(0.0, min(0.999999, fy))
+    for i, (name, x0, y0, x1, y1) in enumerate(cells):
+        if x0 <= fx < x1 and y0 <= fy < y1:
+            return i
+    return None
+
 
 def iou(a, b):
     x1a, y1a, x2a, y2a = a[:4]
@@ -36,41 +65,46 @@ def judge(
     face_views=FACE_VIEWS,
     face_conf=FACE_CONF,
     hand_conf=HAND_CONF,
+    cells=None,
 ):
+    if cells is None:
+        cells = CELLS["v2"]
     faces = [f for f in faces if f[4] >= face_conf]
     hands = [h for h in hands if h[4] >= hand_conf]
-    cell_w = width / 4
-    cells = [{"view": v, "faces": 0, "hands": 0} for v in VIEWS]
+    cells_out = [{"view": c[0], "faces": 0, "hands": 0} for c in cells]
+    in_cell = [[] for _ in cells]  # the hand boxes of each cell
     issues = []
 
     for box in faces:
-        cx = (box[0] + box[2]) / 2
-        cell_idx = max(0, min(3, int(cx // cell_w)))
-        cells[cell_idx]["faces"] += 1
-
+        i = cell_index(box, width, height, cells)
+        if i is not None:
+            cells_out[i]["faces"] += 1
     for box in hands:
-        cx = (box[0] + box[2]) / 2
-        cell_idx = max(0, min(3, int(cx // cell_w)))
-        cells[cell_idx]["hands"] += 1
+        i = cell_index(box, width, height, cells)
+        if i is not None:
+            cells_out[i]["hands"] += 1
+            in_cell[i].append(box)
 
-    for i, cell in enumerate(cells):
-        view = cell["view"]
+    for i, cell in enumerate(cells_out):
+        name = cell["view"]
+        base = name.split("-")[-1]
         nf = cell["faces"]
         nh = cell["hands"]
+        if name.startswith("helmet-"):
+            continue  # the face is hidden on purpose
 
-        if view in face_views and nf == 0:
-            issues.append(f"{view}: no face (head turned away)")
-        if view in face_views and nf > 1:
-            issues.append(f"{view}: {nf} faces")
-        if view == "back" and nf >= 1:
-            issues.append("back: face seen (head facing the wrong way)")
+        if base in face_views and nf == 0:
+            issues.append(f"{name}: no face (head turned away)")
+        if base in face_views and nf > 1:
+            issues.append(f"{name}: {nf} faces")
+        if base == "back" and nf >= 1:
+            issues.append(f"{name}: face seen (head facing the wrong way)")
+        if "-" in name:
+            continue  # head close-ups: no hand rules
         if nh > 2:
-            issues.append(f"{view}: {nh} hands")
+            issues.append(f"{name}: {nh} hands")
 
-        # Use the same clamped cell index as the counting loop
-        hand_boxes = [
-            h for h in hands if max(0, min(3, int(((h[0] + h[2]) / 2) // cell_w))) == i
-        ]
+        hand_boxes = in_cell[i]
         if len(hand_boxes) < 2:
             continue
         wrist_issue_added = False
@@ -79,7 +113,7 @@ def judge(
                 hb1, hb2 = hand_boxes[j], hand_boxes[k]
                 if iou(hb1, hb2) > WRIST_IOU:
                     if not wrist_issue_added:
-                        issues.append(f"{view}: two hands at one wrist")
+                        issues.append(f"{name}: two hands at one wrist")
                         wrist_issue_added = True
                     break
                 w1 = hb1[2] - hb1[0]
@@ -89,16 +123,19 @@ def judge(
                 c2 = (hb2[0] + hb2[2]) / 2
                 if abs(c1 - c2) < mean_w / 2:
                     if not wrist_issue_added:
-                        issues.append(f"{view}: two hands at one wrist")
+                        issues.append(f"{name}: two hands at one wrist")
                         wrist_issue_added = True
                     break
 
-    return {"ok": not issues, "score": len(issues), "issues": issues, "cells": cells}
+    return {"ok": not issues, "score": len(issues), "issues": issues, "cells": cells_out}
 
 
-def detect(path, models_dir):
+def detect(path, models_dir, cells=None):
     from PIL import Image
     from ultralytics import YOLO
+
+    if cells is None:
+        cells = CELLS["v2"]
 
     def model(name):
         mpath = os.path.join(models_dir, name)
@@ -108,21 +145,47 @@ def detect(path, models_dir):
 
     img = Image.open(path).convert("RGB")
     w, h = img.size
-    cw = w / 4
     faces, hands = [], []
-    for i in range(4):
-        crop = img.crop((int(i * cw), 0, int((i + 1) * cw), h))
-        x0 = int(i * cw)
+    for _, fx0, fy0, fx1, fy1 in cells:
+        x0, y0 = int(fx0 * w), int(fy0 * h)
+        crop = img.crop((x0, y0, int(fx1 * w), int(fy1 * h)))
         for name, out in (("face_yolov8m.pt", faces), ("hand_yolov8s.pt", hands)):
             r = model(name)(crop, conf=0.2, imgsz=1024, verbose=False)[0]
             for b, c in zip(r.boxes.xyxy.tolist(), r.boxes.conf.tolist()):
-                out.append([b[0] + x0, b[1], b[2] + x0, b[3], float(c)])
+                out.append([b[0] + x0, b[1] + y0, b[2] + x0, b[3] + y0, float(c)])
     return faces, hands, w, h
 
 
-def check(path, models_dir, face_views=FACE_VIEWS):
-    faces, hands, width, height = detect(path, models_dir)
-    result = judge(faces, hands, width, height, face_views=face_views)
+def parse_query(path):
+    """Parse query string to get face_views and layout."""
+    q = path.split("?")[1] if "?" in path else ""
+    if not q:
+        return FACE_VIEWS, "v2"
+
+    kv = {}
+    for item in q.split("&"):
+        if "=" in item:
+            k, v = item.split("=", 1)
+            kv[k] = v
+
+    fv = FACE_VIEWS
+    layout = "v2"
+
+    if "face_views" in kv:
+        fv = tuple(kv["face_views"].split(","))
+    if "layout" in kv:
+        layout = kv["layout"]
+
+    if layout not in CELLS:
+        raise ValueError(f"unknown layout {layout}")
+
+    return fv, layout
+
+
+def check(path, models_dir, face_views=FACE_VIEWS, layout="v2"):
+    cells = CELLS[layout]
+    faces, hands, width, height = detect(path, models_dir, cells=cells)
+    result = judge(faces, hands, width, height, face_views=face_views, cells=cells)
     result["file"] = path
     return result
 
@@ -158,14 +221,8 @@ class AnatomyHandler(BaseHTTPRequestHandler):
                 tmp_path = f.name
                 f.write(body)
             try:
-                q = self.path.split("?")[1] if "?" in self.path else ""
-                fv = FACE_VIEWS
-                if q:
-                    kv = dict(v.split("=") for v in q.split("&"))
-                    if "face_views" in kv:
-                        fv = tuple(kv["face_views"].split(","))
-
-                res = check(tmp_path, self.models_dir, fv)
+                fv, layout = parse_query(self.path)
+                res = check(tmp_path, self.models_dir, fv, layout)
                 del res["file"]
                 self.send_json(200, res)
             finally:
@@ -187,6 +244,7 @@ def main():
     parser.add_argument("images", nargs="*")
     parser.add_argument("--models", default=os.environ.get("ANATOMY_MODELS", "/models"))
     parser.add_argument("--face-views", default="front,left,right")
+    parser.add_argument("--layout", default="v2", choices=sorted(CELLS))
     parser.add_argument("--serve", metavar="HOST:PORT")
     parser.add_argument("--judge-json", default=None)
     args = parser.parse_args()
@@ -201,7 +259,9 @@ def main():
         else:
             with open(args.judge_json) as f:
                 data = json.load(f)
-        result = judge(data["faces"], data["hands"], data["width"], data["height"])
+        layout = data.get("layout", args.layout)
+        cells = CELLS[layout]
+        result = judge(data["faces"], data["hands"], data["width"], data["height"], cells=cells)
         print(json.dumps(result))
         sys.exit(0)
 
@@ -209,7 +269,7 @@ def main():
     failed = False
     for path in args.images:
         try:
-            res = check(path, args.models, tuple(args.face_views.split(",")))
+            res = check(path, args.models, tuple(args.face_views.split(",")), args.layout)
             print(json.dumps(res))
             if res["ok"]:
                 ok_any = True

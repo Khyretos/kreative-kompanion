@@ -329,3 +329,9 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - Name an insertion point by the text on both sides of it, and rerun the earlier units' checks in every unit's check (lessons 267, 272).
 - A "shown when X" check also asserts "not shown otherwise"; a removal job's check covers the neighbouring lines (lesson 268).
 - New files over about 60 lines: function-sized jobs spliced by script; name the exact DOM attributes and what each helper returns (lessons 270, 271).
+
+Lessons 307, 344, 345 (2026-10-19, STU-SHEET3D): (a) a function whose loop structure changes is written whole
+into a scratch file and spliced in by Claude, never patched (lessons 71, 297); (b) every call site of a changed
+signature is its own SEARCH/REPLACE in the prompt, with "no other function changes"; (c) a "keep everything else"
+job gets a check that diffs the untouched lines against the source, not only one on what changed; (d) never edit
+a file while a queued job on it is still in its fix rounds (wait for its check line in the log, lesson 302).

@@ -34,3 +34,11 @@ paths: ["**/*.py"]
     load the wrong file just to make an assert pass. Cache exactly what the spec names (loaded models), not results
     keyed by an input path (a server sees a new temp path every request). Ultralytics boxes: `r.boxes.xyxy.tolist()`
     and `r.boxes.conf.tolist()`; `float()` of a 4-number tensor fails.
+306. (2026-10-19, STU-SHEET3D) A numeric rule given in prose (subtract, rotate, flatten, compare) comes back
+   reordered or inverted: copy such a rule as the literal code lines the prompt gives. A helper that returns a
+   tuple returns something you cannot assign into: unpack it (`x, _, z = rotate(...)`), never `t[0] += ...`.
+308. (2026-10-19, STU-SHEET3D) A CLI with several commands: read each command's arguments inside its own branch,
+   at the positions the prompt lists for that command; write no file the prompt does not name.
+343. (2026-10-19, reencoder) A function named like a question (is_/has_/<thing>_encode) only reads; migrations go
+   where the connection opens; never re-import a module inside a function that already uses it; when one loop is
+   split into two threads, each loop keeps only its own job.
