@@ -28,7 +28,6 @@ import argparse, fcntl, json, os, subprocess, sys, threading, time, urllib.reque
 DEV = "/sys/class/drm/card1/device"
 PORT = 18190
 NAME = "kk-render"
-IMAGE = "comfyui-rocm:local"
 HOME = os.path.expanduser("~")
 WORK = os.path.join(HOME, "kk-render")
 LOCK = f"/run/user/{os.getuid()}/kk-render.lock"
@@ -45,11 +44,28 @@ MIN_FREE_RAM_GIB = 8
 GAMES = ("Funkin", "steam_app", "gamescope", "wine64-preloader", "wineserver", ".exe", "retroarch", "dolphin-emu")
 
 M = os.path.join(HOME, "comfy-models-local")
+# One model family per container (04:38Z: MV-Adapter and SDXL in one ComfyUI kept the MV memory and hit 13.9 GB).
+PROFILES = {
+    # name: (image, torch VRAM fraction, --reserve-vram GB so ComfyUI plans inside the cap, VAE flag)
+    "sdxl": ("comfyui-rocm:local", 0.50, "8.5", "--bf16-vae"),
+    # TRELLIS.2: the fp16 and bf16 VAE decodes give NaN on gfx1201, so fp32 (3d-01 notes).
+    "trellis": ("comfyui-rocm:local", 0.60, "6.8", "--fp32-vae"),
+}
+TRELLIS_MOUNTS = [
+    (f"{M}/diffusion_models", "/app/models/diffusion_models", "ro"),
+    (f"{M}/vae/trellis_2_shape_vae_bf16.safetensors", "/app/models/vae/trellis_2_shape_vae_bf16.safetensors", "ro"),
+    (f"{M}/vae/trellis_2_texture_vae_bf16.safetensors", "/app/models/vae/trellis_2_texture_vae_bf16.safetensors", "ro"),
+    (f"{M}/clip_vision", "/app/models/clip_vision", "ro"),
+    (f"{M}/background_removal/birefnet.safetensors", "/app/models/background_removal/birefnet.safetensors", "ro"),
+    (f"{HOME}/.local/lib/kk-render/kk_dump.py", "/app/custom_nodes/kk_dump.py", "ro"),
+]
 MOUNTS = [
     (f"{WORK}/out", "/media-out", "rw"),
     (f"{WORK}/in", "/app/input", "rw"),
     (f"{HOME}/Server-Docker/Services/ai/comfyui/user", "/app/user", "rw"),
     (f"{HOME}/.local/lib/kk-render/vram_cap.py", "/app/custom_nodes/kk_vram_cap.py", "ro"),
+]
+SDXL_MOUNTS = [
     (f"{M}/checkpoints/novaAnimeXL_ilV170.safetensors", "/app/models/checkpoints/novaAnimeXL_ilV170.safetensors", "ro"),
     (f"{M}/loras", "/app/models/loras", "ro"),
     (f"{M}/controlnet/xinsir-union-sdxl-promax.safetensors", "/app/models/controlnet/xinsir-union-sdxl-promax.safetensors", "ro"),
@@ -174,7 +190,8 @@ class Watchdog(threading.Thread):
         self.kmsg.terminate()
 
 
-def start_container():
+def start_container(profile):
+    image, frac, reserve, vae = PROFILES[profile]
     for d in ("out", "in"):
         os.makedirs(os.path.join(WORK, d), exist_ok=True)
     subprocess.run(["docker", "rm", "-f", NAME], capture_output=True, timeout=60)
@@ -182,14 +199,13 @@ def start_container():
            "--group-add", "988", "--group-add", "video", "--security-opt", "seccomp=unconfined",
            "--memory", "12g", "--memory-swap", "14g", "--cpus", "8", "--pids-limit", "2048",
            "-e", "TZ=Europe/Amsterdam", "-e", "HSA_OVERRIDE_GFX_VERSION=12.0.1",
-           "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False", "-e", "PYTORCH_HIP_ALLOC_CONF=expandable_segments:False",
+           "-e", f"KK_VRAM_FRACTION={frac}", "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False", "-e", "PYTORCH_HIP_ALLOC_CONF=expandable_segments:False",
            "-v", "kk-render-cache:/home/comfy/.cache"]
-    for src, dst, mode in MOUNTS:
+    for src, dst, mode in MOUNTS + (TRELLIS_MOUNTS if profile == "trellis" else SDXL_MOUNTS):
         if os.path.exists(src):
             cmd += ["-v", f"{src}:{dst}:{mode}"]
-    cmd += [IMAGE, "python", "main.py", "--listen", "127.0.0.1", "--port", str(PORT), "--disable-auto-launch",
-            "--output-directory", "/media-out", "--fast-disk", "--disable-pinned-memory", "--reserve-vram", "8.5",  # ComfyUI must plan inside the 0.50 torch cap (~8 GB), not the whole card
-            "--bf16-vae", "--preview-method", "none"]
+    cmd += [image, "python", "main.py", "--listen", "127.0.0.1", "--port", str(PORT), "--disable-auto-launch",
+            "--output-directory", "/media-out", "--fast-disk", "--disable-pinned-memory", "--reserve-vram", reserve, vae, "--preview-method", "none"]
     subprocess.run(cmd, check=True, capture_output=True, timeout=120)
     t0 = time.time()
     while time.time() - t0 < 180:
@@ -247,8 +263,9 @@ def run_job(graph_path, timeout, wd):
         msgs = [m for m in h["status"].get("messages", []) if m[0] in ("execution_error", "execution_interrupted")]
         return {"ok": False, "secs": secs, "why": json.dumps([{k: m[1].get(k) for k in ("node_type", "exception_message")} for m in msgs])[:1500]}
     files = [os.path.join(WORK, "out", im.get("subfolder", ""), im["filename"])
-             for node in h["outputs"].values() for im in node.get("images", []) if im.get("type") == "output"]
-    bad = [f for f in files if not image_ok(f)]
+             for node in h["outputs"].values() for items in node.values() if isinstance(items, list)
+             for im in items if isinstance(im, dict) and "filename" in im and im.get("type", "output") == "output"]
+    bad = [f for f in files if f.endswith(".png") and not image_ok(f)]
     if bad:
         return {"ok": False, "secs": secs, "files": files, "why": "black/flat output (sign of GPU trouble): " + ", ".join(bad)}
     return {"ok": True, "secs": secs, "files": files}
@@ -259,6 +276,7 @@ def main():
     ap.add_argument("cmd", choices=("check", "run"))
     ap.add_argument("graphs", nargs="*")
     ap.add_argument("--timeout", type=int, default=300, help="per job, seconds")
+    ap.add_argument("--profile", choices=sorted(PROFILES), default="sdxl")
     a = ap.parse_args()
     lockf = open(LOCK, "w")
     try:
@@ -276,7 +294,7 @@ def main():
     wd.start()
     results, rc = [], 0
     try:
-        start_container()
+        start_container(a.profile)
         log("UP", sample=sample())
         for gpath in a.graphs:
             r = run_job(gpath, a.timeout, wd)
