@@ -1,0 +1,123 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // --- Data definitions ---
+
+  const RADII = {
+    pelvis: 0.08,
+    spine: 0.08,
+    chest: 0.08,
+    neck: 0.045,
+    head: 0.09,
+    shoulder: 0.045,
+    elbow: 0.035,
+    wrist: 0.025,
+    hip: 0.07,
+    knee: 0.05,
+    ankle: 0.04
+  };
+
+  // Load vec.js and skeleton.js inside functions to ensure correct loading order in browser
+  function getVec() { return need('vec', './vec.js'); }
+  function getSkeleton() { return need('skeleton', './skeleton.js'); }
+
+  // --- radius(name) ---
+  function radius(name) {
+    // Finger joints: name matches /_(thumb|index|middle|ring|pinky)_/
+    if (/_(thumb|index|middle|ring|pinky)_/.test(name)) {
+      return 0.008;
+    }
+    // Strip leading 'l_' or 'r_'
+    let base = name;
+    if (base.startsWith('l_')) base = base.slice(2);
+    else if (base.startsWith('r_')) base = base.slice(2);
+    
+    // Return RADII[that] (0.03 when missing)
+    return RADII[base] !== undefined ? RADII[base] : 0.03;
+  }
+
+  // --- mannequin(names) ---
+  function mannequin(names) {
+    const V = getVec();
+    const S = getSkeleton();
+
+    const positions = new Float32Array(names.length * 8 * 3);
+    const joints = new Uint16Array(names.length * 8 * 4);
+    const weights = new Float32Array(names.length * 8 * 4);
+    const indices = new Uint16Array(names.length * 36);
+
+    for (let b = 0; b < names.length; b++) {
+      const j = S.byName[names[b]];
+      const a = j.rest;
+      const aim = j.aim;
+      const e = S.byName[aim].rest;
+      
+      const d = V.norm(V.sub(e, a));
+      const ref = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+      const u = V.norm(V.cross(d, ref));
+      const v = V.cross(d, u);
+      const r = radius(names[b]);
+
+      // Indices of box b: these 36 numbers plus b * 8
+      const idxBase = b * 8;
+      const idxs = [
+        0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6,
+        0, 1, 4, 1, 5, 4, 2, 6, 3, 3, 6, 7,
+        0, 4, 2, 2, 4, 6, 1, 3, 5, 3, 7, 5
+      ];
+
+      for (let k = 0; k < 8; k++) {
+        const vi = idxBase + k;
+        
+        // Store the corner Y-up: [p[0], p[2], -p[1]] at vertex index b * 8 + k
+        const base = (k & 4) ? e : a;
+        const su = (k & 1) ? 1 : -1;
+        const sv = (k & 2) ? 1 : -1;
+        const p = [
+          base[0] + u[0] * (r * su) + v[0] * (r * sv),
+          base[1] + u[1] * (r * su) + v[1] * (r * sv),
+          base[2] + u[2] * (r * su) + v[2] * (r * sv)
+        ];
+        
+        // Store Y-up: [p[0], p[2], -p[1]]
+        positions[vi * 3 + 0] = p[0];
+        positions[vi * 3 + 1] = p[2];
+        positions[vi * 3 + 2] = -p[1];
+
+        // Joints: [b, 0, 0, 0]
+        joints[vi * 4 + 0] = b;
+        joints[vi * 4 + 1] = 0;
+        joints[vi * 4 + 2] = 0;
+        joints[vi * 4 + 3] = 0;
+
+        // Weights: [1, 0, 0, 0]
+        weights[vi * 4 + 0] = 1;
+        weights[vi * 4 + 1] = 0;
+        weights[vi * 4 + 2] = 0;
+        weights[vi * 4 + 3] = 0;
+      }
+
+      // Indices
+      for (let i = 0; i < 36; i++) {
+        indices[i] = idxs[i] + idxBase;
+      }
+    }
+
+    return {
+      positions,
+      joints,
+      weights,
+      indices
+    };
+  }
+
+  const api = {
+    RADII,
+    radius,
+    mannequin
+  };
+
+  if (NS) NS.mannequin = api; else module.exports = api;
+})();

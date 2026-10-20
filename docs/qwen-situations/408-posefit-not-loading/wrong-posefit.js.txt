@@ -1,0 +1,241 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // STU-PE3: fit the target pose to what a generated image shows, and give the fix as PE1 set_joint ops.
+  // Angles are degrees.
+  const FIT = {
+    TWIST_PARENT: { l_forearm: 'l_shoulder', r_forearm: 'r_shoulder', l_shin: 'l_hip', r_shin: 'r_hip' },
+    get: function (q, [j, k]) { return (q.joints[j] && q.joints[j][k]) || 0; },
+    with: function (q, [j, k], x) {
+      const copy = JSON.parse(JSON.stringify(q));
+      copy.joints = copy.joints || {};
+      copy.joints[j] = { ...copy.joints[j], [k]: x };
+      return copy;
+    },
+    fit: function (pose, detected, opts) {
+      const PC = need('posecheck', './posecheck.js');
+      const OPS = need('ops', './ops.js');
+      const FK = need('fk', './fk.js');
+      const P = need('project', './project.js');
+
+      const tol = (opts && opts.tol) ?? 20;
+      const view = opts.view || {};
+      let w0 = FK.solve(pose);
+      let v0 = P.makeView(view, w0);
+      let cam = { width: v0.width, height: v0.height, scale: v0.scale, center: v0.center };
+      if (view.yaw !== undefined || view.pitch !== undefined) {
+        cam = { ...cam, yaw: view.yaw, pitch: view.pitch };
+      }
+
+      function kpOf(p) {
+        let w = FK.solve(p);
+        let v = P.makeView(cam, w);
+        if (view.yaw !== undefined || view.pitch !== undefined) {
+          v = P.makeView({ ...v, yaw: view.yaw, pitch: view.pitch });
+        }
+        return P.keypoints(v, w);
+      }
+
+      let before = PC.compare(kpOf(pose), detected, { tol, swap: opts.swap });
+      let det = before.swapped ? PC.swapSides(detected) : detected;
+
+      let p = JSON.parse(JSON.stringify(pose));
+      p.joints = p.joints || {};
+
+      let best = p;
+      let bestErr = Infinity;
+
+      function errOf(q) {
+        let c = PC.compare(kpOf(q), det, { tol, swap: false });
+        let e = c.bones.find((b) => b.name === 'torso')?.err;
+        if (e === null) e = Infinity;
+        return e;
+      }
+
+      function getVars(b) {
+        let vars = [[b.joint, 'bend'], [b.joint, 'side']];
+        if (FIT.TWIST_PARENT[b.name]) {
+          vars.push([FIT.TWIST_PARENT[b.name], 'twist']);
+        }
+        return vars;
+      }
+
+      function clampVar(q, [j, k], x) {
+        let lim = OPS.clamp(j, q.joints[j]);
+        return FIT.with(q, [j, k], Math.round(lim[k] * 10) / 10);
+      }
+
+      function tryGrid(q, vars) {
+        let step = 15;
+        let min = -180;
+        let max = 180;
+        let limits = OPS.byName[vars[0][0]].limits;
+        min = limits[vars[0][1]][0];
+        max = limits[vars[0][1]][1];
+        let grid = [];
+        for (let i = min; i <= max; i += step) {
+          grid.push(i);
+        }
+        let bestLocal = q;
+        let bestLocalErr = errOf(q);
+        for (let i = 0; i < vars.length; i++) {
+          let varName = vars[i][0];
+          let varKey = vars[i][1];
+          let lim = OPS.byName[varName].limits[varKey];
+          let minV = lim[0];
+          let maxV = lim[1];
+          let stepV = 15;
+          let vals = [];
+          for (let v = minV; v <= maxV; v += stepV) {
+            vals.push(v);
+          }
+          let localBest = bestLocal;
+          let localBestErr = errOf(bestLocal);
+          for (let v of vals) {
+            let next = FIT.with(bestLocal, [varName, varKey], v);
+            let e = errOf(next);
+            if (e < localBestErr) {
+              localBestErr = e;
+              localBest = next;
+            }
+          }
+          bestLocal = localBest;
+        }
+        return bestLocal;
+      }
+
+      function refine(q, step) {
+        let improved = true;
+        while (improved) {
+          improved = false;
+          let vars = getVars(best);
+          for (let i = 0; i < vars.length; i++) {
+            let [j, k] = vars[i];
+            let cur = FIT.get(best, [j, k]);
+            for (let d of [step, -step]) {
+              let next = FIT.with(best, [j, k], cur + d);
+              let e = errOf(next);
+              if (e < bestErr - 1e-9) {
+                best = next;
+                bestErr = e;
+                improved = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      let bones = PC.BONES;
+      for (let b of bones) {
+        if (bestErr === Infinity) break;
+        let status = bestErr === Infinity ? 'wrong' : 'ok';
+        if (status !== 'wrong') continue;
+        let vars = getVars(b);
+        let q = tryGrid(best, vars);
+        let e = errOf(q);
+        if (e < bestErr) {
+          best = q;
+          bestErr = e;
+        }
+        refine(best, 8);
+        refine(best, 4);
+        refine(best, 2);
+        refine(best, 1);
+        refine(best, 0.5);
+        refine(best, 0.2);
+        refine(best, 0.1);
+      }
+
+      let pFinal = best;
+      for (let i = 0; i < 10; i++) {
+        let vars = getVars(PC.BONES[0]);
+        let q = pFinal;
+        for (let j of vars) {
+          let [jName, kName] = j;
+          let lim = OPS.byName[jName].limits[kName];
+          let val = Math.round(FIT.get(q, [jName, kName]) * 10) / 10;
+          val = Math.max(lim[0], Math.min(lim[1], val));
+          q = FIT.with(q, [jName, kName], val);
+        }
+        pFinal = q;
+      }
+
+      let ops = [];
+      for (let name of Object.keys(pFinal.joints)) {
+        let cur = p.joints[name] || {};
+        let next = OPS.clamp(name, pFinal.joints[name]);
+        let diff = false;
+        for (let k of ['bend', 'side', 'twist']) {
+          if (Math.abs(cur[k] - next[k]) > 1e-9) {
+            diff = true;
+            break;
+          }
+        }
+        if (diff) {
+          ops.push({ op: 'set_joint', joint: name, bend: next.bend, side: next.side, twist: next.twist });
+        }
+      }
+
+      let after = PC.compare(kpOf(pFinal), detected, { tol, swap: opts.swap });
+
+      return { pose: pFinal, ops, before, after, swapped: before.swapped };
+    },
+    regions: function (target, detected, check, opts) {
+      const pad = (opts && opts.pad) ?? 24;
+      let det = check.swapped ? need('posecheck', './posecheck.js').swapSides(detected) : detected;
+      let out = [];
+      for (let b of check.bones) {
+        if (b.status !== 'wrong') continue;
+        let bd = need('posecheck', './posecheck.js').BONES.find((x) => x.name === b.name);
+        let ptsT = [];
+        let ptsD = [];
+        for (let i of bd.a) {
+          let p = target.body[i];
+          if (p) ptsT.push(p);
+        }
+        for (let i of bd.b) {
+          let p = target.body[i];
+          if (p) ptsT.push(p);
+        }
+        for (let i of bd.a) {
+          let p = det.body[i];
+          if (p) ptsD.push(p);
+        }
+        for (let i of bd.b) {
+          let p = det.body[i];
+          if (p) ptsD.push(p);
+        }
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (let p of ptsT) {
+          if (p) {
+            if (p[0] < minX) minX = p[0];
+            if (p[0] > maxX) maxX = p[0];
+            if (p[1] < minY) minY = p[1];
+            if (p[1] > maxY) maxY = p[1];
+          }
+        }
+        for (let p of ptsD) {
+          if (p) {
+            if (p[0] < minX) minX = p[0];
+            if (p[0] > maxX) maxX = p[0];
+            if (p[1] < minY) minY = p[1];
+            if (p[1] > maxY) maxY = p[1];
+          }
+        }
+        let box = [Math.floor(minX - pad), Math.floor(minY - pad), Math.ceil(maxX + pad), Math.ceil(maxY + pad)];
+        box[0] = Math.max(0, box[0]);
+        box[1] = Math.max(0, box[1]);
+        box[2] = Math.min(detected.width, box[2]);
+        box[3] = Math.min(detected.height, box[3]);
+        out.push({ bone: b.name, joint: b.joint, box: box });
+      }
+      return out;
+    }
+  };
+
+  const api = { fit, regions };
+  if (NS) NS.posefit = api; else module.exports = api;
+})();

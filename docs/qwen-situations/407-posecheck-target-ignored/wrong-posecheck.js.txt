@@ -1,0 +1,211 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+
+  const BONES = [
+    { name: 'torso', a: [1], b: [8, 11], joint: 'spine' },
+    { name: 'head', a: [1], b: [0], joint: 'neck' },
+    { name: 'l_upper_arm', a: [5], b: [6], joint: 'l_shoulder' },
+    { name: 'l_forearm', a: [6], b: [7], joint: 'l_elbow' },
+    { name: 'r_upper_arm', a: [2], b: [3], joint: 'r_shoulder' },
+    { name: 'r_forearm', a: [3], b: [4], joint: 'r_elbow' },
+    { name: 'l_thigh', a: [11], b: [12], joint: 'l_hip' },
+    { name: 'l_shin', a: [12], b: [13], joint: 'l_knee' },
+    { name: 'r_thigh', a: [8], b: [9], joint: 'r_hip' },
+    { name: 'r_shin', a: [9], b: [10], joint: 'r_knee' }
+  ];
+
+  function read(arr, n) {
+    const minConf = this.minConf ?? 0.3;
+    const out = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+      if (arr.length < 3 * (i + 1)) {
+        out[i] = null;
+        continue;
+      }
+      const x = arr[3 * i];
+      const y = arr[3 * i + 1];
+      const conf = arr[3 * i + 2];
+      if (conf === undefined || conf < minConf || (x === 0 && y === 0)) {
+        out[i] = null;
+      } else {
+        out[i] = [x, y];
+      }
+    }
+    return out;
+  }
+
+  function fromOpenPose(json, opts) {
+    const people = Array.isArray(json) ? json[0] : json;
+    if (!people || !people.pose_keypoints_2d) {
+      throw new Error('No person in the keypoints.');
+    }
+    const width = people.canvas_width;
+    const height = people.canvas_height;
+    const body = read.call({ minConf: opts?.minConf }, people.pose_keypoints_2d, 18);
+    const left = read.call({ minConf: opts?.minConf }, people.hand_left_keypoints_2d ?? [], 21);
+    const right = read.call({ minConf: opts?.minConf }, people.hand_right_keypoints_2d ?? [], 21);
+    return { width, height, body, left, right };
+  }
+
+  function swapSides(kp) {
+    const body = kp.body.map((p) => p && p.slice());
+    const left = kp.left.map((p) => p && p.slice());
+    const right = kp.right.map((p) => p && p.slice());
+    const pairs = [[2, 5], [3, 6], [4, 7], [8, 11], [9, 12], [10, 13], [14, 15], [16, 17]];
+    for (const [a, b] of pairs) {
+      const tmp = body[a];
+      body[a] = body[b];
+      body[b] = tmp;
+    }
+    const tL = left[0];
+    left[0] = right[0];
+    right[0] = tL;
+    return { ...kp, body, left, right };
+  }
+
+  function angleBetween(v1, v2) {
+    const dot = v1[0] * v2[0] + v1[1] * v2[1];
+    const cross = v1[0] * v2[1] - v1[1] * v2[0];
+    const mag1 = Math.hypot(v1[0], v1[1]);
+    const mag2 = Math.hypot(v2[0], v2[1]);
+    if (mag1 === 0 || mag2 === 0) return 0;
+    let cos = dot / (mag1 * mag2);
+    cos = Math.max(-1, Math.min(1, cos));
+    const rad = Math.acos(cos);
+    return Math.round((rad * 180) / Math.PI * 10) / 10;
+  }
+
+  function one(kp) {
+    const bones = BONES.map((bone) => {
+      const ta = kp.body[bone.a[0]];
+      const tb = bone.b.reduce((acc, idx) => acc + (kp.body[idx] || [0, 0]), [0, 0]);
+      const count = bone.b.length;
+      const avgB = count > 0 ? [tb[0] / count, tb[1] / count] : [0, 0];
+      const da = avgB; // For 'torso', a is a single point, so it's just that point
+      const db = avgB; // For 'torso', b is averaged hips
+
+      // Special handling for torso: a is neck, b is average of hips
+      if (bone.name === 'torso') {
+        const neck = kp.body[1];
+        const hipSum = [0, 0];
+        let hipCount = 0;
+        for (const idx of bone.b) {
+          if (kp.body[idx]) {
+            hipSum[0] += kp.body[idx][0];
+            hipSum[1] += kp.body[idx][1];
+            hipCount++;
+          }
+        }
+        const avgHip = hipCount > 0 ? [hipSum[0] / hipCount, hipSum[1] / hipCount] : [0, 0];
+        const vecA = neck ? [avgHip[0] - neck[0], avgHip[1] - neck[1]] : [0, 0];
+        const vecB = avgHip; // This is not used for angle calculation directly, but we need the direction
+        // Actually, for torso, we want the angle between the target and detected spine direction
+        // The spine goes from neck to average hips
+        const detNeck = kp.body[1];
+        const detHipSum = [0, 0];
+        let detHipCount = 0;
+        for (const idx of bone.b) {
+          if (kp.body[idx]) {
+            detHipSum[0] += kp.body[idx][0];
+            detHipSum[1] += kp.body[idx][1];
+            detHipCount++;
+          }
+        }
+        const detAvgHip = detHipCount > 0 ? [detHipSum[0] / detHipCount, detHipSum[1] / detHipCount] : [0, 0];
+        const vecDet = detAvgHip.length > 0 ? [detAvgHip[0] - detNeck[0], detAvgHip[1] - detNeck[1]] : [0, 0];
+        
+        // For target, we use the same logic
+        const tgtNeck = kp.body[1];
+        const tgtHipSum = [0, 0];
+        let tgtHipCount = 0;
+        for (const idx of bone.b) {
+          if (kp.body[idx]) {
+            tgtHipSum[0] += kp.body[idx][0];
+            tgtHipSum[1] += kp.body[idx][1];
+            tgtHipCount++;
+          }
+        }
+        const tgtAvgHip = tgtHipCount > 0 ? [tgtHipSum[0] / tgtHipCount, tgtHipSum[1] / tgtHipCount] : [0, 0];
+        const vecTgt = tgtAvgHip.length > 0 ? [tgtAvgHip[0] - tgtNeck[0], tgtAvgHip[1] - tgtNeck[1]] : [0, 0];
+
+        if (!tgtNeck || !tgtAvgHip || !detNeck || !detAvgHip) {
+          return { name: bone.name, joint: bone.joint, err: null, status: 'skip' };
+        }
+        
+        const err = angleBetween(vecTgt, vecDet);
+        return { name: bone.name, joint: bone.joint, err, status: err > 20 ? 'wrong' : 'ok' };
+      }
+
+      // Standard bone: a->b
+      const vecA = ta ? [ta[0], ta[1]] : [0, 0];
+      const vecB = tb ? [tb[0], tb[1]] : [0, 0];
+      
+      if (!ta || !tb) {
+        return { name: bone.name, joint: bone.joint, err: null, status: 'skip' };
+      }
+
+      const vecTarget = [vecB[0] - vecA[0], vecB[1] - vecA[1]];
+      const vecDetected = [da[0] - da[0], da[1] - da[1]]; // This is wrong, let me fix
+      
+      // Correct logic for standard bones
+      const vecTA = ta ? [ta[0], ta[1]] : [0, 0];
+      const vecTB = tb ? [tb[0], tb[1]] : [0, 0];
+      const vecDA = da ? [da[0], da[1]] : [0, 0];
+      const vecDB = db ? [db[0], db[1]] : [0, 0];
+
+      if (!vecTA || !vecTB || !vecDA || !vecDB) {
+        return { name: bone.name, joint: bone.joint, err: null, status: 'missing' };
+      }
+
+      const vecTgtDir = [vecTB[0] - vecTA[0], vecTB[1] - vecTA[1]];
+      const vecDetDir = [vecDB[0] - vecDA[0], vecDB[1] - vecDA[1]];
+
+      const err = angleBetween(vecTgtDir, vecDetDir);
+      const status = err > 20 ? 'wrong' : 'ok';
+      return { name: bone.name, joint: bone.joint, err, status };
+    });
+
+    return bones;
+  }
+
+  function compare(target, detected, opts) {
+    const tol = opts.tol ?? 20;
+    const bones = one(detected);
+    
+    let swapped = false;
+    let alt = null;
+    
+    if (opts.swap !== false) {
+      const s = swapSides(detected);
+      const altBones = one(s);
+      const wrongCount = bones.filter(b => b.status === 'wrong').length;
+      const altWrongCount = altBones.filter(b => b.status === 'wrong').length;
+      const sumErr = bones.filter(b => b.status !== 'skip' && b.status !== 'missing').reduce((sum, b) => sum + (b.err || 0), 0);
+      const altSumErr = altBones.filter(b => b.status !== 'skip' && b.status !== 'missing').reduce((sum, b) => sum + (b.err || 0), 0);
+      
+      if (altWrongCount < wrongCount || (altWrongCount === wrongCount && altSumErr <= sumErr)) {
+        bones = altBones;
+        swapped = true;
+      }
+    }
+
+    const pass = !bones.some(b => b.status === 'wrong');
+    if (opts.strict && !pass) {
+      pass = !bones.some(b => b.status === 'missing');
+    }
+
+    const worst = bones.find(b => b.status === 'wrong')?.name || null;
+
+    return { pass, swapped, worst, tol, bones };
+  }
+
+  const api = {
+    BONES,
+    fromOpenPose,
+    swapSides,
+    compare
+  };
+
+  if (NS) NS.posecheck = api; else module.exports = api;
+})();

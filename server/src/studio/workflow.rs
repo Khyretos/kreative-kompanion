@@ -158,6 +158,9 @@ pub struct Check {
     pub retries: u32,
     #[serde(default)]
     pub face_views: Vec<String>,
+    /// STU-SHEET3D: the sheet layout the checker reads ("oc-v3"); None: the v2 sheet's four columns.
+    #[serde(default)]
+    pub layout: Option<String>,
 }
 
 fn three() -> u32 {
@@ -756,6 +759,37 @@ licence = "CreativeML OpenRAIL-M"
         }
     }
 
+    /// 3D-01: image-to-3d is a refine step (a picture in, a .glb and its preview out) on soucouyant, with its licences.
+    #[test]
+    fn image_to_3d_is_registered() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let w = all.iter().find(|(n, _)| n == "image-to-3d").expect("image-to-3d missing").1.as_ref().unwrap();
+        assert!(w.studio.as_ref().unwrap().refine, "a 3D model is made from a picture");
+        assert_eq!(w.machines, vec!["soucouyant".to_string()]);
+        assert!(w.vram_mb > 0 && w.vram_mb <= 13000, "vram_mb {}", w.vram_mb);
+        let g = w.graph_for("soucouyant").unwrap();
+        assert_eq!(w.inputs.get("source").map(String::as_str), Some("10"));
+        assert_eq!(g["10"]["class_type"], json!("LoadImage"));
+        assert_eq!(w.outputs, vec!["20".to_string(), "22".to_string()], "the .glb first, then its preview");
+        assert_eq!(g["20"]["class_type"], json!("SaveGLB"));
+        assert_eq!(g["22"]["class_type"], json!("SaveImage"));
+        for (node, v) in g.as_object().unwrap() {
+            for (_, input) in v["inputs"].as_object().unwrap() {
+                if let Some(link) = input.as_array() {
+                    assert!(g.get(link[0].as_str().unwrap()).is_some(), "node {node} links to a missing node");
+                }
+            }
+        }
+        let lic = |f: &str| w.models.iter().find(|m| m.file == f).map(|m| m.licence.clone()).unwrap_or_default();
+        for f in ["trellis_2_shape_vae_bf16.safetensors", "trellis_2_texture_vae_bf16.safetensors", "birefnet.safetensors"] {
+            assert_eq!(lic(f), "MIT", "{f}");
+        }
+        assert!(lic("dino_v3_vit_l.safetensors").contains("DINOv3"));
+        let unet = g["40"]["inputs"]["unet_name"].as_str().unwrap();
+        assert_eq!(lic(unet), "MIT", "{unet} needs its licence");
+    }
+
     #[test]
     fn face_graph_sets_the_photo_and_weight() {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
@@ -789,6 +823,30 @@ licence = "CreativeML OpenRAIL-M"
         }
         assert!(get("oc-sheet-classic").images.is_empty());
         assert_eq!(get("oc-sheet-classic").title, "OC sheet (classic)");
+    }
+
+    /// STU-SHEET3D: the v3 OC sheet and the weapon sheet ship their templates; v3 is one run (no helmet pair).
+    #[test]
+    fn sheet3d_types_ship_their_templates() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let get = |n: &str| all.iter().find(|(name, _)| name == n).unwrap().1.as_ref().unwrap();
+        for (name, nodes) in [("oc-sheet-v3", vec!["101", "60", "64", "80", "86", "93"]), ("weapon-sheet", vec!["80", "93"])] {
+            let w = get(name);
+            assert_eq!(w.images.keys().map(String::as_str).collect::<Vec<_>>(), nodes, "{name}");
+            for (node, file) in &w.images {
+                assert!(w.dir.join(file).is_file(), "{name}: {file} missing");
+                assert_eq!(w.graph_for("rx9070").unwrap()[node.as_str()]["class_type"], json!("LoadImage"), "{name} node {node}");
+            }
+        }
+        let v3 = get("oc-sheet-v3");
+        assert_eq!(v3.check.as_ref().and_then(|c| c.layout.as_deref()), Some("oc-v3"));
+        assert!(v3.params.iter().all(|p| p.name != "helmet"), "a helmet param would split the run into a pair");
+        let neg = &v3.params.iter().find(|p| p.name == "negative").unwrap().template;
+        assert!(neg.as_deref().is_some_and(|t| t.contains("childlike body") && t.contains("{rating_neg}")), "the minor-safety tags stay");
+        assert_eq!(v3.face_graph("x.png", 0.7).unwrap()["80"]["class_type"], json!("LoadImage"));
+        assert!(get("weapon-sheet").check.is_none());
+        assert!(get("weapon-sheet").face_graph("x.png", 0.7).is_err());
     }
 
     fn rated() -> Workflow {

@@ -1,0 +1,177 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // --- Helpers ---
+
+  const fs = require('fs');
+  const path = require('path');
+
+  function parseArgs(argv) {
+    const args = {};
+    let i = 0;
+    while (i < argv.length) {
+      const arg = argv[i];
+      if (arg.startsWith('--')) {
+        const key = arg.slice(2);
+        if (argv[i + 1] && !argv[i + 1].startsWith('--')) {
+          args[key] = argv[++i];
+        } else {
+          args[key] = true;
+        }
+      } else {
+        throw new Error('unknown flag ' + arg);
+      }
+      i++;
+    }
+    return args;
+  }
+
+  function hasFlag(args, name) {
+    return Object.prototype.hasOwnProperty.call(args, name);
+  }
+
+  // --- Main ---
+
+  /**
+   * @param {string[]} argv
+   * @param {{out: (s:string)=>void, err: (s:string)=>void}} io
+   * @returns {number}
+   */
+  function main(argv, io = { out: s => process.stdout.write(s), err: s => process.stderr.write(s) }) {
+    try {
+      const args = parseArgs(argv);
+
+      // Determine source
+      let clip = null;
+      let poses = [];
+      let times = [];
+
+      if (hasFlag(args, 'clip')) {
+        const content = fs.readFileSync(args.clip, 'utf8');
+        clip = JSON.parse(content);
+      } else if (hasFlag(args, 'poses') && args.poses) {
+        const files = args.poses ? args.poses.split(',') : [];
+        for (const f of files) {
+          const content = fs.readFileSync(f, 'utf8');
+          const obj = JSON.parse(content);
+          if (obj.pose) {
+            poses.push(obj.pose);
+          } else {
+            poses.push(obj);
+          }
+        }
+        if (hasFlag(args, 'times')) {
+          times = args.times.split(',').map(Number);
+        }
+      } else {
+        throw new Error('give --clip FILE or --poses FILE,FILE,...');
+      }
+
+      // Load modules inside the function to ensure correct order in browser
+      const A = need('anim', '../public/js/pose/anim.js');
+      const animApi = need('anim-api', '../lib/anim-api.js');
+      const checkClip = animApi.checkClip;
+
+      // Build clip
+      if (clip) {
+        clip = A.newClip({
+          fps: Number(args.fps) || 24,
+          length: Number(args.length) || 1,
+          loop: !hasFlag(args, 'no-loop')
+        });
+      } else {
+        const fps = Number(args.fps) || 24;
+        const length = Number(args.length) || 1;
+        const loop = !hasFlag(args, 'no-loop');
+        const n = poses.length;
+        const ease = args.ease || 'ease-in-out';
+
+        for (let i = 0; i < n; i++) {
+          let t;
+          if (times.length > 0) {
+            if (times.length !== n) {
+              throw new Error('--times needs one time per pose');
+            }
+            t = times[i];
+          } else {
+            if (loop) {
+              t = i * length / n;
+            } else {
+              t = n === 1 ? 0 : i * length / (n - 1);
+            }
+          }
+          clip = A.setKey(clip, t, poses[i], ease);
+        }
+      }
+
+      // Validate
+      checkClip(clip);
+
+      // Handle --sample
+      if (hasFlag(args, 'sample')) {
+        const t = Number(args.sample);
+        const pose = A.sample(clip, t);
+        io.out(JSON.stringify(pose, null, 2) + '\n');
+        return 0;
+      }
+
+      // Handle --out
+      if (hasFlag(args, 'out') && args.out) {
+        const ext = path.extname(args.out).slice(1);
+        const validFormats = ['bvh', 'glb', 'png', 'json'];
+        if (!validFormats.includes(ext)) {
+          throw new Error('--out must end in .bvh, .glb, .png or .json');
+        }
+
+        const format = ext === 'png' ? 'strip' : ext;
+        const view = {
+          width: Number(args.width) || 256,
+          height: Number(args.height) || 384,
+          yaw: Number(args.yaw) || 0,
+          pitch: Number(args.pitch) || 0,
+          cols: args.cols ? Number(args.cols) : undefined
+        };
+
+        const render = animApi.render;
+        const result = render(clip, format, { hands: hasFlag(args, 'hands'), view });
+
+        // Ensure directory exists
+        const dir = path.dirname(args.out);
+        if (dir && dir !== '.') {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+
+        // Write file
+        if (typeof result.body === 'string') {
+          fs.writeFileSync(args.out, result.body);
+        } else {
+          fs.writeFileSync(args.out, result.body);
+        }
+
+        io.err('wrote ' + args.out + '\n');
+        return 0;
+      }
+
+      // Default: print clip
+      io.out(JSON.stringify(clip, null, 2) + '\n');
+      return 0;
+    } catch (e) {
+      if (e instanceof Error) {
+        io.err('error: ' + e.message + '\n');
+      } else {
+        io.err('error: Unknown error\n');
+      }
+      return 1;
+    }
+  }
+
+  // --- Exports ---
+
+  module.exports = { main };
+
+  if (require.main === module) {
+    process.exitCode = main(process.argv.slice(2));
+  }
+})();

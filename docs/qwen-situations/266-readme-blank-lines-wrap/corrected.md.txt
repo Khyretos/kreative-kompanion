@@ -1,0 +1,34 @@
+# Sunshine on soucouyant (SUN-01)
+
+## Why
+
+On 11 Oct an old keepalive restarted Sunshine 1,572 times with a dead Hyprland session's settings and hung
+the GPU. Now Sunshine is a user service of the live session: the login hook hands the session's variables
+to systemd and restarts the unit; the drop-in's ExecCondition skips any start without the live Wayland and
+Hyprland sockets, and StartLimitBurst caps restarts at 5 per 300 s.
+
+## Files
+
+- `sun-01.conf`: systemd override enforcing live session sockets and restart limits.
+- `kk-sunshine-session.sh`: script that exports session variables and restarts the service.
+- `install.sh`: installer that sets up the unit override, script, and reloads systemd.
+
+## Install
+
+Run `sh tools/host/sunshine/install.sh`, then in `~/.config/hypr/hyprland.lua` replace the line
+`hl.exec_cmd("sleep 3 && sunshine")` with the line the installer prints:
+
+```lua
+hl.exec_cmd("sleep 3 && $HOME/.local/bin/kk-sunshine-session.sh")
+```
+
+## Check
+
+`systemctl --user status app-dev.lizardbyte.app.Sunshine.service` and
+`journalctl --user -u app-dev.lizardbyte.app.Sunshine.service` (no restart loop), after a log-out and after a
+reboot.
+
+## Undo
+
+Delete the `.d/sun-01.conf` drop-in, move the `.bak-sun01` file back, put the old hyprland.lua line back, run
+`systemctl --user daemon-reload`.

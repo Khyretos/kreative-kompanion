@@ -1,0 +1,150 @@
+// STU-PE2: public/js/pose/bvh.js (BVH export of a clip), written before the code.
+// The test reads the BVH back with its own small parser and BVH forward kinematics, and checks every joint
+// lands where the Studio's own FK puts it (after the Z-up to Y-up turn).
+const test = require('node:test');
+const assert = require('node:assert');
+const V = require('../public/js/pose/vec.js');
+const S = require('../public/js/pose/skeleton.js');
+const FK = require('../public/js/pose/fk.js');
+const A = require('../public/js/pose/anim.js');
+const B = require('../public/js/pose/bvh.js');
+
+const pose = (joints, pos) => ({ version: 1, root: { pos: pos || [0, 0, 0.95] }, joints });
+
+function parse(text) {
+  const tok = text.split(/\s+/).filter(Boolean);
+  let i = 0;
+  const joints = [];
+  const parseJoint = (parent) => {
+    const kind = tok[i++];
+    if (kind === 'End') {
+      assert.strictEqual(tok[i++], 'Site');
+      assert.strictEqual(tok[i++], '{');
+      assert.strictEqual(tok[i++], 'OFFSET');
+      const off = [+tok[i++], +tok[i++], +tok[i++]];
+      assert.strictEqual(tok[i++], '}');
+      parent.end = off;
+      return;
+    }
+    assert.ok(kind === 'ROOT' || kind === 'JOINT', `ROOT/JOINT expected, got ${kind}`);
+    const j = { name: tok[i++], parent: parent && parent.name, end: null };
+    assert.strictEqual(tok[i++], '{');
+    assert.strictEqual(tok[i++], 'OFFSET');
+    j.offset = [+tok[i++], +tok[i++], +tok[i++]];
+    assert.strictEqual(tok[i++], 'CHANNELS');
+    const n = +tok[i++];
+    j.channels = tok.slice(i, i + n);
+    i += n;
+    joints.push(j);
+    while (tok[i] !== '}') parseJoint(j);
+    i++;
+  };
+  assert.strictEqual(tok[i++], 'HIERARCHY');
+  parseJoint(null);
+  assert.strictEqual(tok[i++], 'MOTION');
+  assert.strictEqual(tok[i++], 'Frames:');
+  const frames = +tok[i++];
+  assert.strictEqual(tok[i++], 'Frame');
+  assert.strictEqual(tok[i++], 'Time:');
+  const frameTime = +tok[i++];
+  const per = joints.reduce((s, j) => s + j.channels.length, 0);
+  const rows = [];
+  for (let f = 0; f < frames; f++) rows.push(tok.slice(i + f * per, i + (f + 1) * per).map(Number));
+  assert.strictEqual(i + frames * per, tok.length, 'no values left over');
+  return { joints, frames, frameTime, rows };
+}
+
+const AX = { X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1] };
+function bvhWorld(b, row) {
+  const pos = {};
+  const rot = {};
+  let k = 0;
+  for (const j of b.joints) {
+    let p = [0, 0, 0];
+    let R = V.identity();
+    for (const c of j.channels) {
+      const v = row[k++];
+      if (c.endsWith('position')) p['XYZ'.indexOf(c[0])] = v;
+      else R = V.matMul(R, V.axisAngle(AX[c[0]], v));
+    }
+    if (j.parent === undefined || j.parent === null) {
+      pos[j.name] = V.add(p, j.offset);
+      rot[j.name] = R;
+    } else {
+      pos[j.name] = V.add(pos[j.parent], V.matVec(rot[j.parent], j.offset));
+      rot[j.name] = V.matMul(rot[j.parent], R);
+    }
+  }
+  return pos;
+}
+
+const yUp = (p) => [p[0], p[2], -p[1]];
+
+function walkClip() {
+  let c = A.newClip({ fps: 8, length: 1 });
+  c = A.setKey(c, 0, pose({ l_hip: { bend: 30 }, r_hip: { bend: -20 }, l_knee: { bend: -10 }, r_knee: { bend: -40 }, l_shoulder: { bend: -25, side: 10 }, r_shoulder: { bend: 25, side: 10 }, l_elbow: { bend: 20 }, chest: { twist: 8 } }, [0, 0, 0.93]), 'linear');
+  c = A.setKey(c, 0.5, pose({ l_hip: { bend: -20 }, r_hip: { bend: 30 }, l_knee: { bend: -40 }, r_knee: { bend: -10 }, l_shoulder: { bend: 25, side: 10 }, r_shoulder: { bend: -25, side: 10 }, r_elbow: { bend: 20 }, chest: { twist: -8 }, l_index_mcp: { bend: 40 } }, [0, -0.6, 0.95]), 'linear');
+  return c;
+}
+
+test('jointNames: rotating joints in skeleton order, fingers only with hands', () => {
+  const body = B.jointNames(false);
+  assert.strictEqual(body[0], 'pelvis');
+  for (const n of ['spine', 'chest', 'neck', 'head', 'l_shoulder', 'r_elbow', 'l_wrist', 'r_hip', 'l_knee', 'r_ankle']) assert.ok(body.includes(n), n);
+  for (const n of ['head_top', 'nose', 'l_eye', 'l_toe', 'l_index_mcp', 'r_thumb_tip']) assert.ok(!body.includes(n), n);
+  const order = S.JOINTS.map((j) => j.name);
+  assert.deepStrictEqual(body, order.filter((n) => body.includes(n)), 'skeleton order');
+  const hands = B.jointNames(true);
+  assert.strictEqual(hands.length, body.length + 2 * 15);
+  assert.ok(hands.includes('l_index_dip') && !hands.includes('l_index_tip'));
+});
+
+test('header, offsets and channels', () => {
+  const text = B.toBVH(walkClip());
+  const b = parse(text);
+  // BVH lists joints depth first and its MOTION columns follow that order (not the skeleton order of jointNames)
+  assert.deepStrictEqual([...b.joints.map((j) => j.name)].sort(), [...B.jointNames(false)].sort(), 'the same joints');
+  const seen = new Set();
+  for (const j of b.joints) {
+    if (j.parent) assert.ok(seen.has(j.parent), `${j.name} after its parent`);
+    seen.add(j.name);
+  }
+  assert.deepStrictEqual(b.joints.slice(5, 8).map((j) => j.name), ['l_shoulder', 'l_elbow', 'l_wrist'], 'depth first');
+  assert.deepStrictEqual(b.joints[0].channels, ['Xposition', 'Yposition', 'Zposition', 'Zrotation', 'Xrotation', 'Yrotation']);
+  assert.deepStrictEqual(b.joints[0].offset, [0, 0, 0]);
+  for (const j of b.joints.slice(1)) assert.deepStrictEqual(j.channels, ['Zrotation', 'Xrotation', 'Yrotation'], j.name);
+  const knee = b.joints.find((j) => j.name === 'l_knee');
+  const want = yUp(V.sub(S.byName.l_knee.rest, S.byName.l_hip.rest));
+  for (let k = 0; k < 3; k++) assert.ok(Math.abs(knee.offset[k] - want[k]) < 1e-6, `knee offset ${knee.offset}`);
+  const ankle = b.joints.find((j) => j.name === 'l_ankle');
+  assert.ok(ankle.end, 'ankle ends in an End Site (the toe)');
+  const toe = yUp(V.sub(S.byName.l_toe.rest, S.byName.l_ankle.rest));
+  for (let k = 0; k < 3; k++) assert.ok(Math.abs(ankle.end[k] - toe[k]) < 1e-6, 'toe end site');
+  assert.ok(b.joints.find((j) => j.name === 'l_wrist').end, 'without hands the wrist ends in an End Site');
+  assert.strictEqual(b.frames, 8, 'looping clip at 8 fps for 1 s');
+  assert.ok(Math.abs(b.frameTime - 0.125) < 1e-9);
+  assert.ok(text.endsWith('\n'));
+});
+
+test('every frame puts every joint where the Studio FK does (Y-up)', () => {
+  const clip = walkClip();
+  for (const hands of [false, true]) {
+    const b = parse(B.toBVH(clip, { hands }));
+    const times = A.frameTimes(clip);
+    for (let f = 0; f < b.frames; f++) {
+      const got = bvhWorld(b, b.rows[f]);
+      const w = FK.solve(A.sample(clip, times[f]));
+      for (const name of B.jointNames(hands)) {
+        const d = V.len(V.sub(got[name], yUp(w.pos[name])));
+        assert.ok(d < 1e-4, `hands=${hands} frame ${f} ${name} off by ${d}`);
+      }
+    }
+  }
+});
+
+test('a one-shot clip includes its last frame', () => {
+  let c = A.newClip({ fps: 4, length: 1, loop: false });
+  c = A.setKey(c, 0, pose({}), 'linear');
+  c = A.setKey(c, 1, pose({ neck: { twist: 30 } }), 'linear');
+  assert.strictEqual(parse(B.toBVH(c)).frames, 5);
+});

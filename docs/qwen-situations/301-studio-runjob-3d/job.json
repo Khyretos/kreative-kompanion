@@ -1,0 +1,15 @@
+{
+ "name": "3d01-st-runjob",
+ "role": "worker/web",
+ "out": "/tmp/kk-3d01/studio/lib/kompanion.js",
+ "mode": "patch",
+ "precheck": false,
+ "max_tokens": 1500,
+ "focus": [
+  "^function runJob\\(run, user, email\\) \\{",
+  "const images = audio \\? \\[\\] : outs\\.map",
+  "const files = audio \\? outs\\.map"
+ ],
+ "check": "cd /tmp/kk-3d01/studio && sh /tmp/kk-3d01-chk/sttest.sh test/refine.test.js test/library.test.js test/kompanion.test.js test/refine-route.test.js",
+ "prompt": "In lib/kompanion.js, function runJob(run, user, email) turns a Kompanion Studio run into a Studio job (3D-01; the test `runJob: a 3D run shows its preview and offers the .glb` in test/library.test.js already exists, do not change tests). A run of type 'image-to-3d' has two outputs: names[0] ends in .glb (the model) and names[1] is its preview picture (.png). Make such a run a job with:\n- kind 'model' (in the `if (run.type === 'music' ...) ... else kind = 'image'` choice);\n- images: only the outputs whose name does not end in .glb, each as { filename, subfolder: '', kompanion: n } with n the output's own index;\n- files: only the .glb outputs, each as { name, mime: 'model/gltf-binary', kompanion: n }.\nAll other run types keep exactly what they get today (images for pictures and video, files for music/sfx). Keep the change inside runJob, as small as possible."
+}
