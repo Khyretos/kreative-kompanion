@@ -70,16 +70,14 @@ secure_cookies = false
 allowed_origins = ["http://127.0.0.1:$PORT"]
 [[provider]]
 id = "local"
-name = "Nightly model"
+name = "Nightly model (Claude)"
 kind = "openai-compatible"
-base_url = "http://MODEL_CONTAINER:8000/v3"
-local = true
-api_key_env = "OVMS_API_KEY"
-extra_body = { chat_template_kwargs = { enable_thinking = false } }
+base_url = "https://api.anthropic.com/v1"
+api_key_env = "ANTHROPIC_API_KEY"
 [roles]
-orchestrator = { provider = "local", model = "Coder" }
-worker = { provider = "local", model = "Coder" }
-reviewer = { provider = "local", model = "Coder" }
+orchestrator = { provider = "local", model = "claude-sonnet-5-5" }
+worker = { provider = "local", model = "claude-sonnet-5-5" }
+reviewer = { provider = "local", model = "claude-sonnet-5-5" }
 [features]
 assets = false
 gpus = false
@@ -92,15 +90,19 @@ sed -i "s/PORT/$PORT/g" "$T/kompanion.toml"
 # 6. Network and API Key
 NET=$(docker inspect "$MODEL_CONTAINER" --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | awk '{print $1}')
 KEY=$(grep '^OVMS_API_KEY=' "$MAIN/.env" | cut -d= -f2-)
+AKEY=$(grep '^ANTHROPIC_API_KEY=' "$MAIN/.env" | cut -d= -f2-)
 
 docker run -d \
     --name "$N" \
-    --network "$NET" \
+    --network bridge \
     -p "127.0.0.1:$PORT:8080" \
     -e OVMS_API_KEY="$KEY" \
+    -e ANTHROPIC_API_KEY="$AKEY" \
     -v "$N:/data" \
     -v "$T/kompanion.toml:/config/kompanion.toml:ro" \
     "$IMAGE" >/dev/null
+# The model's network may be internal (no published ports), so join it after starting on the bridge.
+docker network connect "$NET" "$N"
 
 # 7. Wait for server to be ready
 i=0
@@ -175,7 +177,7 @@ if ! git -C "$T/fixture" diff --quiet "$FIXTURE_REV" -- 'test_*.py'; then TEST=t
 CALLS=$(api "http://127.0.0.1:$PORT/api/calls" | python3 -c 'import json,sys;v=json.load(sys.stdin);c=v if isinstance(v,list) else v.get("calls",[]);print(len(c))')
 
 mkdir -p "$RESULTS"
-printf '%s\n' "{\"date\":\"$DATE\",\"state\":\"$STATE\",\"test\":\"$TEST\",\"seconds\":$SECS,\"model_calls\":$CALLS,\"model\":\"Coder\"}" >"$RESULTS/$DATE.json"
+printf '%s\n' "{\"date\":\"$DATE\",\"state\":\"$STATE\",\"test\":\"$TEST\",\"seconds\":$SECS,\"model_calls\":$CALLS,\"model\":\"claude-sonnet-5-5\"}" >"$RESULTS/$DATE.json"
 cat "$RESULTS/$DATE.json"
 
 # 15. Pass check
