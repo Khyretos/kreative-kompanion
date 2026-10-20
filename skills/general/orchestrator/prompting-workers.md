@@ -335,6 +335,7 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - One change per job: a new parameter, a helper, a request branch and main() wiring are separate units, each with its own test; a unit that touches start-up code has a check that runs it (lessons 362, 366).
 - JS checks run `node --check` first so a fix round gets line:column; never ask the model to cut code out of a very long one-line function, give the new function as its own unit and swap the call site by script (lessons 363, 365).
 - Order units so each check only depends on units that already passed (database grants before the code that needs them) (lesson 364).
+- A content check lists every offending line in one error (lesson 266): naming only the first lets each repair round fix one spot. Line wrapping is mechanical: do it by tool or by hand, never as a model repair round.
 
 ## Numeric, binary and browser units (lessons 370-394, STU-PE1)
 
