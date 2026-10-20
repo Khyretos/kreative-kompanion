@@ -1,0 +1,38 @@
+[
+ {
+  "name": "sheet3d-anatomy-cells",
+  "role": "worker/python",
+  "out": "/tmp/kk-sheet3d/tools/anatomy/check.py",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 3500,
+  "focus": [
+   "^VIEWS = ",
+   "^def judge\\(",
+   "^def detect\\("
+  ],
+  "context": [
+   "/tmp/kk-sheet3d/tools/test_anatomy_check.py"
+  ],
+  "check": "cd /tmp/kk-sheet3d && timeout 120 python3 -m unittest -k Judge -k Detect tools/test_anatomy_check.py 2>&1 | grep -E 'Error|FAIL|assert|line [0-9]' | head -30 | sed 's|^|error: tools/anatomy/check.py: |' ; timeout 120 python3 -m unittest -k Judge -k Detect tools/test_anatomy_check.py >/dev/null 2>&1",
+  "prompt": "Change tools/anatomy/check.py so the anatomy check also reads the new OC sheet v3 (task STU-SHEET3D), whose cells are not four equal columns. Answer with SEARCH/REPLACE blocks only; keep every existing message text exactly as it is.\n\n1. Right after the line `VIEWS = (\"front\", \"left\", \"back\", \"right\")` add a CELLS table (cells are (name, x0, y0, x1, y1) in fractions of the sheet, the same as tools/pose-sheet/layout.py):\nCELLS = {\n    \"v2\": [(\"front\", 0.0, 0.0, 0.25, 1.0), (\"left\", 0.25, 0.0, 0.5, 1.0), (\"back\", 0.5, 0.0, 0.75, 1.0), (\"right\", 0.75, 0.0, 1.0, 1.0)],\n    \"oc-v3\": [the 12 cells, written out: (\"front\", 0.0, 0.0, 0.2, 1.0), (\"right\", 0.2, 0.0, 0.4, 1.0), (\"left\", 0.4, 0.0, 0.6, 1.0), (\"back\", 0.6, 0.0, 0.8, 1.0), then for the rows front (y 0.0-0.25), right (0.25-0.5), left (0.5-0.75), back (0.75-1.0): (\"head-<row>\", 0.8, y0, 0.9, y1) and (\"helmet-<row>\", 0.9, y0, 1.0, y1)],\n}\n2. Add `def cell_index(box, width, height, cells):` the index of the cell that holds the centre of box: fx = (box[0] + box[2]) / 2 / width and fy = (box[1] + box[3]) / 2 / height, both clamped to [0, 0.999999]; return the first i with x0 <= fx < x1 and y0 <= fy < y1, or None.\n3. judge() gets a new last keyword parameter `cells=None` (None means CELLS[\"v2\"]). Replace the cell_w counting with cell_index (boxes outside every cell are dropped), build `cells_out = [{\"view\": c[0], \"faces\": 0, \"hands\": 0} for c in cells]` and return it as \"cells\". The rules per cell, with name = the cell name and base = name.split(\"-\")[-1]:\n   - a cell whose name starts with \"helmet-\" is not judged at all (the face is hidden on purpose);\n   - faces: `if base in face_views and nf == 0: issues.append(f\"{name}: no face (head turned away)\")`, `if base in face_views and nf > 1: issues.append(f\"{name}: {nf} faces\")`, `if base == \"back\" and nf >= 1: issues.append(f\"{name}: face seen (head facing the wrong way)\")` (the same texts as now, with the cell name);\n   - hands (the \"N hands\" and \"two hands at one wrist\" rules, unchanged) only for cells whose name has no \"-\"; their hand_boxes are the hands whose cell_index is that cell.\n   With cells=None the result must be exactly the same as before for the v2 sheet.\n4. detect(path, models_dir) gets `cells=None` (None means CELLS[\"v2\"]): instead of four column crops, crop each cell box (int(x0 * w), int(y0 * h), int(x1 * w), int(y1 * h)) in table order, run both models on each crop as now, and shift every box back by the crop's left AND top offset ([b[0] + x0, b[1] + y0, b[2] + x0, b[3] + y0, conf])."
+ },
+ {
+  "name": "sheet3d-anatomy-query",
+  "role": "worker/python",
+  "out": "/tmp/kk-sheet3d/tools/anatomy/check.py",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 1800,
+  "focus": [
+   "^def check\\(",
+   "    def do_POST",
+   "^def main\\("
+  ],
+  "context": [
+   "/tmp/kk-sheet3d/tools/test_anatomy_check.py"
+  ],
+  "check": "cd /tmp/kk-sheet3d && timeout 120 python3 -m unittest -k Query -k Cli -k Judge -k Detect tools/test_anatomy_check.py 2>&1 | grep -E 'Error|FAIL|assert|line [0-9]' | head -30 | sed 's|^|error: tools/anatomy/check.py: |' ; timeout 120 python3 -m unittest -k Query -k Cli -k Judge -k Detect tools/test_anatomy_check.py >/dev/null 2>&1",
+  "prompt": "Change tools/anatomy/check.py (task STU-SHEET3D): the sheet layout (\"v2\" or \"oc-v3\", the keys of CELLS) must reach judge() and detect() from the HTTP service and the command line. CELLS, judge(..., cells=None) and detect(path, models_dir, cells=None) already exist. Answer with SEARCH/REPLACE blocks only.\n\n1. Add `def parse_query(path):` it returns (face_views, layout) from a request path like \"/check?face_views=front,left&layout=oc-v3\": defaults FACE_VIEWS and \"v2\"; the query is the part after \"?\" (none when there is no \"?\"), split on \"&\", each item split once on \"=\"; face_views = tuple(value.split(\",\")); layout = the value, and when it is not a key of CELLS raise ValueError(f\"unknown layout {layout}\").\n2. `def check(path, models_dir, face_views=FACE_VIEWS, layout=\"v2\"):` passes cells=CELLS[layout] to both detect and judge.\n3. In AnatomyHandler.do_POST replace the inline query parsing (the q / fv / kv lines) with `fv, layout = parse_query(self.path)` and call `check(tmp_path, self.models_dir, fv, layout)`.\n4. In main(): add `parser.add_argument(\"--layout\", default=\"v2\", choices=sorted(CELLS))`; pass `args.layout` as the layout to check(), and for --judge-json pass `cells=CELLS[data.get(\"layout\", args.layout)]` to judge()."
+ }
+]

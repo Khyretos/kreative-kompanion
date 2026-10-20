@@ -368,3 +368,9 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - Browser units: list the exact globals the file may call; the check is the e2e, never node --check (416).
 - Specs that name every helper and the exact data (palette, box layout) passed first try (411: partmap).
 - Fake data URLs in tests are built by concatenation: the ovms-queue size guard reads every data URL (412).
+
+Lessons 307, 344, 345 (2026-10-19, STU-SHEET3D): (a) a function whose loop structure changes is written whole
+into a scratch file and spliced in by Claude, never patched (lessons 71, 297); (b) every call site of a changed
+signature is its own SEARCH/REPLACE in the prompt, with "no other function changes"; (c) a "keep everything else"
+job gets a check that diffs the untouched lines against the source, not only one on what changed; (d) never edit
+a file while a queued job on it is still in its fix rounds (wait for its check line in the log, lesson 302).

@@ -18,11 +18,20 @@ pub async fn check(
     base: &str,
     file: &Path,
     face_views: &[String],
+    layout: Option<&str>,
 ) -> anyhow::Result<Verdict> {
     let bytes = tokio::fs::read(file).await?;
     let mut url = format!("{}/check", base.trim_end_matches('/'));
+    let mut query = Vec::new();
     if !face_views.is_empty() {
-        url.push_str(&format!("?face_views={}", face_views.join(",")));
+        query.push(format!("face_views={}", face_views.join(",")));
+    }
+    if let Some(layout) = layout {
+        query.push(format!("layout={layout}"));
+    }
+    if !query.is_empty() {
+        url.push('?');
+        url.push_str(&query.join("&"));
     }
     let r = http
         .post(&url)
@@ -70,7 +79,7 @@ pub async fn run_checked(http: &reqwest::Client, anatomy_url: Option<&str>, w: &
 
     if !first.is_empty() {
         let mut seed = used.get("seed").and_then(Value::as_i64).unwrap_or(0);
-        let v = match check(http, base, &first[0], &c.face_views).await {
+        let v = match check(http, base, &first[0], &c.face_views, c.layout.as_deref()).await {
             Ok(v) => v,
             Err(e) => { tracing::warn!("{e:#}"); used.insert("check".into(), json!({"error": e.to_string()})); return Ok(first); }
         };
@@ -86,7 +95,7 @@ pub async fn run_checked(http: &reqwest::Client, anatomy_url: Option<&str>, w: &
                 Err(e) => { tracing::warn!("retry {n}: {e:#}"); break; }
             };
             let Some(f) = files.first().cloned() else { break };
-            match check(http, base, &f, &c.face_views).await {
+            match check(http, base, &f, &c.face_views, c.layout.as_deref()).await {
                 Ok(v) => tries.push((files, v, seed)),
                 Err(e) => { tracing::warn!("{e:#}"); for f in &files { let _ = tokio::fs::remove_file(f).await; } break; }
             }

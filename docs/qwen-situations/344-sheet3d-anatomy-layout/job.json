@@ -1,0 +1,31 @@
+[
+ {
+  "name": "sheet3d-rs-check-layout",
+  "role": "worker/rust",
+  "out": "/tmp/kk-sheet3d/server/src/studio/workflow.rs",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 600,
+  "focus": [
+   "^pub struct Check \\{"
+  ],
+  "prompt": "In server/src/studio/workflow.rs, struct Check (the [check] table of a workflow.toml): add one field after `face_views`, so a workflow can tell the anatomy checker its sheet layout (task STU-SHEET3D). One SEARCH/REPLACE, change nothing else. Replace\n    #[serde(default)]\n    pub face_views: Vec<String>,\n}\nwith\n    #[serde(default)]\n    pub face_views: Vec<String>,\n    /// STU-SHEET3D: the sheet layout the checker reads (\"oc-v3\"); None: the v2 sheet's four columns.\n    #[serde(default)]\n    pub layout: Option<String>,\n}"
+ },
+ {
+  "name": "sheet3d-rs-anatomy-layout",
+  "role": "worker/rust",
+  "out": "/tmp/kk-sheet3d/server/src/studio/anatomy.rs",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 1500,
+  "focus": [
+   "^pub async fn check\\(",
+   "^pub async fn run_checked\\("
+  ],
+  "context": [
+   "/tmp/kk-sheet3d/server/src/studio/anatomy_tests.rs"
+  ],
+  "check": "cd /tmp/kk-sheet3d/server && PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-sheet3d-target timeout 1500 nice -n 10 cargo test --locked -j 2 studio:: 2>&1 | grep -E '^(error|warning: unused)|^test .* FAILED|panicked|-->' | head -30 ; cd /tmp/kk-sheet3d/server && PATH=$HOME/.cargo/bin:$PATH CARGO_TARGET_DIR=/tmp/kk-sheet3d-target timeout 1500 nice -n 10 cargo test --locked -j 2 studio:: 2>&1 | grep -q '^test result: ok'",
+  "prompt": "In server/src/studio/anatomy.rs (task STU-SHEET3D) the anatomy checker must also get the sheet layout. Check has a new field `layout: Option<String>`. Answer with SEARCH/REPLACE blocks only.\n1. `pub async fn check(` gets a fifth parameter after `face_views: &[String],`: `layout: Option<&str>,`.\n2. In its body replace\n    if !face_views.is_empty() {\n        url.push_str(&format!(\"?face_views={}\", face_views.join(\",\")));\n    }\nwith\n    let mut query = Vec::new();\n    if !face_views.is_empty() {\n        query.push(format!(\"face_views={}\", face_views.join(\",\")));\n    }\n    if let Some(layout) = layout {\n        query.push(format!(\"layout={layout}\"));\n    }\n    if !query.is_empty() {\n        url.push('?');\n        url.push_str(&query.join(\"&\"));\n    }\n(no URL encoding: the checker splits the query on \"&\", \"=\" and \",\" itself).\n3. run_checked() calls check twice, as `check(http, base, &first[0], &c.face_views)` and `check(http, base, &f, &c.face_views)`: add `, c.layout.as_deref()` as the last argument of both calls. Nothing else changes."
+ }
+]
