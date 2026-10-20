@@ -357,3 +357,13 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - CLI jobs list every flag and whether it takes a value, and test each input branch on its own (402).
 - A browser file that needs another file's DOMContentLoaded result looks it up when used (403); when repair rounds make an e2e worse, keep the first draft.
 - HTML insert jobs name the closing tags that stay; UI unit checks are a no-undef lint, a tag-balance check and every existing e2e, never `node --check` or a grep alone (405, 406).
+
+## STU-PE3 (pose check, 2026-10-19, lessons 407-418)
+
+- Comparison units: the spec says which argument is the reference and every test case names both inputs (407).
+- Ask for named top-level functions and one `api` object listing them; the check must load the file first (408).
+- Python units: list the imports and where they go; name vectorised numpy (meshgrid) for grid maths (414). A
+  pipeline module gets one end-to-end test with fake sessions, not only per-function tests (415).
+- Browser units: list the exact globals the file may call; the check is the e2e, never node --check (416).
+- Specs that name every helper and the exact data (palette, box layout) passed first try (411: partmap).
+- Fake data URLs in tests are built by concatenation: the ovms-queue size guard reads every data URL (412).

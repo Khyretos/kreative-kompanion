@@ -1,0 +1,3 @@
+Lesson 407 (STU-PE3 pe3-check): posecheck.js draft (2 attempts + 2 patch rounds) compared the detected keypoints with themselves (one(detected) never read the target), read fromOpenPose people from the wrong level, swapped only hand point 0 and assigned to const bones/pass; 9 of 11 tests failed on opts.tol of undefined. Claude rewrote it (about 110 lines).
+
+Files: job.json (the pipeline job; its check needs the test trees at /tmp/kk-pe3 and the kreative-studio:local or kk-anatomy:local image), `wrong-*` (the Coder's first full draft), `corrected-*` (what was kept). Code files carry a .txt suffix so the lint gate skips them.
