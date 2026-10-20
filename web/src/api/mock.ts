@@ -488,6 +488,7 @@ export class MockApi implements KompanionApi {
     if (change.repoFolder !== undefined) p.repoFolder = change.repoFolder.replace(/\/+$/, "") || null;
     if (change.repoMachineId !== undefined) p.repoMachineId = change.repoMachineId || null;
     if (change.overseer !== undefined) p.overseer = change.overseer;
+    if (change.autoRun !== undefined) p.autoRun = change.autoRun;
     if (change.archived !== undefined) p.archivedAt = change.archived ? (p.archivedAt ?? new Date().toISOString()) : null;
     if (change.name !== undefined) p.name = change.name.trim();
     if (change.description !== undefined) p.description = change.description.trim();
@@ -651,11 +652,11 @@ export class MockApi implements KompanionApi {
     return structuredClone(chat);
   }
 
-  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean }) {
+  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean }) {
     const i = chats.findIndex((c) => c.id === chatId);
     if (i < 0) return;
     if (change.archived) chats.splice(i, 1);
-    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer });
+    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer, autoRun: change.autoRun ?? chats[i].autoRun });
   }
 
   async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {

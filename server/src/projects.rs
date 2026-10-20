@@ -69,6 +69,8 @@ pub struct SettingsBody {
     repo_machine_id: Option<String>,
     /// OVR-01b: the Overseer answers every chat of this project.
     overseer: Option<bool>,
+    /// AUTO-RUN: run steps in every chat of this project without asking first.
+    auto_run: Option<bool>,
     /// PROJ-ARCHIVE: true archives the project (the first date is kept), false unarchives it.
     archived: Option<bool>,
     /// PROJ-OVERVIEW: the project name (1-80 characters).
@@ -141,6 +143,9 @@ pub async fn settings(
     }
     if let Some(on) = b.overseer {
         sqlx::query("UPDATE projects SET overseer = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(on) = b.auto_run {
+        sqlx::query("UPDATE projects SET auto_run = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
     }
     if let Some(archived) = b.archived {
         if archived {

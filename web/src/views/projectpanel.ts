@@ -135,6 +135,9 @@ export function renderProjectPanel(p: Project, o: PanelOptions): SafeHtml {
       <label class="project-overseer" title="Every chat in this project is answered by the Overseer, which sees all your projects and tasks. The project thread stays as it is.">
         <input type="checkbox" id="project-overseer" data-id="${p.id}" ${p.overseer ? "checked" : ""}>${icon("eye")}<span>Overseer always on in this project</span>
       </label>
+      <label class="project-overseer" title="Every chat in this project runs its steps without asking first.">
+        <input type="checkbox" id="project-autorun" data-id="${p.id}" ${p.autoRun ? "checked" : ""}>${icon("spark")}<span>Run steps without asking in this project</span>
+      </label>
       ${type === "programming" || type === "game" ? repoForm(p, o) : ""}
       ${type === "game" ? gameAssets(p, o) : ""}
       ${type === "programming" || type === "game" ? devForm(p, o.dev) : ""}

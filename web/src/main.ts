@@ -1427,6 +1427,14 @@ function wire(shell: HTMLElement): void {
       api.setProjectSettings(id, { overseer }).catch((e) => { store.set({ projects: before }); showError(e); });
       return;
     }
+    if (fid === "project-autorun") {
+      const box = ev.target as HTMLInputElement;
+      const id = box.dataset.id ?? "", autoRun = box.checked;
+      const before = store.get().projects;
+      store.set({ projects: before.map((p) => (p.id === id ? { ...p, autoRun } : p)) });
+      api.setProjectSettings(id, { autoRun }).catch((e) => { store.set({ projects: before }); showError(e); });
+      return;
+    }
     if (fid === "project-type") {
       const sel = ev.target as HTMLSelectElement;
       const id = sel.dataset.id ?? "", type = sel.value as NonNullable<Project["type"]>;
