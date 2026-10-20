@@ -1,0 +1,231 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Helper to load modules inside functions for correct browser loading order
+  function getVec() { return need('vec', './vec.js'); }
+  function getQuat() { return need('quat', './quat.js'); }
+  function getFK() { return need('fk', './fk.js'); }
+  function getIK() { return need('ik', './ik.js'); }
+
+  const V = getVec();
+  const Q = getQuat();
+  const FK = getFK();
+  const IK = getIK();
+
+  // --- EASES ---
+  const EASES = ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'step'];
+
+  function ease(name, u) {
+    if (name === 'linear') return u;
+    if (name === 'ease-in') return u * u;
+    if (name === 'ease-out') return 1 - (1 - u) * (1 - u);
+    if (name === 'ease-in-out') return u * u * (3 - 2 * u);
+    if (name === 'step') return 0;
+    throw new Error('unknown ease: ' + name);
+  }
+
+  // --- Deep copy helper ---
+  function deepCopy(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  // --- newClip ---
+  function newClip(opts) {
+    opts = opts || {};
+    return {
+      version: 1,
+      fps: opts.fps || 24,
+      length: opts.length || 1,
+      loop: opts.loop !== false,
+      keys: []
+    };
+  }
+
+  // --- setKey ---
+  function setKey(clip, t, pose, easeName) {
+    easeName = easeName || 'ease-in-out';
+    
+    if (!EASES.includes(easeName)) {
+      throw new Error('unknown ease: ' + easeName);
+    }
+
+    // Validate time
+    const isLooping = clip.loop;
+    if (t < 0 || (isLooping && t >= clip.length)) {
+      throw new Error('key time ' + t + ' is outside the clip');
+    }
+
+    // Copy clip and keys
+    const c = deepCopy(clip);
+    const keys = c.keys;
+
+    // Remove existing key at same time
+    const eps = 1e-6;
+    const idxToRemove = keys.findIndex(k => Math.abs(k.t - t) < eps);
+    if (idxToRemove >= 0) {
+      keys.splice(idxToRemove, 1);
+    }
+
+    // Add new key
+    keys.push({
+      t: t,
+      pose: deepCopy(pose),
+      ease: easeName
+    });
+
+    // Sort by time
+    keys.sort((a, b) => a.t - b.t);
+
+    return c;
+  }
+
+  // --- removeKey ---
+  function removeKey(clip, t) {
+    const c = deepCopy(clip);
+    const keys = c.keys.filter(k => Math.abs(k.t - t) >= 1e-6);
+    return { ...c, keys };
+  }
+
+  // --- sample ---
+  function sample(clip, t) {
+    // Deep copy clip to avoid mutation
+    const c = deepCopy(clip);
+    const keys = c.keys;
+
+    // No keys: return default pose
+    if (keys.length === 0) {
+      return FK.defaultPose();
+    }
+
+    // One key: return its pose
+    if (keys.length === 1) {
+      return deepCopy(keys[0].pose);
+    }
+
+    // Handle looping
+    const isLooping = c.loop;
+    let tt = t;
+    if (isLooping) {
+      tt = ((t % c.length) + c.length) % c.length;
+    }
+
+    // Find segment [a, b]
+    let a, b, u;
+    const lastKey = keys[keys.length - 1];
+
+    if (!isLooping) {
+      if (tt <= keys[0].t) {
+        return deepCopy(keys[0].pose);
+      } else if (tt >= lastKey.t) {
+        return deepCopy(lastKey.pose);
+      }
+    }
+
+    // Check wrap-around case
+    if (tt < keys[0].t || tt >= lastKey.t) {
+      a = lastKey;
+      b = keys[0];
+      const span = c.length - lastKey.t + keys[0].t;
+      u = (tt >= lastKey.t ? tt - lastKey.t : tt + c.length - lastKey.t) / span;
+    } else {
+      // Find last key with t <= tt
+      let i = 0;
+      while (i < keys.length - 1 && keys[i + 1].t <= tt) {
+        i++;
+      }
+      a = keys[i];
+      b = keys[i + 1];
+      u = (tt - a.t) / (b.t - a.t);
+    }
+
+    // Calculate interpolation factor k using ease of the earlier key
+    const k = ease(a.ease, u);
+
+    // Interpolate joints
+    const resultJoints = {};
+    const jointNames = new Set([...Object.keys(a.pose.joints || {}), ...Object.keys(b.pose.joints || {})]);
+
+    for (const name of jointNames) {
+      const ea = a.pose.joints[name] || {};
+      const eb = b.pose.joints[name] || {};
+
+      const qa = Q.fromMat(V.eulerToMat(ea));
+      const qb = Q.fromMat(V.eulerToMat(eb));
+      const qe = Q.slerp(qa, qb, k);
+      const me = Q.toMat(qe);
+      const e = V.matToEuler(me);
+
+      resultJoints[name] = {
+        bend: e.bend,
+        side: e.side,
+        twist: e.twist
+      };
+    }
+
+    // Interpolate root position
+    const ra = (a.pose.root && a.pose.root.pos) || [0, 0, 0.95];
+    const rb = (b.pose.root && b.pose.root.pos) || [0, 0, 0.95];
+    const pos = [
+      ra[0] + (rb[0] - ra[0]) * k,
+      ra[1] + (rb[1] - ra[1]) * k,
+      ra[2] + (rb[2] - ra[2]) * k
+    ];
+
+    // Apply IK if targets exist on both keys
+    const result = {
+      version: 1,
+      root: { pos: pos },
+      joints: resultJoints
+    };
+
+    const ikA = a.ik || {};
+    const ikB = b.ik || {};
+    const commonChains = Object.keys(ikA).filter(c => ikB.hasOwnProperty(c));
+
+    for (const chain of commonChains) {
+      const targetA = ikA[chain];
+      const targetB = ikB[chain];
+      const target = [
+        targetA[0] + (targetB[0] - targetA[0]) * k,
+        targetA[1] + (targetB[1] - targetA[1]) * k,
+        targetA[2] + (targetB[2] - targetA[2]) * k
+      ];
+
+      const ikResult = IK.solve(result, { chain: chain, target });
+      
+      // Merge IK results into joints (later chains see earlier ones)
+      for (const jointName in ikResult.joints) {
+        result.joints[jointName] = ikResult.joints[jointName];
+      }
+    }
+
+    return result;
+  }
+
+  // --- frameTimes ---
+  function frameTimes(clip) {
+    const n = Math.round(clip.length * clip.fps);
+    const times = [];
+    for (let i = 0; i < n; i++) {
+      times.push(i / clip.fps);
+    }
+    if (!clip.loop) {
+      times.push(clip.length);
+    }
+    return times;
+  }
+
+  const api = {
+    EASES,
+    ease,
+    newClip,
+    setKey,
+    removeKey,
+    sample,
+    frameTimes
+  };
+
+  if (NS) NS.anim = api; else module.exports = api;
+})();

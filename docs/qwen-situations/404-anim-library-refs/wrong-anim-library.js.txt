@@ -1,0 +1,227 @@
+// public/js/anim-library.js
+(function () {
+  'use strict';
+
+  // --- Utilities ---
+
+  function showError(msg) {
+    KKAnimEditor.error(msg);
+  }
+
+  function showToast(message, kind) {
+    if (typeof toast === 'function') {
+      toast(message, { kind });
+    } else {
+      console.warn('toast not available', message);
+    }
+  }
+
+  function getClip() {
+    return KKAnimEditor.clip();
+  }
+
+  function getView() {
+    const yawEl = document.getElementById('pose-yaw');
+    const yaw = yawEl ? +yawEl.value || 0 : 0;
+    return {
+      width: 256,
+      height: 384,
+      yaw: yaw
+    };
+  }
+
+  async function request(method, url, body) {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body && JSON.stringify(body)
+    });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try {
+        const json = await res.json();
+        msg = json.error || msg;
+      } catch (e) {}
+      throw new Error(msg);
+    }
+    return res;
+  }
+
+  // --- Elements ---
+
+  const els = {
+    hands: document.getElementById('anim-hands'),
+    dlBvh: document.getElementById('anim-dl-bvh'),
+    dlGlb: document.getElementById('anim-dl-glb'),
+    dlStrip: document.getElementById('anim-dl-strip'),
+    dlFrames: document.getElementById('anim-dl-frames'),
+    nameInput: document.getElementById('anim-name'),
+    saveBtn: document.getElementById('anim-save'),
+    libraryContainer: document.getElementById('anim-library')
+  };
+
+  // --- Actions ---
+
+  function exportAs(format) {
+    KKAnimEditor.error('');
+    const clip = getClip();
+    const view = getView();
+    const hands = els.hands.checked;
+    const name = els.nameInput.value.trim() || 'clip';
+
+    request('POST', '/api/anim/export', { clip, format, hands, view, name })
+      .then(res => {
+        const disp = res.headers.get('Content-Disposition') || '';
+        const match = (/filename="([^"]+)"/.exec(disp) || [])[1];
+        const filename = match || 'clip';
+        return res.blob().then(blob => ({ blob, filename }));
+      })
+      .then(({ blob, filename }) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      })
+      .catch(e => showError(e.message));
+  }
+
+  async function saveClip() {
+    const name = els.nameInput.value.trim();
+    if (!name) {
+      showError('Give the clip a name.');
+      return;
+    }
+
+    try {
+      const clip = getClip();
+      const view = getView();
+      const hands = els.hands.checked;
+
+      await request('POST', '/api/anims', {
+        name,
+        clip,
+        view,
+        hands,
+        provenance: { source: 'editor' }
+      });
+
+      showToast('Clip saved', { kind: 'success' });
+      await refresh();
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+
+  function createCard(meta) {
+    const fig = document.createElement('figure');
+    fig.className = 'pose-card anim-card';
+
+    const img = document.createElement('img');
+    img.src = `/api/anims/${meta.id}/strip.png`;
+    img.alt = `${meta.name}, sprite strip`;
+    img.loading = 'lazy';
+
+    const cap = document.createElement('figcaption');
+    const duration = meta.clip.length;
+    const keysCount = meta.clip.keys.length;
+    cap.textContent = `${meta.name} · ${keysCount} keys · ${duration} s`;
+
+    const div = document.createElement('div');
+    div.className = 'pose-card-actions';
+
+    const btnLoad = document.createElement('button');
+    btnLoad.type = 'button';
+    btnLoad.className = 'ghost-btn';
+    btnLoad.textContent = 'Load';
+
+    const btnDel = document.createElement('button');
+    btnDel.type = 'button';
+    btnDel.className = 'ghost-btn';
+    btnDel.textContent = 'Delete';
+
+    div.appendChild(btnLoad);
+    div.appendChild(btnDel);
+
+    fig.appendChild(img);
+    fig.appendChild(cap);
+    fig.appendChild(div);
+
+    return fig;
+  }
+
+  async function loadLibrary() {
+    els.libraryContainer.innerHTML = '';
+
+    try {
+      const res = await request('GET', '/api/anims');
+      const data = await res.json();
+      const anims = data.anims || [];
+
+      if (anims.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'field-hint';
+        p.textContent = 'No clips yet.';
+        els.libraryContainer.appendChild(p);
+        return;
+      }
+
+      anims.forEach(meta => {
+        els.libraryContainer.appendChild(createCard(meta));
+      });
+    } catch (e) {
+      showError(e.message);
+    }
+  }
+
+  // --- Event Listeners ---
+
+  els.dlBvh.addEventListener('click', () => exportAs('bvh'));
+  els.dlGlb.addEventListener('click', () => exportAs('glb'));
+  els.dlStrip.addEventListener('click', () => exportAs('strip'));
+  els.dlFrames.addEventListener('click', () => exportAs('frames'));
+
+  els.saveBtn.addEventListener('click', saveClip);
+
+  els.libraryContainer.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+
+    const card = btn.closest('.anim-card');
+    if (!card) return;
+
+    if (btn.textContent === 'Load') {
+      const id = card.dataset.id;
+      request('GET', `/api/anims/${id}`)
+        .then(res => res.json())
+        .then(meta => {
+          KKAnimEditor.setClip(meta.clip);
+          els.nameInput.value = meta.name;
+          showToast('Clip loaded', { kind: 'info' });
+        })
+        .catch(err => showError('Load failed: ' + err.message));
+    } else if (btn.textContent === 'Delete') {
+      const name = card.dataset.name;
+      if (!confirm(`Delete the clip "${name}"?`)) return;
+
+      const id = card.dataset.id;
+      request('DELETE', `/api/anims/${id}`)
+        .then(() => loadLibrary())
+        .catch(err => showError('Delete failed: ' + err.message));
+    }
+  });
+
+  // --- Init ---
+
+  function init() {
+    loadLibrary();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
