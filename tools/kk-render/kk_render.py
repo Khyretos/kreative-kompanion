@@ -23,7 +23,16 @@ Usage:  kk_render.py check                      preflight only, prints why it wo
         kk_render.py run GRAPH.json [GRAPH2.json ...] [--timeout 300] [--outdir DIR]
 GRAPH is a ComfyUI API-format prompt (as /prompt takes). Outputs land in ~/kk-render/out/<subfolder>.
 """
-import argparse, fcntl, json, os, subprocess, sys, threading, time, urllib.request, urllib.error
+import argparse
+import fcntl
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
 
 DEV = "/sys/class/drm/card1/device"
 PORT = 18190

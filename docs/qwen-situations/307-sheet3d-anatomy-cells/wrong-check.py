@@ -73,6 +73,7 @@ def judge(
     hands = [h for h in hands if h[4] >= hand_conf]
     cells_out = [{"view": c[0], "faces": 0, "hands": 0} for c in cells]
     issues = []
+    cell_w = width / 4
 
     face_boxes = []
     hand_boxes = []
@@ -213,7 +214,6 @@ def judge_v3_old(
             hand_boxes.append(box)
 
     cell_w = width / 10.0
-    cell_h = height / 10.0
 
     for box in face_boxes:
         idx = cell_index(box, width, height, cells)
@@ -311,7 +311,6 @@ def judge_v3(
             hand_boxes.append(box)
 
     cell_w = width / 10.0
-    cell_h = height / 10.0
 
     for box in face_boxes:
         idx = cell_index(box, width, height, cells)
