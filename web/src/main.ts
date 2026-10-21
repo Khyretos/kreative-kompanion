@@ -12,7 +12,7 @@ import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
 import { saveText, onCodeAction, setCodeTheme, applyCodeTheme } from "./core/codeblocks";
 import { onMediaAction } from "./core/media";
-import { paneProject, store, type AppState } from "./state";
+import { paneProject, store, loadPcChoice, savePcChoice, type AppState } from "./state";
 import { showConnect } from "./views/connect";
 import { renderSidebar } from "./views/sidebar";
 import { backStep } from "./back";
@@ -273,7 +273,8 @@ function openTaskById(id: string): void {
 
 async function openChat(chatId?: string): Promise<void> {
   const messages = chatId ? await api.listMessages(chatId) : [];
-  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined });
+  // The computer picked for this chat comes back; a new chat starts from the last pick.
+  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined, pcMachineId: loadPcChoice(chatId) });
   const prompt = document.getElementById("prompt") as HTMLTextAreaElement | null;
   if (prompt && window.matchMedia("(pointer: fine)").matches) prompt.focus();
   store.set({ pcActions: chatId ? await api.listActions(chatId).catch(() => []) : [] });
@@ -924,7 +925,7 @@ function wire(shell: HTMLElement): void {
     },
     "new-chat": (el) => store.set({
       activeChatId: undefined, messages: [], pane: "main", chatMenuId: undefined, section: "chat",
-      activeProjectId: el.dataset.project ?? undefined,
+      activeProjectId: el.dataset.project ?? undefined, pcMachineId: loadPcChoice(undefined),
     }),
     project: (el) => {
       const id = el.dataset.id ?? "";
@@ -1246,6 +1247,10 @@ function wire(shell: HTMLElement): void {
       if (store.get().recording === "recording") void stopRecording(); else void startRecording();
     },
     "voice-stop": () => reader.stop(),
+    "stop-chat": () => {
+      const id = store.get().activeChatId;
+      if (id) void api.stopChat(id).catch(showError);
+    },
     "card-reset": () => setCards({}),
     // Task list groups open and close by click; the choice is kept on this device.
     "task-group-toggle": (el) => {
@@ -1467,6 +1472,13 @@ function wire(shell: HTMLElement): void {
       store.set({ activityFilter: { ...store.get().activityFilter, [fid === "activity-machine" ? "machine" : "chat"]: v } });
       return;
     }
+    // AUTO-01: the default number of steps per request (Settings).
+    if (fid === "max-steps") {
+      const n = Math.min(100, Math.max(1, Math.round(Number((ev.target as HTMLInputElement).value) || 10)));
+      (ev.target as HTMLInputElement).value = String(n);
+      api.setMaxSteps(n).then(() => store.set({ maxSteps: n }), showError);
+      return;
+    }
     // OVR-01: the Overseer's name and permission (Settings).
     if (fid === "overseer-name" || fid === "overseer-interject") {
       const input = ev.target as HTMLInputElement;
@@ -1475,7 +1487,9 @@ function wire(shell: HTMLElement): void {
       return;
     }
     if ((ev.target as HTMLElement).id === "pc-machine") {
-      store.set({ pcMachineId: (ev.target as HTMLSelectElement).value || undefined });
+      const picked = (ev.target as HTMLSelectElement).value || undefined;
+      store.set({ pcMachineId: picked });
+      savePcChoice(store.get().activeChatId, picked);
       return;
     }
     const radio = ev.target as HTMLInputElement;
@@ -1853,6 +1867,7 @@ function wire(shell: HTMLElement): void {
       if (autoRun) await api.updateChat(chat.id, { autoRun }).catch(showError);
       store.set({ chats: [{ ...chat, effort, mcp, overseer, autoRun }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined, draftOverseer: undefined, draftAutoRun: undefined });
       chatId = chat.id;
+      savePcChoice(chatId, store.get().pcMachineId);
     }
     let attached: Attached[] = [];
     try {
@@ -2045,6 +2060,8 @@ function applyComposerAccess(s: AppState): void {
   form.classList.toggle("read-only", readOnly);
   const note = form.querySelector<HTMLElement>(".composer-readonly");
   if (note) note.hidden = !readOnly;
+  const stopBtn = document.getElementById("stop-chat");
+  if (stopBtn) stopBtn.hidden = !s.messages.some((m) => m.streaming);
 }
 
 // PROJ-ARCHIVE: the project leaves (or rejoins) the list in the same frame, then the server is told;

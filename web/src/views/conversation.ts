@@ -253,7 +253,7 @@ export function autoRunChip(s: AppState): SafeHtml {
   }
   const on = !!(chat ? chat.autoRun : s.draftAutoRun);
   const tip = on
-    ? `Automatic mode is on: I run up to ${s.maxSteps} steps per request without asking. Click to turn off.`
+    ? `Automatic mode is on: I run steps without asking and without a step limit; Stop ends it at any step. Click to turn off.`
     : "Automatic mode is off: I ask before each step. Click to run steps without asking.";
   return html`<button class="chip autorun-chip" type="button" data-action="autorun-toggle" aria-pressed="${on ? "true" : "false"}"
     aria-label="Automatic mode ${on ? "on" : "off"}" title="${tip}">${icon("spark")}<span class="sr-only">Automatic mode ${on ? "on" : "off"}</span></button>`;
@@ -306,6 +306,7 @@ export function composer(): SafeHtml {
       <label class="sr-only" for="prompt">Message</label>
       <div class="prompt-box"><textarea id="prompt" rows="1" placeholder="Ask, plan, or hand over a task…"></textarea></div>
       <button class="btn mic" type="button" id="voice-mic" data-action="voice-mic" aria-label="Speak" aria-pressed="false" hidden>${icon("mic")}</button>
+      <button class="btn stop-chat" type="button" id="stop-chat" data-action="stop-chat" aria-label="Stop the reply" hidden>Stop</button>
       <button class="btn primary send" type="submit" aria-label="Send">${icon("send")}</button>
       <p class="composer-readonly" hidden>Read-only: this project is shared with you, so you can read this chat but not write in it.</p>
     </form>

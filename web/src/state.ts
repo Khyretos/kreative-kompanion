@@ -119,6 +119,7 @@ export const store = new Store<AppState>({
   expandedProjects: new Set(),
   allTasksShown: new Set(),
   taskFilter: "",
+  pcMachineId: loadPcChoice(undefined),
   showArchived: (() => { try { return localStorage.getItem("kk-show-archived") === "1"; } catch { return false; } })(),
   collapsedGroups: (() => { try { return new Set<string>(JSON.parse(localStorage.getItem("kk-task-groups") ?? "[]")); } catch { return new Set<string>(); } })(),
   voicePrefs: loadVoicePrefs(),
@@ -145,6 +146,28 @@ export const store = new Store<AppState>({
   gpuOpen: new Set(),
   gpuPins: [],
 });
+
+/**
+ * The computer picked in the composer is kept per chat in this browser (kk-pc-chats), plus the
+ * last one picked (kk-pc-last) for a new chat, so a reload does not drop it.
+ */
+export function loadPcChoice(chatId: string | undefined): string | undefined {
+  try {
+    if (!chatId) return localStorage.getItem("kk-pc-last") || undefined;
+    const map = JSON.parse(localStorage.getItem("kk-pc-chats") ?? "{}") as Record<string, string>;
+    return map[chatId] || undefined;
+  } catch { return undefined; }
+}
+
+export function savePcChoice(chatId: string | undefined, machineId: string | undefined): void {
+  try {
+    if (machineId) localStorage.setItem("kk-pc-last", machineId); else localStorage.removeItem("kk-pc-last");
+    if (!chatId) return;
+    const map = JSON.parse(localStorage.getItem("kk-pc-chats") ?? "{}") as Record<string, string>;
+    if (machineId) map[chatId] = machineId; else delete map[chatId];
+    localStorage.setItem("kk-pc-chats", JSON.stringify(map));
+  } catch { /* private window: this tab only */ }
+}
 
 export function activeChat(s: AppState): Chat | undefined {
   return s.chats.find((c) => c.id === s.activeChatId);

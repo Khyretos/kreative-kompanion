@@ -18,6 +18,11 @@ use crate::{AppState, access, api::RoleAssignment, auth::User, error::{ApiError,
 
 /// Runner jobs of running steps: action id -> (machine id, job id), so Stop can cancel them.
 static RUNNING_JOBS: LazyLock<std::sync::Mutex<HashMap<String, (String, String)>>> = LazyLock::new(Default::default);
+/// Steps whose Stop button was really pressed. Only these may end as "stopped": the output
+/// text alone can't decide it (a command that prints the runner's stop message would match).
+static STOP_REQUESTED: LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> = LazyLock::new(Default::default);
+/// Start of the result text for a step the user really stopped (set from the state, not from the output).
+const STEP_STOPPED: &str = "The step was stopped by the user.";
 
 const MAX_STEPS: usize = 8;
 /// How long a card waits for a decision, and a job for the computer (seconds).
@@ -89,8 +94,32 @@ pub async fn stop_action(s: &AppState, user_id: &str, action_id: &str) -> ApiRes
     let Some((machine_id, job_id)) = RUNNING_JOBS.lock().unwrap().get(action_id).cloned() else {
         return Ok(false);
     };
+    STOP_REQUESTED.lock().unwrap().insert(action_id.to_string());
     access::queue_job(&s.db, &machine_id, user_id, &json!({ "tool": "cancel_job", "job": job_id }), None).await?;
     Ok(true)
+}
+
+/// Chats whose user pressed Stop: the loop checks this between steps (stopping a running step is separate).
+static STOPPED_CHATS: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> = std::sync::LazyLock::new(Default::default);
+
+fn chat_stopped(chat_id: &str) -> bool {
+    STOPPED_CHATS.lock().unwrap().contains(chat_id)
+}
+
+/// POST /chats/{id}/stop: ends the chat's agent at its next step and stops a step that is running now.
+pub async fn stop_chat(State(s): State<AppState>, Extension(u): Extension<User>, Path(id): Path<String>) -> ApiResult<StatusCode> {
+    if crate::sharing::chat_editor(&s.db, &u.id, &id).await?.is_none() {
+        return Err(ApiError::NotFound);
+    }
+    STOPPED_CHATS.lock().unwrap().insert(id.clone());
+    let running: Vec<(String,)> = sqlx::query_as("SELECT id FROM pc_actions WHERE chat_id = ? AND state = 'running'")
+        .bind(&id)
+        .fetch_all(&s.db)
+        .await?;
+    for (action,) in running {
+        let _ = stop_action(&s, &u.id, &action).await;
+    }
+    Ok(StatusCode::ACCEPTED)
 }
 
 /// POST /actions/{id}/stop
@@ -128,6 +157,7 @@ async fn max_steps_for(s: &AppState, user_id: &str) -> usize {
 }
 
 pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: String, machine_name: String, role: RoleAssignment) {
+    STOPPED_CHATS.lock().unwrap().remove(&chat_id); // a stop from an earlier answer doesn't count
     let mut messages = vec![json!({ "role": "system", "content": system_prompt(&machine_name) })];
     let history: Vec<(String, String)> = sqlx::query_as(
         "SELECT author, text FROM (SELECT author, text, at, rowid FROM messages WHERE chat_id = ?
@@ -195,12 +225,25 @@ async fn edit_problem(s: &AppState, user_id: &str, machine_id: &str, job: &Value
         let row: Option<(String, Option<String>)> =
             sqlx::query_as("SELECT state, result FROM machine_jobs WHERE id = ?").bind(&id).fetch_optional(&s.db).await.ok()?;
         match row {
-            Some((st, out)) if st == "done" => return tools::whole_lines(&out.unwrap_or_default(), old).err(),
+            Some((st, out)) if st == "done" => return precheck(&out.unwrap_or_default(), old),
             Some((st, _)) if st == "failed" || st == "refused" => return None,
             _ => {}
         }
     }
     None
+}
+
+/// Job results are stored cut to 64 KiB (access/runner.rs); a read this long may be cut.
+const STORED_RESULT_CAP: usize = 64 * 1024;
+
+/// Checks `old` against the stored read of a file. A read at the cap may be cut, so `old`
+/// could look "not found" when it is past the cut: skip the check and let the runner's own
+/// whole-line check on the full file decide.
+fn precheck(stored: &str, old: &str) -> Option<String> {
+    if stored.len() >= STORED_RESULT_CAP - 4 {
+        return None;
+    }
+    tools::whole_lines(stored, old).err()
 }
 
 /// The paths a runner job touches (path, or the working folder of a command).
@@ -238,7 +281,17 @@ impl Agent {
         if self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
             return Err("stopped by you".into());
         }
-        for _ in 0..self.max_steps {
+        // AUTO-01: Automatic mode has no step cap; the user's Stop ends it at any step instead.
+        for n in 0.. {
+            if !self.auto && n >= self.max_steps {
+                break;
+            }
+            if n > 0 && self.task_id.is_none() && chat_stopped(&self.chat_id) {
+                return Err("stopped by you".into());
+            }
+            if n > 0 && self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
+                return Err("stopped by you".into());
+            }
             let started = std::time::Instant::now();
             let answer = llm::chat_with_tools_full(&s.http, &p, &model_id, &messages, &tools).await;
             let (msg, usage, err) = match answer {
@@ -262,6 +315,14 @@ impl Agent {
             }
             messages.push(msg.clone());
             for call in &calls {
+                // Stop pressed while the model was answering (or during an earlier call of this
+                // answer): don't start another step.
+                if self.task_id.is_none() && chat_stopped(&self.chat_id) {
+                    return Err("stopped by you".into());
+                }
+                if self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
+                    return Err("stopped by you".into());
+                }
                 let name = call["function"]["name"].as_str().unwrap_or("");
                 let args: Value = call["function"]["arguments"]
                     .as_str()
@@ -312,7 +373,11 @@ impl Agent {
                         r
                     }
                 };
+                let was_stopped = result.starts_with(STEP_STOPPED);
                 messages.push(json!({ "role": "tool", "tool_call_id": call["id"], "content": result }));
+                if was_stopped {
+                    return Err("stopped by you".into());
+                }
             }
         }
         Err(format!("{STEP_LIMIT} {} steps. Tell me how to go on.", self.max_steps))
@@ -350,6 +415,19 @@ async fn set_action(s: &AppState, id: &str, state: &str, result: &str) {
         .bind(id)
         .execute(&s.db)
         .await;
+}
+
+/// At startup no step can still be running: the server that ran them is gone. Marks them failed.
+pub async fn fail_orphaned_steps(s: &AppState) {
+    let r = sqlx::query("UPDATE pc_actions SET state = 'failed', result = 'The server restarted while this step was running; its result is unknown.', ended_at = ? WHERE state = 'running'")
+        .bind(util::now())
+        .execute(&s.db)
+        .await;
+    if let Ok(done) = r {
+        if done.rows_affected() > 0 {
+            tracing::info!("marked {} step(s) left running as failed", done.rows_affected());
+        }
+    }
 }
 
 /// One tool call: an approval card, then (if approved) a runner job. Returns the
@@ -459,7 +537,9 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
         }
         Err(e) => ("failed".to_string(), e.to_string()),
     };
-    if result.contains("stopped by you") {
+    // Only a real Stop press counts, not the phrase appearing in the output.
+    let stop_pressed = STOP_REQUESTED.lock().unwrap().remove(&id);
+    if stop_pressed && result.contains("stopped by you") {
         state = "stopped".to_string();
     }
 
@@ -519,6 +599,7 @@ fn model_result(state: &str, result: &str) -> String {
     let outcome = match state {
         "done" => "The step ran.",
         "refused" => "The computer refused the step (not granted).",
+        "stopped" => STEP_STOPPED,
         _ => "The step failed.",
     };
     format!("{outcome} State: {state}.\nOutput{}:\n{}", if start > 0 { " (last part)" } else { "" }, &result[start..])
@@ -692,6 +773,16 @@ mod tests {
         assert!(r.starts_with("The step ran. State: done."));
         assert!(r.ends_with("exit: 0"));
         assert!(model_result("refused", "not granted: packages").contains("refused"));
+    }
+
+    #[test]
+    fn precheck_skips_a_read_cut_at_the_stored_cap() {
+        // A small file is checked as before.
+        assert!(precheck("a\nb\n", "b\n").is_none());
+        assert!(precheck("a\nb\n", "zzz\n").is_some());
+        // A file read cut at the cap: `old` is past the cut, so it must not be called missing.
+        let cut_read = "x".repeat(STORED_RESULT_CAP);
+        assert!(precheck(&cut_read, "line past the cut\n").is_none());
     }
 
     #[test]

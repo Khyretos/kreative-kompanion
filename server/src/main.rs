@@ -271,6 +271,7 @@ async fn main() -> anyhow::Result<()> {
     if args.get(1).map(String::as_str) == Some("studio-audio") {
         return studio::audio::cli(&state, &args[2..]).await;
     }
+    pcagent::fail_orphaned_steps(&state).await;
     hoststats::HostStats::spawn_live(state.clone());
     notify::spawn_daily(state.db.clone());
     let _ = events::BUS.set(state.bus.clone());
@@ -356,6 +357,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/runs/{id}/report", get(runs::report))
         .route("/chats/{id}/report", get(runs::chat))
         .route("/actions/{id}/stop", post(pcagent::stop))
+        .route("/chats/{id}/stop", post(pcagent::stop_chat))
         .route("/projects/{id}", patch(tasks::set_project_kind))
         .route("/projects/{id}/settings", patch(projects::settings))
         .route("/projects/{id}/overview", get(overview::get))

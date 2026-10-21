@@ -1,0 +1,20 @@
+{
+  "3b6d1fe99cad": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "reason": "The stop flag is checked before every step and before every tool call, and stop_chat also stops the action that is running (stop_action). A step already running cannot be recalled by design; the flag set and the check do not need to be atomic because the flag is only ever added to while the answer runs. Coder not asked.",
+    "title": "Potential Race Condition",
+    "verdict": "false_positive"
+  },
+  "fb88f7e9e0dc": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "308f9673be0c0dbc79f8ba5ca991165f385ec890",
+    "path": "web/src/views/conversation.ts",
+    "reason": "Real: the stop-chat handler (in web/src/main.ts, the button is in conversation.ts) dropped a failed api.stopChat. It now ends in .catch(showError), so the user sees the error.",
+    "title": "Missing Error Handling",
+    "verdict": "bug"
+  }
+}

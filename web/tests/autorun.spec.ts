@@ -17,7 +17,7 @@ test.describe("Automatic mode chip (AUTO-01)", () => {
     await expect(chip).toHaveAttribute("title", /I ask before each step/);
     await chip.click();
     await expect(chip).toHaveAttribute("aria-pressed", "true");
-    await expect(chip).toHaveAttribute("title", /up to 10 steps per request/);
+    await expect(chip).toHaveAttribute("title", /without a step limit; Stop ends it at any step/);
 
     await page.fill("#prompt", "Run this on your own");
     await page.press("#prompt", "Enter");
