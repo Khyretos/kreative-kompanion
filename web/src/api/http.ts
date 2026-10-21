@@ -72,6 +72,7 @@ export class HttpApi implements KompanionApi {
   setNotifications(p: NotificationPrefs) { return this.request<void>("PUT", "/me/notifications", p); }
   setGpuPins(pins: string[]) { return this.request<void>("PUT", "/me/prefs", { gpuPins: pins }); }
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) { return this.request<void>("PUT", "/me/prefs", change); }
+  setMaxSteps(maxSteps: number) { return this.request<void>("PUT", "/me/prefs", { maxSteps }); }
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }) { return this.request<{ projectId: string }>("POST", "/overseer/tasks", b); }
   interject(taskId: string, text: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(taskId)}/interject`, { text }); }
   setCardStyle(style: import("../core/cardtypes").CardStyle) { return this.request<void>("PUT", "/me/prefs", { cardStyle: style }); }

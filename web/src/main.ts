@@ -18,7 +18,7 @@ import { renderSidebar } from "./views/sidebar";
 import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
-import { composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { filterDeps, setDep } from "./views/deppicker";
@@ -160,7 +160,7 @@ async function start(server: Server): Promise<void> {
   ]);
   store.set({
     server: { ...server, name: status.name || server.name }, projects, chats, tasks, providers, roles, machines, today,
-    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system", overseer: status.overseer ?? { name: "Overseer", interject: false },
+    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system", overseer: status.overseer ?? { name: "Overseer", interject: false }, maxSteps: status.maxSteps ?? 10,
     machinesRefresh: status.machinesRefresh ?? 5, gpuPins: status.gpuPins ?? [], cardStyle: status.cardStyle ?? {}, windshift: status.windshift, windshiftWarning: status.windshiftWarning, features: { ...ALL_FEATURES, ...(status.features ?? {}) }, logoVersion: status.logoVersion,
   });
   setStepCardStyle(status.cardStyle ?? {});
@@ -364,6 +364,9 @@ function render(s: AppState, prev: AppState): void {
     // OVR-01: the Overseer chip, and its name on the answers of an Overseer chat (its own switch or its project's).
     setAssistantName(overseerOn(s) ? s.overseer.name : "Kompanion");
     mount($("#overseer-slot"), overseerChip(s));
+  }
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftAutoRun", "maxSteps", "projects", "activeProjectId"])) {
+    mount($("#autorun-slot"), autoRunChip(s)); // AUTO-01
   }
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "effortMenuOpen", "draftEffort", "draftOverseer", "projects", "activeProjectId"])) {
     // A re-mount (or closing the menu) drops focus inside the chip: give it back.
@@ -1097,6 +1100,18 @@ function wire(shell: HTMLElement): void {
       const overseer = !chat.overseer;
       store.set({ chats: s.chats.map((c) => (c.id === chat.id ? { ...c, overseer } : c)) });
       return api.updateChat(chat.id, { overseer }).catch(showError);
+    },
+    // AUTO-01: automatic mode for this chat (or the chat about to be made).
+    "autorun-toggle": () => {
+      const s = store.get();
+      const chat = s.chats.find((c) => c.id === s.activeChatId);
+      if (!chat) {
+        store.set({ draftAutoRun: !s.draftAutoRun });
+        return;
+      }
+      const autoRun = !chat.autoRun;
+      store.set({ chats: s.chats.map((c) => (c.id === chat.id ? { ...c, autoRun } : c)) });
+      return api.updateChat(chat.id, { autoRun }).catch(showError);
     },
     "overseer-create": async (el) => {
       try {
@@ -1833,7 +1848,10 @@ function wire(shell: HTMLElement): void {
       // OVR-01: the Overseer picked before the chat existed.
       const overseer = !!store.get().draftOverseer;
       if (overseer) await api.updateChat(chat.id, { overseer }).catch(showError);
-      store.set({ chats: [{ ...chat, effort, mcp, overseer }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined, draftOverseer: undefined });
+      // AUTO-01: automatic mode picked before the chat existed.
+      const autoRun = !!store.get().draftAutoRun;
+      if (autoRun) await api.updateChat(chat.id, { autoRun }).catch(showError);
+      store.set({ chats: [{ ...chat, effort, mcp, overseer, autoRun }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined, draftOverseer: undefined, draftAutoRun: undefined });
       chatId = chat.id;
     }
     let attached: Attached[] = [];

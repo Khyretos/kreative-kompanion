@@ -243,6 +243,22 @@ export function overseerChip(s: AppState): SafeHtml {
     aria-label="${name} ${on ? "on" : "off"}" title="${tip}">${icon("eye")}<span class="ov-label">${on ? name : ""}</span><span class="sr-only">${on ? "" : `${name} off`}</span></button>`;
 }
 
+/** AUTO-01: the automatic-mode chip: this chat runs its steps without asking (locked on when its project does). */
+export function autoRunChip(s: AppState): SafeHtml {
+  const chat = activeChat(s);
+  const pid = chat ? chat.projectId : s.activeProjectId;
+  if (s.projects.find((p) => p.id === pid)?.autoRun) {
+    return html`<button class="chip autorun-chip locked" type="button" aria-pressed="true" aria-disabled="true"
+      aria-label="Automatic mode on for this whole project" title="Steps run without asking in this project: switch it off in the project's panel.">${icon("spark")}<span class="sr-only">Automatic mode on for this project</span></button>`;
+  }
+  const on = !!(chat ? chat.autoRun : s.draftAutoRun);
+  const tip = on
+    ? `Automatic mode is on: I run up to ${s.maxSteps} steps per request without asking. Click to turn off.`
+    : "Automatic mode is off: I ask before each step. Click to run steps without asking.";
+  return html`<button class="chip autorun-chip" type="button" data-action="autorun-toggle" aria-pressed="${on ? "true" : "false"}"
+    aria-label="Automatic mode ${on ? "on" : "off"}" title="${tip}">${icon("spark")}<span class="sr-only">Automatic mode ${on ? "on" : "off"}</span></button>`;
+}
+
 /** OVR-01: who wrote a message: the Overseer's name in an Overseer chat. */
 let assistantName = "Kompanion";
 export function setAssistantName(name: string): void { assistantName = name; }
@@ -297,6 +313,7 @@ export function composer(): SafeHtml {
       <span id="voice-status" role="status"></span>
       <button class="btn small" type="button" id="voice-stop" data-action="voice-stop" hidden>Stop reading</button>
       <span class="overseer-slot" id="overseer-slot"></span>
+      <span class="autorun-slot" id="autorun-slot"></span>
       <span class="web-slot" id="web-slot"></span>
       <span class="tools-slot" id="tools-slot"></span>
       <span class="effort-slot" id="effort-slot"></span></p>`;
