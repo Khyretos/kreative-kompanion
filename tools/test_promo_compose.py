@@ -127,6 +127,14 @@ class Compose(unittest.TestCase):
         with self.assertRaises(ValueError):
             pc.compose(self.spec(size="billboard"))
 
+    def test_missing_input_files_give_a_clear_error(self):
+        for key in ("background", "subject", "logo"):
+            gone = os.path.join(self.d, "gone.png")
+            with self.assertRaises(FileNotFoundError) as cm:
+                pc.compose(self.spec(**{key: gone}))
+            self.assertIn(key, str(cm.exception))
+            self.assertIn(gone, str(cm.exception))
+
     def test_files(self):
         b = pc.compose(self.spec())
         out = tempfile.mkdtemp()
@@ -158,9 +166,13 @@ class Compose(unittest.TestCase):
         texts = [t.text for t in svg.iter(ns + "text")]
         self.assertEqual(texts, ["kk-engine", "A game engine you can read"])
         self.assertEqual(len(list(svg.iter(ns + "image"))), 3)
-        self.assertIn("Inter", svg.find(ns + "text").get("font-family"))
+        for t in svg.iter(ns + "text"):
+            self.assertIn("Inter", t.get("font-family"))
         flat = Image.open(os.path.join(out, "banner.png"))
         self.assertEqual(flat.size, (1280, 640))
+        expected = pc.flatten(b)
+        self.assertEqual(flat.mode, expected.mode)
+        self.assertEqual(flat.tobytes(), expected.tobytes())
         check = json.load(open(os.path.join(out, "check.json")))
         self.assertTrue(check["ok"])
 

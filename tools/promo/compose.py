@@ -125,6 +125,13 @@ def _fit_size(text, size, width, font_path):
     return size
 
 
+def _open_image(path, what):
+    """Open an input picture as RGBA, with a clear error when the file is not there."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"{what} image not found: {path}")
+    return Image.open(path).convert("RGBA")
+
+
 def compose(spec):
     size = spec.get("size", "repo-banner")
     if size not in SIZES:
@@ -137,15 +144,15 @@ def compose(spec):
     if isinstance(bg, str) and bg.startswith("#"):
         background = Image.new("RGBA", (w, h), rgb(bg) + (255,))
     else:
-        background = fit_cover(Image.open(bg).convert("RGBA"), w, h)
+        background = fit_cover(_open_image(bg, "background"), w, h)
     layers = [{"name": "background", "image": background}]
     if spec.get("subject"):
-        x, y, s = place_subject(Image.open(spec["subject"]).convert("RGBA"), w, h, side)
+        x, y, s = place_subject(_open_image(spec["subject"], "subject"), w, h, side)
         c = _canvas(w, h)
         c.alpha_composite(s, (x, y))
         layers.append({"name": "subject", "image": c})
     if spec.get("logo"):
-        logo = Image.open(spec["logo"]).convert("RGBA")
+        logo = _open_image(spec["logo"], "logo")
         lh = round(0.18 * h)
         logo = logo.resize((round(logo.width * lh / logo.height), lh), Image.LANCZOS)
         c = _canvas(w, h)
