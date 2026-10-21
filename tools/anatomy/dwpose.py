@@ -10,7 +10,6 @@ from typing import Any
 
 import numpy as np
 
-
 DET_SIZE = (640, 640)
 POSE_SIZE = (288, 384)
 MEAN = np.array([123.675, 116.28, 103.53])

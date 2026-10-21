@@ -1,59 +1,59 @@
 {
- "about": "STU-PE3 pose example renders: SDXL (novaAnimeXL) with the xinsir union ControlNet, OpenPose 0.8 + depth 0.45 from the pose editor presets, 832x1216, one job at a time. The outputs feed the DWPose pose check (does the generated figure match the pose?).",
- "jobs": [
-  {
-   "graph": "comfy-jobs/pe3-poses/t_pose.json",
-   "inputs": {
-    "kompanion/pe3/t_pose-openpose.png": "comfy-jobs/pe3-poses/inputs/t_pose-openpose.png",
-    "kompanion/pe3/t_pose-depth.png": "comfy-jobs/pe3-poses/inputs/t_pose-depth.png"
-   },
-   "output": "comfy-jobs/pe3-poses/out/t_pose.png",
-   "timeout_s": 300
-  },
-  {
-   "graph": "comfy-jobs/pe3-poses/cowboy_shot.json",
-   "inputs": {
-    "kompanion/pe3/cowboy_shot-openpose.png": "comfy-jobs/pe3-poses/inputs/cowboy_shot-openpose.png",
-    "kompanion/pe3/cowboy_shot-depth.png": "comfy-jobs/pe3-poses/inputs/cowboy_shot-depth.png"
-   },
-   "output": "comfy-jobs/pe3-poses/out/cowboy_shot.png",
-   "timeout_s": 300
-  },
-  {
-   "graph": "comfy-jobs/pe3-poses/action.json",
-   "inputs": {
-    "kompanion/pe3/action-openpose.png": "comfy-jobs/pe3-poses/inputs/action-openpose.png",
-    "kompanion/pe3/action-depth.png": "comfy-jobs/pe3-poses/inputs/action-depth.png"
-   },
-   "output": "comfy-jobs/pe3-poses/out/action.png",
-   "timeout_s": 300
-  },
-  {
-   "graph": "comfy-jobs/pe3-poses/sitting.json",
-   "inputs": {
-    "kompanion/pe3/sitting-openpose.png": "comfy-jobs/pe3-poses/inputs/sitting-openpose.png",
-    "kompanion/pe3/sitting-depth.png": "comfy-jobs/pe3-poses/inputs/sitting-depth.png"
-   },
-   "output": "comfy-jobs/pe3-poses/out/sitting.png",
-   "timeout_s": 300
-  },
-  {
-   "graph": "comfy-jobs/pe3-poses/waving.json",
-   "inputs": {
-    "kompanion/pe3/waving-openpose.png": "comfy-jobs/pe3-poses/inputs/waving-openpose.png",
-    "kompanion/pe3/waving-depth.png": "comfy-jobs/pe3-poses/inputs/waving-depth.png"
-   },
-   "output": "comfy-jobs/pe3-poses/out/waving.png",
-   "timeout_s": 300
-  },
-  {
-   "graph": "comfy-jobs/pe3-poses/fists.json",
-   "inputs": {
-    "kompanion/pe3/fists-openpose.png": "comfy-jobs/pe3-poses/inputs/fists-openpose.png",
-    "kompanion/pe3/fists-depth.png": "comfy-jobs/pe3-poses/inputs/fists-depth.png"
-   },
-   "output": "comfy-jobs/pe3-poses/out/fists.png",
-   "timeout_s": 300
-  }
- ]
+  "about": "STU-PE3 pose example renders: SDXL (novaAnimeXL) with the xinsir union ControlNet, OpenPose 0.8 + depth 0.45 from the pose editor presets, 832x1216, one job at a time. The outputs feed the DWPose pose check (does the generated figure match the pose?).",
+  "jobs": [
+    {
+      "graph": "comfy-jobs/pe3-poses/t_pose.json",
+      "inputs": {
+        "kompanion/pe3/t_pose-openpose.png": "comfy-jobs/pe3-poses/inputs/t_pose-openpose.png",
+        "kompanion/pe3/t_pose-depth.png": "comfy-jobs/pe3-poses/inputs/t_pose-depth.png"
+      },
+      "output": "comfy-jobs/pe3-poses/out/t_pose.png",
+      "timeout_s": 300
+    },
+    {
+      "graph": "comfy-jobs/pe3-poses/cowboy_shot.json",
+      "inputs": {
+        "kompanion/pe3/cowboy_shot-openpose.png": "comfy-jobs/pe3-poses/inputs/cowboy_shot-openpose.png",
+        "kompanion/pe3/cowboy_shot-depth.png": "comfy-jobs/pe3-poses/inputs/cowboy_shot-depth.png"
+      },
+      "output": "comfy-jobs/pe3-poses/out/cowboy_shot.png",
+      "timeout_s": 300
+    },
+    {
+      "graph": "comfy-jobs/pe3-poses/action.json",
+      "inputs": {
+        "kompanion/pe3/action-openpose.png": "comfy-jobs/pe3-poses/inputs/action-openpose.png",
+        "kompanion/pe3/action-depth.png": "comfy-jobs/pe3-poses/inputs/action-depth.png"
+      },
+      "output": "comfy-jobs/pe3-poses/out/action.png",
+      "timeout_s": 300
+    },
+    {
+      "graph": "comfy-jobs/pe3-poses/sitting.json",
+      "inputs": {
+        "kompanion/pe3/sitting-openpose.png": "comfy-jobs/pe3-poses/inputs/sitting-openpose.png",
+        "kompanion/pe3/sitting-depth.png": "comfy-jobs/pe3-poses/inputs/sitting-depth.png"
+      },
+      "output": "comfy-jobs/pe3-poses/out/sitting.png",
+      "timeout_s": 300
+    },
+    {
+      "graph": "comfy-jobs/pe3-poses/waving.json",
+      "inputs": {
+        "kompanion/pe3/waving-openpose.png": "comfy-jobs/pe3-poses/inputs/waving-openpose.png",
+        "kompanion/pe3/waving-depth.png": "comfy-jobs/pe3-poses/inputs/waving-depth.png"
+      },
+      "output": "comfy-jobs/pe3-poses/out/waving.png",
+      "timeout_s": 300
+    },
+    {
+      "graph": "comfy-jobs/pe3-poses/fists.json",
+      "inputs": {
+        "kompanion/pe3/fists-openpose.png": "comfy-jobs/pe3-poses/inputs/fists-openpose.png",
+        "kompanion/pe3/fists-depth.png": "comfy-jobs/pe3-poses/inputs/fists-depth.png"
+      },
+      "output": "comfy-jobs/pe3-poses/out/fists.png",
+      "timeout_s": 300
+    }
+  ]
 }

@@ -18,7 +18,12 @@ POSE_MODELS = os.environ.get("POSE_MODELS", "/pose-models")
 _DWPOSE = []
 
 CELLS = {
-    "v2": [("front", 0.0, 0.0, 0.25, 1.0), ("left", 0.25, 0.0, 0.5, 1.0), ("back", 0.5, 0.0, 0.75, 1.0), ("right", 0.75, 0.0, 1.0, 1.0)],
+    "v2": [
+        ("front", 0.0, 0.0, 0.25, 1.0),
+        ("left", 0.25, 0.0, 0.5, 1.0),
+        ("back", 0.5, 0.0, 0.75, 1.0),
+        ("right", 0.75, 0.0, 1.0, 1.0),
+    ],
     "oc-v3": [
         ("front", 0.0, 0.0, 0.2, 1.0),
         ("right", 0.2, 0.0, 0.4, 1.0),
@@ -130,7 +135,12 @@ def judge(
                         wrist_issue_added = True
                     break
 
-    return {"ok": not issues, "score": len(issues), "issues": issues, "cells": cells_out}
+    return {
+        "ok": not issues,
+        "score": len(issues),
+        "issues": issues,
+        "cells": cells_out,
+    }
 
 
 def detect(path, models_dir, cells=None):
@@ -248,7 +258,6 @@ class AnatomyHandler(BaseHTTPRequestHandler):
                 return
             import cv2
             import numpy as np
-
             from dwpose import DWPose
 
             img = cv2.imdecode(
@@ -294,7 +303,9 @@ def main():
                 data = json.load(f)
         layout = data.get("layout", args.layout)
         cells = CELLS[layout]
-        result = judge(data["faces"], data["hands"], data["width"], data["height"], cells=cells)
+        result = judge(
+            data["faces"], data["hands"], data["width"], data["height"], cells=cells
+        )
         print(json.dumps(result))
         sys.exit(0)
 
@@ -302,7 +313,9 @@ def main():
     failed = False
     for path in args.images:
         try:
-            res = check(path, args.models, tuple(args.face_views.split(",")), args.layout)
+            res = check(
+                path, args.models, tuple(args.face_views.split(",")), args.layout
+            )
             print(json.dumps(res))
             if res["ok"]:
                 ok_any = True
