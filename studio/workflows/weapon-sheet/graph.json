@@ -1,0 +1,369 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["41", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, general, adult, mature, character sheet, character design sheet, full body, multiple views, front view, side view, back view, standing, simple background, white background"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, nsfw, nude, explicit"
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1344,
+      "height": 672,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["82", 0],
+      "negative": ["82", 1],
+      "latent_image": ["6", 0],
+      "seed": 42,
+      "steps": 28,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 1
+    }
+  },
+  "8": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["53", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "9": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["8", 0],
+      "seed": 43,
+      "steps": 18,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35
+    }
+  },
+  "10": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["9", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["96", 0],
+      "filename_prefix": "kompanion/weapon-sheet"
+    }
+  },
+  "40": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "character_Sheet_XL.safetensors",
+      "strength_model": 0.6,
+      "strength_clip": 0.6
+    }
+  },
+  "41": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["40", 0],
+      "clip": ["40", 1],
+      "lora_name": "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors",
+      "strength_model": 0.8,
+      "strength_clip": 0.8
+    }
+  },
+  "50": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "53": {
+    "class_type": "ImageScaleBy",
+    "inputs": {
+      "image": ["90", 0],
+      "upscale_method": "lanczos",
+      "scale_by": 1.5
+    }
+  },
+  "61": {
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "xinsir-union-sdxl-promax.safetensors"
+    }
+  },
+  "70": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x-AnimeSharp.pth"
+    }
+  },
+  "71": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": ["70", 0],
+      "image": ["172", 0]
+    }
+  },
+  "72": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["71", 0],
+      "upscale_method": "lanczos",
+      "width": 3024,
+      "height": 1512,
+      "crop": "disabled"
+    }
+  },
+  "80": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/weapon-sheet-lines.png"
+    }
+  },
+  "81": {
+    "class_type": "SetUnionControlNetType",
+    "inputs": {
+      "control_net": ["61", 0],
+      "type": "canny/lineart/anime_lineart/mlsd"
+    }
+  },
+  "82": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "control_net": ["81", 0],
+      "image": ["80", 0],
+      "vae": ["1", 2],
+      "strength": 0.6,
+      "start_percent": 0.0,
+      "end_percent": 0.8
+    }
+  },
+  "91": {
+    "class_type": "EmptyImage",
+    "inputs": {
+      "width": 1344,
+      "height": 672,
+      "batch_size": 1,
+      "color": 0
+    }
+  },
+  "92": {
+    "class_type": "ImageToMask",
+    "inputs": {
+      "image": ["80", 0],
+      "channel": "red"
+    }
+  },
+  "90": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["50", 0],
+      "source": ["91", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "mask": ["92", 0]
+    }
+  },
+  "93": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/weapon-sheet-lines-final.png"
+    }
+  },
+  "94": {
+    "class_type": "ImageToMask",
+    "inputs": {
+      "image": ["93", 0],
+      "channel": "red"
+    }
+  },
+  "95": {
+    "class_type": "EmptyImage",
+    "inputs": {
+      "width": 3024,
+      "height": 1512,
+      "batch_size": 1,
+      "color": 0
+    }
+  },
+  "96": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["72", 0],
+      "source": ["95", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "mask": ["94", 0]
+    }
+  },
+  "160": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 504,
+      "height": 1008,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "161": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["160", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "162": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["10", 0],
+      "source": ["161", 0],
+      "x": 1008,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "163": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["160", 0],
+      "upscale_method": "lanczos",
+      "width": 84,
+      "height": 1008,
+      "crop": "disabled"
+    }
+  },
+  "164": {
+    "class_type": "EmptyImage",
+    "inputs": {
+      "width": 504,
+      "height": 1008,
+      "batch_size": 1,
+      "color": 16777215
+    }
+  },
+  "165": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["164", 0],
+      "source": ["163", 0],
+      "x": 210,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "166": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, the same weapon seen edge-on from the side, thin side profile, white background"
+    }
+  },
+  "167": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["165", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "168": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["166", 0],
+      "negative": ["5", 0],
+      "latent_image": ["167", 0],
+      "seed": 47,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "169": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["168", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "170": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["162", 0],
+      "source": ["169", 0],
+      "x": 504,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "171": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["169", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "172": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["170", 0],
+      "source": ["171", 0],
+      "x": 1512,
+      "y": 0,
+      "resize_source": false
+    }
+  }
+}

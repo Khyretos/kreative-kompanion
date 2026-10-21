@@ -1,0 +1,1495 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["41", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, general, adult, mature, character sheet, character design sheet, full body, multiple views, front view, side view, back view, standing, simple background, white background"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, nsfw, nude, explicit"
+    }
+  },
+  "6": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1600,
+      "height": 640,
+      "batch_size": 1
+    }
+  },
+  "7": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["34", 0],
+      "positive": ["82", 0],
+      "negative": ["82", 1],
+      "latent_image": ["6", 0],
+      "seed": 42,
+      "steps": 28,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 1
+    }
+  },
+  "8": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["53", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "9": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["34", 0],
+      "positive": ["147", 0],
+      "negative": ["5", 0],
+      "latent_image": ["8", 0],
+      "seed": 43,
+      "steps": 18,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35
+    }
+  },
+  "10": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["9", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "11": {
+    "class_type": "UltralyticsDetectorProvider",
+    "inputs": {
+      "model_name": "bbox/face_yolov8m.pt"
+    }
+  },
+  "12": {
+    "class_type": "SAMLoader",
+    "inputs": {
+      "model_name": "sam_vit_b_01ec64.pth",
+      "device_mode": "AUTO"
+    }
+  },
+  "13": {
+    "class_type": "FaceDetailer",
+    "inputs": {
+      "model": ["34", 0],
+      "clip": ["3", 0],
+      "vae": ["1", 2],
+      "positive": ["16", 0],
+      "negative": ["5", 0],
+      "guide_size": 512,
+      "guide_size_for": true,
+      "max_size": 1024,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "feather": 5,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "bbox_threshold": 0.5,
+      "bbox_dilation": 10,
+      "bbox_crop_factor": 3,
+      "sam_detection_hint": "center-1",
+      "sam_dilation": 0,
+      "sam_threshold": 0.93,
+      "sam_bbox_expansion": 0,
+      "sam_mask_hint_threshold": 0.7,
+      "sam_mask_hint_use_negative": "False",
+      "drop_size": 10,
+      "wildcard": "",
+      "cycle": 1,
+      "sam_model_opt": ["12", 0],
+      "image": ["150", 0],
+      "bbox_detector": ["11", 0],
+      "seed": 44,
+      "denoise": 0.4,
+      "tiled_encode": true,
+      "tiled_decode": true
+    }
+  },
+  "14": {
+    "class_type": "UltralyticsDetectorProvider",
+    "inputs": {
+      "model_name": "bbox/hand_yolov8s.pt"
+    }
+  },
+  "15": {
+    "class_type": "FaceDetailer",
+    "inputs": {
+      "model": ["34", 0],
+      "clip": ["3", 0],
+      "vae": ["1", 2],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "guide_size": 512,
+      "guide_size_for": true,
+      "max_size": 1024,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "feather": 5,
+      "noise_mask": true,
+      "force_inpaint": true,
+      "bbox_threshold": 0.5,
+      "bbox_dilation": 10,
+      "bbox_crop_factor": 2.5,
+      "sam_detection_hint": "center-1",
+      "sam_dilation": 0,
+      "sam_threshold": 0.93,
+      "sam_bbox_expansion": 0,
+      "sam_mask_hint_threshold": 0.7,
+      "sam_mask_hint_use_negative": "False",
+      "drop_size": 10,
+      "wildcard": "",
+      "cycle": 1,
+      "sam_model_opt": ["12", 0],
+      "image": ["13", 0],
+      "bbox_detector": ["14", 0],
+      "seed": 45,
+      "denoise": 0.35,
+      "tiled_encode": true,
+      "tiled_decode": true
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["96", 0],
+      "filename_prefix": "kompanion/oc-sheet-v3"
+    }
+  },
+  "30": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "face.png"
+    }
+  },
+  "31": {
+    "class_type": "PrepImageForClipVision",
+    "inputs": {
+      "image": ["30", 0],
+      "interpolation": "LANCZOS",
+      "crop_position": "center",
+      "sharpening": 0
+    }
+  },
+  "32": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    }
+  },
+  "33": {
+    "class_type": "IPAdapterModelLoader",
+    "inputs": {
+      "ipadapter_file": "ip-adapter-plus-face_sdxl_vit-h.safetensors"
+    }
+  },
+  "34": {
+    "class_type": "IPAdapterAdvanced",
+    "inputs": {
+      "model": ["41", 0],
+      "ipadapter": ["33", 0],
+      "image": ["31", 0],
+      "clip_vision": ["32", 0],
+      "weight": 0.85,
+      "weight_type": "linear",
+      "combine_embeds": "concat",
+      "start_at": 0,
+      "end_at": 0.85,
+      "embeds_scaling": "V only"
+    }
+  },
+  "40": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "character_Sheet_XL.safetensors",
+      "strength_model": 0.6,
+      "strength_clip": 0.6
+    }
+  },
+  "41": {
+    "class_type": "LoraLoader",
+    "inputs": {
+      "model": ["40", 0],
+      "clip": ["40", 1],
+      "lora_name": "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors",
+      "strength_model": 0.8,
+      "strength_clip": 0.8
+    }
+  },
+  "50": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "53": {
+    "class_type": "ImageScaleBy",
+    "inputs": {
+      "image": ["90", 0],
+      "upscale_method": "lanczos",
+      "scale_by": 1.5
+    }
+  },
+  "60": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/oc-sheet-v3-pose.png"
+    }
+  },
+  "61": {
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "xinsir-union-sdxl-promax.safetensors"
+    }
+  },
+  "62": {
+    "class_type": "SetUnionControlNetType",
+    "inputs": {
+      "control_net": ["61", 0],
+      "type": "openpose"
+    }
+  },
+  "63": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["147", 0],
+      "negative": ["5", 0],
+      "control_net": ["62", 0],
+      "image": ["60", 0],
+      "strength": 0.9,
+      "start_percent": 0.0,
+      "end_percent": 0.8,
+      "vae": ["1", 2]
+    }
+  },
+  "64": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/oc-sheet-v3-depth.png"
+    }
+  },
+  "65": {
+    "class_type": "SetUnionControlNetType",
+    "inputs": {
+      "control_net": ["61", 0],
+      "type": "depth"
+    }
+  },
+  "66": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["63", 0],
+      "negative": ["63", 1],
+      "control_net": ["65", 0],
+      "image": ["64", 0],
+      "strength": 0.6,
+      "start_percent": 0.0,
+      "end_percent": 0.6,
+      "vae": ["1", 2]
+    }
+  },
+  "70": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x-AnimeSharp.pth"
+    }
+  },
+  "71": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": ["70", 0],
+      "image": ["178", 0]
+    }
+  },
+  "72": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["71", 0],
+      "upscale_method": "lanczos",
+      "width": 3600,
+      "height": 1440,
+      "crop": "disabled"
+    }
+  },
+  "16": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "face"
+    }
+  },
+  "80": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/oc-sheet-v3-lines.png"
+    }
+  },
+  "81": {
+    "class_type": "SetUnionControlNetType",
+    "inputs": {
+      "control_net": ["61", 0],
+      "type": "canny/lineart/anime_lineart/mlsd"
+    }
+  },
+  "82": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["66", 0],
+      "negative": ["66", 1],
+      "control_net": ["81", 0],
+      "image": ["80", 0],
+      "vae": ["1", 2],
+      "strength": 0.6,
+      "start_percent": 0.0,
+      "end_percent": 0.8
+    }
+  },
+  "85": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head close-up, portrait"
+    }
+  },
+  "86": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/oc-sheet-v3-helmet.png"
+    }
+  },
+  "87": {
+    "class_type": "ImageToMask",
+    "inputs": {
+      "image": ["86", 0],
+      "channel": "red"
+    }
+  },
+  "88": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["85", 0],
+      "mask": ["87", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "89": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["4", 0],
+      "conditioning_2": ["88", 0]
+    }
+  },
+  "91": {
+    "class_type": "EmptyImage",
+    "inputs": {
+      "width": 1600,
+      "height": 640,
+      "batch_size": 1,
+      "color": 0
+    }
+  },
+  "92": {
+    "class_type": "ImageToMask",
+    "inputs": {
+      "image": ["80", 0],
+      "channel": "red"
+    }
+  },
+  "90": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["50", 0],
+      "source": ["91", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "mask": ["92", 0]
+    }
+  },
+  "93": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/oc-sheet-v3-lines-final.png"
+    }
+  },
+  "94": {
+    "class_type": "ImageToMask",
+    "inputs": {
+      "image": ["93", 0],
+      "channel": "red"
+    }
+  },
+  "95": {
+    "class_type": "EmptyImage",
+    "inputs": {
+      "width": 3600,
+      "height": 1440,
+      "batch_size": 1,
+      "color": 0
+    }
+  },
+  "96": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["72", 0],
+      "source": ["95", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "mask": ["94", 0]
+    }
+  },
+  "101": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "kompanion/oc-sheet-v3-regions.png"
+    }
+  },
+  "110": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, front view, facing the viewer"
+    }
+  },
+  "120": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 1052688
+    }
+  },
+  "130": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["110", 0],
+      "mask": ["120", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "140": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["89", 0],
+      "conditioning_2": ["130", 0]
+    }
+  },
+  "111": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, side view, profile, facing right"
+    }
+  },
+  "121": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 2105376
+    }
+  },
+  "131": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["111", 0],
+      "mask": ["121", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "141": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["140", 0],
+      "conditioning_2": ["131", 0]
+    }
+  },
+  "112": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, side view, profile, facing left"
+    }
+  },
+  "122": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 3158064
+    }
+  },
+  "132": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["112", 0],
+      "mask": ["122", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "142": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["141", 0],
+      "conditioning_2": ["132", 0]
+    }
+  },
+  "113": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, back view, from behind"
+    }
+  },
+  "123": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 4210752
+    }
+  },
+  "133": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["113", 0],
+      "mask": ["123", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "143": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["142", 0],
+      "conditioning_2": ["133", 0]
+    }
+  },
+  "114": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head close-up, front view, facing the viewer"
+    }
+  },
+  "124": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 5263440
+    }
+  },
+  "134": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["114", 0],
+      "mask": ["124", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "144": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["143", 0],
+      "conditioning_2": ["134", 0]
+    }
+  },
+  "115": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head close-up, side view, profile, facing right"
+    }
+  },
+  "125": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 6316128
+    }
+  },
+  "135": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["115", 0],
+      "mask": ["125", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "145": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["144", 0],
+      "conditioning_2": ["135", 0]
+    }
+  },
+  "116": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head close-up, side view, profile, facing left"
+    }
+  },
+  "126": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 7368816
+    }
+  },
+  "136": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["116", 0],
+      "mask": ["126", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "146": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["145", 0],
+      "conditioning_2": ["136", 0]
+    }
+  },
+  "117": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head close-up, back of the head, from behind"
+    }
+  },
+  "127": {
+    "class_type": "ImageColorToMask",
+    "inputs": {
+      "image": ["101", 0],
+      "color": 8421504
+    }
+  },
+  "137": {
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": ["117", 0],
+      "mask": ["127", 0],
+      "strength": 1.0,
+      "set_cond_area": "default"
+    }
+  },
+  "147": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["146", 0],
+      "conditioning_2": ["137", 0]
+    }
+  },
+  "150": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 1920,
+      "height": 960,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "151": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["277", 0],
+      "source": ["15", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "200": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 149,
+      "y": 96
+    }
+  },
+  "201": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, front view, facing the viewer"
+    }
+  },
+  "202": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["200", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "203": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["202", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "204": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["201", 0],
+      "negative": ["5", 0],
+      "latent_image": ["203", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "205": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["204", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "206": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["205", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "207": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["10", 0],
+      "source": ["206", 0],
+      "x": 1920,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "210": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 149,
+      "y": 96
+    }
+  },
+  "211": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, front view, facing the viewer"
+    }
+  },
+  "219": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["211", 0]
+    }
+  },
+  "218": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["219", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
+  "212": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["210", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "213": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["212", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "214": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["218", 0],
+      "negative": ["5", 0],
+      "latent_image": ["213", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.55
+    }
+  },
+  "215": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["214", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "216": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["215", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "217": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["207", 0],
+      "source": ["216", 0],
+      "x": 2160,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "220": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 629,
+      "y": 96
+    }
+  },
+  "221": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing right"
+    }
+  },
+  "222": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["220", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "223": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["222", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "224": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["221", 0],
+      "negative": ["5", 0],
+      "latent_image": ["223", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "225": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["224", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "226": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["225", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "227": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["217", 0],
+      "source": ["226", 0],
+      "x": 1920,
+      "y": 240,
+      "resize_source": false
+    }
+  },
+  "230": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 629,
+      "y": 96
+    }
+  },
+  "231": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing right"
+    }
+  },
+  "239": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["231", 0]
+    }
+  },
+  "238": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["239", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
+  "232": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["230", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "233": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["232", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "234": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["238", 0],
+      "negative": ["5", 0],
+      "latent_image": ["233", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.55
+    }
+  },
+  "235": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["234", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "236": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["235", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "237": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["227", 0],
+      "source": ["236", 0],
+      "x": 2160,
+      "y": 240,
+      "resize_source": false
+    }
+  },
+  "240": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1109,
+      "y": 96
+    }
+  },
+  "241": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing left"
+    }
+  },
+  "242": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["240", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "243": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["242", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "244": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["241", 0],
+      "negative": ["5", 0],
+      "latent_image": ["243", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "245": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["244", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "246": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["245", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "247": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["237", 0],
+      "source": ["246", 0],
+      "x": 1920,
+      "y": 480,
+      "resize_source": false
+    }
+  },
+  "250": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1109,
+      "y": 96
+    }
+  },
+  "251": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, side view, profile, facing left"
+    }
+  },
+  "259": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["251", 0]
+    }
+  },
+  "258": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["259", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
+  "252": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["250", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "253": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["252", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "254": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["258", 0],
+      "negative": ["5", 0],
+      "latent_image": ["253", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.55
+    }
+  },
+  "255": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["254", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "256": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["255", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "257": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["247", 0],
+      "source": ["256", 0],
+      "x": 2160,
+      "y": 480,
+      "resize_source": false
+    }
+  },
+  "260": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1589,
+      "y": 96
+    }
+  },
+  "261": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, back of the head, from behind"
+    }
+  },
+  "262": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["260", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "263": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["262", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "264": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["261", 0],
+      "negative": ["5", 0],
+      "latent_image": ["263", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.45
+    }
+  },
+  "265": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["264", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "266": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["265", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "267": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["257", 0],
+      "source": ["266", 0],
+      "x": 1920,
+      "y": 720,
+      "resize_source": false
+    }
+  },
+  "270": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["10", 0],
+      "width": 182,
+      "height": 182,
+      "x": 1589,
+      "y": 96
+    }
+  },
+  "271": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, head close-up, portrait, back of the head, from behind"
+    }
+  },
+  "279": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["85", 0],
+      "conditioning_2": ["271", 0]
+    }
+  },
+  "278": {
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": ["279", 0],
+      "conditioning_2": ["4", 0]
+    }
+  },
+  "272": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["270", 0],
+      "upscale_method": "lanczos",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled"
+    }
+  },
+  "273": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["272", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "274": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["41", 0],
+      "positive": ["278", 0],
+      "negative": ["5", 0],
+      "latent_image": ["273", 0],
+      "seed": 46,
+      "steps": 20,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.55
+    }
+  },
+  "275": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["274", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "276": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["275", 0],
+      "upscale_method": "lanczos",
+      "width": 240,
+      "height": 240,
+      "crop": "disabled"
+    }
+  },
+  "277": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["267", 0],
+      "source": ["276", 0],
+      "x": 2160,
+      "y": 720,
+      "resize_source": false
+    }
+  },
+  "170": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["151", 0],
+      "width": 480,
+      "height": 960,
+      "x": 960,
+      "y": 0
+    }
+  },
+  "171": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["170", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "172": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["151", 0],
+      "source": ["171", 0],
+      "x": 480,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "173": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["172", 0],
+      "width": 240,
+      "height": 240,
+      "x": 1920,
+      "y": 480
+    }
+  },
+  "174": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["173", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "175": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["172", 0],
+      "source": ["174", 0],
+      "x": 1920,
+      "y": 240,
+      "resize_source": false
+    }
+  },
+  "176": {
+    "class_type": "ImageCrop",
+    "inputs": {
+      "image": ["175", 0],
+      "width": 240,
+      "height": 240,
+      "x": 2160,
+      "y": 480
+    }
+  },
+  "177": {
+    "class_type": "ImageFlip",
+    "inputs": {
+      "image": ["176", 0],
+      "flip_method": "y-axis: horizontally"
+    }
+  },
+  "178": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["175", 0],
+      "source": ["177", 0],
+      "x": 2160,
+      "y": 240,
+      "resize_source": false
+    }
+  }
+}

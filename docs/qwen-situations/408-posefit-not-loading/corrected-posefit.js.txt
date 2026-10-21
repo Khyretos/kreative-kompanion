@@ -1,0 +1,131 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+  // STU-PE3: fit the target pose to what a generated image shows, and give the fix as PE1 set_joint ops.
+  // The Coder's draft (1 + 2 repair attempts) did not load (exported names it never defined), scored every bone by
+  // the torso and never read the joint limits; Claude rewrote it to the spec (lesson 408).
+
+  const TWIST_PARENT = { l_forearm: 'l_shoulder', r_forearm: 'r_shoulder', l_shin: 'l_hip', r_shin: 'r_hip' };
+  const CHILD = { l_upper_arm: 'l_forearm', r_upper_arm: 'r_forearm', l_thigh: 'l_shin', r_thigh: 'r_shin' };
+  const KEYS = ['bend', 'side', 'twist'];
+  const round1 = (x) => Math.round(x * 10) / 10;
+
+  function fit(pose, detected, opts = {}) {
+    const FK = need('fk', './fk.js');
+    const P = need('project', './project.js');
+    const PC = need('posecheck', './posecheck.js');
+    const S = need('skeleton', './skeleton.js');
+    const OPS = need('ops', './ops.js');
+    const tol = opts.tol ?? 20;
+    const view = opts.view || {};
+
+    const v0 = P.makeView(view, FK.solve(pose));
+    const cam = { ...view, width: v0.width, height: v0.height, scale: v0.scale, center: v0.center };
+    const kpOf = (p) => { const w = FK.solve(p); return P.keypoints(P.makeView(cam, w), w); };
+
+    const before = PC.compare(kpOf(pose), detected, { tol, swap: opts.swap });
+    const det = before.swapped ? PC.swapSides(detected) : detected;
+
+    let p = JSON.parse(JSON.stringify(pose));
+    p.joints = p.joints || {};
+    const get = (q, [j, k]) => (q.joints[j] && q.joints[j][k]) || 0;
+    const withVal = (q, [j, k], x) => {
+      const c = { ...q, joints: { ...q.joints } };
+      c.joints[j] = OPS.clamp(j, { ...q.joints[j], [k]: x });
+      return c;
+    };
+
+    for (const b of PC.BONES) {
+      // The bone's own error, plus a tenth of its child's: a shoulder that only matches the upper arm on screen can
+      // still turn the forearm away (two 3D poses, one 2D line), so the child breaks the tie.
+      const errOf = (q) => {
+        const bones = PC.compare(kpOf(q), det, { tol, swap: false }).bones;
+        const r = bones.find((x) => x.name === b.name);
+        if (r.err === null) return Infinity;
+        const c = CHILD[b.name] && bones.find((x) => x.name === CHILD[b.name]);
+        return r.err + (c && c.err !== null ? 0.1 * c.err : 0);
+      };
+      const st = PC.compare(kpOf(p), det, { tol, swap: false }).bones.find((x) => x.name === b.name).status;
+      if (st !== 'wrong') continue;
+      const vars = [[b.joint, 'bend'], [b.joint, 'side']];
+      if (TWIST_PARENT[b.name]) vars.push([TWIST_PARENT[b.name], 'twist']);
+
+      let best = p;
+      let bestErr = errOf(p);
+      const values = vars.map(([j, k]) => {
+        const [lo, hi] = S.byName[j].limits[k];
+        const out = [];
+        for (let x = lo; x < hi; x += 15) out.push(x);
+        out.push(hi);
+        return out;
+      });
+      const grid = (i, q) => {
+        if (i === vars.length) {
+          const e = errOf(q);
+          if (e < bestErr) { best = q; bestErr = e; }
+          return;
+        }
+        for (const x of values[i]) grid(i + 1, withVal(q, vars[i], x));
+      };
+      grid(0, p);
+
+      for (const step of [8, 4, 2, 1, 0.5, 0.2, 0.1]) {
+        let improved = true;
+        while (improved) {
+          improved = false;
+          for (const vr of vars) {
+            for (const d of [step, -step]) {
+              const q = withVal(best, vr, get(best, vr) + d);
+              const e = errOf(q);
+              if (e < bestErr - 1e-9) { best = q; bestErr = e; improved = true; }
+            }
+          }
+        }
+      }
+      p = { ...best, joints: { ...best.joints } };
+      for (const j of new Set(vars.map((vr) => vr[0]))) {
+        const e = p.joints[j] || {};
+        p.joints[j] = OPS.clamp(j, { bend: round1(e.bend || 0), side: round1(e.side || 0), twist: round1(e.twist || 0) });
+      }
+    }
+
+    const ops = [];
+    for (const name of Object.keys(p.joints)) {
+      const a = OPS.clamp(name, p.joints[name]);
+      const o = OPS.clamp(name, pose.joints && pose.joints[name]);
+      if (KEYS.some((k) => a[k] !== o[k])) ops.push({ op: 'set_joint', joint: name, bend: a.bend, side: a.side, twist: a.twist });
+    }
+    const after = PC.compare(kpOf(p), detected, { tol, swap: opts.swap });
+    return { pose: p, ops, before, after, swapped: before.swapped };
+  }
+
+  function regions(target, detected, check, opts = {}) {
+    const PC = need('posecheck', './posecheck.js');
+    const pad = opts.pad ?? 24;
+    const det = check.swapped ? PC.swapSides(detected) : detected;
+    const pointOf = (kp, idx) => {
+      let x = 0, y = 0;
+      for (const i of idx) { const q = kp.body[i]; if (!q) return null; x += q[0]; y += q[1]; }
+      return [x / idx.length, y / idx.length];
+    };
+    const out = [];
+    for (const b of check.bones) {
+      if (b.status !== 'wrong') continue;
+      const bd = PC.BONES.find((x) => x.name === b.name);
+      const pts = [pointOf(target, bd.a), pointOf(target, bd.b), pointOf(det, bd.a), pointOf(det, bd.b)].filter(Boolean);
+      if (!pts.length) continue;
+      const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+      const cx = (v) => Math.min(detected.width, Math.max(0, v));
+      const cy = (v) => Math.min(detected.height, Math.max(0, v));
+      out.push({ bone: b.name, joint: b.joint, box: [
+        cx(Math.floor(Math.min(...xs) - pad)), cy(Math.floor(Math.min(...ys) - pad)),
+        cx(Math.ceil(Math.max(...xs) + pad)), cy(Math.ceil(Math.max(...ys) + pad)),
+      ] });
+    }
+    return out;
+  }
+
+  const api = { fit, regions, TWIST_PARENT };
+  if (NS) NS.posefit = api; else module.exports = api;
+})();

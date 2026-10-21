@@ -40,7 +40,7 @@ fn png() -> std::path::PathBuf {
 async fn check_posts_the_picture_and_reads_the_verdict() {
     let (url, got) = fake(200, json!({"ok": false, "score": 2, "issues": ["back: face seen (head facing the wrong way)", "left: 3 hands"], "cells": []})).await;
     let views = vec!["front".to_string(), "left".to_string(), "right".to_string()];
-    let v = check(&reqwest::Client::new(), &url, &png(), &views).await.unwrap();
+    let v = check(&reqwest::Client::new(), &url, &png(), &views, None).await.unwrap();
     assert!(!v.ok);
     assert_eq!(v.score, 2);
     assert_eq!(v.issues, vec!["back: face seen (head facing the wrong way)".to_string(), "left: 3 hands".to_string()]);
@@ -51,15 +51,29 @@ async fn check_posts_the_picture_and_reads_the_verdict() {
 #[tokio::test]
 async fn no_face_views_sends_no_query() {
     let (url, got) = fake(200, json!({"ok": true, "score": 0, "issues": []})).await;
-    let v = check(&reqwest::Client::new(), &url, &png(), &[]).await.unwrap();
+    let v = check(&reqwest::Client::new(), &url, &png(), &[], None).await.unwrap();
     assert!(v.ok);
     assert!(got.query.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
+async fn the_layout_goes_with_the_face_views() {
+    // STU-SHEET3D: the v3 sheet's cells are not four equal columns; the checker needs its layout.
+    let (url, got) = fake(200, json!({"ok": true, "score": 0, "issues": []})).await;
+    let views = vec!["front".to_string()];
+    check(&reqwest::Client::new(), &url, &png(), &views, Some("oc-v3")).await.unwrap();
+    let q = got.query.lock().unwrap().clone();
+    assert_eq!(q.get("face_views").map(String::as_str), Some("front"));
+    assert_eq!(q.get("layout").map(String::as_str), Some("oc-v3"));
+    let (url, got) = fake(200, json!({"ok": true, "score": 0, "issues": []})).await;
+    check(&reqwest::Client::new(), &url, &png(), &[], Some("oc-v3")).await.unwrap();
+    assert_eq!(got.query.lock().unwrap().get("layout").map(String::as_str), Some("oc-v3"));
+}
+
+#[tokio::test]
 async fn a_checker_error_is_an_error() {
     let (url, _) = fake(500, json!({"error": "model missing"})).await;
-    let e = check(&reqwest::Client::new(), &url, &png(), &[]).await.unwrap_err();
+    let e = check(&reqwest::Client::new(), &url, &png(), &[], None).await.unwrap_err();
     assert!(e.to_string().contains("model missing"), "{e}");
 }
 

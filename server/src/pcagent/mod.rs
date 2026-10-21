@@ -3,6 +3,7 @@
 //! approval card (Approve, Always allow for 24 h, Deny); approved calls run as
 //! runner jobs, which still check the computer's grants.
 //! (The model drafted this twice; Claude rewrote it from the same spec.)
+pub mod steplog;
 pub mod tools;
 
 use std::collections::HashMap;
@@ -101,6 +102,31 @@ pub async fn stop(State(s): State<AppState>, Extension(u): Extension<User>, Path
     }
 }
 
+/// AUTO-01: how many tool steps one request may take: the user's setting, kept between 1 and 100.
+pub fn clamp_steps(n: i64) -> usize {
+    n.clamp(1, 100) as usize
+}
+
+/// AUTO-01: does this chat run steps without asking? Only when the chat's own toggle is on, or the
+/// toggle of the project it belongs to is on. Off when nothing says otherwise.
+async fn auto_run_for(s: &AppState, chat_id: &str) -> bool {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT c.auto_run = 1 OR COALESCE((SELECT p.auto_run = 1 FROM projects p WHERE p.id = c.project_id), 0)
+         FROM chats c WHERE c.id = ?",
+    )
+    .bind(chat_id)
+    .fetch_optional(&s.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or(false)
+}
+
+async fn max_steps_for(s: &AppState, user_id: &str) -> usize {
+    let n: Option<i64> = sqlx::query_scalar("SELECT max_steps FROM users WHERE id = ?").bind(user_id).fetch_optional(&s.db).await.ok().flatten();
+    n.map(clamp_steps).unwrap_or(MAX_STEPS)
+}
+
 pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: String, machine_name: String, role: RoleAssignment) {
     let mut messages = vec![json!({ "role": "system", "content": system_prompt(&machine_name) })];
     let history: Vec<(String, String)> = sqlx::query_as(
@@ -115,9 +141,14 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
         let role = if author == "user" { "user" } else { "assistant" };
         messages.push(json!({ "role": role, "content": text }));
     }
+    if let Some(d) = steplog::digest(&s.db, &user_id, &chat_id).await {
+        messages.push(json!({ "role": "system", "content": d }));
+    }
     let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?").bind(&chat_id).fetch_optional(&s.db).await.ok().flatten();
     let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default();
-    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto: false, max_steps: MAX_STEPS, effort, folder: None, task_id: None, run_id: None, protect: None };
+    let auto = auto_run_for(&s, &chat_id).await;
+    let max_steps = max_steps_for(&s, &user_id).await;
+    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None };
     let text = match agent.run(messages).await {
         Ok(t) => t,
         Err(e) => e,

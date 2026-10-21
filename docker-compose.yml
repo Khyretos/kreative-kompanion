@@ -76,6 +76,8 @@ services:
     restart: unless-stopped
     volumes:
       - ${KOMPANION_ANATOMY_MODELS:-./anatomy-models}:/models:ro
+      # STU-PE3: yolox_l.onnx and dw-ll_ucoco_384.onnx (yzd-v/DWPose) for POST /pose, the Studio's pose check
+      - ${KOMPANION_POSE_MODELS:-./pose-models}:/pose-models:ro
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]

@@ -1,0 +1,174 @@
+# STU-SHEET3D: OC sheet v3. One wide sheet: full body front, right, left, back, then a head grid of 2 columns x 4 rows
+# (front, right, left, back; column 1 bare head, column 2 the helmet). Black separator lines reach the model three ways:
+# an MLSD union control (lines.png), black lines painted on the base picture before the hires pass, and again on the
+# final picture. Templates from tools/pose-sheet/sheet_v3.py (built from the v2 sheet, no Blender). 1600x640 base, 3600x1440 out.
+# vram_mb PROVISIONAL until measured (v2 peaked at 13.4 GB at 1344x672).
+title = "OC sheet v3"
+description = "An original character as one wide reference sheet: four full-body views (front, right, left, back) and a grid of head close-ups, with and without a helmet, in cells divided by black lines, so each view can be cut out for a 3D model."
+graph = "graph.json"
+outputs = ["20"]
+# soucouyant only: the A770 has the files but SDXL + FaceDetailer is not measured there yet.
+machines = ["soucouyant"]
+vram_mb = 11000
+ram_mb = 12000
+# STU-C1: SDXL + ControlNet union peaks at ~13 GB torch on the 9070 (1344x672 base), 140-170 s; 11000 + the 2 GB headroom fits next to the desktop (STU-V1b).
+# STU-C4b (2026-10-11, measured from amdgpu sysfs every second): 13.4 GB peak for ComfyUI without --highvram
+# (--reserve-vram 3), 104 s. 11000 stays: it is the most the 16 GB card can offer next to the ~2.3 GB desktop
+# and the 2 GB headroom, and ComfyUI offloads to fit. A higher figure would never start.
+
+# STU-01d: an optional face photo makes the character resemble a person (IP-Adapter plus-face,
+# graph-face.json = graph.json plus Kreative Studio's nodes 30-34 with the model rewired).
+[face]
+graph = "graph-face.json"
+image = "30"
+weight = "34"
+
+# STU-C1: the pose and depth sheets ship with the workflow and are uploaded to ComfyUI before each run
+# (LoadImage node -> file in this folder). Made by tools/pose-sheet (base_mesh.py in Blender, draw_pose.py).
+[images]
+"60" = "pose.png"
+"64" = "depth.png"
+"80" = "lines.png"
+"86" = "helmet.png"
+"93" = "lines-final.png"
+"101" = "regions.png"
+# STU-SHEET3D: built by tools/pose-sheet/sheet_v3.py (101: one grey per view for the per-view prompts); uploaded to ComfyUI before each run (LoadImage node -> file in this folder).
+
+# STU-C4: a sheet with a face in the back view, no face in the front or side views, more than two hands on a
+# figure or two hands at one wrist is re-rolled (new seed) up to three times; the best try is kept.
+# Needs [studio] anatomy_url (tools/anatomy); without it the sheet is not checked.
+[check]
+retries = 3
+face_views = ["front", "left", "right"]
+layout = "oc-v3"
+# STU-SHEET3D: the checker reads the v3 cells (head-* cells need a face except the back one; helmet-* cells are skipped).
+
+[studio]
+label = "OC sheet v3"
+hint = "Four views and head close-ups in a grid"
+sizes = ["wide"]
+order = 8
+px = { wide = [1600, 640] }
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "an adult woman knight with silver hair, a blue cloak and silver armour"
+node = "4"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, absurdres, newest, {rating}, adult, mature, character sheet, character turnaround, reference sheet, multiple views of the same character, full body, front view, side view, from behind, standing, head close-ups, panels divided by black lines, {bg}, {value}"
+
+[[param]]
+name = "negative"
+type = "string"
+default = ""
+node = "5"
+input = "text"
+template = "worst quality, bad quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text, logo, bad anatomy, bad hands, extra fingers, missing fingers, fused fingers, extra limbs, deformed, disfigured, mutated, cropped head, extra hands, extra arms, malformed hands, vertical lines, streaks, scan lines, lined paper, weapon, sword, holding a weapon, separate weapon, {bg_neg}child, loli, shota, underage, young child, kid, toddler, teen, minor, childlike body, {rating_neg}{value}"
+
+# STU-R2: the face fix (node 13) gets its own short prompt, so a moustache or eye colour the whole-sheet
+# prompt mentions late is not painted away; empty uses the main prompt.
+[[param]]
+name = "face_prompt"
+type = "string"
+default = ""
+fallback = "prompt"
+node = "16"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, detailed face, {value}"
+
+# STU-SHEET3D (Kees 2026-10-19): weapons belong on the weapon sheet; the negative keeps them off the body views.
+# STU-SHEET3D: the helmet column's own prompt (node 85, masked to column 2). Empty: a second bare-head take.
+[[param]]
+name = "helmet_look"
+type = "string"
+default = ""
+node = "85"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, mature, head close-up, helmet, {value}"
+
+# STU-R2: plain white (the reference sheet) or the purple starry sky seed 304 painted by itself.
+[[param]]
+name = "background"
+type = "choice"
+default = "white"
+choices = ["white", "starry"]
+words = { bg = { white = "simple background, white background", starry = "purple starry night sky background, stars, deep purple to pink gradient sky" }, bg_neg = { white = "gradient background, starry sky, ", starry = "white background, simple background, " } }
+
+[[param]]
+name = "width"
+type = "int"
+default = 1600
+min = 1600
+max = 1600
+node = "6"
+input = "width"
+
+[[param]]
+name = "height"
+type = "int"
+default = 640
+min = 640
+max = 640
+node = "6"
+input = "height"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "7"
+input = "seed"
+also = [{ node = "9", input = "seed", add = 1 }, { node = "13", input = "seed", add = 2 }, { node = "15", input = "seed", add = 3 }]
+# hires pass, face fix and hand fix use seed+1..3 as in Kreative Studio
+
+[[param]]
+name = "rating"
+type = "choice"
+default = "general"
+# STU-01c: as in Kreative Studio; questionable and explicit need the adult-content right
+# (kompanion-server user-adult <name> on). {rating} goes into the prompt, {rating_neg} into the
+# negative (general keeps out nudity). The adult-only tags stay for every rating.
+choices = ["general", "sensitive", "questionable", "explicit"]
+adult = ["questionable", "explicit"]
+words = { rating_neg = { general = "nsfw, nude, explicit, " } }
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "bbox/face_yolov8m.pt"
+licence = "AGPL-3.0"
+
+[[model]]
+file = "bbox/hand_yolov8s.pt"
+licence = "AGPL-3.0"
+
+[[model]]
+file = "sam_vit_b_01ec64.pth"
+licence = "Apache-2.0"
+
+[[model]]
+file = "character_Sheet_XL.safetensors"
+licence = "unknown (Civitai, check the model page)"
+
+[[model]]
+file = "ILLUST_STYLE_MarvelRivels_ownwaifu.safetensors"
+licence = "unknown (Civitai, check the model page)"
+
+[[model]]
+file = "xinsir-union-sdxl-promax.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "4x-AnimeSharp.pth"
+licence = "CC BY-NC-SA 4.0 (non-commercial; already used by the Studio upscale)"
+
+[[model]]
+file = "ip-adapter-plus-face_sdxl_vit-h.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+licence = "MIT"

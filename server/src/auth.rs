@@ -161,12 +161,18 @@ pub async fn status(
         .unwrap_or((false, false, "system".into(), 5, "[]".into(), "{}".into())),
         None => (false, false, "system".into(), 5, "[]".into(), "{}".into()),
     };
+    // AUTO-01: steps one request may take (1-100); the default when signed out or unset.
+    let max_steps = match &user {
+        Some(u) => sqlx::query_scalar::<_, i64>("SELECT max_steps FROM users WHERE id = ?").bind(&u.id).fetch_optional(&state.db).await?.unwrap_or(10),
+        None => 10,
+    };
     Ok(Json(json!({
         "name": settings.app_name,
         "admin": admin,
         "adult": adult,
         "theme": theme,
         "machinesRefresh": refresh,
+        "maxSteps": max_steps,
         "gpuPins": serde_json::from_str::<serde_json::Value>(&pins).unwrap_or(serde_json::json!([])),
         "cardStyle": serde_json::from_str::<serde_json::Value>(&cards).unwrap_or(serde_json::json!({})),
         "version": env!("CARGO_PKG_VERSION"),

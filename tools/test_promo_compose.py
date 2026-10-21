@@ -13,7 +13,9 @@ from xml.etree import ElementTree
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-spec = importlib.util.spec_from_file_location("pc", os.path.join(HERE, "promo", "compose.py"))
+spec = importlib.util.spec_from_file_location(
+    "pc", os.path.join(HERE, "promo", "compose.py")
+)
 pc = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pc)
 
@@ -89,7 +91,9 @@ class Compose(unittest.TestCase):
     def test_layers_and_texts(self):
         b = pc.compose(self.spec())
         self.assertEqual((b["width"], b["height"]), (1280, 640))
-        self.assertEqual([lay["name"] for lay in b["layers"]], ["background", "subject", "logo"])
+        self.assertEqual(
+            [lay["name"] for lay in b["layers"]], ["background", "subject", "logo"]
+        )
         for lay in b["layers"]:
             self.assertEqual(lay["image"].mode, "RGBA")
             self.assertEqual(lay["image"].size, (1280, 640))
@@ -128,7 +132,8 @@ class Compose(unittest.TestCase):
         out = tempfile.mkdtemp()
         paths = pc.write_all(b, out, "banner")
         self.assertEqual(
-            sorted(os.path.basename(p) for p in paths), ["banner.ora", "banner.png", "banner.svg", "check.json"]
+            sorted(os.path.basename(p) for p in paths),
+            ["banner.ora", "banner.png", "banner.svg", "check.json"],
         )
         # OpenRaster: mimetype first and stored, stack.xml lists the layers top first, text as its own layers
         with zipfile.ZipFile(os.path.join(out, "banner.ora")) as z:
@@ -141,7 +146,9 @@ class Compose(unittest.TestCase):
             stack = ElementTree.fromstring(z.read("stack.xml"))
             self.assertEqual(stack.get("w"), "1280")
             layers = [lay.get("name") for lay in stack.iter("layer")]
-            self.assertEqual(layers, ["tagline", "headline", "logo", "subject", "background"])
+            self.assertEqual(
+                layers, ["tagline", "headline", "logo", "subject", "background"]
+            )
             for lay in stack.iter("layer"):
                 self.assertIn(lay.get("src"), names)
         # SVG: live text, one image per picture layer

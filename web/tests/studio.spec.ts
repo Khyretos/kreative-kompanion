@@ -18,19 +18,19 @@ test("Studio makes images from a type, a description and a size", async ({ page 
   await expect(types.nth(2)).toHaveAttribute("aria-checked", "true");
   await expect(sizes).toHaveText(["Wide", "Square", "Tall"]);
   await expect(sizes.first()).toHaveAttribute("aria-pressed", "true");
-  // The demo library holds one finished image, one failed run (STU-D1: Clear failed) and two checked OC sheets (STU-C4).
+  // The demo library holds one 3D model (3D-01), one finished image, one failed run (STU-D1: Clear failed) and two checked OC sheets (STU-C4).
   const runs = studio.locator(".studio-runs > li");
-  await expect(runs).toHaveCount(4);
-  await expect(runs.first()).toContainText("Character");
-  await expect(runs.first().locator("img")).toHaveAttribute("alt", /Character: /);
+  await expect(runs).toHaveCount(5);
+  await expect(runs.nth(1)).toContainText("Character");
+  await expect(runs.nth(1).locator("img")).toHaveAttribute("alt", /Character: /);
   // Make 4 landscapes.
   await studio.locator("#studio-prompt").fill("misty mountains at sunrise");
   await studio.locator('.studio-form input[name="four"]').check();
   await studio.locator('.studio-form button[type="submit"]').click();
-  await expect(runs).toHaveCount(8);
+  await expect(runs).toHaveCount(9);
   await expect(runs.first()).toContainText("Landscape · Wide");
   await expect(runs.first()).toContainText("misty mountains at sunrise");
-  await expect(studio.locator(".studio-run.s-done")).toHaveCount(7, { timeout: 8000 });
+  await expect(studio.locator(".studio-run.s-done")).toHaveCount(8, { timeout: 8000 });
   // An empty description is refused before anything is sent.
   await studio.locator("#studio-prompt").fill("   ");
   await studio.locator('.studio-form button[type="submit"]').click();

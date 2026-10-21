@@ -1,0 +1,3 @@
+Lesson 414 (STU-PE3 pe3-dwpose): dwpose.py (1 attempt + 2 patch rounds): used cv2 without importing it (the spec said import it inside the functions), decoded the YOLOX grid in a Python triple loop that indexed the batch axis as the cell axis and cut the class columns, and converted centre boxes to corners by subtracting half the size from the size columns. Claude vectorised the decode (meshgrid) and fixed the box maths (about 25 lines); the other 7 functions passed as drafted.
+
+Files: job.json (the pipeline job; its check needs the test trees at /tmp/kk-pe3 and the kreative-studio:local or kk-anatomy:local image), `wrong-*` (the Coder's first full draft), `corrected-*` (what was kept). Code files carry a .txt suffix so the lint gate skips them.
