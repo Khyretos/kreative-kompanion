@@ -253,7 +253,10 @@ class AnatomyHandler(BaseHTTPRequestHandler):
             if clen == 0:
                 self.send_json(400, {"error": "no body"})
                 return
-            if not all(os.path.exists(os.path.join(POSE_MODELS, f)) for f in ("yolox_l.onnx", "dw-ll_ucoco_384.onnx")):
+            if not all(
+                os.path.exists(os.path.join(POSE_MODELS, f))
+                for f in ("yolox_l.onnx", "dw-ll_ucoco_384.onnx")
+            ):
                 self.send_json(503, {"error": "The DWPose models are not installed."})
                 return
             import cv2
