@@ -225,12 +225,25 @@ async fn edit_problem(s: &AppState, user_id: &str, machine_id: &str, job: &Value
         let row: Option<(String, Option<String>)> =
             sqlx::query_as("SELECT state, result FROM machine_jobs WHERE id = ?").bind(&id).fetch_optional(&s.db).await.ok()?;
         match row {
-            Some((st, out)) if st == "done" => return tools::whole_lines(&out.unwrap_or_default(), old).err(),
+            Some((st, out)) if st == "done" => return precheck(&out.unwrap_or_default(), old),
             Some((st, _)) if st == "failed" || st == "refused" => return None,
             _ => {}
         }
     }
     None
+}
+
+/// Job results are stored cut to 64 KiB (access/runner.rs); a read this long may be cut.
+const STORED_RESULT_CAP: usize = 64 * 1024;
+
+/// Checks `old` against the stored read of a file. A read at the cap may be cut, so `old`
+/// could look "not found" when it is past the cut: skip the check and let the runner's own
+/// whole-line check on the full file decide.
+fn precheck(stored: &str, old: &str) -> Option<String> {
+    if stored.len() >= STORED_RESULT_CAP - 4 {
+        return None;
+    }
+    tools::whole_lines(stored, old).err()
 }
 
 /// The paths a runner job touches (path, or the working folder of a command).
@@ -302,6 +315,14 @@ impl Agent {
             }
             messages.push(msg.clone());
             for call in &calls {
+                // Stop pressed while the model was answering (or during an earlier call of this
+                // answer): don't start another step.
+                if self.task_id.is_none() && chat_stopped(&self.chat_id) {
+                    return Err("stopped by you".into());
+                }
+                if self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
+                    return Err("stopped by you".into());
+                }
                 let name = call["function"]["name"].as_str().unwrap_or("");
                 let args: Value = call["function"]["arguments"]
                     .as_str()
@@ -752,6 +773,16 @@ mod tests {
         assert!(r.starts_with("The step ran. State: done."));
         assert!(r.ends_with("exit: 0"));
         assert!(model_result("refused", "not granted: packages").contains("refused"));
+    }
+
+    #[test]
+    fn precheck_skips_a_read_cut_at_the_stored_cap() {
+        // A small file is checked as before.
+        assert!(precheck("a\nb\n", "b\n").is_none());
+        assert!(precheck("a\nb\n", "zzz\n").is_some());
+        // A file read cut at the cap: `old` is past the cut, so it must not be called missing.
+        let cut_read = "x".repeat(STORED_RESULT_CAP);
+        assert!(precheck(&cut_read, "line past the cut\n").is_none());
     }
 
     #[test]

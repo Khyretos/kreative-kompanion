@@ -1249,7 +1249,7 @@ function wire(shell: HTMLElement): void {
     "voice-stop": () => reader.stop(),
     "stop-chat": () => {
       const id = store.get().activeChatId;
-      if (id) void api.stopChat(id).catch(() => {});
+      if (id) void api.stopChat(id).catch(showError);
     },
     "card-reset": () => setCards({}),
     // Task list groups open and close by click; the choice is kept on this device.
