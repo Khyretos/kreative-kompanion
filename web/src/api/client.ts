@@ -106,6 +106,7 @@ export interface KompanionApi {
   deleteChat(chatId: string): Promise<void>;
   /** OVR-01: the Overseer's name ("" = default) and whether it may add context to running tasks. */
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;
+  setMaxSteps(maxSteps: number): Promise<void>;
   /** OVR-01: creates proposed tasks, and their project when it is new. */
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }): Promise<{ projectId: string }>;
   /** OVR-01: adds context to a running task (read before its next step). */

@@ -739,7 +739,7 @@ a.attach-chip:hover { border-color: var(--accent); }
   .messages { padding: 1rem; }
   .composer-wrap { padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
   /* Phones: only the effort chip stays on the hint line (EF-01). */
-  .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot):not(.overseer-slot) { display: none; }
+  .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot):not(.overseer-slot):not(.autorun-slot) { display: none; }
   .tools-chip, .tools-menu button { min-height: 44px; }
   .role { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
 }
@@ -1081,7 +1081,7 @@ button[aria-busy="true"]::after {
 .msg .body .codeblock pre { background: transparent; border: 0; border-radius: 0; }
 
 /* UI-04: every composer chip is one compact size (26px, 5px corners), also on phones. */
-.web-chip, .tools-chip, .effort-chip, .overseer-chip {
+.web-chip, .tools-chip, .effort-chip, .overseer-chip, .autorun-chip {
   min-height: 26px;
   height: 26px;
   padding: 0 0.5rem;
@@ -1105,20 +1105,20 @@ button[aria-busy="true"]::after {
 
 
 
-.effort-chip .icon, .tools-chip .icon, .web-chip .icon, .attach-chip .icon, .overseer-chip .icon {
+.effort-chip .icon, .tools-chip .icon, .web-chip .icon, .attach-chip .icon, .overseer-chip .icon, .autorun-chip .icon {
   width: 14px;
   height: 14px;
 }
 
 @media (max-width: 760px) {
-  .effort-chip, .web-chip, .tools-chip, .overseer-chip {
+  .effort-chip, .web-chip, .tools-chip, .overseer-chip, .autorun-chip {
     min-height: 26px;
     height: 26px;
   }
 }
 
 @media (pointer: coarse) {
-  .effort-chip, .web-chip, .tools-chip, .overseer-chip {
+  .effort-chip, .web-chip, .tools-chip, .overseer-chip, .autorun-chip {
     min-height: 26px;
     height: 26px;
   }
@@ -1160,3 +1160,11 @@ button[aria-busy="true"]::after {
 .grant-block input:not([type]),
 .grant-block select { background: var(--surface); color: var(--fg); }
 /* end MACHINES-CARDS */
+
+/* AUTO-01: the automatic-mode chip (spark icon); the bar on the left shows it is on. */
+.autorun-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
+.autorun-chip:hover { border-color: var(--accent); }
+.autorun-chip[aria-pressed="true"] { box-shadow: inset 3px 0 0 var(--accent); }
+.autorun-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.autorun-chip.locked { cursor: default; }
