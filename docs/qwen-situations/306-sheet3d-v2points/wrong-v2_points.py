@@ -76,7 +76,6 @@ def figure_points(i, width=1536, height=768):
     for k in ORDER:
         if k in FACE:
             # Local vector from head to joint, rotated by view angle, flattened to Z=0
-            head = J["head"]
             local = list(J[k])
             local[2] = 0
             d = rotate(local, deg)
