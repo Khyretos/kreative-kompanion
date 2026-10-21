@@ -133,6 +133,9 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
     public function of the edited file (not only test names, lesson 66) so a lost neighbour fails
     the check. Better, for a new function: let the job write only the function into a scratch
     file (whole-file mode) and splice it in at the anchor yourself.
+    Lesson 297 (2026-10-18): an insert patch for a new TypeScript function failed 3 attempts
+    (invented anchor, wrong place, casts left out). A new function always goes to a scratch
+    file; give any required cast as the full line.
 72. (2026-10-07) A negative needle in a check (`! grep refused`) matched the doc line the prompt
     itself dictated ("nothing is refused"), so a correct draft failed and the fix rounds pasted
     the check's needles into a junk comment. Keep negative needles out of the text you ask for
@@ -332,6 +335,7 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - One change per job: a new parameter, a helper, a request branch and main() wiring are separate units, each with its own test; a unit that touches start-up code has a check that runs it (lessons 362, 366).
 - JS checks run `node --check` first so a fix round gets line:column; never ask the model to cut code out of a very long one-line function, give the new function as its own unit and swap the call site by script (lessons 363, 365).
 - Order units so each check only depends on units that already passed (database grants before the code that needs them) (lesson 364).
+- A content check lists every offending line in one error (lesson 266): naming only the first lets each repair round fix one spot. Line wrapping is mechanical: do it by tool or by hand, never as a model repair round.
 
 ## Numeric, binary and browser units (lessons 370-394, STU-PE1)
 
@@ -354,3 +358,19 @@ smaller models just fail sooner. Evidence per lesson: `docs/model-notes/qwen3-hi
 - CLI jobs list every flag and whether it takes a value, and test each input branch on its own (402).
 - A browser file that needs another file's DOMContentLoaded result looks it up when used (403); when repair rounds make an e2e worse, keep the first draft.
 - HTML insert jobs name the closing tags that stay; UI unit checks are a no-undef lint, a tag-balance check and every existing e2e, never `node --check` or a grep alone (405, 406).
+
+## STU-PE3 (pose check, 2026-10-19, lessons 407-418)
+
+- Comparison units: the spec says which argument is the reference and every test case names both inputs (407).
+- Ask for named top-level functions and one `api` object listing them; the check must load the file first (408).
+- Python units: list the imports and where they go; name vectorised numpy (meshgrid) for grid maths (414). A
+  pipeline module gets one end-to-end test with fake sessions, not only per-function tests (415).
+- Browser units: list the exact globals the file may call; the check is the e2e, never node --check (416).
+- Specs that name every helper and the exact data (palette, box layout) passed first try (411: partmap).
+- Fake data URLs in tests are built by concatenation: the ovms-queue size guard reads every data URL (412).
+
+Lessons 307, 344, 345 (2026-10-19, STU-SHEET3D): (a) a function whose loop structure changes is written whole
+into a scratch file and spliced in by Claude, never patched (lessons 71, 297); (b) every call site of a changed
+signature is its own SEARCH/REPLACE in the prompt, with "no other function changes"; (c) a "keep everything else"
+job gets a check that diffs the untouched lines against the source, not only one on what changed; (d) never edit
+a file while a queued job on it is still in its fix rounds (wait for its check line in the log, lesson 302).

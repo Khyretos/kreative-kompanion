@@ -87,6 +87,11 @@ export function runCard(
     pictures = html`<div class="studio-thumb failed">Failed</div><p class="error small">${r.error ?? "Something went wrong."}</p>`;
   } else if (isAudio) {
     pictures = html`<div class="studio-audio"><audio controls preload="none" src="${r.files[0] ?? ""}"></audio>${r.files[1] ? html`<a class="small" href="${r.files[1]}" download>WAV</a>` : ""}</div>`;
+  } else if (r.type === "image-to-3d") {
+    // 3D-01: files[0] is the .glb, files[1] its preview render (the card picture, under the Select/Delete buttons).
+    const glb = r.files[0] ?? "";
+    const name = `model-${r.id}-1.glb`;
+    pictures = html`<div class="studio-pics">${r.files[1] ? html`<img class="studio-3d-preview" src="${r.files[1]}" alt="${typeLabel}: ${r.prompt}" loading="lazy">` : ""}</div>${glb ? html`<div class="studio-3d"><button type="button" class="btn small" data-action="studio-3d" data-src="${glb}" data-name="${name}">View in 3D</button><a class="btn small" href="${glb}" download="${name}">Download .glb</a></div>` : ""}`;
   } else if (r.type === "video") {
     pictures = html`<div class="studio-pics">${r.files.map((src) => html`<video class="studio-video" controls preload="metadata" src="${src}" aria-label="${typeLabel}: ${r.prompt}"></video>`)}</div>`;
   } else {
@@ -101,7 +106,7 @@ export function runCard(
   const top = finished
     ? html`<div class="studio-run-top"><button type="button" class="round-btn" role="checkbox" aria-checked="${picked ? "true" : "false"}" data-action="studio-pick" data-run="${r.id}" aria-label="Select" title="Select">${icon("check")}</button><button type="button" class="round-btn" data-action="studio-delete" data-run="${r.id}" aria-label="Delete" title="Delete">${icon("trash")}</button></div>`
     : "";
-  return html`<li class="studio-run s-${r.state}${picked ? " picked" : ""}" data-helmet="${r.helmet ?? ""}">${top}${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p>${checkLine(r)}${sent}${menu}</li>`;
+  return html`<li class="studio-run s-${r.state}${picked ? " picked" : ""}" data-type="${r.type}" data-helmet="${r.helmet ?? ""}">${top}${pictures}<p class="small"><strong>${typeLabel} · ${what}</strong> · ${r.prompt}</p>${checkLine(r)}${sent}${menu}</li>`;
 }
 
 /** STU-C4: the anatomy check at a glance; the problems it could not fix open on click. */

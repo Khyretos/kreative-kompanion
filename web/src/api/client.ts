@@ -102,7 +102,7 @@ export interface KompanionApi {
   createChat(title: string, projectId?: string): Promise<Chat>;
   /** The project's thread chat (created on first use); returns its chat id. */
   openThread(projectId: string): Promise<string>;
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean }): Promise<void>;
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean }): Promise<void>;
   deleteChat(chatId: string): Promise<void>;
   /** OVR-01: the Overseer's name ("" = default) and whether it may add context to running tasks. */
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;

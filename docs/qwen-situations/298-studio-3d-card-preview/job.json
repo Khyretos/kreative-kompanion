@@ -1,0 +1,14 @@
+{
+  "name": "3d01-studio-card-preview",
+  "role": "worker/web",
+  "out": "/tmp/kk-3d01/prog/web/src/views/studio.ts",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 1500,
+  "focus": [
+    "\\} else if \\(r\\.type === \\\"image-to-3d\\\"\\) \\{",
+    "pictures = html`<div class=\\\"studio-3d\\\">"
+  ],
+  "check": "cd /tmp/kk-3d01/prog && sh /tmp/kk-mcards-chk/web-check.sh web/src/views/studio.ts tests/studio3d.spec.ts tests/studiomedia.spec.ts tests/studiocheck.spec.ts",
+  "prompt": "In web/src/views/studio.ts, the branch `} else if (r.type === \"image-to-3d\") {` builds the card of a finished 3D run. A 3D run now has two files: r.files[0] is the .glb model and r.files[1] (when present) is a preview picture of it. Today the branch gives every file a View in 3D button and a download, and the card's Select/Delete buttons (absolutely placed over the top of the card's picture) cover those buttons because there is no picture. Change only this branch (one SEARCH/REPLACE of its `pictures = ...` line; keep everything else in the file):\n- First a `<div class=\"studio-pics\">` with, when r.files[1] exists, the preview as `<img>` with src r.files[1], alt `${typeLabel}: ${r.prompt}` and loading=\"lazy\" (like the image branch's img, but not inside a button).\n- Then a `<div class=\"studio-3d\">` with one View in 3D button and one Download .glb link for r.files[0] only, with the same attributes as today (data-action studio-3d, data-src, data-name, download name `model-${r.id}-1.glb`).\nThe test tests/studio3d.spec.ts already expects this; do not change it."
+}

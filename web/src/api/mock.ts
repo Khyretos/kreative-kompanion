@@ -53,7 +53,10 @@ const knowledgeCols: import("../views/knowledge").KCollection[] = [
 ];
 /** STU-01: the demo's Studio library (newest first). */
 const demoPic = (hue: number) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="hsl(${hue} 60% 45%)"/><circle cx="48" cy="40" r="18" fill="#f4eefc"/></svg>`);
+// 3D-01: an 848-byte purple cube as a binary glTF, for the demo "3D model" run.
+const demoGlb = "data:model/gltf-binary;base64,Z2xURgIAAABQAwAAjAIAAEpTT057ImFzc2V0Ijp7InZlcnNpb24iOiIyLjAifSwic2NlbmUiOjAsInNjZW5lcyI6W3sibm9kZXMiOlswXX1dLCJub2RlcyI6W3sibWVzaCI6MCwibmFtZSI6ImRlbW8ifV0sIm1lc2hlcyI6W3sicHJpbWl0aXZlcyI6W3siYXR0cmlidXRlcyI6eyJQT1NJVElPTiI6MH0sImluZGljZXMiOjEsIm1hdGVyaWFsIjowfV19XSwibWF0ZXJpYWxzIjpbeyJwYnJNZXRhbGxpY1JvdWdobmVzcyI6eyJiYXNlQ29sb3JGYWN0b3IiOlswLjQyLDAuMjUsMC44MywxXSwibWV0YWxsaWNGYWN0b3IiOjAsInJvdWdobmVzc0ZhY3RvciI6MC44fX1dLCJidWZmZXJzIjpbeyJieXRlTGVuZ3RoIjoxNjh9XSwiYnVmZmVyVmlld3MiOlt7ImJ1ZmZlciI6MCwiYnl0ZU9mZnNldCI6MCwiYnl0ZUxlbmd0aCI6OTYsInRhcmdldCI6MzQ5NjJ9LHsiYnVmZmVyIjowLCJieXRlT2Zmc2V0Ijo5NiwiYnl0ZUxlbmd0aCI6NzIsInRhcmdldCI6MzQ5NjN9XSwiYWNjZXNzb3JzIjpbeyJidWZmZXJWaWV3IjowLCJjb21wb25lbnRUeXBlIjo1MTI2LCJjb3VudCI6OCwidHlwZSI6IlZFQzMiLCJtaW4iOlstMC41LC0wLjUsLTAuNV0sIm1heCI6WzAuNSwwLjUsMC41XX0seyJidWZmZXJWaWV3IjoxLCJjb21wb25lbnRUeXBlIjo1MTIzLCJjb3VudCI6MzYsInR5cGUiOiJTQ0FMQVIifV19ICAgqAAAAEJJTgAAAAC/AAAAvwAAAL8AAAA/AAAAvwAAAL8AAAA/AAAAPwAAAL8AAAC/AAAAPwAAAL8AAAC/AAAAvwAAAD8AAAA/AAAAvwAAAD8AAAA/AAAAPwAAAD8AAAC/AAAAPwAAAD8AAAIAAQAAAAMAAgAEAAUABgAEAAYABwAAAAEABQAAAAUABAACAAMABwACAAcABgABAAIABgABAAYABQAAAAQABwAAAAcAAwA=";
 const studioRuns: import("../views/studio").StudioRun[] = [
+  { id: "sr5", type: "image-to-3d", gpu: "rx9070", prompt: "3d model", size: "square", state: "done", error: null, files: [demoGlb, demoPic(150)], startedAt: ago(20), endedAt: ago(18) },
   { id: "sr1", type: "character", gpu: "rx9070", prompt: "a cheerful fox adventurer with a green scarf", size: "tall", state: "done", error: null, files: [demoPic(28)], startedAt: ago(30), endedAt: ago(29) },
   { id: "sr2", type: "character", gpu: "a770", prompt: "a knight in silver armour", size: "square", state: "failed", error: "ComfyUI stopped answering", files: [], startedAt: ago(40), endedAt: ago(39) },
   { id: "sr3", type: "oc-sheet", gpu: "rx9070", prompt: "an adult woman knight with silver hair", size: "wide", state: "done", error: null, check: { ok: true, retries: 2, issues: [] }, files: [demoPic(270)], startedAt: ago(50), endedAt: ago(45) },
@@ -485,6 +488,7 @@ export class MockApi implements KompanionApi {
     if (change.repoFolder !== undefined) p.repoFolder = change.repoFolder.replace(/\/+$/, "") || null;
     if (change.repoMachineId !== undefined) p.repoMachineId = change.repoMachineId || null;
     if (change.overseer !== undefined) p.overseer = change.overseer;
+    if (change.autoRun !== undefined) p.autoRun = change.autoRun;
     if (change.archived !== undefined) p.archivedAt = change.archived ? (p.archivedAt ?? new Date().toISOString()) : null;
     if (change.name !== undefined) p.name = change.name.trim();
     if (change.description !== undefined) p.description = change.description.trim();
@@ -648,11 +652,11 @@ export class MockApi implements KompanionApi {
     return structuredClone(chat);
   }
 
-  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean }) {
+  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean }) {
     const i = chats.findIndex((c) => c.id === chatId);
     if (i < 0) return;
     if (change.archived) chats.splice(i, 1);
-    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer });
+    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer, autoRun: change.autoRun ?? chats[i].autoRun });
   }
 
   async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {

@@ -1,0 +1,368 @@
+// public/js/pose-check.js
+(function () { 'use strict';
+
+const LABELS = {
+  torso: 'Torso',
+  head: 'Head',
+  l_upper_arm: 'Left upper arm',
+  l_forearm: 'Left forearm',
+  r_upper_arm: 'Right upper arm',
+  r_forearm: 'Right forearm',
+  l_thigh: 'Left thigh',
+  l_shin: 'Left shin',
+  r_thigh: 'Right thigh',
+  r_shin: 'Right shin'
+};
+
+function getErrorEl() {
+  return document.getElementById('error-msg-check');
+}
+
+function getOverlayCanvas() {
+  return document.getElementById('check-overlay');
+}
+
+function getBonesList() {
+  return document.getElementById('check-bones');
+}
+
+function getSummaryEl() {
+  return document.getElementById('check-summary');
+}
+
+function getTolInput() {
+  return document.getElementById('check-tol');
+}
+
+function getTolValInput() {
+  return document.getElementById('check-tol-val');
+}
+
+function getCheckFileInput() {
+  return document.getElementById('check-file');
+}
+
+function getCheckRunBtn() {
+  return document.getElementById('check-run');
+}
+
+function getCheckApplyBtn() {
+  return document.getElementById('check-apply');
+}
+
+function getCheckMaskBtn() {
+  return document.getElementById('check-mask');
+}
+
+let input = null;
+let last = null;
+
+function clearState() {
+  const errorEl = getErrorEl();
+  if (errorEl) errorEl.textContent = '';
+  
+  const bonesList = getBonesList();
+  if (bonesList) {
+    while (bonesList.firstChild) {
+      bonesList.removeChild(bonesList.firstChild);
+    }
+  }
+  
+  const summaryEl = getSummaryEl();
+  if (summaryEl) summaryEl.textContent = '';
+  
+  const overlay = getOverlayCanvas();
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  
+  getCheckApplyBtn().disabled = true;
+  getCheckMaskBtn().disabled = true;
+}
+
+function renderBones(bones) {
+  const list = getBonesList();
+  if (!list) return;
+  
+  while (list.firstChild) {
+    list.removeChild(list.firstChild);
+  }
+  
+  for (let i = 0; i < bones.length; i++) {
+    const bone = bones[i];
+    const li = document.createElement('li');
+    li.dataset.bone = bone.name;
+    li.dataset.status = bone.status;
+    
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = LABELS[bone.name] || bone.name;
+    
+    const resultSpan = document.createElement('span');
+    if (bone.status === 'ok') {
+      resultSpan.textContent = bone.err + '°';
+    } else if (bone.status === 'wrong') {
+      let errStr = bone.err;
+      if (Math.floor(bone.err) === bone.err) {
+        errStr = String(Math.round(bone.err));
+      }
+      resultSpan.textContent = errStr + '° off';
+    } else if (bone.status === 'missing') {
+      resultSpan.textContent = 'not found';
+    } else if (bone.status === 'skip') {
+      resultSpan.textContent = 'not in the pose';
+    }
+    
+    li.appendChild(labelSpan);
+    li.appendChild(resultSpan);
+    list.appendChild(li);
+  }
+}
+
+function renderSummary(last) {
+  const summaryEl = getSummaryEl();
+  if (!summaryEl) return;
+  
+  if (last.pass) {
+    summaryEl.textContent = 'The picture matches the pose.';
+  } else {
+    const wrongBones = last.check.wrong_bones || [];
+    // Sort by largest err first
+    wrongBones.sort((a, b) => Math.abs(b.err) - Math.abs(a.err));
+    
+    const labels = wrongBones.map(b => LABELS[b.name] || b.name).join(', ');
+    summaryEl.textContent = 'Off: ' + labels + '.';
+  }
+}
+
+function drawOverlay(last, input) {
+  const canvas = getOverlayCanvas();
+  if (!canvas) return;
+  
+  const W = last.detected.canvas_width;
+  const H = last.detected.canvas_height;
+  
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.display = 'block';
+  
+  const ctx = canvas.getContext('2d');
+  
+  // Background
+  if (input && input.bitmap) {
+    ctx.drawImage(input.bitmap, 0, 0, W, H);
+  } else {
+    ctx.fillStyle = '#0c0917';
+    ctx.fillRect(0, 0, W, H);
+  }
+  
+  // Target skeleton
+  const img = KKPose.raster.createBitmap(W, H);
+  KKPose.draw.drawOpenPose(img, KKPose.posecheck.fromOpenPose(last.target));
+  
+  // Create alpha mask
+  const offscreen = KKPose.raster.createBitmap(W, H);
+  const ctxOff = offscreen.getContext('2d');
+  ctxOff.drawImage(img, 0, 0);
+  const imageData = ctxOff.getImageData(0, 0, W, H);
+  const data = imageData.data;
+  
+  for (let i = 0; i < data.length; i += 4) {
+    // Black pixels get alpha 0, others get 179
+    if (data[i] === 0 && data[i + 1] === 0 && data[i + 2] === 0) {
+      data[i + 3] = 0;
+    } else {
+      data[i + 3] = 179;
+    }
+  }
+  
+  ctx.putImageData(imageData, 0, 0);
+  
+  // Region boxes
+  const regions = last.regions || [];
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
+    const x1 = region[0];
+    const y1 = region[1];
+    const x2 = region[2];
+    const y2 = region[3];
+    
+    ctx.strokeStyle = '#f3941f';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
+    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  }
+}
+
+function updateButtons(last) {
+  const applyBtn = getCheckApplyBtn();
+  const maskBtn = getCheckMaskBtn();
+  
+  if (last && last.suggestion && last.suggestion.ops) {
+    applyBtn.disabled = false;
+  } else {
+    applyBtn.disabled = true;
+  }
+  
+  if (last && last.regions && last.regions.length > 0) {
+    maskBtn.disabled = false;
+  } else {
+    maskBtn.disabled = true;
+  }
+}
+
+function run() {
+  clearState();
+  
+  const pose = KKPoseEditor.stage.getPose();
+  const view = KKPoseEditor.stage.getView();
+  const tol = Number(getTolInput().value);
+  
+  let body;
+  
+  if (input && input.keypoints) {
+    body = {
+      pose: pose,
+      view: { yaw: view.yaw, pitch: view.pitch },
+      tol: tol,
+      keypoints: input.keypoints
+    };
+  } else if (input && input.image) {
+    body = {
+      pose: pose,
+      view: { yaw: view.yaw, pitch: view.pitch },
+      tol: tol,
+      image: input.image
+    };
+  } else {
+    return;
+  }
+  
+  fetch('/api/pose/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(r => r.json()).then(data => {
+    if (!r.ok) {
+      const errorEl = getErrorEl();
+      if (errorEl) errorEl.textContent = data.error || 'Check failed (HTTP ' + r.status + ').';
+      return;
+    }
+    
+    last = data;
+    render();
+  }).catch(err => {
+    const errorEl = getErrorEl();
+    if (errorEl) errorEl.textContent = 'Network error: ' + err.message;
+  });
+}
+
+function render() {
+  if (!last) return;
+  
+  renderBones(last.check.bones);
+  renderSummary(last);
+  drawOverlay(last, input);
+  updateButtons(last);
+}
+
+function handleFileChange(e) {
+  const file = e.target.files[0];
+  if (!file) {
+    input = null;
+    getCheckRunBtn().disabled = true;
+    return;
+  }
+  
+  clearState();
+  
+  const fileName = file.name.toLowerCase();
+  const fileType = file.type;
+  
+  if (fileName.endsWith('.json') || fileType === 'application/json') {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      try {
+        const json = JSON.parse(event.target.result);
+        input = { keypoints: json };
+        getCheckRunBtn().disabled = false;
+      } catch (err) {
+        const errorEl = getErrorEl();
+        if (errorEl) errorEl.textContent = 'That file is not OpenPose JSON.';
+        getCheckRunBtn().disabled = true;
+      }
+    };
+    reader.readAsText(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const img = new Image();
+      img.onload = function() {
+        const bitmap = KKPose.raster.createBitmap(img);
+        input = { image: event.target.result, bitmap: bitmap };
+        getCheckRunBtn().disabled = false;
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+function handleApplyClick() {
+  if (!last || !last.suggestion) return;
+  
+  try {
+    KKPoseEditor.stage.apply(last.suggestion.ops);
+    run();
+  } catch (err) {
+    const errorEl = getErrorEl();
+    if (errorEl) errorEl.textContent = err.message;
+  }
+}
+
+function handleMaskClick() {
+  if (!last) return;
+  
+  const W = last.detected.canvas_width;
+  const H = last.detected.canvas_height;
+  
+  const offscreen = KKPose.raster.create(W, H);
+  const ctx = offscreen.getContext('2d');
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+  
+  const regions = last.regions || [];
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
+    const x1 = region[0];
+    const y1 = region[1];
+    const x2 = region[2];
+    const y2 = region[3];
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
+  }
+  
+  const blob = offscreen.toBlob(function(blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pose-check-mask.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  getCheckFileInput().addEventListener('change', handleFileChange);
+  getCheckRunBtn().addEventListener('click', run);
+  getCheckApplyBtn().addEventListener('click', handleApplyClick);
+  getCheckMaskBtn().addEventListener('click', handleMaskClick);
+  
+  getTolInput().addEventListener('input', function() {
+    getTolValInput().textContent = this.value + '°';
+  });
+});
+
+})();

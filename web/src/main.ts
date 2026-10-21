@@ -894,6 +894,13 @@ function wire(shell: HTMLElement): void {
       el.parentElement?.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === el)));
     },
     "studio-size": (el) => store.set({ studioForm: { ...store.get().studioForm, size: el.dataset.size ?? "square" } }),
+    // Load the 3D viewer module only when clicked and open the model URL.
+    "studio-3d": (el) => {
+      const src = el.dataset.src ?? "";
+      const name = el.dataset.name ?? "model.glb";
+      if (!src) return;
+      void import("./viewers").then(({ openModelUrl }) => openModelUrl(src, name, () => el.focus()));
+    },
     // A finished image, large, in a dialog that closes on Escape or a click.
     "studio-open": (el) => {
       const d = document.createElement("dialog");
@@ -1418,6 +1425,14 @@ function wire(shell: HTMLElement): void {
       const before = store.get().projects;
       store.set({ projects: before.map((p) => (p.id === id ? { ...p, overseer } : p)) });
       api.setProjectSettings(id, { overseer }).catch((e) => { store.set({ projects: before }); showError(e); });
+      return;
+    }
+    if (fid === "project-autorun") {
+      const box = ev.target as HTMLInputElement;
+      const id = box.dataset.id ?? "", autoRun = box.checked;
+      const before = store.get().projects;
+      store.set({ projects: before.map((p) => (p.id === id ? { ...p, autoRun } : p)) });
+      api.setProjectSettings(id, { autoRun }).catch((e) => { store.set({ projects: before }); showError(e); });
       return;
     }
     if (fid === "project-type") {

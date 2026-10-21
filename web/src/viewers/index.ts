@@ -78,6 +78,13 @@ export function openViewer(a: AssetDetail, api: AssetsApi, onClosed?: () => void
   });
 }
 
+/** 3D-01: the same viewer for a model that is not an asset (a .glb a Studio run made). */
+export function openModelUrl(url: string, name: string, onClosed?: () => void): void {
+  const a = { id: 0, name, ext: "glb", size: 0, container: "", preview: null, path: name, pack: "Studio", packId: 0 } as unknown as AssetDetail;
+  const api = { fileUrl: () => url, nearUrl: () => url, previewUrl: () => url, list: async () => ({ items: [], total: 0 }) } as unknown as AssetsApi;
+  openViewer(a, api, onClosed);
+}
+
 function unsupported(a: AssetDetail, why: string): HTMLElement {
   return el("div", { className: "viewer-none" },
     el("p", { className: "viewer-none-title", textContent: why }),

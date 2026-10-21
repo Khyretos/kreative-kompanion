@@ -48,6 +48,9 @@ pub struct Project {
     /// OVR-01b: the Overseer answers every chat of this project.
     #[sqlx(default)]
     pub overseer: bool,
+    /// AUTO-RUN: the computer runs its steps in every chat of this project without asking first.
+    #[sqlx(default)]
+    pub auto_run: bool,
     /// PROJ-ARCHIVE: when it was archived; None = active.
     #[sqlx(default)]
     pub archived_at: Option<String>,
@@ -82,6 +85,9 @@ pub struct Chat {
     /// OVR-01: the Overseer answers in this chat (its role, the scan of all projects).
     #[sqlx(default)]
     pub overseer: bool,
+    /// AUTO-RUN: the computer runs its steps in this chat without asking first.
+    #[sqlx(default)]
+    pub auto_run: bool,
 }
 
 fn json_list<S: serde::Serializer>(v: &str, s: S) -> Result<S::Ok, S::Error> {
@@ -132,7 +138,7 @@ pub async fn projects(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Project>>> {
     let rows = sqlx::query_as(
-        "SELECT p.id, p.name, p.description, p.updated_at, p.kind, p.ptype, p.repo_folder, p.repo_machine_id, p.overseer, p.archived_at,
+        "SELECT p.id, p.name, p.description, p.updated_at, p.kind, p.ptype, p.repo_folder, p.repo_machine_id, p.overseer, p.auto_run, p.archived_at,
          CASE WHEN p.user_id = ?1 THEN 'owner' ELSE m.role END AS role, o.name AS owner_name
          FROM projects p
          JOIN users o ON o.id = p.user_id
@@ -151,7 +157,7 @@ pub async fn chats(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Chat>>> {
     let rows = sqlx::query_as(
-        "SELECT id, title, project_id, updated_at, CASE WHEN user_id = ?1 THEN pinned ELSE 0 END AS pinned, thread, effort, mcp, overseer FROM chats\n         WHERE (user_id = ?1 OR project_id IN (SELECT project_id FROM project_members WHERE user_id = ?1)) AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
+        "SELECT id, title, project_id, updated_at, CASE WHEN user_id = ?1 THEN pinned ELSE 0 END AS pinned, thread, effort, mcp, overseer, auto_run FROM chats\n         WHERE (user_id = ?1 OR project_id IN (SELECT project_id FROM project_members WHERE user_id = ?1)) AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -190,6 +196,7 @@ pub async fn create_chat(
         effort: "auto".into(),
         mcp: "[]".into(),
         overseer: false,
+        auto_run: false,
     };
     sqlx::query(
         "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
@@ -799,6 +806,9 @@ pub struct ChatChange {
     mcp: Option<Vec<String>>,
     /// OVR-01: the Overseer answers in this chat.
     overseer: Option<bool>,
+    /// AUTO-RUN: run steps in this chat without asking first.
+    #[serde(rename = "autoRun")]
+    auto_run: Option<bool>,
 }
 
 /// Rename, pin or archive a chat (the chat menu).
@@ -823,6 +833,9 @@ pub async fn update_chat(
     }
     if let Some(on) = b.overseer {
         sqlx::query("UPDATE chats SET overseer = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(on) = b.auto_run {
+        sqlx::query("UPDATE chats SET auto_run = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
     }
     if let Some(list) = b.mcp {
         // CHAT-01: only names from [[mcp]] in kompanion.toml.

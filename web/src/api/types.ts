@@ -41,6 +41,7 @@ export interface Project {
   repoFolder?: string | null;
   repoMachineId?: string | null;
   overseer?: boolean; // OVR-01b: the Overseer answers every chat of this project
+  autoRun?: boolean; // every chat of this project runs its steps without asking
   archivedAt?: string | null; // PROJ-ARCHIVE: when it was archived; absent or null = active
   role?: "owner" | "editor" | "viewer"; // PROJECT-SHARING: your role in this project; absent = owner
   ownerName?: string; // PROJECT-SHARING: who owns it (shown as "shared by" when it is not you)
@@ -66,6 +67,7 @@ export interface ProjectSettingsChange {
   repoFolder?: string;
   repoMachineId?: string;
   overseer?: boolean;
+  autoRun?: boolean;
   archived?: boolean;
   name?: string; // 1-80 characters
   description?: string; // one line, at most 200 characters
@@ -141,6 +143,7 @@ export interface Chat {
   effort?: Effort; // EF-01: stored per chat, used for its answers
   mcp?: string[]; // CHAT-01: the tool servers this chat may use
   overseer?: boolean; // OVR-01: the Overseer answers in this chat
+  autoRun?: boolean; // this chat runs its steps without asking
 }
 
 /** How hard the model works on an answer (EF-01). Auto resolves to Medium on the server. */

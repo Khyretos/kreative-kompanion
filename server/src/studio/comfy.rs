@@ -107,7 +107,7 @@ pub async fn run(
     shared(out_dir, 0o2775).await;
     let mut files = Vec::new();
     for node in outputs {
-        for key in &["images", "audio", "gifs", "videos"] {
+        for key in &["images", "audio", "gifs", "videos", "3d"] {
             if let Some(arr) = h["outputs"][node].get(key).and_then(|v| v.as_array()) {
                 for item in arr {
                     let filename = item["filename"]
@@ -285,6 +285,11 @@ mod tests {
             )
             .into_response();
         }
+        if f.mode == "glb" {
+            return Json(json!({"p1": {"status": {"status_str": "success", "completed": true},
+                "outputs": {"20": {"3d": [{"filename": "m.glb", "subfolder": "kompanion", "type": "output"}]}}}}))
+            .into_response();
+        }
         if f.mode == "error" {
             return Json(
                 json!({"p1": {"status": {"status_str": "error", "completed": false,
@@ -321,6 +326,9 @@ mod tests {
             && q.get("subfolder").map(String::as_str) == Some("kompanion")
         {
             return b"PNG".to_vec().into_response();
+        }
+        if q.get("filename").map(String::as_str) == Some("m.glb") {
+            return b"glTF".to_vec().into_response();
         }
         StatusCode::NOT_FOUND.into_response()
     }
@@ -369,6 +377,19 @@ mod tests {
         assert_eq!(files, vec![dir.join("run1-1.png")]);
         assert_eq!(std::fs::read(&files[0]).unwrap(), b"PNG");
         assert_eq!(f.got.lock().unwrap().as_ref().unwrap()["prompt"], graph);
+    }
+
+    /// 3D-01: SaveGLB reports its file under "3d"; the run keeps it as a .glb.
+    #[tokio::test]
+    async fn glb_output_is_saved() {
+        let dir = std::env::temp_dir().join(format!("3d01-{}", uuid::Uuid::new_v4()));
+        let graph = json!({"20": {"class_type": "SaveGLB", "inputs": {}}});
+        let (base, _f) = fake("glb").await;
+        let files = run(&Client::new(), &base, &graph, &["20".to_string()], &dir, "run3d", Duration::from_secs(10))
+            .await
+            .unwrap();
+        assert_eq!(files, vec![dir.join("run3d-1.glb")]);
+        assert_eq!(std::fs::read(&files[0]).unwrap(), b"glTF");
     }
 
     #[tokio::test]

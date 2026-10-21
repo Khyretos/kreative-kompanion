@@ -1,0 +1,11 @@
+{
+  "name": "3d01-st-action",
+  "role": "worker/web",
+  "out": "/tmp/kk-3d01/studio/lib/refine.js",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 900,
+  "focus": ["^  cowboy: \\{", "^const ACTIONS = \\{"],
+  "check": "cd /tmp/kk-3d01/studio && sh /tmp/kk-3d01-chk/sttest.sh test/refine.test.js test/library.test.js test/kompanion.test.js test/refine-route.test.js",
+  "prompt": "In lib/refine.js, the ACTIONS object lists the refine steps. Add one more entry at the end, after the `cowboy` entry (3D-01): key `model3d`, a 3D model (.glb) of the character in the picture, through Kompanion's type `image-to-3d`. It takes nothing from the form: fixed prompt '3d model', no params (an empty object), no mask, no face, no rating, like the `parts` entry but with these values. Insert after these lines (the end of the cowboy entry):\n    shot: 'cowboy',\n    size: 'square'\n  }\nand keep the closing `};` of ACTIONS. The test `model3d makes a 3D model from the picture` in test/refine.test.js already exists; do not change tests."
+}
