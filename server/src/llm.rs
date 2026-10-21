@@ -137,6 +137,10 @@ fn is_auth_error(status: reqwest::StatusCode, body: &str) -> bool {
 
 fn authorize(req: reqwest::RequestBuilder, p: &ProviderConfig) -> reqwest::RequestBuilder {
     match (p.kind.clone(), p.api_key()) {
+        // Anthropic's OpenAI-compatible endpoint (api.anthropic.com/v1) answers 400 without this header.
+        (ProviderKind::OpenaiCompatible, Some(key)) if p.base_url.contains("api.anthropic.com") => {
+            req.bearer_auth(key).header("anthropic-version", "2023-06-01")
+        }
         (ProviderKind::OpenaiCompatible, Some(key)) => req.bearer_auth(key),
         (ProviderKind::Anthropic, Some(key)) => req
             .header("x-api-key", key)

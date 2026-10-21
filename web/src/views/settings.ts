@@ -31,6 +31,18 @@ function overseerSection(s: AppState): SafeHtml {
   </section>`;
 }
 
+/** AUTO-01: how many tool steps one request may take when Automatic mode is off. */
+function stepsSection(s: AppState): SafeHtml {
+  return html`<section class="steps-settings">
+    <h3 class="label">Steps per request</h3>
+    <div class="field">
+      <label for="max-steps">Default number of steps</label>
+      <input id="max-steps" type="number" min="1" max="100" step="1" value="${s.maxSteps}">
+    </div>
+    <p class="muted small">How many tool steps one request may take before I stop and ask how to go on (1 to 100). Automatic mode ignores this limit; use Stop to end it at any step.</p>
+  </section>`;
+}
+
 const DEFAULTS: AdminSettings = {
   appName: "", smtpHost: "", smtpPort: 587, smtpTls: "starttls", smtpUser: "", smtpFrom: "", smtpReplyTo: "",
   colorBrand: "#5c398e", colorLinkDark: "#f3941f", colorLinkLight: "#8f4700", colorAccent: "#f3941f",
@@ -133,6 +145,7 @@ export function renderSettings(s: AppState): SafeHtml {
             </div>`;
         })}</div>
       </section>
+      ${stepsSection(s)}
       ${overseerSection(s)}
       ${voiceSection(s)}
       ${cardSection(s)}

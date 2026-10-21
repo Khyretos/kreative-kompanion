@@ -569,7 +569,7 @@ a.attach-chip:hover { border-color: var(--accent); }
 #voice-status:not(:empty) { margin-left: 0.5rem; color: var(--fg); }
 #voice-stop { margin-left: 0.5rem; }
 .composer-hint { width: min(46rem, 100%); margin: 0.35rem auto 0; font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; }
-.effort-slot { margin-left: auto; position: relative; }
+.effort-slot { position: relative; }
 .effort { position: relative; display: inline-flex; }
 .effort-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; font-family: var(--mono); min-height: 1.5rem; }
 .effort-chip:hover { border-color: var(--accent); }
@@ -580,8 +580,6 @@ a.attach-chip:hover { border-color: var(--accent); }
 .effort-name { font-weight: 600; }
 .effort-hint { font-size: 0.78rem; color: var(--fg); }
 /* CHAT-01: the Tools chip (MCP servers for this chat), left of the effort chip. */
-.web-slot { margin-left: auto; }
-.web-slot + .tools-slot, .tools-slot + .effort-slot, .web-slot + .effort-slot { margin-left: 0; }
 .tools-slot { position: relative; }
 .web-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; min-height: 1.5rem; gap: 0.3rem; }
 .web-chip:hover { border-color: var(--accent); }
@@ -1126,11 +1124,11 @@ button[aria-busy="true"]::after {
 
 /* OVR-01: the Overseer chip (eye + its name when on) and its proposals under an answer. */
 .overseer-slot { margin-left: auto; }
-.overseer-slot + .web-slot { margin-left: 0; }
 .overseer-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer;
   transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
 .overseer-chip:hover { border-color: var(--accent); }
-.overseer-chip[aria-pressed="true"] { box-shadow: inset 3px 0 0 var(--accent); }
+.overseer-chip[aria-pressed="true"] { box-shadow: none; background: var(--accent-soft); border-color: var(--accent); }
+.overseer-chip[aria-pressed="true"] .icon { color: var(--accent); }
 .overseer-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .overseer-chip .ov-label:empty { display: none; }
 .msg .body .overseer-box { border: 1px solid var(--line); border-radius: 5px; background: var(--surface); margin-top: 0.6rem; padding: 0.5rem 0.6rem; display: grid; gap: 0.5rem; }
@@ -1165,6 +1163,7 @@ button[aria-busy="true"]::after {
 .autorun-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer;
   transition: border-color 0.15s, background-color 0.15s, color 0.15s; }
 .autorun-chip:hover { border-color: var(--accent); }
-.autorun-chip[aria-pressed="true"] { box-shadow: inset 3px 0 0 var(--accent); }
+.autorun-chip[aria-pressed="true"] { box-shadow: none; background: var(--accent-soft); border-color: var(--accent); }
+.autorun-chip[aria-pressed="true"] .icon { color: var(--accent); }
 .autorun-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .autorun-chip.locked { cursor: default; }

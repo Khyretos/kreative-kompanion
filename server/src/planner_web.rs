@@ -155,9 +155,6 @@ pub async fn replan(State(s): State<AppState>, Extension(u): Extension<User>, Pa
 
 /// A task that ended in needs_input (not stopped by the user) gets a re-plan proposal, unless one is already pending.
 pub fn spawn_replan(s: AppState, user_id: String, task_id: String, reason: String) {
-    if reason.starts_with("stopped") {
-        return;
-    }
     tokio::spawn(async move {
         let open: Option<i64> = sqlx::query_scalar("SELECT 1 FROM plan_proposals WHERE task_id = ? AND kind = 'replan' AND state = 'pending'")
             .bind(&task_id)

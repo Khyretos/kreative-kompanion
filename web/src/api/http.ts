@@ -174,6 +174,7 @@ export class HttpApi implements KompanionApi {
   taskCosts(taskId: string) { return this.request<import("./types").CostLine | null>("GET", `/tasks/${encodeURIComponent(taskId)}/costs`); }
   weeklyCosts() { return this.request<import("./types").WeeklyCosts>("GET", "/costs/weekly"); }
   stopTask(id: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(id)}/stop`); }
+  stopChat(id: string) { return this.request<void>("POST", `/chats/${encodeURIComponent(id)}/stop`); }
   checkFolder(machineId: string, path: string) {
     return this.request<{ state: "ok" | "nogrant" | "missing" | "notfolder" | "noanswer"; path: string; folders?: string[]; files?: number; message?: string }>("POST", `/machines/${encodeURIComponent(machineId)}/folder`, { path });
   }

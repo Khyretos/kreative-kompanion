@@ -130,6 +130,8 @@ export interface KompanionApi {
   stopAction(id: string): Promise<void>;
   /** Stops a running W2 task (and its running step). */
   stopTask(id: string): Promise<void>;
+  /** Stops the reply a chat is working on (the plain-chat loop checks the flag before each step). */
+  stopChat(id: string): Promise<void>;
   /** A task's W2 runs, newest first (their ids open the report: /api/runs/<id>/report). */
   taskRuns(taskId: string): Promise<{ id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null; effortPicked?: boolean }[]>;
   /** Get cost lines for a task. */

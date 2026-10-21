@@ -89,7 +89,7 @@ async fn stopped_here(s: &AppState, r: &Run) -> bool {
         return false;
     }
     note(s, r, "Stopped by you.").await;
-    finish(s, r, "needs_input", "stopped by you").await;
+    finish_with(s, r, "needs_input", "stopped by you", false).await;
     true
 }
 
@@ -320,6 +320,11 @@ async fn progress(s: &AppState, r: &Run, progress: f64, step: &str) {
 }
 
 async fn finish(s: &AppState, r: &Run, state: &str, step: &str) {
+    finish_with(s, r, state, step, true).await;
+}
+
+/// Ends a run. `replan` is false only when the user pressed Stop, so no re-plan proposal is made for it.
+async fn finish_with(s: &AppState, r: &Run, state: &str, step: &str, replan: bool) {
     let _ = sqlx::query(
         "UPDATE tasks SET state = ?, step = ?, progress = CASE WHEN ? = 'done' THEN 1.0 ELSE progress END,
          updated_at = ? WHERE id = ?",
@@ -343,7 +348,7 @@ async fn finish(s: &AppState, r: &Run, state: &str, step: &str) {
         let _ = crate::capmatrix::record(&s.db, &r.worker.provider_id, &r.worker.model_id, crate::capmatrix::task_type(&r.title, &r.description), true).await;
         crate::statesum::refresh_for_task(s.db.clone(), r.task_id.clone(), r.user_id.clone());
     }
-    if state != "done" {
+    if state != "done" && replan {
         crate::planner_web::spawn_replan(s.clone(), r.user_id.clone(), r.task_id.clone(), step.to_string());
     }
     let text = match state {

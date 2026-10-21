@@ -988,6 +988,8 @@ export class MockApi implements KompanionApi {
     if (!t || t.state !== "running") throw new Error("This task isn't running.");
     setTimeout(() => { t.state = "needs_input"; t.step = "stopped by you"; this.emit({ type: "task", task: structuredClone(t) }); }, 200);
   }
+  /** Demo: there is no running reply loop to stop, so this does nothing. */
+  async stopChat(_chatId: string) { /* nothing to stop in the demo */ }
   /** Demo computers: /home/kees and its projects exist, everything else is missing. */
   async checkFolder(_machineId: string, path: string) {
     await new Promise((r) => setTimeout(r, 150));
