@@ -1,16 +1,16 @@
 [
- {
-  "name": "pe2-mannequin",
-  "role": "worker/web",
-  "out": "/tmp/kk-pe2/studio/public/js/pose/mannequin.js",
-  "precheck": false,
-  "max_tokens": 3000,
-  "context": [
-   "/tmp/kk-pe2/studio/test/pose-mannequin.test.js",
-   "/tmp/kk-pe2/studio/public/js/pose/skeleton.js",
-   "/tmp/kk-pe2/studio/public/js/pose/bvh.js"
-  ],
-  "check": "cd /tmp/kk-pe2/studio && sh /tmp/kk-pe1-chk/sttest.sh test/pose-mannequin.test.js",
-  "prompt": "Kreative Studio pose editor, animation part (STU-PE2). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\nWrite public/js/pose/mannequin.js (NAME = mannequin): a simple mesh for the skinned .glb, one box along every bone, each box moved only by its own joint. Get V = need('vec', './vec.js') and S = need('skeleton', './skeleton.js') inside the functions.\n\nExport:\n- RADII = {pelvis: 0.08, spine: 0.08, chest: 0.08, neck: 0.045, head: 0.09, shoulder: 0.045, elbow: 0.035, wrist: 0.025, hip: 0.07, knee: 0.05, ankle: 0.04}.\n- radius(name): finger joints (name matches /_(thumb|index|middle|ring|pinky)_/) give 0.008; else strip a leading 'l_' or 'r_' and return RADII[that] (0.03 when missing).\n- mannequin(names): for box b = 0..names.length-1 with j = S.byName[names[b]]: a = j.rest, e = S.byName[j.aim].rest, d = V.norm(V.sub(e, a)), ref = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], u = V.norm(V.cross(d, ref)), v = V.cross(d, u), r = radius(names[b]).\n  Corner k = 0..7: base = (k & 4) ? e : a; su = (k & 1) ? 1 : -1; sv = (k & 2) ? 1 : -1; p = base + u * (r * su) + v * (r * sv). Store the corner Y-up: [p[0], p[2], -p[1]] at vertex index b * 8 + k.\n  Every vertex of box b: joints [b, 0, 0, 0], weights [1, 0, 0, 0].\n  Indices of box b: these 36 numbers plus b * 8: 0,2,1, 1,2,3, 4,5,6, 5,7,6, 0,1,4, 1,5,4, 2,6,3, 3,6,7, 0,4,2, 2,4,6, 1,3,5, 3,7,5.\n  Return {positions: Float32Array (3 per vertex), joints: Uint16Array (4 per vertex), weights: Float32Array (4 per vertex), indices: Uint16Array}.\n"
- }
+  {
+    "name": "pe2-mannequin",
+    "role": "worker/web",
+    "out": "/tmp/kk-pe2/studio/public/js/pose/mannequin.js",
+    "precheck": false,
+    "max_tokens": 3000,
+    "context": [
+      "/tmp/kk-pe2/studio/test/pose-mannequin.test.js",
+      "/tmp/kk-pe2/studio/public/js/pose/skeleton.js",
+      "/tmp/kk-pe2/studio/public/js/pose/bvh.js"
+    ],
+    "check": "cd /tmp/kk-pe2/studio && sh /tmp/kk-pe1-chk/sttest.sh test/pose-mannequin.test.js",
+    "prompt": "Kreative Studio pose editor, animation part (STU-PE2). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\nWrite public/js/pose/mannequin.js (NAME = mannequin): a simple mesh for the skinned .glb, one box along every bone, each box moved only by its own joint. Get V = need('vec', './vec.js') and S = need('skeleton', './skeleton.js') inside the functions.\n\nExport:\n- RADII = {pelvis: 0.08, spine: 0.08, chest: 0.08, neck: 0.045, head: 0.09, shoulder: 0.045, elbow: 0.035, wrist: 0.025, hip: 0.07, knee: 0.05, ankle: 0.04}.\n- radius(name): finger joints (name matches /_(thumb|index|middle|ring|pinky)_/) give 0.008; else strip a leading 'l_' or 'r_' and return RADII[that] (0.03 when missing).\n- mannequin(names): for box b = 0..names.length-1 with j = S.byName[names[b]]: a = j.rest, e = S.byName[j.aim].rest, d = V.norm(V.sub(e, a)), ref = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], u = V.norm(V.cross(d, ref)), v = V.cross(d, u), r = radius(names[b]).\n  Corner k = 0..7: base = (k & 4) ? e : a; su = (k & 1) ? 1 : -1; sv = (k & 2) ? 1 : -1; p = base + u * (r * su) + v * (r * sv). Store the corner Y-up: [p[0], p[2], -p[1]] at vertex index b * 8 + k.\n  Every vertex of box b: joints [b, 0, 0, 0], weights [1, 0, 0, 0].\n  Indices of box b: these 36 numbers plus b * 8: 0,2,1, 1,2,3, 4,5,6, 5,7,6, 0,1,4, 1,5,4, 2,6,3, 3,6,7, 0,4,2, 2,4,6, 1,3,5, 3,7,5.\n  Return {positions: Float32Array (3 per vertex), joints: Uint16Array (4 per vertex), weights: Float32Array (4 per vertex), indices: Uint16Array}.\n"
+  }
 ]

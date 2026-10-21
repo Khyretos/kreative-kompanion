@@ -1,15 +1,15 @@
 [
- {
-  "name": "pe2-css",
-  "role": "worker/web",
-  "out": "/tmp/kk-pe2/studio/public/css/anim.css",
-  "precheck": false,
-  "max_tokens": 2500,
-  "context": [
-   "/tmp/kk-pe2/studio/test/e2e/anim.e2e.js",
-   "/tmp/kk-pe2/studio/public/css/pose.css"
-  ],
-  "check": "cd /tmp/kk-pe2/studio && test -s public/css/anim.css && grep -q 'anim-key' public/css/anim.css",
-  "prompt": "Kreative Studio web UI (STU-PE2, the Animation part of the Pose tab). Plain browser JavaScript, no modules, no libraries, no build step. Write public/css/anim.css: the styles of the Animation section (#pose-anim) of the Pose tab. Use only the theme variables of style.css (var(--surface), var(--surface-2), var(--border), var(--text), var(--text-2), var(--violet), var(--white), var(--radius-sm)); they switch for the light theme on their own. Text is never orange. Start the file with the comment /* public/css/anim.css: STU-PE2 timeline, key markers and clip library */.\n\n.pose-anim: display grid; gap 12px; border-top 1px solid var(--border); padding-top 16px; min-width 0.\n.anim-timeline: position relative; height 48px; margin 0 16px; background var(--surface-2); border 1px solid var(--border); border-radius var(--radius-sm).\n.anim-key: position absolute; top 50%; transform translate(-50%, -50%); width 30px; height 30px; padding 0; border-radius 50%; border 2px solid var(--violet); background var(--surface); color var(--text); font-size 0.8rem; font-weight 600; cursor pointer.\n.anim-key[aria-pressed=\"true\"]: background var(--violet); color var(--white).\n.anim-key:focus-visible: outline 2px solid var(--violet); outline-offset 2px.\n.anim-playhead: position absolute; top 4px; bottom 4px; width 2px; margin-left -1px; background var(--text-2); pointer-events none.\n.anim-time-row: display grid; grid-template-columns auto 1fr auto; gap 10px; align-items center. .anim-time-row input[type=range]: width 100%; min-width 0. #anim-time-val: color var(--text-2); font-variant-numeric tabular-nums; min-width 4.5em; text-align right.\n.anim-keys, .anim-export: display flex; flex-wrap wrap; gap 8px; align-items center. .anim-keys label: color var(--text-2); margin-left 4px.\n.anim-settings: display grid; grid-template-columns 1fr 1fr auto; gap 12px; align-items end.\n.anim-save: display grid; gap 10px.\n.anim-card img: aspect-ratio auto; height 72px.\n@media (max-width: 480px): .anim-settings grid-template-columns 1fr 1fr; .anim-timeline margin 0 14px.\n"
- }
+  {
+    "name": "pe2-css",
+    "role": "worker/web",
+    "out": "/tmp/kk-pe2/studio/public/css/anim.css",
+    "precheck": false,
+    "max_tokens": 2500,
+    "context": [
+      "/tmp/kk-pe2/studio/test/e2e/anim.e2e.js",
+      "/tmp/kk-pe2/studio/public/css/pose.css"
+    ],
+    "check": "cd /tmp/kk-pe2/studio && test -s public/css/anim.css && grep -q 'anim-key' public/css/anim.css",
+    "prompt": "Kreative Studio web UI (STU-PE2, the Animation part of the Pose tab). Plain browser JavaScript, no modules, no libraries, no build step. Write public/css/anim.css: the styles of the Animation section (#pose-anim) of the Pose tab. Use only the theme variables of style.css (var(--surface), var(--surface-2), var(--border), var(--text), var(--text-2), var(--violet), var(--white), var(--radius-sm)); they switch for the light theme on their own. Text is never orange. Start the file with the comment /* public/css/anim.css: STU-PE2 timeline, key markers and clip library */.\n\n.pose-anim: display grid; gap 12px; border-top 1px solid var(--border); padding-top 16px; min-width 0.\n.anim-timeline: position relative; height 48px; margin 0 16px; background var(--surface-2); border 1px solid var(--border); border-radius var(--radius-sm).\n.anim-key: position absolute; top 50%; transform translate(-50%, -50%); width 30px; height 30px; padding 0; border-radius 50%; border 2px solid var(--violet); background var(--surface); color var(--text); font-size 0.8rem; font-weight 600; cursor pointer.\n.anim-key[aria-pressed=\"true\"]: background var(--violet); color var(--white).\n.anim-key:focus-visible: outline 2px solid var(--violet); outline-offset 2px.\n.anim-playhead: position absolute; top 4px; bottom 4px; width 2px; margin-left -1px; background var(--text-2); pointer-events none.\n.anim-time-row: display grid; grid-template-columns auto 1fr auto; gap 10px; align-items center. .anim-time-row input[type=range]: width 100%; min-width 0. #anim-time-val: color var(--text-2); font-variant-numeric tabular-nums; min-width 4.5em; text-align right.\n.anim-keys, .anim-export: display flex; flex-wrap wrap; gap 8px; align-items center. .anim-keys label: color var(--text-2); margin-left 4px.\n.anim-settings: display grid; grid-template-columns 1fr 1fr auto; gap 12px; align-items end.\n.anim-save: display grid; gap 10px.\n.anim-card img: aspect-ratio auto; height 72px.\n@media (max-width: 480px): .anim-settings grid-template-columns 1fr 1fr; .anim-timeline margin 0 14px.\n"
+  }
 ]
