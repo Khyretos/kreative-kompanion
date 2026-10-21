@@ -1,0 +1,12 @@
+[
+  {
+    "name": "pe2-glb",
+    "role": "worker/web",
+    "out": "/tmp/kk-pe2/studio/public/js/pose/glb.js",
+    "precheck": false,
+    "max_tokens": 3000,
+    "context": ["/tmp/kk-pe2/studio/test/pose-glb.test.js"],
+    "check": "cd /tmp/kk-pe2/studio && sh /tmp/kk-pe1-chk/sttest.sh test/pose-glb.test.js",
+    "prompt": "Kreative Studio pose editor, animation part (STU-PE2). Plain JavaScript, no libraries, no build step. The same file runs in Node 22 (CommonJS require) and in the browser (classic <script>, no modules). Use exactly this wrapper and nothing outside it:\n\n(function () {\n  'use strict';\n  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});\n  const need = (name, file) => (NS ? NS[name] : require(file));\n  // ... the code; get other pose modules with need('vec', './vec.js') INSIDE functions (load order in the browser is free) ...\n  const api = { /* exported names */ };\n  if (NS) NS.<NAME> = api; else module.exports = api;\n})();\n\nAngles are degrees in every API. Coordinates are metres: +X is the figure's left, -Y its front, +Z up. Matrices are arrays of 9 numbers, row-major. Do not change the test file.\n\nWrite public/js/pose/glb.js (NAME = glb): the binary glTF 2.0 container. No need() calls. Use TextEncoder, TextDecoder, Uint8Array and DataView (all little-endian), which exist in Node and the browser.\n\nExport:\n- pack(json, bin): text = JSON.stringify(json); jsonBytes = TextEncoder bytes of text, padded with 0x20 (space) bytes to a multiple of 4. binBytes = bin padded with 0x00 bytes to a multiple of 4. Layout: 12-byte header (uint32 magic 0x46546C67, uint32 version 2, uint32 total length), then the JSON chunk (uint32 length of the padded JSON, uint32 type 0x4E4F534A, the padded JSON), then, only when bin.length > 0, the BIN chunk (uint32 padded length, uint32 type 0x004E4942, the padded bytes). Return one Uint8Array of the total length.\n- unpack(bytes): if bytes.length < 20 or the magic is not 0x46546C67, throw new Error('not a glb file'). Read the JSON chunk (TextDecoder, JSON.parse); when a BIN chunk follows, bin = the Uint8Array view of its bytes (padding included), else new Uint8Array(0). Return {json, bin}.\n"
+  }
+]

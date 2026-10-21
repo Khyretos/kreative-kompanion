@@ -1,0 +1,386 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load modules inside functions to ensure correct loading order in browser
+  function getVec() { return need('vec', './vec.js'); }
+  function getSkeleton() { return need('skeleton', './skeleton.js'); }
+  function getFK() { return need('fk', './fk.js'); }
+  function getQuat() { return need('quat', './quat.js'); }
+  function getAnim() { return need('anim', './anim.js'); }
+  function getBVH() { return need('bvh', './bvh.js'); }
+  function getMannequin() { return need('mannequin', './mannequin.js'); }
+  function getGLB() { return need('glb', './glb.js'); }
+
+  let V, S, FK, Q, A, BVH, M, G;
+  function load() {
+    if (!V) { V = getVec(); S = getSkeleton(); FK = getFK(); Q = getQuat(); A = getAnim(); BVH = getBVH(); M = getMannequin(); G = getGLB(); }
+  }
+
+  // --- Axis conversion matrix P (row-major): Z-up -> Y-up, facing -Y -> +Z ---
+  // P = [1, 0, 0, 0, 0, 1, 0, -1, 0]
+  const P = [1, 0, 0, 0, 0, 1, 0, -1, 0];
+
+  // Helper: transpose a 3x3 matrix
+  function transpose(m) {
+    return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
+  }
+
+  // Helper: convert point from Z-up to Y-up
+  function yUp(p) {
+    return [p[0], p[2], -p[1]];
+  }
+
+  // Helper: convert rotation matrix from Z-up to Y-up
+  // BVH matrix = P * M * transpose(P)
+  function toBVHMatrix(M) {
+    return V.matMul(V.matMul(P, M), transpose(P));
+  }
+
+  // --- toGLTF ---
+  function toGLTF(clip, opts = {}) {
+    load();
+    const hands = !!opts.hands;
+    const names = BVH.jointNames(hands);
+    const n = names.length;
+
+    // Build mannequin data
+    const m = M.mannequin(names);
+    const positions = m.positions;
+    const joints = m.joints;
+    const weights = m.weights;
+    const indices = m.indices;
+
+    // Binary builder
+    const parts = [];
+    let offset = 0;
+
+    function add(typedArray) {
+      // Pad to multiple of 4
+      const padLen = (4 - (offset % 4)) % 4;
+      if (padLen > 0) {
+        parts.push(new Uint8Array(padLen));
+        offset += padLen;
+      }
+      parts.push(typedArray);
+      offset += typedArray.length;
+      return offset;
+    }
+
+    // Accessor builder
+    function accessor(typedArray, type, count, extra = {}) {
+      const byteOffset = add(typedArray);
+      const bvIdx = parts.length - 1;
+      
+      // Store accessor info for later
+      const accessorInfo = {
+        bufferView: bvIdx,
+        componentType: type === Float32Array ? 5126 : 5123,
+        count: count,
+        type: type.name === 'Float32Array' ? 'FLOAT' : 'UNSIGNED_SHORT',
+        ...extra
+      };
+      
+      return accessorInfo;
+    }
+
+    // Collect all accessors and buffer views
+    const accessors = [];
+    const bufferViews = [];
+    let binOffset = 0;
+
+    function addBin(typedArray) {
+      const padLen = (4 - (binOffset % 4)) % 4;
+      if (padLen > 0) {
+        parts.push(new Uint8Array(padLen));
+        binOffset += padLen;
+      }
+      parts.push(typedArray);
+      binOffset += typedArray.length;
+    }
+
+    function makeAccessor(typedArray, type, count, extra = {}) {
+      const byteOffset = addBin(typedArray);
+      const bvIdx = bufferViews.length;
+      
+      bufferViews.push({
+        buffer: 0,
+        byteOffset: byteOffset,
+        byteLength: typedArray.length
+      });
+
+      accessors.push({
+        bufferView: bvIdx,
+        componentType: type === Float32Array ? 5126 : 5123,
+        count: count,
+        type: type.name === 'Float32Array' ? 'FLOAT' : 'UNSIGNED_SHORT',
+        ...extra
+      });
+
+      return bvIdx;
+    }
+
+    // Build nodes
+    const nodes = [];
+    
+    // First pass: collect children for each node
+    const childrenMap = new Array(n + 1).fill(null).map(() => []);
+    for (let i = 0; i < n; i++) {
+      const j = S.byName[names[i]];
+      const parent = j.parent;
+      if (parent !== null) {
+        childrenMap[S.byName[parent].indexInNames].push(i);
+      }
+    }
+
+    // Second pass: create nodes
+    for (let i = 0; i < n; i++) {
+      const j = S.byName[names[i]];
+      const parent = j.parent;
+      const rest = j.rest;
+      
+      const translation = parent 
+        ? yUp(V.sub(rest, S.byName[parent].rest))
+        : yUp(rest);
+
+      nodes.push({
+        name: names[i],
+        translation: translation,
+        children: childrenMap[i]
+      });
+    }
+
+    // Root mesh node
+    nodes.push({
+      name: 'mannequin',
+      mesh: 0,
+      skin: 0
+    });
+
+    // Build POSITION accessor
+    const positionData = new Float32Array(positions);
+    const posAccIdx = makeAccessor(positionData, Float32Array, positions.length / 3, {
+      min: [],
+      max: []
+    });
+
+    // Calculate min/max for POSITION
+    const posMin = [Infinity, Infinity, Infinity];
+    const posMax = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < positions.length; i += 3) {
+      posMin[0] = Math.min(posMin[0], positions[i]);
+      posMin[1] = Math.min(posMin[1], positions[i + 1]);
+      posMin[2] = Math.min(posMin[2], positions[i + 2]);
+      posMax[0] = Math.max(posMax[0], positions[i]);
+      posMax[1] = Math.max(posMax[1], positions[i + 1]);
+      posMax[2] = Math.max(posMax[2], positions[i + 2]);
+    }
+    accessors[posAccIdx].min = posMin;
+    accessors[posAccIdx].max = posMax;
+
+    // Build JOINTS_0 accessor
+    const jointsData = new Uint16Array(joints);
+    const jointsAccIdx = makeAccessor(jointsData, Uint16Array, joints.length / 4, {
+      type: 'VEC4'
+    });
+
+    // Build WEIGHTS_0 accessor
+    const weightsData = new Float32Array(weights);
+    const weightsAccIdx = makeAccessor(weightsData, Float32Array, weights.length / 4, {
+      type: 'VEC4'
+    });
+
+    // Build indices accessor
+    const indicesData = new Uint16Array(indices);
+    const indicesAccIdx = makeAccessor(indicesData, Uint16Array, indices.length, {
+      type: 'SCALAR'
+    });
+
+    // Build inverse bind matrices
+    const ibmData = new Float32Array(n * 16);
+    for (let i = 0; i < n; i++) {
+      const j = S.byName[names[i]];
+      const t = yUp(j.rest);
+      // Column-major: [1,0,0,0, 0,1,0,0, 0,0,1,0, -t0,-t1,-t2,1]
+      ibmData[i * 16 + 0] = 1;
+      ibmData[i * 16 + 1] = 0;
+      ibmData[i * 16 + 2] = 0;
+      ibmData[i * 16 + 3] = 0;
+      ibmData[i * 16 + 4] = 0;
+      ibmData[i * 16 + 5] = 1;
+      ibmData[i * 16 + 6] = 0;
+      ibmData[i * 16 + 7] = 0;
+      ibmData[i * 16 + 8] = 0;
+      ibmData[i * 16 + 9] = 0;
+      ibmData[i * 16 + 10] = 1;
+      ibmData[i * 16 + 11] = 0;
+      ibmData[i * 16 + 12] = -t[0];
+      ibmData[i * 16 + 13] = -t[1];
+      ibmData[i * 16 + 14] = -t[2];
+      ibmData[i * 16 + 15] = 1;
+    }
+    const ibmAccIdx = makeAccessor(ibmData, Float32Array, n * 16, {
+      type: 'MAT4',
+      min: [],
+      max: []
+    });
+
+    // Build animation
+    const times = A.frameTimes(clip);
+    const loop = clip.loop;
+    const lastTime = loop ? times[times.length - 2] : times[times.length - 1];
+    
+    // Add final frame time if looping
+    if (loop) {
+      times.push(lastTime);
+    }
+
+    // Build rotation accessors for each joint
+    const rotationAccessors = [];
+    const rootTranslationData = new Float32Array(times.length * 3);
+    
+    // Process each frame
+    for (let k = 0; k < times.length; k++) {
+      const t = times[k];
+      const pose = A.sample(clip, t);
+      
+      // Root translation
+      const rootPos = yUp(pose.root.pos);
+      rootTranslationData[k * 3 + 0] = rootPos[0];
+      rootTranslationData[k * 3 + 1] = rootPos[2];
+      rootTranslationData[k * 3 + 2] = -rootPos[1];
+
+      // Joint rotations
+      for (let i = 0; i < n; i++) {
+        const localMat = FK.local(names[i], pose.joints[names[i]]);
+        const transformed = V.matMul(V.matMul(P, localMat), transpose(P));
+        const quat = Q.fromMat(transformed);
+        
+        // Ensure dot product with previous quaternion is non-negative
+        if (k > 0) {
+          const prevQuat = rotationAccessors[i][k - 1];
+          const dot = quat.x * prevQuat.x + quat.y * prevQuat.y + quat.z * prevQuat.z + quat.w * prevQuat.w;
+          if (dot < 0) {
+            quat.x = -quat.x;
+            quat.y = -quat.y;
+            quat.z = -quat.z;
+            quat.w = -quat.w;
+          }
+        }
+        
+        rotationAccessors[i].push(quat.x, quat.y, quat.z, quat.w);
+      }
+    }
+
+    // Create accessors for rotations
+    for (let i = 0; i < n; i++) {
+      rotationAccessors[i] = new Float32Array(rotationAccessors[i]);
+      makeAccessor(rotationAccessors[i], Float32Array, times.length * 4, {
+        type: 'VEC4'
+      });
+    }
+
+    // Create input accessor
+    const inputAccIdx = makeAccessor(times, Float32Array, times.length, {
+      type: 'SCALAR',
+      min: [times[0]],
+      max: [lastTime]
+    });
+
+    // Build samplers and channels
+    const samplers = [];
+    const channels = [];
+
+    // Track accessor indices as we create them
+    let rotationAccIdx = 0;
+    let translationAccIdx = 0;
+
+    // Rotation samplers (one per joint)
+    for (let i = 0; i < n; i++) {
+      samplers.push({
+        input: inputAccIdx,
+        output: rotationAccIdx,
+        interpolation: 'LINEAR'
+      });
+      channels.push({
+        sampler: samplers.length - 1,
+        target: { node: i, path: 'rotation' }
+      });
+      rotationAccIdx++;
+    }
+
+    // Translation sampler (root)
+    const rootTransAccIdx = makeAccessor(rootTranslationData, Float32Array, times.length * 3, {
+      type: 'VEC3'
+    });
+    
+    samplers.push({
+      input: inputAccIdx,
+      output: rootTransAccIdx,
+      interpolation: 'LINEAR'
+    });
+    channels.push({
+      sampler: samplers.length - 1,
+      target: { node: 0, path: 'translation' }
+    });
+
+    // Build final JSON
+    const json = {
+      asset: {
+        version: '2.0',
+        generator: 'Kreative Studio pose editor'
+      },
+      scene: 0,
+      scenes: [{ nodes: [0, n] }],
+      nodes: nodes,
+      skin: {
+        joints: names.map((_, i) => i),
+        inverseBindMatrices: accessors.length - 1,
+        skeleton: 0
+      },
+      meshes: [{
+        name: 'mannequin',
+        primitives: [{
+          attributes: {
+            POSITION: posAccIdx,
+            JOINTS_0: jointsAccIdx,
+            WEIGHTS_0: weightsAccIdx
+          },
+          indices: indicesAccIdx,
+          mode: 4 // TRIANGLES
+        }]
+      }],
+      accessors: accessors,
+      bufferViews: bufferViews,
+      buffers: [{ byteLength: binOffset }],
+      animations: [{
+        name: 'clip',
+        samplers: samplers,
+        channels: channels
+      }]
+    };
+
+    // Build binary
+    const bin = new Uint8Array(binOffset);
+    for (let i = 0; i < parts.length; i++) {
+      bin.set(parts[i], i === 0 ? 0 : parts.slice(0, i).reduce((sum, p) => sum + p.length, 0));
+    }
+
+    return { json, bin };
+  }
+
+  // --- toGLB ---
+  function toGLB(clip, opts = {}) {
+    load();
+    const { json, bin } = toGLTF(clip, opts);
+    return G.pack(json, bin);
+  }
+
+  const api = {
+    toGLTF,
+    toGLB
+  };
+
+  if (NS) NS.gltf = api; else module.exports = api;
+})();

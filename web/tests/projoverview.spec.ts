@@ -32,7 +32,7 @@ async function setUpKk(page: Page): Promise<void> {
   // A late change event can re-render the form between the preset and Save; then save again.
   await expect(async () => {
     await dev.locator("#dev-preset").selectOption("game");
-    await expect(dev.locator('[name="build"]')).toHaveValue("cmake --build build");
+    await expect(dev.locator('[name="build"]')).toHaveValue("cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j --target kke_tests starter_game");
     await dev.locator('button[type="submit"]').click();
     await expect(sec(page, "build")).toContainText("cmake --build build", { timeout: 2000 });
   }).toPass({ timeout: 15_000 });

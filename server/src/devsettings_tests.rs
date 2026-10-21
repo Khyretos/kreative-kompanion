@@ -19,6 +19,19 @@ fn the_two_presets_fill_the_same_fields() {
 }
 
 #[test]
+fn the_game_preset_uses_kk_engines_own_ci_commands() {
+    // M6-10: the same commands as kk-engine's CI (.github/workflows/ci.yml): configure + build the tests and the
+    // starter game, run the unit tests, and run the game headless for 8 s (exit 124 = it ran the whole time).
+    let g = Settings::preset("game").unwrap();
+    assert_eq!(g.build, "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j --target kke_tests starter_game");
+    assert_eq!(g.test, "./build/bin/kke_tests");
+    assert_eq!(g.run, "xvfb-run -a -s '-screen 0 1280x720x24' timeout 8 ./build/bin/starter_game; test $? -eq 124");
+    assert_eq!(g.screenshots, "screenshots");
+    assert!(g.validate().is_ok());
+    assert_eq!(g.command("run"), Some(g.run.as_str()));
+}
+
+#[test]
 fn parse_defaults_everything_it_cannot_read() {
     assert_eq!(Settings::parse(""), Settings::default());
     assert_eq!(Settings::parse("not json"), Settings::default());

@@ -1,0 +1,147 @@
+// STU-PE2: public/js/pose/anim.js (key poses on a timeline, slerp between them, eases, loop, IK targets), written before the code.
+const test = require('node:test');
+const assert = require('node:assert');
+const V = require('../public/js/pose/vec.js');
+const FK = require('../public/js/pose/fk.js');
+const A = require('../public/js/pose/anim.js');
+
+const pose = (joints, pos) => ({ version: 1, root: { pos: pos || [0, 0, 0.95] }, joints });
+const close = (a, b, eps, msg) => assert.ok(Math.abs(a - b) < eps, `${msg}: ${a} vs ${b}`);
+
+test('eases', () => {
+  assert.deepStrictEqual(A.EASES, ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'step']);
+  close(A.ease('linear', 0.3), 0.3, 1e-12, 'linear');
+  close(A.ease('ease-in', 0.5), 0.25, 1e-12, 'ease-in');
+  close(A.ease('ease-out', 0.5), 0.75, 1e-12, 'ease-out');
+  close(A.ease('ease-in-out', 0.25), 0.15625, 1e-12, 'ease-in-out');
+  close(A.ease('ease-in-out', 0.5), 0.5, 1e-12, 'ease-in-out middle');
+  assert.strictEqual(A.ease('step', 0.99), 0);
+  for (const e of A.EASES) {
+    if (e === 'step') continue;
+    close(A.ease(e, 0), 0, 1e-12, `${e} 0`);
+    close(A.ease(e, 1), 1, 1e-12, `${e} 1`);
+  }
+  assert.throws(() => A.ease('bounce', 0.5), /unknown ease/);
+});
+
+test('newClip defaults and setKey keeps keys sorted, copied and unique per time', () => {
+  const c0 = A.newClip();
+  assert.deepStrictEqual(c0, { version: 1, fps: 24, length: 1, loop: true, keys: [] });
+  assert.deepStrictEqual(A.newClip({ fps: 12, length: 2, loop: false }), { version: 1, fps: 12, length: 2, loop: false, keys: [] });
+  const p = pose({ l_elbow: { bend: 30 } });
+  const c1 = A.setKey(c0, 0.5, p);
+  assert.deepStrictEqual(c0.keys, [], 'setKey does not change its input');
+  const c2 = A.setKey(c1, 0, pose({}), 'linear');
+  assert.deepStrictEqual(c2.keys.map((k) => k.t), [0, 0.5]);
+  assert.strictEqual(c2.keys[1].ease, 'ease-in-out', 'default ease');
+  assert.strictEqual(c2.keys[0].ease, 'linear');
+  p.joints.l_elbow.bend = 99;
+  assert.strictEqual(c2.keys[1].pose.joints.l_elbow.bend, 30, 'the pose is copied');
+  const c3 = A.setKey(c2, 0.5, pose({ l_elbow: { bend: 60 } }));
+  assert.strictEqual(c3.keys.length, 2, 'same time replaces');
+  assert.strictEqual(c3.keys[1].pose.joints.l_elbow.bend, 60);
+  assert.throws(() => A.setKey(c3, 1, pose({})), /time/, 'a looping clip has no key at t = length');
+  assert.throws(() => A.setKey(c3, -0.1, pose({})), /time/);
+  assert.throws(() => A.setKey(c3, 0.2, pose({}), 'wobble'), /unknown ease/);
+  assert.strictEqual(A.setKey(A.newClip({ loop: false }), 1, pose({})).keys.length, 1, 'a one-shot clip may key its end');
+  assert.deepStrictEqual(A.removeKey(c3, 0.5).keys.map((k) => k.t), [0]);
+  assert.strictEqual(c3.keys.length, 2, 'removeKey does not change its input');
+});
+
+test('sample with no key gives the default pose, with one key that pose', () => {
+  assert.deepStrictEqual(A.sample(A.newClip(), 0.3), FK.defaultPose());
+  const c = A.setKey(A.newClip(), 0.2, pose({ l_knee: { bend: -40 } }, [0, 0.1, 0.9]));
+  const s = A.sample(c, 0.7);
+  close(s.joints.l_knee.bend, -40, 1e-9, 'one key');
+  assert.deepStrictEqual(s.root.pos, [0, 0.1, 0.9]);
+});
+
+test('linear sample between two keys: slerp of one axis is linear in the angle, root lerps', () => {
+  let c = A.newClip({ length: 2, loop: false });
+  c = A.setKey(c, 0, pose({ l_elbow: { bend: 0 } }, [0, 0, 0.95]), 'linear');
+  c = A.setKey(c, 1, pose({ l_elbow: { bend: 120 } }, [0, -1, 0.95]), 'linear');
+  const s = A.sample(c, 0.25);
+  close(s.joints.l_elbow.bend, 30, 1e-6, 'bend');
+  close(s.joints.l_elbow.side, 0, 1e-6, 'side');
+  close(s.joints.l_elbow.twist, 0, 1e-6, 'twist');
+  close(s.root.pos[1], -0.25, 1e-12, 'root');
+  close(A.sample(c, 1.7).joints.l_elbow.bend, 120, 1e-9, 'a one-shot clip holds its last key');
+  close(A.sample(c, -1).joints.l_elbow.bend, 0, 1e-9, 'and its first key before the start');
+  assert.strictEqual(A.sample(c, 0.25).version, 1);
+});
+
+test('a joint missing in one key interpolates from or to zero', () => {
+  let c = A.newClip({ length: 2, loop: false });
+  c = A.setKey(c, 0, pose({}), 'linear');
+  c = A.setKey(c, 1, pose({ r_knee: { bend: -80 } }), 'linear');
+  close(A.sample(c, 0.5).joints.r_knee.bend, -40, 1e-6, 'from zero');
+});
+
+test('the ease of the earlier key shapes the segment; step holds', () => {
+  let c = A.newClip({ length: 2, loop: false });
+  c = A.setKey(c, 0, pose({ neck: { twist: 0 } }), 'ease-in-out');
+  c = A.setKey(c, 1, pose({ neck: { twist: 40 } }), 'step');
+  close(A.sample(c, 0.25).joints.neck.twist, 40 * 0.15625, 1e-6, 'ease-in-out');
+  let d = A.setKey(c, 0, pose({ neck: { twist: 0 } }), 'step');
+  close(A.sample(d, 0.9).joints.neck.twist, 0, 1e-9, 'step holds the earlier key');
+});
+
+test('combined rotations go the short way and stay unit (no euler lerp)', () => {
+  let c = A.newClip({ length: 2, loop: false });
+  const a = { bend: 40, side: 30, twist: -20 };
+  const b = { bend: -30, side: -10, twist: 60 };
+  c = A.setKey(c, 0, pose({ l_shoulder: a }), 'linear');
+  c = A.setKey(c, 1, pose({ l_shoulder: b }), 'linear');
+  const m = A.sample(c, 0.5).joints.l_shoulder;
+  // the middle rotation is the same angle away from both ends
+  const R = (e) => V.eulerToMat(e);
+  const angle = (M, N) => {
+    const D = V.matMul(V.transpose(M), N);
+    return (Math.acos(Math.max(-1, Math.min(1, (D[0] + D[4] + D[8] - 1) / 2))) * 180) / Math.PI;
+  };
+  const total = angle(R(a), R(b));
+  close(angle(R(a), R(m)), total / 2, 1e-6, 'half way from a');
+  close(angle(R(m), R(b)), total / 2, 1e-6, 'half way to b');
+});
+
+test('loop: the segment after the last key runs back to the first', () => {
+  let c = A.newClip({ length: 1 });
+  c = A.setKey(c, 0, pose({ l_hip: { bend: 0 } }), 'linear');
+  c = A.setKey(c, 0.5, pose({ l_hip: { bend: 40 } }), 'linear');
+  close(A.sample(c, 0.75).joints.l_hip.bend, 20, 1e-6, 'last -> first');
+  close(A.sample(c, 1.25).joints.l_hip.bend, 20, 1e-6, 'time wraps');
+  close(A.sample(c, -0.25).joints.l_hip.bend, 20, 1e-6, 'negative time wraps');
+  // first key not at 0: the wrap segment spans length - last + first
+  let d = A.newClip({ length: 1 });
+  d = A.setKey(d, 0.2, pose({ l_hip: { bend: 0 } }), 'linear');
+  d = A.setKey(d, 0.6, pose({ l_hip: { bend: 60 } }), 'linear');
+  // wrap segment 0.6 -> 1.2 (= 0.2), span 0.6, from 60 back to 0
+  close(A.sample(d, 0.1).joints.l_hip.bend, 60 * (1 - 0.5 / 0.6), 1e-6, 'before the first key, inside the wrap');
+  close(A.sample(d, 0.8).joints.l_hip.bend, 60 * (1 - 0.2 / 0.6), 1e-6, 'after the last key');
+});
+
+test('IK targets on both keys are interpolated and solved (feet stay on the line)', () => {
+  const w0 = FK.solve(FK.defaultPose());
+  const foot = w0.pos.l_ankle;
+  const t0 = [foot[0], foot[1] - 0.2, foot[2] + 0.05];
+  const t1 = [foot[0], foot[1] + 0.2, foot[2] + 0.05];
+  let c = A.newClip({ length: 2, loop: false });
+  c = A.setKey(c, 0, pose({}), 'linear');
+  c = A.setKey(c, 1, pose({}), 'linear');
+  c.keys[0].ik = { l_leg: t0 };
+  c.keys[1].ik = { l_leg: t1 };
+  const s = A.sample(c, 0.5);
+  const w = FK.solve(s);
+  const want = [foot[0], foot[1], foot[2] + 0.05];
+  assert.ok(V.len(V.sub(w.pos.l_ankle, want)) < 3e-3, `ankle ${w.pos.l_ankle} vs ${want}`);
+  // a chain with a target on one key only is not solved
+  c.keys[1].ik = {};
+  const s2 = A.sample(c, 0.5);
+  assert.strictEqual(s2.joints.l_hip, undefined, 'no IK without targets on both keys');
+});
+
+test('frameTimes: looping clips leave out t = length, one-shot clips include it', () => {
+  assert.deepStrictEqual(A.frameTimes(A.newClip({ fps: 4, length: 1 })), [0, 0.25, 0.5, 0.75]);
+  assert.deepStrictEqual(A.frameTimes(A.newClip({ fps: 4, length: 1, loop: false })), [0, 0.25, 0.5, 0.75, 1]);
+  assert.strictEqual(A.frameTimes(A.newClip({ fps: 24, length: 1.5 })).length, 36);
+});

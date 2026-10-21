@@ -56,10 +56,12 @@ impl Settings {
         let base = Settings { preset: name.to_string(), ..Default::default() };
         match name {
             "software" => Some(Settings { build: "make".into(), test: "make test".into(), ..base }),
+            // M6-10: kk-engine's own CI commands (configure + build, unit tests, 8 s headless run; exit 124 = ran the whole time).
             "game" => Some(Settings {
                 engine: "kk-engine".into(),
-                build: "cmake --build build".into(),
-                test: "ctest --test-dir build --output-on-failure".into(),
+                build: "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j --target kke_tests starter_game".into(),
+                test: "./build/bin/kke_tests".into(),
+                run: "xvfb-run -a -s '-screen 0 1280x720x24' timeout 8 ./build/bin/starter_game; test $? -eq 124".into(),
                 screenshots: "screenshots".into(),
                 ..base
             }),
