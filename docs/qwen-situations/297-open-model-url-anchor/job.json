@@ -1,14 +1,11 @@
 {
- "name": "3d01-open-model-url",
- "role": "worker/web",
- "out": "/tmp/kk-3d01/prog/web/src/viewers/index.ts",
- "mode": "patch",
- "precheck": false,
- "max_tokens": 1200,
- "focus": [
-  "export function openViewer\\(",
-  "^let open:"
- ],
- "check": "cd /tmp/kk-3d01/prog && grep -q '^export function openModelUrl(url: string, name: string, onClosed?: () => void): void {' web/src/viewers/index.ts || { echo 'error: web/src/viewers/index.ts: no export function openModelUrl(url: string, name: string, onClosed?: () => void): void'; exit 1; }; sh /tmp/kk-mcards-chk/web-check.sh web/src/viewers/index.ts tests/viewers.spec.ts",
- "prompt": "In web/src/viewers/index.ts, add an exported function `openModelUrl(url: string, name: string, onClosed?: () => void): void` right after `openViewer` (3D-01). It opens the same 3D viewer dialog for a model file that is not an asset: a .glb that a Studio run made, at `url`, shown with the title `name`. Reuse `openViewer` instead of copying the dialog code: build a minimal AssetDetail for it (ext \"glb\", the given name, size 0, no container, no preview, path = name, pack \"Studio\") and a minimal AssetsApi whose fileUrl, nearUrl and previewUrl all return `url` and whose list resolves to an empty page (`{ items: [], total: 0 }`); cast both with `as unknown as AssetDetail` / `as unknown as AssetsApi`. Change nothing else in the file. One SEARCH/REPLACE that inserts after the closing brace of openViewer."
+  "name": "3d01-open-model-url",
+  "role": "worker/web",
+  "out": "/tmp/kk-3d01/prog/web/src/viewers/index.ts",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 1200,
+  "focus": ["export function openViewer\\(", "^let open:"],
+  "check": "cd /tmp/kk-3d01/prog && grep -q '^export function openModelUrl(url: string, name: string, onClosed?: () => void): void {' web/src/viewers/index.ts || { echo 'error: web/src/viewers/index.ts: no export function openModelUrl(url: string, name: string, onClosed?: () => void): void'; exit 1; }; sh /tmp/kk-mcards-chk/web-check.sh web/src/viewers/index.ts tests/viewers.spec.ts",
+  "prompt": "In web/src/viewers/index.ts, add an exported function `openModelUrl(url: string, name: string, onClosed?: () => void): void` right after `openViewer` (3D-01). It opens the same 3D viewer dialog for a model file that is not an asset: a .glb that a Studio run made, at `url`, shown with the title `name`. Reuse `openViewer` instead of copying the dialog code: build a minimal AssetDetail for it (ext \"glb\", the given name, size 0, no container, no preview, path = name, pack \"Studio\") and a minimal AssetsApi whose fileUrl, nearUrl and previewUrl all return `url` and whose list resolves to an empty page (`{ items: [], total: 0 }`); cast both with `as unknown as AssetDetail` / `as unknown as AssetsApi`. Change nothing else in the file. One SEARCH/REPLACE that inserts after the closing brace of openViewer."
 }

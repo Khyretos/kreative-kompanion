@@ -1,15 +1,15 @@
 {
- "name": "3d01-st-amount-optional",
- "role": "worker/web",
- "out": "/tmp/kk-3d01/studio/public/js/refine.js",
- "mode": "patch",
- "precheck": false,
- "max_tokens": 1200,
- "focus": [
-  "const a = s\\.amount, range = \\$\\('refine-amount'\\);",
-  "function showAmount\\(\\) \\{",
-  "fd\\.append\\(s\\.amount\\.name, \\$\\('refine-amount'\\)\\.value\\);"
- ],
- "check": "cd /tmp/kk-3d01/studio && sh /tmp/kk-3d01-chk/e2e.sh model3d",
- "prompt": "In public/js/refine.js, every step in STEPS had an `amount` slider; the new `model3d` step has none (3D-01; the browser test test/e2e/model3d.e2e.js already exists, do not change tests). Make the amount optional, three SEARCH/REPLACE edits, change nothing else:\n1. In pick(id), replace the four lines from `const a = s.amount, range = $('refine-amount');` to `showAmount();` with code that hides `$('refine-amount-group')` when the step has no amount (`hidden = !a`) and only when it has one sets the label, min/max/step and value and calls showAmount(), as today.\n2. In showAmount(), return at once when `STEPS[step].amount` is missing.\n3. In the submit code, replace `fd.append(s.amount.name, $('refine-amount').value);` with the same line guarded by `if (s.amount)`."
+  "name": "3d01-st-amount-optional",
+  "role": "worker/web",
+  "out": "/tmp/kk-3d01/studio/public/js/refine.js",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 1200,
+  "focus": [
+    "const a = s\\.amount, range = \\$\\('refine-amount'\\);",
+    "function showAmount\\(\\) \\{",
+    "fd\\.append\\(s\\.amount\\.name, \\$\\('refine-amount'\\)\\.value\\);"
+  ],
+  "check": "cd /tmp/kk-3d01/studio && sh /tmp/kk-3d01-chk/e2e.sh model3d",
+  "prompt": "In public/js/refine.js, every step in STEPS had an `amount` slider; the new `model3d` step has none (3D-01; the browser test test/e2e/model3d.e2e.js already exists, do not change tests). Make the amount optional, three SEARCH/REPLACE edits, change nothing else:\n1. In pick(id), replace the four lines from `const a = s.amount, range = $('refine-amount');` to `showAmount();` with code that hides `$('refine-amount-group')` when the step has no amount (`hidden = !a`) and only when it has one sets the label, min/max/step and value and calls showAmount(), as today.\n2. In showAmount(), return at once when `STEPS[step].amount` is missing.\n3. In the submit code, replace `fd.append(s.amount.name, $('refine-amount').value);` with the same line guarded by `if (s.amount)`."
 }

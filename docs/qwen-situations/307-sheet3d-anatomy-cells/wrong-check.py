@@ -15,7 +15,12 @@ WRIST_IOU = 0.3
 _MODELS = {}
 
 CELLS = {
-    "v2": [("front", 0.0, 0.0, 0.25, 1.0), ("left", 0.25, 0.0, 0.5, 1.0), ("back", 0.5, 0.0, 0.75, 1.0), ("right", 0.75, 0.0, 1.0, 1.0)],
+    "v2": [
+        ("front", 0.0, 0.0, 0.25, 1.0),
+        ("left", 0.25, 0.0, 0.5, 1.0),
+        ("back", 0.5, 0.0, 0.75, 1.0),
+        ("right", 0.75, 0.0, 1.0, 1.0),
+    ],
     "oc-v3": [
         ("front", 0.0, 0.0, 0.2, 1.0),
         ("right", 0.2, 0.0, 0.4, 1.0),
@@ -94,13 +99,17 @@ def judge(
             if base in face_views:
                 if len(face_boxes) == 0:
                     pass
-                nf = sum(1 for b in face_boxes if cell_index(b, width, height, cells) == idx)
+                nf = sum(
+                    1 for b in face_boxes if cell_index(b, width, height, cells) == idx
+                )
                 if nf == 0:
                     issues.append(f"{name}: no face (head turned away)")
                 elif nf > 1:
                     issues.append(f"{name}: {nf} faces")
             elif base == "back":
-                nf = sum(1 for b in face_boxes if cell_index(b, width, height, cells) == idx)
+                nf = sum(
+                    1 for b in face_boxes if cell_index(b, width, height, cells) == idx
+                )
                 if nf >= 1:
                     issues.append(f"{name}: face seen (head facing the wrong way)")
             cells_out[idx]["faces"] += 1
@@ -112,7 +121,12 @@ def judge(
             if "-" not in name:
                 cells_out[idx]["hands"] += 1
 
-    return {"ok": not issues, "score": len(issues), "issues": issues, "cells": cells_out}
+    return {
+        "ok": not issues,
+        "score": len(issues),
+        "issues": issues,
+        "cells": cells_out,
+    }
 
     for i, cell in enumerate(cells):
         view = cell["view"]
@@ -223,13 +237,17 @@ def judge_v3_old(
             if name.startswith("helmet-"):
                 continue
             if base in face_views:
-                nf = sum(1 for b in face_boxes if cell_index(b, width, height, cells) == idx)
+                nf = sum(
+                    1 for b in face_boxes if cell_index(b, width, height, cells) == idx
+                )
                 if nf == 0:
                     issues.append(f"{name}: no face (head turned away)")
                 elif nf > 1:
                     issues.append(f"{name}: {nf} faces")
             elif base == "back":
-                nf = sum(1 for b in face_boxes if cell_index(b, width, height, cells) == idx)
+                nf = sum(
+                    1 for b in face_boxes if cell_index(b, width, height, cells) == idx
+                )
                 if nf >= 1:
                     issues.append(f"{name}: face seen (head facing the wrong way)")
             cells_out[idx]["faces"] += 1
@@ -281,7 +299,12 @@ def judge_v3_old(
                         wrist_issue_added = True
                     break
 
-    return {"ok": not issues, "score": len(issues), "issues": issues, "cells": cells_out}
+    return {
+        "ok": not issues,
+        "score": len(issues),
+        "issues": issues,
+        "cells": cells_out,
+    }
 
 
 def judge_v3(
@@ -320,13 +343,17 @@ def judge_v3(
             if name.startswith("helmet-"):
                 continue
             if base in face_views:
-                nf = sum(1 for b in face_boxes if cell_index(b, width, height, cells) == idx)
+                nf = sum(
+                    1 for b in face_boxes if cell_index(b, width, height, cells) == idx
+                )
                 if nf == 0:
                     issues.append(f"{name}: no face (head turned away)")
                 elif nf > 1:
                     issues.append(f"{name}: {nf} faces")
             elif base == "back":
-                nf = sum(1 for b in face_boxes if cell_index(b, width, height, cells) == idx)
+                nf = sum(
+                    1 for b in face_boxes if cell_index(b, width, height, cells) == idx
+                )
                 if nf >= 1:
                     issues.append(f"{name}: face seen (head facing the wrong way)")
             cells_out[idx]["faces"] += 1
@@ -378,7 +405,12 @@ def judge_v3(
                         wrist_issue_added = True
                     break
 
-    return {"ok": not issues, "score": len(issues), "issues": issues, "cells": cells_out}
+    return {
+        "ok": not issues,
+        "score": len(issues),
+        "issues": issues,
+        "cells": cells_out,
+    }
 
 
 def parse_query(path):
@@ -486,7 +518,9 @@ def main():
                 data = json.load(f)
         layout = data.get("layout", args.layout)
         cells = CELLS[layout]
-        result = judge(data["faces"], data["hands"], data["width"], data["height"], cells=cells)
+        result = judge(
+            data["faces"], data["hands"], data["width"], data["height"], cells=cells
+        )
         print(json.dumps(result))
         sys.exit(0)
 

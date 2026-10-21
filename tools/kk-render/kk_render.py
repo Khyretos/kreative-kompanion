@@ -23,6 +23,7 @@ Usage:  kk_render.py check                      preflight only, prints why it wo
         kk_render.py run GRAPH.json [GRAPH2.json ...] [--timeout 300] [--outdir DIR]
 GRAPH is a ComfyUI API-format prompt (as /prompt takes). Outputs land in ~/kk-render/out/<subfolder>.
 """
+
 import argparse
 import fcntl
 import json
@@ -43,14 +44,29 @@ LOCK = f"/run/user/{os.getuid()}/kk-render.lock"
 MIB = 1 << 20
 
 # Limits. Desktop alone sits at 1.2-2.4 GB.
-KILL_VRAM_MIB = 12 * 1024       # card total; leaves 4 GB for Hyprland, the browser and the Claude app
-START_MAX_VRAM_MIB = 3584       # something else holds the GPU if more than this is in use before we start
-START_MAX_BUSY = 30             # % gpu_busy averaged over 5 s before start: desktop/game is using the GPU
+KILL_VRAM_MIB = (
+    12 * 1024
+)  # card total; leaves 4 GB for Hyprland, the browser and the Claude app
+START_MAX_VRAM_MIB = (
+    3584  # something else holds the GPU if more than this is in use before we start
+)
+START_MAX_BUSY = (
+    30  # % gpu_busy averaged over 5 s before start: desktop/game is using the GPU
+)
 KILL_JUNCTION_C = 95
 KILL_MEM_C = 96
 MAX_LOAD1 = 6.0
 MIN_FREE_RAM_GIB = 8
-GAMES = ("Funkin", "steam_app", "gamescope", "wine64-preloader", "wineserver", ".exe", "retroarch", "dolphin-emu")
+GAMES = (
+    "Funkin",
+    "steam_app",
+    "gamescope",
+    "wine64-preloader",
+    "wineserver",
+    ".exe",
+    "retroarch",
+    "dolphin-emu",
+)
 
 M = os.path.join(HOME, "comfy-models-local")
 # One model family per container (04:38Z: MV-Adapter and SDXL in one ComfyUI kept the MV memory and hit 13.9 GB).
@@ -62,33 +78,76 @@ PROFILES = {
 }
 TRELLIS_MOUNTS = [
     (f"{M}/diffusion_models", "/app/models/diffusion_models", "ro"),
-    (f"{M}/vae/trellis_2_shape_vae_bf16.safetensors", "/app/models/vae/trellis_2_shape_vae_bf16.safetensors", "ro"),
-    (f"{M}/vae/trellis_2_texture_vae_bf16.safetensors", "/app/models/vae/trellis_2_texture_vae_bf16.safetensors", "ro"),
+    (
+        f"{M}/vae/trellis_2_shape_vae_bf16.safetensors",
+        "/app/models/vae/trellis_2_shape_vae_bf16.safetensors",
+        "ro",
+    ),
+    (
+        f"{M}/vae/trellis_2_texture_vae_bf16.safetensors",
+        "/app/models/vae/trellis_2_texture_vae_bf16.safetensors",
+        "ro",
+    ),
     (f"{M}/clip_vision", "/app/models/clip_vision", "ro"),
-    (f"{M}/background_removal/birefnet.safetensors", "/app/models/background_removal/birefnet.safetensors", "ro"),
+    (
+        f"{M}/background_removal/birefnet.safetensors",
+        "/app/models/background_removal/birefnet.safetensors",
+        "ro",
+    ),
     (f"{HOME}/.local/lib/kk-render/kk_dump.py", "/app/custom_nodes/kk_dump.py", "ro"),
 ]
 MOUNTS = [
     (f"{WORK}/out", "/media-out", "rw"),
     (f"{WORK}/in", "/app/input", "rw"),
     (f"{HOME}/Server-Docker/Services/ai/comfyui/user", "/app/user", "rw"),
-    (f"{HOME}/.local/lib/kk-render/vram_cap.py", "/app/custom_nodes/kk_vram_cap.py", "ro"),
+    (
+        f"{HOME}/.local/lib/kk-render/vram_cap.py",
+        "/app/custom_nodes/kk_vram_cap.py",
+        "ro",
+    ),
 ]
 SDXL_MOUNTS = [
-    (f"{M}/checkpoints/novaAnimeXL_ilV170.safetensors", "/app/models/checkpoints/novaAnimeXL_ilV170.safetensors", "ro"),
+    (
+        f"{M}/checkpoints/novaAnimeXL_ilV170.safetensors",
+        "/app/models/checkpoints/novaAnimeXL_ilV170.safetensors",
+        "ro",
+    ),
     (f"{M}/loras", "/app/models/loras", "ro"),
-    (f"{M}/controlnet/xinsir-union-sdxl-promax.safetensors", "/app/models/controlnet/xinsir-union-sdxl-promax.safetensors", "ro"),
-    (f"{M}/ipadapter/ip-adapter-plus-face_sdxl_vit-h.safetensors", "/app/models/ipadapter/ip-adapter-plus-face_sdxl_vit-h.safetensors", "ro"),
-    (f"{M}/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors", "/app/models/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors", "ro"),
-    (f"{M}/upscale_models/4x-AnimeSharp.pth", "/app/models/upscale_models/4x-AnimeSharp.pth", "ro"),
+    (
+        f"{M}/controlnet/xinsir-union-sdxl-promax.safetensors",
+        "/app/models/controlnet/xinsir-union-sdxl-promax.safetensors",
+        "ro",
+    ),
+    (
+        f"{M}/ipadapter/ip-adapter-plus-face_sdxl_vit-h.safetensors",
+        "/app/models/ipadapter/ip-adapter-plus-face_sdxl_vit-h.safetensors",
+        "ro",
+    ),
+    (
+        f"{M}/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+        "/app/models/clip_vision/CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
+        "ro",
+    ),
+    (
+        f"{M}/upscale_models/4x-AnimeSharp.pth",
+        "/app/models/upscale_models/4x-AnimeSharp.pth",
+        "ro",
+    ),
     (f"{M}/ultralytics", "/app/models/ultralytics", "ro"),
     (f"{M}/sams", "/app/models/sams", "ro"),
-    (f"{M}/background_removal/birefnet.safetensors", "/app/models/background_removal/birefnet.safetensors", "ro"),
+    (
+        f"{M}/background_removal/birefnet.safetensors",
+        "/app/models/background_removal/birefnet.safetensors",
+        "ro",
+    ),
 ]
 
 
 def log(ev, **kw):
-    print(json.dumps({"t": time.strftime("%H:%M:%SZ", time.gmtime()), "event": ev, **kw}), flush=True)
+    print(
+        json.dumps({"t": time.strftime("%H:%M:%SZ", time.gmtime()), "event": ev, **kw}),
+        flush=True,
+    )
 
 
 def rd(p):
@@ -109,12 +168,21 @@ def sample():
             temps[rd(f"{h}/temp{i}_label")] = int(rd(f"{h}/temp{i}_input")) // 1000
         except OSError:
             pass
-    return {"vram_mib": int(rd(f"{DEV}/mem_info_vram_used")) // MIB, "busy": int(rd(f"{DEV}/gpu_busy_percent")),
-            "junction_c": temps.get("junction", 0), "mem_c": temps.get("mem", 0)}
+    return {
+        "vram_mib": int(rd(f"{DEV}/mem_info_vram_used")) // MIB,
+        "busy": int(rd(f"{DEV}/gpu_busy_percent")),
+        "junction_c": temps.get("junction", 0),
+        "mem_c": temps.get("mem", 0),
+    }
 
 
 def running_containers():
-    out = subprocess.run(["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True, timeout=20).stdout
+    out = subprocess.run(
+        ["docker", "ps", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    ).stdout
     return [n for n in out.split() if n]
 
 
@@ -128,7 +196,12 @@ def preflight():
     for pid in os.listdir("/proc"):
         if pid.isdigit():
             try:
-                cmd = open(f"/proc/{pid}/cmdline", "rb").read().replace(b"\0", b" ").decode(errors="replace")
+                cmd = (
+                    open(f"/proc/{pid}/cmdline", "rb")
+                    .read()
+                    .replace(b"\0", b" ")
+                    .decode(errors="replace")
+                )
             except OSError:
                 continue
             if any(g in cmd for g in GAMES) and "kk_render" not in cmd:
@@ -137,7 +210,11 @@ def preflight():
         why.append("a game/GPU app is running: " + "; ".join(games[:3]))
     if os.getloadavg()[0] > MAX_LOAD1:
         why.append("load %.1f > %.0f" % (os.getloadavg()[0], MAX_LOAD1))
-    avail = int([ln for ln in open("/proc/meminfo") if ln.startswith("MemAvailable")][0].split()[1]) // (1 << 20)
+    avail = int(
+        [ln for ln in open("/proc/meminfo") if ln.startswith("MemAvailable")][
+            0
+        ].split()[1]
+    ) // (1 << 20)
     if avail < MIN_FREE_RAM_GIB:
         why.append(f"only {avail} GiB RAM available")
     busy = []
@@ -162,13 +239,26 @@ class Watchdog(threading.Thread):
         self.stop_ev = threading.Event()
         self.tripped = None
         self.peak = {"vram_mib": 0, "junction_c": 0, "mem_c": 0}
-        self.kmsg = subprocess.Popen(["journalctl", "-k", "-f", "-n", "0", "-o", "cat"], stdout=subprocess.PIPE, text=True)
+        self.kmsg = subprocess.Popen(
+            ["journalctl", "-k", "-f", "-n", "0", "-o", "cat"],
+            stdout=subprocess.PIPE,
+            text=True,
+        )
         threading.Thread(target=self._kernel, daemon=True).start()
 
     def _kernel(self):
         for line in self.kmsg.stdout:
             ln = line.lower()
-            if "amdgpu" in ln and any(k in ln for k in ("page fault", "timeout", "reset", "wedged", "memory access fault")):
+            if "amdgpu" in ln and any(
+                k in ln
+                for k in (
+                    "page fault",
+                    "timeout",
+                    "reset",
+                    "wedged",
+                    "memory access fault",
+                )
+            ):
                 self.trip("kernel: " + line.strip()[:200])
 
     def trip(self, why):
@@ -181,7 +271,9 @@ class Watchdog(threading.Thread):
         n = 0
         while not self.stop_ev.is_set():
             n += 1
-            if n % 20 == 0:  # every ~5 s: a CI job or test container that starts mid-render ends the render
+            if (
+                n % 20 == 0
+            ):  # every ~5 s: a CI job or test container that starts mid-render ends the render
                 others = [c for c in running_containers() if c != NAME]
                 if others:
                     self.trip("another container started: " + ", ".join(others))
@@ -204,17 +296,69 @@ def start_container(profile):
     for d in ("out", "in"):
         os.makedirs(os.path.join(WORK, d), exist_ok=True)
     subprocess.run(["docker", "rm", "-f", NAME], capture_output=True, timeout=60)
-    cmd = ["docker", "run", "-d", "--name", NAME, "--network", "host", "--device", "/dev/kfd", "--device", "/dev/dri",
-           "--group-add", "988", "--group-add", "video", "--security-opt", "seccomp=unconfined",
-           "--memory", "12g", "--memory-swap", "14g", "--cpus", "8", "--pids-limit", "2048",
-           "-e", "TZ=Europe/Amsterdam", "-e", "HSA_OVERRIDE_GFX_VERSION=12.0.1",
-           "-e", f"KK_VRAM_FRACTION={frac}", "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False", "-e", "PYTORCH_HIP_ALLOC_CONF=expandable_segments:False",
-           "-v", "kk-render-cache:/home/comfy/.cache"]
-    for src, dst, mode in MOUNTS + (TRELLIS_MOUNTS if profile == "trellis" else SDXL_MOUNTS):
+    cmd = [
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        NAME,
+        "--network",
+        "host",
+        "--device",
+        "/dev/kfd",
+        "--device",
+        "/dev/dri",
+        "--group-add",
+        "988",
+        "--group-add",
+        "video",
+        "--security-opt",
+        "seccomp=unconfined",
+        "--memory",
+        "12g",
+        "--memory-swap",
+        "14g",
+        "--cpus",
+        "8",
+        "--pids-limit",
+        "2048",
+        "-e",
+        "TZ=Europe/Amsterdam",
+        "-e",
+        "HSA_OVERRIDE_GFX_VERSION=12.0.1",
+        "-e",
+        f"KK_VRAM_FRACTION={frac}",
+        "-e",
+        "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False",
+        "-e",
+        "PYTORCH_HIP_ALLOC_CONF=expandable_segments:False",
+        "-v",
+        "kk-render-cache:/home/comfy/.cache",
+    ]
+    for src, dst, mode in MOUNTS + (
+        TRELLIS_MOUNTS if profile == "trellis" else SDXL_MOUNTS
+    ):
         if os.path.exists(src):
             cmd += ["-v", f"{src}:{dst}:{mode}"]
-    cmd += [image, "python", "main.py", "--listen", "127.0.0.1", "--port", str(PORT), "--disable-auto-launch",
-            "--output-directory", "/media-out", "--fast-disk", "--disable-pinned-memory", "--reserve-vram", reserve, vae, "--preview-method", "none"]
+    cmd += [
+        image,
+        "python",
+        "main.py",
+        "--listen",
+        "127.0.0.1",
+        "--port",
+        str(PORT),
+        "--disable-auto-launch",
+        "--output-directory",
+        "/media-out",
+        "--fast-disk",
+        "--disable-pinned-memory",
+        "--reserve-vram",
+        reserve,
+        vae,
+        "--preview-method",
+        "none",
+    ]
     subprocess.run(cmd, check=True, capture_output=True, timeout=120)
     t0 = time.time()
     while time.time() - t0 < 180:
@@ -246,8 +390,11 @@ def image_ok(path):
 def run_job(graph_path, timeout, wd):
     g = json.load(open(graph_path))
     g = g.get("prompt", g)
-    req = urllib.request.Request(f"http://127.0.0.1:{PORT}/prompt", data=json.dumps({"prompt": g}).encode(),
-                                 headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{PORT}/prompt",
+        data=json.dumps({"prompt": g}).encode(),
+        headers={"Content-Type": "application/json"},
+    )
     try:
         pid = json.load(urllib.request.urlopen(req, timeout=30))["prompt_id"]
     except urllib.error.HTTPError as e:
@@ -260,7 +407,11 @@ def run_job(graph_path, timeout, wd):
             stop_container()
             return {"ok": False, "why": f"timeout after {timeout} s"}
         try:
-            h = json.load(urllib.request.urlopen(f"http://127.0.0.1:{PORT}/history/{pid}", timeout=20)).get(pid, {})
+            h = json.load(
+                urllib.request.urlopen(
+                    f"http://127.0.0.1:{PORT}/history/{pid}", timeout=20
+                )
+            ).get(pid, {})
         except (urllib.error.URLError, OSError) as e:
             return {"ok": False, "why": f"ComfyUI gone: {e}"}
         st = h.get("status", {}).get("status_str")
@@ -269,14 +420,39 @@ def run_job(graph_path, timeout, wd):
         time.sleep(1)
     secs = round(time.time() - t0)
     if st != "success":
-        msgs = [m for m in h["status"].get("messages", []) if m[0] in ("execution_error", "execution_interrupted")]
-        return {"ok": False, "secs": secs, "why": json.dumps([{k: m[1].get(k) for k in ("node_type", "exception_message")} for m in msgs])[:1500]}
-    files = [os.path.join(WORK, "out", im.get("subfolder", ""), im["filename"])
-             for node in h["outputs"].values() for items in node.values() if isinstance(items, list)
-             for im in items if isinstance(im, dict) and "filename" in im and im.get("type", "output") == "output"]
+        msgs = [
+            m
+            for m in h["status"].get("messages", [])
+            if m[0] in ("execution_error", "execution_interrupted")
+        ]
+        return {
+            "ok": False,
+            "secs": secs,
+            "why": json.dumps(
+                [
+                    {k: m[1].get(k) for k in ("node_type", "exception_message")}
+                    for m in msgs
+                ]
+            )[:1500],
+        }
+    files = [
+        os.path.join(WORK, "out", im.get("subfolder", ""), im["filename"])
+        for node in h["outputs"].values()
+        for items in node.values()
+        if isinstance(items, list)
+        for im in items
+        if isinstance(im, dict)
+        and "filename" in im
+        and im.get("type", "output") == "output"
+    ]
     bad = [f for f in files if f.endswith(".png") and not image_ok(f)]
     if bad:
-        return {"ok": False, "secs": secs, "files": files, "why": "black/flat output (sign of GPU trouble): " + ", ".join(bad)}
+        return {
+            "ok": False,
+            "secs": secs,
+            "files": files,
+            "why": "black/flat output (sign of GPU trouble): " + ", ".join(bad),
+        }
     return {"ok": True, "secs": secs, "files": files}
 
 
@@ -312,7 +488,10 @@ def main():
             results.append(r)
             if not r["ok"]:
                 rc = 1
-                log("STOPPED_BATCH", why="a job failed; not retrying, not running the rest")
+                log(
+                    "STOPPED_BATCH",
+                    why="a job failed; not retrying, not running the rest",
+                )
                 break
     except Exception as e:
         log("ERROR", why=str(e)[:500])

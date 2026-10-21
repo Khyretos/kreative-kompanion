@@ -30,8 +30,13 @@ class Geometry(unittest.TestCase):
         self.assertAlmostEqual(sv3.head_box_v2(3)[0] - box[0], 3 * 1.15 * s, delta=1)
 
     def test_map_point(self):
-        self.assertEqual(sv3.map_point([192, 384], (0, 0, 384, 768), (0, 0, 320, 640)), [160.0, 320.0])
-        self.assertEqual(sv3.map_point([10, 10], (0, 0, 100, 100), (200, 0, 300, 200)), [210.0, 60.0])  # centred
+        self.assertEqual(
+            sv3.map_point([192, 384], (0, 0, 384, 768), (0, 0, 320, 640)),
+            [160.0, 320.0],
+        )
+        self.assertEqual(
+            sv3.map_point([10, 10], (0, 0, 100, 100), (200, 0, 300, 200)), [210.0, 60.0]
+        )  # centred
         self.assertIsNone(sv3.map_point(None, (0, 0, 10, 10), (0, 0, 10, 10)))
         self.assertIsNone(sv3.map_point([50, 5], (0, 0, 10, 10), (0, 0, 10, 10)))
 
@@ -42,7 +47,9 @@ class Geometry(unittest.TestCase):
         sv3.paste_cell(dst, src, (0, 0, 100, 100), (200, 0, 300, 200))
         self.assertEqual(dst.getpixel((210, 100)), (200, 100, 50))
         self.assertEqual(dst.getpixel((290, 100)), (0, 0, 0))
-        self.assertEqual(dst.getpixel((250, 10)), (0, 0, 0))  # letterbox above the square crop
+        self.assertEqual(
+            dst.getpixel((250, 10)), (0, 0, 0)
+        )  # letterbox above the square crop
 
 
 class Build(unittest.TestCase):
@@ -51,7 +58,9 @@ class Build(unittest.TestCase):
         cls.out = sv3.build_oc(Image.open(os.path.join(V2, "depth.png")), 1600, 640)
 
     def test_parts(self):
-        self.assertEqual(set(self.out), {"depth", "pose", "lines", "helmet", "regions", "points"})
+        self.assertEqual(
+            set(self.out), {"depth", "pose", "lines", "helmet", "regions", "points"}
+        )
         for k in ("depth", "pose", "lines", "helmet", "regions"):
             self.assertEqual(self.out[k].size, (1600, 640), k)
         self.assertEqual((self.out["lines"].mode, self.out["helmet"].mode), ("L", "L"))
@@ -60,7 +69,9 @@ class Build(unittest.TestCase):
         d = self.out["depth"].convert("L")
         self.assertGreater(d.getpixel((160, 320)), 100)  # front torso
         self.assertGreater(d.getpixel((1360, 80)), 100)  # head-front
-        self.assertEqual(d.getpixel((1360, 80)), d.getpixel((1520, 80)))  # helmet cell = same head
+        self.assertEqual(
+            d.getpixel((1360, 80)), d.getpixel((1520, 80))
+        )  # helmet cell = same head
         self.assertLess(d.getpixel((20, 320)), 40)  # background
 
     def test_lines_and_mask(self):
@@ -82,7 +93,9 @@ class Build(unittest.TestCase):
         head = pts["figures"][4]["points"]
         self.assertIsNotNone(head[0])  # nose in the head cell
         self.assertIsNone(head[4])  # the wrist is outside the head crop
-        self.assertGreater(max(self.out["pose"].convert("L").crop((150, 150, 170, 172)).getdata()), 0)
+        self.assertGreater(
+            max(self.out["pose"].convert("L").crop((150, 150, 170, 172)).getdata()), 0
+        )
 
     def test_weapon(self):
         w = sv3.build_weapon(1344, 672)
@@ -90,12 +103,25 @@ class Build(unittest.TestCase):
         self.assertEqual(w["lines"].size, (1344, 672))
 
 
-
 class Regions(unittest.TestCase):
     def test_table(self):
-        self.assertEqual([r[0] for r in sv3.REGIONS], ["front", "right", "left", "back", "head-front", "head-right", "head-left", "head-back"])
+        self.assertEqual(
+            [r[0] for r in sv3.REGIONS],
+            [
+                "front",
+                "right",
+                "left",
+                "back",
+                "head-front",
+                "head-right",
+                "head-left",
+                "head-back",
+            ],
+        )
         self.assertEqual(sv3.REGIONS[0], ("front", ("front",), 0x101010))
-        self.assertEqual(sv3.REGIONS[5], ("head-right", ("head-right", "helmet-right"), 0x606060))
+        self.assertEqual(
+            sv3.REGIONS[5], ("head-right", ("head-right", "helmet-right"), 0x606060)
+        )
 
     def test_image(self):
         img = sv3.regions_image(1600, 640)
@@ -103,24 +129,54 @@ class Regions(unittest.TestCase):
         self.assertEqual(img.getpixel((160, 320)), (0x10, 0x10, 0x10))
         self.assertEqual(img.getpixel((480, 320)), (0x20, 0x20, 0x20))
         self.assertEqual(img.getpixel((1360, 240)), (0x60, 0x60, 0x60))
-        self.assertEqual(img.getpixel((1520, 240)), (0x60, 0x60, 0x60))  # the helmet cell of the row too
+        self.assertEqual(
+            img.getpixel((1520, 240)), (0x60, 0x60, 0x60)
+        )  # the helmet cell of the row too
         self.assertEqual(img.getpixel((1520, 600)), (0x80, 0x80, 0x80))
-        self.assertEqual(len(set(img.getdata())), 8)  # every pixel belongs to one region
+        self.assertEqual(
+            len(set(img.getdata())), 8
+        )  # every pixel belongs to one region
+
 
 class Cli(unittest.TestCase):
     def test_writes_the_files(self):
         with tempfile.TemporaryDirectory() as tmp:
-            p = subprocess.run([sys.executable, SCRIPT, "oc", V2, tmp], capture_output=True, text=True, timeout=120)
+            p = subprocess.run(
+                [sys.executable, SCRIPT, "oc", V2, tmp],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
             self.assertEqual(p.returncode, 0, p.stderr)
-            for f in ("depth.png", "pose.png", "lines.png", "lines-final.png", "helmet.png", "regions.png"):
+            for f in (
+                "depth.png",
+                "pose.png",
+                "lines.png",
+                "lines-final.png",
+                "helmet.png",
+                "regions.png",
+            ):
                 self.assertTrue(os.path.exists(os.path.join(tmp, f)), f)
-            self.assertEqual(Image.open(os.path.join(tmp, "lines-final.png")).size, (3600, 1440))
+            self.assertEqual(
+                Image.open(os.path.join(tmp, "lines-final.png")).size, (3600, 1440)
+            )
             wdir = os.path.join(tmp, "w")
-            p = subprocess.run([sys.executable, SCRIPT, "weapon", wdir], capture_output=True, text=True, timeout=120)
+            p = subprocess.run(
+                [sys.executable, SCRIPT, "weapon", wdir],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
             self.assertEqual(p.returncode, 0, p.stderr)
-            self.assertEqual(Image.open(os.path.join(wdir, "lines.png")).size, (1344, 672))
-            self.assertEqual(Image.open(os.path.join(wdir, "lines-final.png")).size, (3024, 1512))
-            p = subprocess.run([sys.executable, SCRIPT], capture_output=True, text=True, timeout=60)
+            self.assertEqual(
+                Image.open(os.path.join(wdir, "lines.png")).size, (1344, 672)
+            )
+            self.assertEqual(
+                Image.open(os.path.join(wdir, "lines-final.png")).size, (3024, 1512)
+            )
+            p = subprocess.run(
+                [sys.executable, SCRIPT], capture_output=True, text=True, timeout=60
+            )
             self.assertEqual(p.returncode, 2)
 
 
