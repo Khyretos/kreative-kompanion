@@ -1,0 +1,286 @@
+// public/js/pose-anim.js
+(function () {
+  'use strict';
+
+  // --- Utilities ---
+
+  const copy = (x) => JSON.parse(JSON.stringify(x));
+  const fmt = (t) => t.toFixed(2) + ' s';
+
+  // --- State ---
+
+  let clip = null;
+  let time = 0;
+  let sel = -1;
+  let playing = false;
+  let raf = 0;
+  let last = 0;
+  // pose-panel.js sets KKPoseEditor on DOMContentLoaded, after this file has run: look the stage up when used
+  const stage = { preview: (p, f) => window.KKPoseEditor.stage.preview(p, f), setPose: (p) => window.KKPoseEditor.stage.setPose(p), getPose: () => window.KKPoseEditor.stage.getPose() };
+
+  // --- Elements ---
+
+  const els = {
+    timeline: document.getElementById('anim-timeline'),
+    newBtn: document.getElementById('anim-new'),
+    walkBtn: document.getElementById('anim-walk'),
+    playBtn: document.getElementById('anim-play'),
+    timeSlider: document.getElementById('anim-time'),
+    timeVal: document.getElementById('anim-time-val'),
+    addBtn: document.getElementById('anim-add'),
+    removeBtn: document.getElementById('anim-remove'),
+    easeSel: document.getElementById('anim-ease'),
+    fpsSel: document.getElementById('anim-fps'),
+    lengthInput: document.getElementById('anim-length'),
+    loopCheck: document.getElementById('anim-loop'),
+    errorMsg: document.getElementById('error-msg-anim')
+  };
+
+  // --- API ---
+
+  window.KKAnimEditor = {
+    clip: () => copy(clip),
+    time: () => time,
+    playing: () => playing,
+    setClip: (c) => {
+      stop();
+      clip = copy(c);
+      time = 0;
+      sel = -1;
+      if (clip.keys.length) selectKey(0);
+      else render();
+    },
+    error: (msg) => {
+      els.errorMsg.textContent = msg;
+    }
+  };
+
+  // --- Logic ---
+
+  function keyAt(t) {
+    for (let i = 0; i < clip.keys.length; i++) {
+      const k = clip.keys[i];
+      if (Math.abs(k.t - t) < 1e-6) return i;
+    }
+    return -1;
+  }
+
+  function stop() {
+    if (playing) {
+      playing = false;
+      cancelAnimationFrame(raf);
+      sel = keyAt(time);
+      show(false);
+    }
+  }
+
+  function start() {
+    if (!clip.keys.length) {
+      els.errorMsg.textContent = 'Add a key first.';
+      return;
+    }
+    playing = true;
+    sel = -1;
+    if (!clip.loop && time >= clip.length) time = 0;
+    last = performance.now();
+    raf = requestAnimationFrame(tick);
+    render();
+  }
+
+  function tick(now) {
+    time += (now - last) / 1000;
+    last = now;
+    if (time >= clip.length) {
+      if (clip.loop) {
+        time %= clip.length;
+      } else {
+        time = clip.length;
+        show(false);
+        stop();
+        return;
+      }
+    }
+    show(true);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function show(fast) {
+    if (clip.keys.length > 0) {
+      const pose = sel >= 0 ? copy(clip.keys[sel].pose) : KKPose.anim.sample(clip, time);
+      stage.preview(pose, fast);
+    }
+    render();
+  }
+
+  function selectKey(i) {
+    stop();
+    sel = i;
+    time = clip.keys[i].t;
+    stage.setPose(copy(clip.keys[i].pose));
+    render();
+  }
+
+  function render() {
+    // Timeline keys
+    els.timeline.innerHTML = '';
+    for (let i = 0; i < clip.keys.length; i++) {
+      const k = clip.keys[i];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'anim-key';
+      btn.dataset.t = String(k.t);
+      btn.style.left = (k.t / clip.length * 100) + '%';
+      btn.setAttribute('aria-label', 'Key at ' + fmt(k.t));
+      btn.setAttribute('aria-pressed', String(i === sel));
+      btn.textContent = String(i + 1);
+      btn.addEventListener('click', () => selectKey(i));
+      els.timeline.appendChild(btn);
+    }
+
+    // Playhead
+    const ph = document.createElement('div');
+    ph.className = 'anim-playhead';
+    ph.setAttribute('aria-hidden', 'true');
+    ph.style.left = (time / clip.length * 100) + '%';
+    els.timeline.appendChild(ph);
+
+    // Time slider
+    els.timeSlider.max = String(clip.length);
+    els.timeSlider.step = String(1 / clip.fps);
+    els.timeSlider.value = String(time);
+    els.timeVal.textContent = fmt(time);
+
+    // Add button text
+    els.addBtn.textContent = sel >= 0 ? 'Update key' : 'Add key';
+
+    // Remove button disabled state
+    els.removeBtn.disabled = sel < 0;
+
+    // Ease value when selected
+    if (sel >= 0) {
+      els.easeSel.value = clip.keys[sel].ease;
+    }
+
+    // Settings values
+    els.fpsSel.value = String(clip.fps);
+    els.lengthInput.value = String(clip.length);
+    els.loopCheck.checked = clip.loop;
+
+    // Play button text and aria-pressed
+    els.playBtn.textContent = playing ? 'Pause' : 'Play';
+    els.playBtn.setAttribute('aria-pressed', String(playing));
+  }
+
+  // --- Event Handlers ---
+
+  els.newBtn.addEventListener('click', () => {
+    stop();
+    clip = KKPose.anim.newClip({ fps: clip.fps, length: clip.length, loop: clip.loop });
+    sel = -1;
+    time = 0;
+    render();
+  });
+
+  els.walkBtn.addEventListener('click', () => {
+    stop();
+    clip = copy(KKPose.clips.CLIPS.walk);
+    selectKey(0);
+  });
+
+  els.timeSlider.addEventListener('input', () => {
+    stop();
+    time = Math.round(+els.timeSlider.value * clip.fps) / clip.fps;
+    sel = keyAt(time);
+    show(false);
+  });
+
+  els.addBtn.addEventListener('click', () => {
+    els.errorMsg.textContent = '';
+    const pose = stage.getPose();
+    const ease = els.easeSel.value;
+    // Keep ik of a key that was already at that time
+    let existingIk = null;
+    for (const k of clip.keys) {
+      if (Math.abs(k.t - time) < 1e-6) {
+        existingIk = k.ik;
+        break;
+      }
+    }
+    clip = KKPose.anim.setKey(clip, time, pose, ease);
+    if (existingIk) clip.keys.find(k => Math.abs(k.t - time) < 1e-6).ik = existingIk;
+    sel = keyAt(time);
+    render();
+  });
+
+  els.removeBtn.addEventListener('click', () => {
+    if (sel >= 0) {
+      els.errorMsg.textContent = '';
+      clip = KKPose.anim.removeKey(clip, clip.keys[sel].t);
+      sel = -1;
+      show(false);
+    }
+  });
+
+  els.easeSel.addEventListener('change', () => {
+    if (sel >= 0) {
+      els.errorMsg.textContent = '';
+      const c = copy(clip);
+      c.keys[sel].ease = els.easeSel.value;
+      clip = c;
+      render();
+    }
+  });
+
+  els.playBtn.addEventListener('click', () => {
+    playing ? stop() : start();
+  });
+
+  els.fpsSel.addEventListener('change', () => {
+    els.errorMsg.textContent = '';
+    clip = copy(clip);
+    clip.fps = +els.fpsSel.value;
+    render();
+  });
+
+  els.lengthInput.addEventListener('change', () => {
+    els.errorMsg.textContent = '';
+    const v = +els.lengthInput.value;
+    if (!(v > 0 && v <= 60)) {
+      els.errorMsg.textContent = 'Length is a number of seconds above 0, up to 60.';
+      render();
+      return;
+    }
+    clip = copy(clip);
+    clip.length = v;
+    // Keep only keys with t < v (loop) or t <= v (no loop)
+    const keep = [];
+    for (const k of clip.keys) {
+      if (clip.loop && k.t < v) keep.push(k);
+      else if (!clip.loop && k.t <= v) keep.push(k);
+    }
+    clip.keys = keep;
+    time = Math.min(time, v);
+    sel = keyAt(time);
+    render();
+  });
+
+  els.loopCheck.addEventListener('change', () => {
+    els.errorMsg.textContent = '';
+    clip = copy(clip);
+    clip.loop = els.loopCheck.checked;
+    // When loop, keep only keys with t < clip.length
+    if (clip.loop) {
+      clip.keys = clip.keys.filter(k => k.t < clip.length);
+    }
+    sel = keyAt(time);
+    render();
+  });
+
+  // --- Init ---
+
+  // Assume KKPose and KKPoseEditor are available
+  if (typeof KKPose !== 'undefined' && typeof KKPose.anim !== 'undefined') {
+    clip = KKPose.anim.newClip();
+    render();
+  }
+})();

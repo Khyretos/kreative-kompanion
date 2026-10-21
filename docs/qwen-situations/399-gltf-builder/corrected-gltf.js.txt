@@ -1,0 +1,156 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load modules inside functions to ensure correct loading order in browser
+  function getVec() { return need('vec', './vec.js'); }
+  function getSkeleton() { return need('skeleton', './skeleton.js'); }
+  function getFK() { return need('fk', './fk.js'); }
+  function getQuat() { return need('quat', './quat.js'); }
+  function getAnim() { return need('anim', './anim.js'); }
+  function getBVH() { return need('bvh', './bvh.js'); }
+  function getMannequin() { return need('mannequin', './mannequin.js'); }
+  function getGLB() { return need('glb', './glb.js'); }
+
+  let V, S, FK, Q, A, BVH, M, G;
+  function load() {
+    if (!V) { V = getVec(); S = getSkeleton(); FK = getFK(); Q = getQuat(); A = getAnim(); BVH = getBVH(); M = getMannequin(); G = getGLB(); }
+  }
+
+  // --- Axis conversion matrix P (row-major): Z-up -> Y-up, facing -Y -> +Z ---
+  // P = [1, 0, 0, 0, 0, 1, 0, -1, 0]
+  const P = [1, 0, 0, 0, 0, 1, 0, -1, 0];
+
+  // Helper: transpose a 3x3 matrix
+  function transpose(m) {
+    return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
+  }
+
+  // Helper: convert point from Z-up to Y-up
+  function yUp(p) {
+    return [p[0], p[2], -p[1]];
+  }
+
+  // Helper: convert rotation matrix from Z-up to Y-up
+  // BVH matrix = P * M * transpose(P)
+  function toBVHMatrix(M) {
+    return V.matMul(V.matMul(P, M), transpose(P));
+  }
+
+  // --- toGLTF ---
+  // STU-PE2: the Coder's draft (3 attempts) mixed two binary builders, counted typed-array elements as bytes,
+  // used invented fields (indexInNames, quat.x) and wrote "skin" instead of "skins"; Claude rewrote the
+  // builder and the animation part (lesson 399).
+  function toGLTF(clip, opts = {}) {
+    load();
+    const names = BVH.jointNames(!!opts.hands);
+    const n = names.length;
+
+    // Binary builder: every part starts on 4 bytes and gets its own bufferView
+    const parts = [];
+    const bufferViews = [];
+    const accessors = [];
+    let length = 0;
+    function add(arr) {
+      const pad = (4 - (length % 4)) % 4;
+      if (pad) { parts.push(new Uint8Array(pad)); length += pad; }
+      const bytes = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
+      parts.push(bytes);
+      bufferViews.push({ buffer: 0, byteOffset: length, byteLength: bytes.length });
+      length += bytes.length;
+      return bufferViews.length - 1;
+    }
+    function accessor(arr, type, count, extra = {}) {
+      accessors.push({ bufferView: add(arr), componentType: arr instanceof Float32Array ? 5126 : 5123, count, type, ...extra });
+      return accessors.length - 1;
+    }
+
+    // Nodes: one per joint, then the mesh node
+    const nodes = names.map((name) => {
+      const parent = S.byName[name].parent;
+      const node = { name, translation: parent ? yUp(V.sub(S.byName[name].rest, S.byName[parent].rest)) : yUp(S.byName[name].rest) };
+      const children = names.map((m, j) => (S.byName[m].parent === name ? j : -1)).filter((j) => j >= 0);
+      if (children.length) node.children = children;
+      return node;
+    });
+    nodes.push({ name: 'mannequin', mesh: 0, skin: 0 });
+
+    // Skin: inverse bind matrices (rest is unrotated, so only the translation), column-major
+    const ibm = new Float32Array(n * 16);
+    names.forEach((name, i) => {
+      const t = yUp(S.byName[name].rest);
+      ibm.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -t[0], -t[1], -t[2], 1], i * 16);
+    });
+    const skins = [{ joints: names.map((_, i) => i), inverseBindMatrices: accessor(ibm, 'MAT4', n), skeleton: 0 }];
+
+    // Mesh
+    const m = M.mannequin(names);
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < m.positions.length; i++) {
+      min[i % 3] = Math.min(min[i % 3], m.positions[i]);
+      max[i % 3] = Math.max(max[i % 3], m.positions[i]);
+    }
+    const attributes = {
+      POSITION: accessor(m.positions, 'VEC3', m.positions.length / 3, { min, max }),
+      JOINTS_0: accessor(m.joints, 'VEC4', m.joints.length / 4),
+      WEIGHTS_0: accessor(m.weights, 'VEC4', m.weights.length / 4),
+    };
+    const meshes = [{ name: 'mannequin', primitives: [{ attributes, indices: accessor(m.indices, 'SCALAR', m.indices.length), mode: 4 }] }];
+
+    // Animation: one sample per frame, a looping clip closes with t = length
+    const times = A.frameTimes(clip);
+    if (clip.loop) times.push(clip.length);
+    const input = accessor(new Float32Array(times), 'SCALAR', times.length, { min: [times[0]], max: [times[times.length - 1]] });
+    const rot = names.map(() => new Float32Array(times.length * 4));
+    const root = new Float32Array(times.length * 3);
+    times.forEach((t, k) => {
+      const pose = A.sample(clip, t);
+      root.set(yUp(pose.root.pos), k * 3);
+      names.forEach((name, i) => {
+        let q = Q.fromMat(toBVHMatrix(FK.local(name, pose.joints[name])));
+        if (k > 0) {
+          const p = rot[i].subarray((k - 1) * 4, k * 4);
+          if (q[0] * p[0] + q[1] * p[1] + q[2] * p[2] + q[3] * p[3] < 0) q = q.map((x) => -x);
+        }
+        rot[i].set(q, k * 4);
+      });
+    });
+    const samplers = names.map((_, i) => ({ input, output: accessor(rot[i], 'VEC4', times.length), interpolation: 'LINEAR' }));
+    samplers.push({ input, output: accessor(root, 'VEC3', times.length), interpolation: 'LINEAR' });
+    const channels = names.map((_, i) => ({ sampler: i, target: { node: i, path: 'rotation' } }));
+    channels.push({ sampler: n, target: { node: 0, path: 'translation' } });
+
+    const bin = new Uint8Array(length);
+    let at = 0;
+    for (const p of parts) { bin.set(p, at); at += p.length; }
+    const json = {
+      asset: { version: '2.0', generator: 'Kreative Studio pose editor' },
+      scene: 0,
+      scenes: [{ nodes: [0, n] }],
+      nodes,
+      skins,
+      meshes,
+      animations: [{ name: 'clip', samplers, channels }],
+      accessors,
+      bufferViews,
+      buffers: [{ byteLength: bin.length }],
+    };
+    return { json, bin };
+  }
+
+  // --- toGLB ---
+  function toGLB(clip, opts = {}) {
+    load();
+    const { json, bin } = toGLTF(clip, opts);
+    return G.pack(json, bin);
+  }
+
+  const api = {
+    toGLTF,
+    toGLB
+  };
+
+  if (NS) NS.gltf = api; else module.exports = api;
+})();

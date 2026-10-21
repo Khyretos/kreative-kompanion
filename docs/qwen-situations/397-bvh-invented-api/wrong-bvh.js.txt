@@ -1,0 +1,169 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load modules inside functions to ensure correct loading order in browser
+  function getVec() { return need('vec', './vec.js'); }
+  function getSkeleton() { return need('skeleton', './skeleton.js'); }
+  function getFK() { return need('fk', './fk.js'); }
+  function getAnim() { return need('anim', './anim.js'); }
+
+  const V = getVec();
+  const S = getSkeleton();
+  const FK = getFK();
+  const A = getAnim();
+
+  // --- Axis conversion matrix P (row-major): Z-up -> Y-up, facing -Y -> +Z ---
+  // P = [1, 0, 0, 0, 0, 1, 0, -1, 0]
+  const P = [1, 0, 0, 0, 0, 1, 0, -1, 0];
+
+  // Helper: transpose a 3x3 matrix
+  function transpose(m) {
+    return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
+  }
+
+  // Helper: convert point from Z-up to Y-up
+  function yUp(p) {
+    return [p[0], p[2], -p[1]];
+  }
+
+  // Helper: convert rotation matrix from Z-up to Y-up
+  // BVH matrix = P * M * transpose(P)
+  function toBVHMatrix(M) {
+    const Mt = transpose(M);
+    const PM = [
+      P[0]*M[0] + P[1]*M[3] + P[2]*M[6],
+      P[0]*M[1] + P[1]*M[4] + P[2]*M[7],
+      P[0]*M[2] + P[1]*M[5] + P[2]*M[8],
+      P[3]*M[0] + P[4]*M[3] + P[5]*M[6],
+      P[3]*M[1] + P[4]*M[4] + P[5]*M[7],
+      P[3]*M[2] + P[4]*M[5] + P[5]*M[8],
+      P[6]*M[0] + P[7]*M[3] + P[8]*M[6],
+      P[6]*M[1] + P[7]*M[4] + P[8]*M[7],
+      P[6]*M[2] + P[7]*M[5] + P[8]*M[8]
+    ];
+    return V.matMul(PM, Mt);
+  }
+
+  // Helper: get joint names for export
+  // Excludes finger joints unless hands is true
+  function jointNames(hands) {
+    const excludeFinger = /_(thumb|index|middle|ring|pinky)_/;
+    return S.JOINTS.filter(j => {
+      if (j.aim === null) return false;
+      if (excludeFinger.test(j.name)) return !hands;
+      return true;
+    });
+  }
+
+  // --- toBVH ---
+  function toBVH(clip, opts) {
+    const hands = !!opts.hands;
+    const names = jointNames(hands);
+    
+    let lines = [];
+
+    // HIERARCHY section
+    lines.push('HIERARCHY');
+
+    // Recursive function to build hierarchy
+    function writeJoint(name, indent) {
+      const j = S.byName[name];
+      if (!j) return;
+
+      const parent = j.parent;
+      const isRoot = name === 'pelvis';
+      
+      // Determine offset
+      let offset;
+      if (isRoot) {
+        offset = [0, 0, 0];
+      } else {
+        const restDiff = V.sub(j.rest, S.byName[parent].rest);
+        offset = yUp(restDiff);
+      }
+
+      // Determine channels
+      let channels;
+      if (isRoot) {
+        channels = ['Xposition', 'Yposition', 'Zposition', 'Zrotation', 'Xrotation', 'Yrotation'];
+      } else {
+        channels = ['Zrotation', 'Xrotation', 'Yrotation'];
+      }
+
+      // Write joint line
+      lines.push(`${indent}${isRoot ? 'ROOT' : 'JOINT'} ${name} {`);
+      lines.push(`${indent}  OFFSET ${offset[0].toFixed(6)} ${offset[1].toFixed(6)} ${offset[2].toFixed(6)}`);
+      lines.push(`${indent}  CHANNELS ${channels.length} ${channels.join(' ')}`);
+
+      // Write children
+      for (const childName of names) {
+        const child = S.byName[childName];
+        if (child && child.parent === name) {
+          writeJoint(childName, indent + '  ');
+        }
+      }
+
+      // End Site only if aim is not in names (i.e., it's a leaf in the export tree)
+      if (j.aim !== null && !names.includes(j.aim)) {
+        const aimRest = S.byName[j.aim].rest;
+        const endOffset = yUp(V.sub(aimRest, j.rest));
+        lines.push(`${indent}End Site {`);
+        lines.push(`${indent}  OFFSET ${endOffset[0].toFixed(6)} ${endOffset[1].toFixed(6)} ${endOffset[2].toFixed(6)}`);
+        lines.push(`${indent}}`);
+      }
+
+      lines.push(indent + '}');
+    }
+
+    writeJoint('pelvis', '');
+
+    // MOTION section
+    lines.push('MOTION');
+    const times = A.frameTimes(clip);
+    lines.push(`Frames: ${times.length}`);
+    lines.push(`Frame Time: ${(1 / clip.fps).toFixed(6)}`);
+
+    // Generate motion data
+    for (let i = 0; i < times.length; i++) {
+      const t = times[i];
+      const pose = A.sample(clip, t);
+      
+      // Root position (yUp converted)
+      const rootPos = yUp(pose.root.pos);
+      
+      lines.push(rootPos[0].toFixed(6) + ' ' + rootPos[1].toFixed(6) + ' ' + rootPos[2].toFixed(6));
+
+      // Joint rotations
+      for (const name of names) {
+        const joint = pose.joints[name];
+        if (!joint) continue;
+        
+        const localEuler = {
+          bend: joint.bend || 0,
+          side: joint.side || 0,
+          twist: joint.twist || 0
+        };
+        
+        const localMat = V.eulerToMat(localEuler);
+        const invFrame = V.inv(V.frame(name));
+        const M = V.matMul(toBVHMatrix(V.matMul(localMat, invFrame)), transpose(V.frame(name)));
+        
+        const euler = V.matToEuler(M);
+        lines.push(euler.side.toFixed(6) + ' ' + euler.bend.toFixed(6) + ' ' + euler.twist.toFixed(6));
+      }
+    }
+
+    lines.push(''); // End with newline
+
+    return lines.join('\n');
+  }
+
+  const api = {
+    jointNames,
+    toBVH
+  };
+
+  if (NS) NS.bvh = api; else module.exports = api;
+})();

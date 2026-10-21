@@ -1,0 +1,145 @@
+(function () {
+  'use strict';
+  const NS = typeof module === 'object' && module.exports ? null : (globalThis.KKPose = globalThis.KKPose || {});
+  const need = (name, file) => (NS ? NS[name] : require(file));
+
+  // Load modules inside functions to ensure correct loading order in browser
+  function getVec() { return need('vec', './vec.js'); }
+  function getSkeleton() { return need('skeleton', './skeleton.js'); }
+  function getFK() { return need('fk', './fk.js'); }
+  function getAnim() { return need('anim', './anim.js'); }
+
+  let V, S, FK, A;
+  function load() {
+    if (!V) { V = getVec(); S = getSkeleton(); FK = getFK(); A = getAnim(); }
+  }
+
+  // --- Axis conversion matrix P (row-major): Z-up -> Y-up, facing -Y -> +Z ---
+  // P = [1, 0, 0, 0, 0, 1, 0, -1, 0]
+  const P = [1, 0, 0, 0, 0, 1, 0, -1, 0];
+
+  // Helper: transpose a 3x3 matrix
+  function transpose(m) {
+    return [m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]];
+  }
+
+  // Helper: convert point from Z-up to Y-up
+  function yUp(p) {
+    return [p[0], p[2], -p[1]];
+  }
+
+  // Helper: convert rotation matrix from Z-up to Y-up
+  // BVH matrix = P * M * transpose(P)
+  function toBVHMatrix(M) {
+    return V.matMul(V.matMul(P, M), transpose(P));
+  }
+
+  // Helper: get joint names for export
+  // Excludes finger joints unless hands is true
+  function jointNames(hands) {
+    load();
+    const finger = /_(thumb|index|middle|ring|pinky)_/;
+    return S.JOINTS.filter(j => j.aim !== null && (hands || !finger.test(j.name))).map(j => j.name);
+  }
+
+  // --- toBVH ---
+  function toBVH(clip, opts = {}) {
+    load();
+    const hands = !!opts.hands;
+    const names = jointNames(hands);
+    
+    let lines = [];
+    const order = []; // BVH MOTION columns follow the hierarchy, depth first
+
+    // HIERARCHY section
+    lines.push('HIERARCHY');
+
+    // Recursive function to build hierarchy
+    function writeJoint(name, indent) {
+      const j = S.byName[name];
+      if (!j) return;
+
+      const parent = j.parent;
+      const isRoot = name === 'pelvis';
+      
+      // Determine offset
+      let offset;
+      if (isRoot) {
+        offset = [0, 0, 0];
+      } else {
+        const restDiff = V.sub(j.rest, S.byName[parent].rest);
+        offset = yUp(restDiff);
+      }
+
+      // Determine channels
+      let channels;
+      if (isRoot) {
+        channels = ['Xposition', 'Yposition', 'Zposition', 'Zrotation', 'Xrotation', 'Yrotation'];
+      } else {
+        channels = ['Zrotation', 'Xrotation', 'Yrotation'];
+      }
+
+      order.push(name);
+
+      // Write joint line
+      lines.push(`${indent}${isRoot ? 'ROOT' : 'JOINT'} ${name} {`);
+      lines.push(`${indent}  OFFSET ${offset[0].toFixed(6)} ${offset[1].toFixed(6)} ${offset[2].toFixed(6)}`);
+      lines.push(`${indent}  CHANNELS ${channels.length} ${channels.join(' ')}`);
+
+      // Write children
+      for (const childName of names) {
+        const child = S.byName[childName];
+        if (child && child.parent === name) {
+          writeJoint(childName, indent + '  ');
+        }
+      }
+
+      // End Site only if aim is not in names (i.e., it's a leaf in the export tree)
+      if (j.aim !== null && !names.includes(j.aim)) {
+        const aimRest = S.byName[j.aim].rest;
+        const endOffset = yUp(V.sub(aimRest, j.rest));
+        lines.push(`${indent}End Site {`);
+        lines.push(`${indent}  OFFSET ${endOffset[0].toFixed(6)} ${endOffset[1].toFixed(6)} ${endOffset[2].toFixed(6)}`);
+        lines.push(`${indent}}`);
+      }
+
+      lines.push(indent + '}');
+    }
+
+    writeJoint('pelvis', '');
+
+    // MOTION section
+    lines.push('MOTION');
+    const times = A.frameTimes(clip);
+    lines.push(`Frames: ${times.length}`);
+    lines.push(`Frame Time: ${(1 / clip.fps).toFixed(6)}`);
+
+    // Generate motion data
+    for (let i = 0; i < times.length; i++) {
+      const t = times[i];
+      const pose = A.sample(clip, t);
+      
+      // Root position (yUp converted)
+      const rootPos = yUp(pose.root.pos);
+      
+      const row = [...rootPos];
+      for (const name of order) {
+        const e = V.matToEuler(toBVHMatrix(FK.local(name, pose.joints[name])));
+        row.push(e.side, e.bend, e.twist);
+      }
+      lines.push(row.map(v => v.toFixed(6)).join(' '));
+    }
+
+    lines.push(''); // End with newline
+
+    return lines.join('\n');
+  }
+
+  const api = {
+    yUp,
+    jointNames,
+    toBVH
+  };
+
+  if (NS) NS.bvh = api; else module.exports = api;
+})();
