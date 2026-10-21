@@ -1,16 +1,16 @@
 [
- {
-  "name": "pe2-libui-fix",
-  "role": "worker/web",
-  "mode": "patch",
-  "out": "/tmp/kk-pe2/studio/public/js/anim-library.js",
-  "precheck": false,
-  "max_tokens": 4000,
-  "context": [
-   "/tmp/kk-pe2/studio/test/e2e/anim.e2e.js",
-   "/tmp/kk-pe2/studio/public/js/pose-panel.js"
-  ],
-  "check": "cd /tmp/kk-pe2/studio && node --check public/js/anim-library.js && ! grep -q 'refresh()' public/js/anim-library.js && grep -q 'dataset.id = meta.id' public/js/anim-library.js",
-  "prompt": "Kreative Studio web UI (STU-PE2, the Animation part of the Pose tab). Plain browser JavaScript, no modules, no libraries, no build step. The browser test test/e2e/anim.e2e.js failed:\nwalk: FAILED Expected values to be strictly equal: 0 !== 4\nscrub: FAILED Cannot read properties of undefined (reading 'bend')\nadd-remove: FAILED keys [0, 0.25, 0.5, 0.75] instead of [0, 0.125, 0.25, 0.5, 0.75]\nease: FAILED waiting for locator('#anim-timeline .anim-key[data-t=\"0.25\"]')\nplay: FAILED time moves while playing: 0.012\nlibrary: FAILED waiting for locator('#anim-library .anim-card')\nno-page-errors: FAILED stage is not defined | stage is not defined | stage is not defined\n\nReview of public/js/anim-library.js (fix exactly these, SEARCH/REPLACE edits only, change nothing else):\n1. saveClip() calls refresh(), which does not exist: call loadLibrary().\n2. showToast(message, kind) wraps kind again: calls pass {kind: 'success'}, so use toast(message, kind) when kind is an object, or change the calls to showToast('Clip saved', 'success') and showToast('Clip loaded', 'info'). Pick the second.\n3. The click handler reads card.dataset.id and card.dataset.name, which createCard never sets: in createCard set fig.dataset.id = meta.id and fig.dataset.name = meta.name, and keep a copy of meta.clip on the card (fig.clip = meta.clip is fine) so Load can call KKAnimEditor.setClip(card.clip) without another request.\n"
- }
+  {
+    "name": "pe2-libui-fix",
+    "role": "worker/web",
+    "mode": "patch",
+    "out": "/tmp/kk-pe2/studio/public/js/anim-library.js",
+    "precheck": false,
+    "max_tokens": 4000,
+    "context": [
+      "/tmp/kk-pe2/studio/test/e2e/anim.e2e.js",
+      "/tmp/kk-pe2/studio/public/js/pose-panel.js"
+    ],
+    "check": "cd /tmp/kk-pe2/studio && node --check public/js/anim-library.js && ! grep -q 'refresh()' public/js/anim-library.js && grep -q 'dataset.id = meta.id' public/js/anim-library.js",
+    "prompt": "Kreative Studio web UI (STU-PE2, the Animation part of the Pose tab). Plain browser JavaScript, no modules, no libraries, no build step. The browser test test/e2e/anim.e2e.js failed:\nwalk: FAILED Expected values to be strictly equal: 0 !== 4\nscrub: FAILED Cannot read properties of undefined (reading 'bend')\nadd-remove: FAILED keys [0, 0.25, 0.5, 0.75] instead of [0, 0.125, 0.25, 0.5, 0.75]\nease: FAILED waiting for locator('#anim-timeline .anim-key[data-t=\"0.25\"]')\nplay: FAILED time moves while playing: 0.012\nlibrary: FAILED waiting for locator('#anim-library .anim-card')\nno-page-errors: FAILED stage is not defined | stage is not defined | stage is not defined\n\nReview of public/js/anim-library.js (fix exactly these, SEARCH/REPLACE edits only, change nothing else):\n1. saveClip() calls refresh(), which does not exist: call loadLibrary().\n2. showToast(message, kind) wraps kind again: calls pass {kind: 'success'}, so use toast(message, kind) when kind is an object, or change the calls to showToast('Clip saved', 'success') and showToast('Clip loaded', 'info'). Pick the second.\n3. The click handler reads card.dataset.id and card.dataset.name, which createCard never sets: in createCard set fig.dataset.id = meta.id and fig.dataset.name = meta.name, and keep a copy of meta.clip on the card (fig.clip = meta.clip is fine) so Load can call KKAnimEditor.setClip(card.clip) without another request.\n"
+  }
 ]
