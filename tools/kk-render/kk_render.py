@@ -128,7 +128,7 @@ def preflight():
         why.append("a game/GPU app is running: " + "; ".join(games[:3]))
     if os.getloadavg()[0] > MAX_LOAD1:
         why.append("load %.1f > %.0f" % (os.getloadavg()[0], MAX_LOAD1))
-    avail = int([l for l in open("/proc/meminfo") if l.startswith("MemAvailable")][0].split()[1]) // (1 << 20)
+    avail = int([ln for ln in open("/proc/meminfo") if ln.startswith("MemAvailable")][0].split()[1]) // (1 << 20)
     if avail < MIN_FREE_RAM_GIB:
         why.append(f"only {avail} GiB RAM available")
     busy = []
@@ -158,8 +158,8 @@ class Watchdog(threading.Thread):
 
     def _kernel(self):
         for line in self.kmsg.stdout:
-            l = line.lower()
-            if "amdgpu" in l and any(k in l for k in ("page fault", "timeout", "reset", "wedged", "memory access fault")):
+            ln = line.lower()
+            if "amdgpu" in ln and any(k in ln for k in ("page fault", "timeout", "reset", "wedged", "memory access fault")):
                 self.trip("kernel: " + line.strip()[:200])
 
     def trip(self, why):
