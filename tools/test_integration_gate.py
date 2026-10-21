@@ -155,12 +155,14 @@ class ConfiguredChecks(unittest.TestCase):
         path = os.path.join(root, "tools", "gate-tools.sh")
         with open(path) as f:
             script = f.read()
-        # the runner image has no Pillow, numpy or ffmpeg: the script installs them and runs every test
+        # the runner image has no Pillow, numpy, OpenCV or ffmpeg: the script installs them and runs every test
         for word in (
             "docker run",
             "ffmpeg",
             "python3-pil",
             "python3-numpy",
+            "python3-opencv",
+            "pillow>=10.1",
             "unittest discover -s tools",
         ):
             self.assertIn(word, script)
