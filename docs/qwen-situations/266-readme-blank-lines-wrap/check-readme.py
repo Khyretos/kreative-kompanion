@@ -36,14 +36,14 @@ for k, ok in need.items():
         err(f"missing {k}")
 L = t.splitlines()
 bad = [
-    f"line {i+1} ({l!r})"
-    for i, l in enumerate(L)
-    if l.startswith("#") and i + 1 < len(L) and L[i + 1] != ""
+    f"line {i+1} ({ln!r})"
+    for i, ln in enumerate(L)
+    if ln.startswith("#") and i + 1 < len(L) and L[i + 1] != ""
 ]
 bad += [
     f"line {i+1}: put a blank line before the ``` fence"
-    for i, l in enumerate(L)
-    if l.startswith("```")
+    for i, ln in enumerate(L)
+    if ln.startswith("```")
     and i
     and L[i - 1] != ""
     and not L[i - 1].startswith("```")
@@ -55,11 +55,11 @@ if bad:
         + "; ".join(bad)
     )
 inside, longl = False, []
-for i, l in enumerate(L):
-    if l.startswith("```"):
+for i, ln in enumerate(L):
+    if ln.startswith("```"):
         inside = not inside
-    elif not inside and len(l) > 120:
-        longl.append(f"line {i+1} ({len(l)} chars)")
+    elif not inside and len(ln) > 120:
+        longl.append(f"line {i+1} ({len(ln)} chars)")
 if longl:
     err("wrap ALL prose lines over 120 characters: " + "; ".join(longl))
 if not t.endswith("\n") or t.endswith("\n\n"):
