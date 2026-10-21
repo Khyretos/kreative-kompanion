@@ -9,6 +9,7 @@ Usage: python3 docs/branding/blur.py IMAGE.png X0 Y0 X1 Y1 [RADIUS]
 """
 
 import sys
+
 from PIL import Image, ImageFilter
 
 
