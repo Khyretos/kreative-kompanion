@@ -3,11 +3,13 @@
 State at handoff: no containers running, card at ~0.9 GB (desktop only), no amdgpu faults since the 13:45Z reboot.
 
 ## Rules (Kees, 13:47Z)
+
 soucouyant runs only Kompanion's ComfyUI render work (the A770 on kireserver does drafting). No CI (Kees paused the
 Forgejo runner in Forgejo; leave the `forgejo-runner` service alone), no Ollama/Coder, no builds. One job at a time,
 smallest test first, stop on any sign of trouble, never retry blindly. Kees's daily driver: no surprise loads.
 
 ## The runner: kk-render
+
 - Installed at `~/.local/lib/kk-render/` (`kk_render.py`, `vram_cap.py`, `kk_dump.py`); repo copy in
   `tools/kk-render/` with the crash write-up in `tools/kk-render/README.md`.
 - `python3 -I ~/.local/lib/kk-render/kk_render.py check` runs the preflight only.
@@ -23,11 +25,13 @@ smallest test first, stop on any sign of trouble, never retry blindly. Kees's da
   Never put two model families in one container. `expandable_segments` stays off (Kees, 2026-10-11).
 
 ## Done
+
 - PE3 pose renders: round 1 (6 presets) commit 8747d57, round 2 (action, sitting, waving) 166d01b, both on
   `khyretos/pe3-renders` under `comfy-jobs/pe3-poses*/out/`. 13-22 s each, 9.2 GB card peak, no faults.
 - Runner + write-up: a0daaf9 (`tools/kk-render/`).
 
 ## 3D-01 (TRELLIS.2 image to 3D): in progress
+
 - Work folder `~/kk-3d01-work` (old notes `3d-01-state.md`, bug draft `comfyui-trellis2-colour-bug.md`, HOLD on
   posting upstream). Graph `g-up1024.json` (int8, upsample 1024, remesh drop_small_components 0). Crops copied to
   `~/kk-render/in/3d01/char-*.png`.
@@ -54,6 +58,7 @@ smallest test first, stop on any sign of trouble, never retry blindly. Kees's da
   `comfy-jobs/3d01/out/` on `khyretos/pe3-renders`.
 
 ## STU-SHEET3D (MV-Adapter SD2.1): not started
+
 - Image `comfyui-mv:q19` (needs its own kk-render profile: mount `~/comfy-models-local/mvadapter` at `/mvm/mvadapter`
   and `~/kk-mv/diffusers-cache` at `/mvcache`, env `MV_HF_DIR=/mvcache MV_OFFLOAD=0 HF_HOME=/mvcache/hf`).
   Graph template in `~/kk-mv/mvrun21.py`; measured 4 views at 512 in 9-12 s, 6.9 GB card.
@@ -63,5 +68,6 @@ smallest test first, stop on any sign of trouble, never retry blindly. Kees's da
   `khyretos/stu-sheet3d` (layout.py, sheet_v3.py, cut.py).
 
 ## Reporting
+
 Results and commit hashes go to the project coordinator as notes; thread replies only for results, blockers or
 one-word decisions for Kees.
