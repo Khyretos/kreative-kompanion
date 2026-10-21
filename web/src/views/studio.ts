@@ -91,7 +91,7 @@ export function runCard(
     // 3D-01: files[0] is the .glb, files[1] its preview render (the card picture, under the Select/Delete buttons).
     const glb = r.files[0] ?? "";
     const name = `model-${r.id}-1.glb`;
-    pictures = html`<div class="studio-pics">${r.files[1] ? html`<img class="studio-3d-preview" src="${r.files[1]}" alt="${typeLabel}: ${r.prompt}" loading="lazy">` : ""}</div><div class="studio-3d"><button type="button" class="btn small" data-action="studio-3d" data-src="${glb}" data-name="${name}">View in 3D</button><a class="btn small" href="${glb}" download="${name}">Download .glb</a></div>`;
+    pictures = html`<div class="studio-pics">${r.files[1] ? html`<img class="studio-3d-preview" src="${r.files[1]}" alt="${typeLabel}: ${r.prompt}" loading="lazy">` : ""}</div>${glb ? html`<div class="studio-3d"><button type="button" class="btn small" data-action="studio-3d" data-src="${glb}" data-name="${name}">View in 3D</button><a class="btn small" href="${glb}" download="${name}">Download .glb</a></div>` : ""}`;
   } else if (r.type === "video") {
     pictures = html`<div class="studio-pics">${r.files.map((src) => html`<video class="studio-video" controls preload="metadata" src="${src}" aria-label="${typeLabel}: ${r.prompt}"></video>`)}</div>`;
   } else {
