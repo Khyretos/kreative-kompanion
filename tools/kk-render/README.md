@@ -13,6 +13,7 @@ only way render jobs run there now.
 | 13:45 | SDXL pose sheet, 0.55 torch cap, 13 GB watcher | No VRAM line crossed (10-11 GB). The first image came out **all black** and the batch went on; the next job ended in a GPU page fault in Hyprland's context, a gfx ring reset, and Hyprland aborted. |
 
 Lessons:
+
 - Hyprland cannot survive **any** GPU reset, so the goal is "no GPU fault at all", not only "VRAM under X".
 - A black or flat output is the warning sign: stop there, never run the next job.
 - `expandable_segments:True` was back on in the 13:45 container (Kees turned it off on 2026-10-11: ROCm never gave
