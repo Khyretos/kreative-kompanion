@@ -1,15 +1,15 @@
 {
- "name": "3d01-st-server",
- "role": "worker/web",
- "out": "/tmp/kk-3d01/studio/server.js",
- "mode": "patch",
- "precheck": false,
- "max_tokens": 1500,
- "focus": [
-  "if \\(job\\.kind === 'music' \\|\\| job\\.kind === 'sfx'\\) \\{\\n      job\\.files = outs",
-  "preset: `refine:\\$\\{req\\.body\\.action\\}`",
-  "kind: 'image',"
- ],
- "check": "cd /tmp/kk-3d01/studio && sh /tmp/kk-3d01-chk/sttest.sh test/model3d-route.test.js test/refine-route.test.js test/library.test.js",
- "prompt": "In server.js, a \"3D model\" refine (run.r.type === 'image-to-3d') must become a job of kind 'model' whose finished outputs are split: the .glb into job.files, the preview picture into job.images (3D-01; the test test/model3d-route.test.js already exists, do not change tests). Two SEARCH/REPLACE edits, change nothing else:\n1. In POST /api/refine, the job object made after `kompanion.make(...)` has the line `        kind: 'image',` right after `promptId: crypto.randomUUID(),`. Replace that one line with:\n        kind: run.r.type === 'image-to-3d' ? 'model' : 'image',\n2. In function followKompanion(job), inside `if (job.status === 'done') {`, insert a new first branch before `    if (job.kind === 'music' || job.kind === 'sfx') {` so the chain reads `if (job.kind === 'model') { ... } else if (job.kind === 'music' || job.kind === 'sfx') { ... } else { ... }`. The new branch sets, using the output's index n in `outs`:\n      job.files = outs.map((p, n) => ({ name: path.basename(p), mime: 'model/gltf-binary', kompanion: n })).filter(f => f.name.endsWith('.glb'));\n      job.images = outs.map((p, n) => ({ filename: path.basename(p), subfolder: '', kompanion: n })).filter(i => !i.filename.endsWith('.glb'));"
+  "name": "3d01-st-server",
+  "role": "worker/web",
+  "out": "/tmp/kk-3d01/studio/server.js",
+  "mode": "patch",
+  "precheck": false,
+  "max_tokens": 1500,
+  "focus": [
+    "if \\(job\\.kind === 'music' \\|\\| job\\.kind === 'sfx'\\) \\{\\n      job\\.files = outs",
+    "preset: `refine:\\$\\{req\\.body\\.action\\}`",
+    "kind: 'image',"
+  ],
+  "check": "cd /tmp/kk-3d01/studio && sh /tmp/kk-3d01-chk/sttest.sh test/model3d-route.test.js test/refine-route.test.js test/library.test.js",
+  "prompt": "In server.js, a \"3D model\" refine (run.r.type === 'image-to-3d') must become a job of kind 'model' whose finished outputs are split: the .glb into job.files, the preview picture into job.images (3D-01; the test test/model3d-route.test.js already exists, do not change tests). Two SEARCH/REPLACE edits, change nothing else:\n1. In POST /api/refine, the job object made after `kompanion.make(...)` has the line `        kind: 'image',` right after `promptId: crypto.randomUUID(),`. Replace that one line with:\n        kind: run.r.type === 'image-to-3d' ? 'model' : 'image',\n2. In function followKompanion(job), inside `if (job.status === 'done') {`, insert a new first branch before `    if (job.kind === 'music' || job.kind === 'sfx') {` so the chain reads `if (job.kind === 'model') { ... } else if (job.kind === 'music' || job.kind === 'sfx') { ... } else { ... }`. The new branch sets, using the output's index n in `outs`:\n      job.files = outs.map((p, n) => ({ name: path.basename(p), mime: 'model/gltf-binary', kompanion: n })).filter(f => f.name.endsWith('.glb'));\n      job.images = outs.map((p, n) => ({ filename: path.basename(p), subfolder: '', kompanion: n })).filter(i => !i.filename.endsWith('.glb'));"
 }
