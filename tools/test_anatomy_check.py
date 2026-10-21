@@ -242,6 +242,45 @@ class Detect(unittest.TestCase):
         )  # head-right starts at (800, 100)
 
 
+class PoseModels(unittest.TestCase):
+    """/pose answers 503 unless both DWPose model files are installed."""
+
+    def call_pose(self, files):
+        with tempfile.TemporaryDirectory() as d:
+            for name in files:
+                open(os.path.join(d, name), "wb").close()
+            old = ac.POSE_MODELS
+            ac.POSE_MODELS = d
+            try:
+                h = object.__new__(ac.AnatomyHandler)
+                h.headers = {"Content-Length": "4"}
+                sent = []
+                h.send_json = lambda code, obj: sent.append((code, obj))
+                h.pose()
+            finally:
+                ac.POSE_MODELS = old
+        return sent
+
+    def test_no_models_gives_503(self):
+        sent = self.call_pose([])
+        self.assertEqual(sent[0][0], 503)
+        self.assertIn("not installed", sent[0][1]["error"])
+
+    def test_only_the_detector_gives_503(self):
+        self.assertEqual(self.call_pose(["yolox_l.onnx"])[0][0], 503)
+
+    def test_only_the_pose_model_gives_503(self):
+        self.assertEqual(self.call_pose(["dw-ll_ucoco_384.onnx"])[0][0], 503)
+
+    def test_an_empty_body_is_still_a_400(self):
+        h = object.__new__(ac.AnatomyHandler)
+        h.headers = {"Content-Length": "0"}
+        sent = []
+        h.send_json = lambda code, obj: sent.append((code, obj))
+        h.pose()
+        self.assertEqual(sent[0][0], 400)
+
+
 class Cli(unittest.TestCase):
     def test_help_runs_without_ultralytics(self):
         p = subprocess.run(

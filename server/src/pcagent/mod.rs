@@ -3,6 +3,7 @@
 //! approval card (Approve, Always allow for 24 h, Deny); approved calls run as
 //! runner jobs, which still check the computer's grants.
 //! (The model drafted this twice; Claude rewrote it from the same spec.)
+pub mod steplog;
 pub mod tools;
 
 use std::collections::HashMap;
@@ -139,6 +140,9 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
     for (author, text) in history {
         let role = if author == "user" { "user" } else { "assistant" };
         messages.push(json!({ "role": role, "content": text }));
+    }
+    if let Some(d) = steplog::digest(&s.db, &user_id, &chat_id).await {
+        messages.push(json!({ "role": "system", "content": d }));
     }
     let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?").bind(&chat_id).fetch_optional(&s.db).await.ok().flatten();
     let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default();
