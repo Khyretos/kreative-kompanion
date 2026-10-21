@@ -9,13 +9,16 @@ weapon writes lines.png (1344x672) and lines-final.png (3024x1512). Lines are wh
 import importlib.util
 import os
 import sys
+
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def _load(name):
-    spec = importlib.util.spec_from_file_location(name, os.path.join(HERE, name + ".py"))
+    spec = importlib.util.spec_from_file_location(
+        name, os.path.join(HERE, name + ".py")
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -66,7 +69,10 @@ def map_point(p, src_box, dst_box):
     if x < x0 or x >= x1 or y < y0 or y >= y1:
         return None
     k, ox, oy = fit(src_box, dst_box)
-    return [round(ox + (p[0] - src_box[0]) * k, 1), round(oy + (p[1] - src_box[1]) * k, 1)]
+    return [
+        round(ox + (p[0] - src_box[0]) * k, 1),
+        round(oy + (p[1] - src_box[1]) * k, 1),
+    ]
 
 
 def paste_cell(dst, src, src_box, dst_box):
@@ -96,7 +102,12 @@ def build_oc(depth_v2, width=OC_SIZE[0], height=OC_SIZE[1]):
         figure = pts["figures"][V2_INDEX[view]]
         mapped_points = [map_point(p, src, cell["box"]) for p in figure["points"]]
         figures.append({"view": cell["name"], "points": mapped_points})
-    points = {"width": width, "height": height, "order": pts["order"], "figures": figures}
+    points = {
+        "width": width,
+        "height": height,
+        "order": pts["order"],
+        "figures": figures,
+    }
     return {
         "depth": depth,
         "pose": draw_pose.draw(points),
@@ -122,20 +133,24 @@ def main(argv):
         final_h = WEAPON_SIZE[1]
         kind = "weapon"
     else:
-        print("""STU-SHEET3D: the OC sheet v3 and weapon sheet templates, built from the v2 sheet (no Blender).
+        print(
+            """STU-SHEET3D: the OC sheet v3 and weapon sheet templates, built from the v2 sheet (no Blender).
 
 Usage: sheet_v3.py oc V2_DIR OUT_DIR      (V2_DIR = studio/workflows/oc-sheet with the 1536x768 depth.png)
-       sheet_v3.py weapon OUT_DIR""", file=sys.stderr)
+       sheet_v3.py weapon OUT_DIR""",
+            file=sys.stderr,
+        )
         return 2
 
     out = argv[3]
     os.makedirs(out, exist_ok=True)
     for key in ("depth", "pose", "lines", "helmet"):
         img = parts.get(key)
-        if img is not None and hasattr(img, 'save'):
+        if img is not None and hasattr(img, "save"):
             img.save(os.path.join(out, f"{key}.png"))
     # Save points as JSON
     import json
+
     with open(os.path.join(out, "points.json"), "w") as f:
         json.dump(parts["points"], f, indent=2)
     layout.draw_lines(kind, final_w, final_h).save(os.path.join(out, "lines-final.png"))

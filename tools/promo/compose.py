@@ -65,7 +65,8 @@ def contrast(a, b):
 
 def text_colour(region):
     """The text colour with the best worst-case contrast. region is one (r, g, b) or a list of them (the light
-    and dark ends of what sits under the text): the ratio is the lowest over that list."""
+    and dark ends of what sits under the text): the ratio is the lowest over that list.
+    """
     pixels = [region] if isinstance(region[0], (int, float)) else list(region)
 
     def worst(c):
@@ -113,7 +114,11 @@ def _ends(img, box):
 def _fit_size(text, size, width, font_path):
     """The largest size up to size whose text fits width (steps of 2 px, at least 10)."""
     while size > 10:
-        font = ImageFont.truetype(font_path, size) if font_path else ImageFont.load_default(size)
+        font = (
+            ImageFont.truetype(font_path, size)
+            if font_path
+            else ImageFont.load_default(size)
+        )
         if font.getlength(text) <= width:
             break
         size -= 2
@@ -160,7 +165,10 @@ def compose(spec):
     if ratio < NEED["tagline"]:
         c = _canvas(w, h)
         pad = margin // 2
-        c.paste(rgb(PALETTE["night"]) + (153,), (box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad))
+        c.paste(
+            rgb(PALETTE["night"]) + (153,),
+            (box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad),
+        )
         layers.insert(1, {"name": "scrim", "image": c})
         colour, ratio = text_colour(_ends(_composite(layers, w, h), box))
         scrim = True
@@ -186,18 +194,27 @@ def compose(spec):
         },
     ]
     r = round(ratio, 2)
-    check = {name: {"colour": colour, "ratio": r, "need": need, "scrim": scrim} for name, need in NEED.items()}
+    check = {
+        name: {"colour": colour, "ratio": r, "need": need, "scrim": scrim}
+        for name, need in NEED.items()
+    }
     check["ok"] = all(ratio >= need for need in NEED.values())
     return {"width": w, "height": h, "layers": layers, "texts": texts, "check": check}
 
 
 def render_text(b, name, font_path=None):
     t = next(t for t in b["texts"] if t["name"] == name)
-    font = ImageFont.truetype(font_path, t["size"]) if font_path else ImageFont.load_default(t["size"])
+    font = (
+        ImageFont.truetype(font_path, t["size"])
+        if font_path
+        else ImageFont.load_default(t["size"])
+    )
     c = _canvas(b["width"], b["height"])
     from PIL import ImageDraw
 
-    ImageDraw.Draw(c).text((t["x"], t["y"]), t["text"], font=font, fill=rgb(t["colour"]) + (255,))
+    ImageDraw.Draw(c).text(
+        (t["x"], t["y"]), t["text"], font=font, fill=rgb(t["colour"]) + (255,)
+    )
     return c
 
 
@@ -215,7 +232,9 @@ def _png(img):
 
 
 def write_ora(b, path, font_path=None):
-    order = [t["name"] for t in reversed(b["texts"])] + [lay["name"] for lay in reversed(b["layers"])]
+    order = [t["name"] for t in reversed(b["texts"])] + [
+        lay["name"] for lay in reversed(b["layers"])
+    ]
     images = {lay["name"]: lay["image"] for lay in b["layers"]}
     for t in b["texts"]:
         images[t["name"]] = render_text(b, t["name"], font_path)
@@ -228,7 +247,11 @@ def write_ora(b, path, font_path=None):
     thumb = flat.copy()
     thumb.thumbnail((256, 256))
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr(zipfile.ZipInfo("mimetype"), b"image/openraster", compress_type=zipfile.ZIP_STORED)
+        z.writestr(
+            zipfile.ZipInfo("mimetype"),
+            b"image/openraster",
+            compress_type=zipfile.ZIP_STORED,
+        )
         z.writestr("stack.xml", xml)
         for n in order:
             z.writestr(f"data/{n}.png", _png(images[n]))
@@ -238,7 +261,9 @@ def write_ora(b, path, font_path=None):
 
 def write_svg(b, path):
     w, h = b["width"], b["height"]
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">']
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
+    ]
     for lay in b["layers"]:
         data = base64.b64encode(_png(lay["image"])).decode()
         parts.append(
@@ -256,9 +281,9 @@ def write_svg(b, path):
 
 def write_all(b, out_dir, stem, font_path=None):
     os.makedirs(out_dir, exist_ok=True)
-    paths = [os.path.join(out_dir, f"{stem}.{ext}") for ext in ("ora", "svg", "png")] + [
-        os.path.join(out_dir, "check.json")
-    ]
+    paths = [
+        os.path.join(out_dir, f"{stem}.{ext}") for ext in ("ora", "svg", "png")
+    ] + [os.path.join(out_dir, "check.json")]
     write_ora(b, paths[0], font_path)
     write_svg(b, paths[1])
     flatten(b, font_path).save(paths[2])

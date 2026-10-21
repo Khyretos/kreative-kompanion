@@ -8,9 +8,12 @@ import importlib.util
 import json
 import os
 import sys
+
 from PIL import Image, ImageChops
 
-_LAYOUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pose-sheet", "layout.py")
+_LAYOUT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "pose-sheet", "layout.py"
+)
 _spec = importlib.util.spec_from_file_location("sheet_layout", _LAYOUT)
 layout = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(layout)
@@ -27,11 +30,17 @@ def inner_box(box, lw, margin=MARGIN):
 
 def trim(crop, tol=TOL):
     bg = crop.getpixel((0, 0))
-    diff = ImageChops.difference(crop, Image.new("RGB", crop.size, bg)).convert("L").point(lambda v: 255 if v > tol else 0)
+    diff = (
+        ImageChops.difference(crop, Image.new("RGB", crop.size, bg))
+        .convert("L")
+        .point(lambda v: 255 if v > tol else 0)
+    )
     bbox = diff.getbbox()
     if bbox is None:
         return None
-    touches = bbox[0] <= 0 or bbox[1] <= 0 or bbox[2] >= crop.width or bbox[3] >= crop.height
+    touches = (
+        bbox[0] <= 0 or bbox[1] <= 0 or bbox[2] >= crop.width or bbox[3] >= crop.height
+    )
     return (bbox, touches)
 
 
@@ -73,7 +82,10 @@ def cut(img, kind, margin=MARGIN):
 
 def main(argv):
     if len(argv) != 4 or argv[2] not in layout.LAYOUTS:
-        print(f"usage: cut.py SHEET.png KIND OUT_DIR (KIND: {', '.join(layout.LAYOUTS)})", file=sys.stderr)
+        print(
+            f"usage: cut.py SHEET.png KIND OUT_DIR (KIND: {', '.join(layout.LAYOUTS)})",
+            file=sys.stderr,
+        )
         return 2
     img_path, kind, out_dir = argv[1], argv[2], argv[3]
     img = Image.open(img_path)
@@ -88,7 +100,14 @@ def main(argv):
         "kind": kind,
         "size": [img.width, img.height],
         "cells": [
-            {"name": c["name"], "box": list(c["box"]), "inner": list(c["inner"]), "trimmed_box": list(c["trimmed_box"]), "touches": c["touches"], "empty": c["empty"]}
+            {
+                "name": c["name"],
+                "box": list(c["box"]),
+                "inner": list(c["inner"]),
+                "trimmed_box": list(c["trimmed_box"]),
+                "touches": c["touches"],
+                "empty": c["empty"],
+            }
             for c in cells
         ],
     }

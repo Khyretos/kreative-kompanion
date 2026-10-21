@@ -88,8 +88,22 @@ class Judge(unittest.TestCase):
 # STU-SHEET3D: the v3 sheet, 1000x400: body cells of 200 px (front, right, left, back), then the head grid
 # (x 800-900 bare head, 900-1000 helmet; rows of 100 px: front, right, left, back).
 W3, H3 = 1000, 400
-V3_FACES = [box(100, 40), box(300, 40), box(500, 40), box(850, 50), box(850, 150), box(850, 250)]
-V3_HANDS = [box(60, 200), box(140, 200), box(300, 200), box(500, 200), box(660, 200), box(740, 200)]
+V3_FACES = [
+    box(100, 40),
+    box(300, 40),
+    box(500, 40),
+    box(850, 50),
+    box(850, 150),
+    box(850, 250),
+]
+V3_HANDS = [
+    box(60, 200),
+    box(140, 200),
+    box(300, 200),
+    box(500, 200),
+    box(660, 200),
+    box(740, 200),
+]
 
 
 class JudgeV3(unittest.TestCase):
@@ -97,16 +111,30 @@ class JudgeV3(unittest.TestCase):
         r = ac.judge(V3_FACES, V3_HANDS, W3, H3, cells=ac.CELLS["oc-v3"])
         self.assertEqual(r["issues"], [])
         self.assertTrue(r["ok"])
-        self.assertEqual([c["view"] for c in r["cells"]][:5], ["front", "right", "left", "back", "head-front"])
+        self.assertEqual(
+            [c["view"] for c in r["cells"]][:5],
+            ["front", "right", "left", "back", "head-front"],
+        )
         self.assertEqual(len(r["cells"]), 12)
         self.assertEqual([c["faces"] for c in r["cells"]][:8], [1, 1, 1, 0, 1, 0, 1, 0])
 
     def test_v2_cells_are_the_default(self):
-        self.assertEqual([c[0] for c in ac.CELLS["v2"]], ["front", "left", "back", "right"])
-        self.assertEqual(ac.judge(GOOD_FACES, GOOD_HANDS, W, H), ac.judge(GOOD_FACES, GOOD_HANDS, W, H, cells=ac.CELLS["v2"]))
+        self.assertEqual(
+            [c[0] for c in ac.CELLS["v2"]], ["front", "left", "back", "right"]
+        )
+        self.assertEqual(
+            ac.judge(GOOD_FACES, GOOD_HANDS, W, H),
+            ac.judge(GOOD_FACES, GOOD_HANDS, W, H, cells=ac.CELLS["v2"]),
+        )
 
     def test_head_cells(self):
-        r = ac.judge(V3_FACES[:3] + [box(850, 350), box(850, 150)], V3_HANDS, W3, H3, cells=ac.CELLS["oc-v3"])
+        r = ac.judge(
+            V3_FACES[:3] + [box(850, 350), box(850, 150)],
+            V3_HANDS,
+            W3,
+            H3,
+            cells=ac.CELLS["oc-v3"],
+        )
         self.assertIn("head-front: no face (head turned away)", r["issues"])
         self.assertIn("head-left: no face (head turned away)", r["issues"])
         self.assertIn("head-back: face seen (head facing the wrong way)", r["issues"])
@@ -115,11 +143,23 @@ class JudgeV3(unittest.TestCase):
     def test_helmet_cells_and_hands_in_head_cells_are_not_judged(self):
         extra_faces = [box(950, 50), box(950, 60), box(950, 350)]
         extra_hands = [box(850, 80), box(860, 80), box(870, 80)]
-        r = ac.judge(V3_FACES + extra_faces, V3_HANDS + extra_hands, W3, H3, cells=ac.CELLS["oc-v3"])
+        r = ac.judge(
+            V3_FACES + extra_faces,
+            V3_HANDS + extra_hands,
+            W3,
+            H3,
+            cells=ac.CELLS["oc-v3"],
+        )
         self.assertTrue(r["ok"], r["issues"])
 
     def test_body_rules_still_apply(self):
-        r = ac.judge(V3_FACES + [box(700, 40)], V3_HANDS + [box(100, 300)], W3, H3, cells=ac.CELLS["oc-v3"])
+        r = ac.judge(
+            V3_FACES + [box(700, 40)],
+            V3_HANDS + [box(100, 300)],
+            W3,
+            H3,
+            cells=ac.CELLS["oc-v3"],
+        )
         self.assertIn("back: face seen (head facing the wrong way)", r["issues"])
         self.assertIn("front: 3 hands", r["issues"])
 
@@ -127,8 +167,13 @@ class JudgeV3(unittest.TestCase):
 class Query(unittest.TestCase):
     def test_parse_query(self):
         self.assertEqual(ac.parse_query("/check"), (("front", "left", "right"), "v2"))
-        self.assertEqual(ac.parse_query("/check?face_views=front&layout=oc-v3"), (("front",), "oc-v3"))
-        self.assertEqual(ac.parse_query("/check?layout=oc-v3"), (("front", "left", "right"), "oc-v3"))
+        self.assertEqual(
+            ac.parse_query("/check?face_views=front&layout=oc-v3"),
+            (("front",), "oc-v3"),
+        )
+        self.assertEqual(
+            ac.parse_query("/check?layout=oc-v3"), (("front", "left", "right"), "oc-v3")
+        )
         with self.assertRaises(ValueError):
             ac.parse_query("/check?layout=nope")
 
@@ -192,7 +237,9 @@ class Detect(unittest.TestCase):
         self.assertEqual(len(FakeYOLO.calls), 24)
         self.assertEqual(FakeYOLO.calls[0][1], (200, 400))
         self.assertEqual(FakeYOLO.calls[8][1], (100, 100))
-        self.assertEqual(faces[6], [810.0, 120.0, 830.0, 140.0, 0.9])  # head-right starts at (800, 100)
+        self.assertEqual(
+            faces[6], [810.0, 120.0, 830.0, 140.0, 0.9]
+        )  # head-right starts at (800, 100)
 
 
 class Cli(unittest.TestCase):

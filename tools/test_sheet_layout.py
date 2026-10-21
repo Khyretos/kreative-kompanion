@@ -28,12 +28,17 @@ class Layout(unittest.TestCase):
         self.assertEqual(len(names), 12)
         self.assertEqual(names[4:6], ["head-front", "helmet-front"])
         self.assertEqual(names[-1], "helmet-back")
-        self.assertEqual([c[0] for c in lay.LAYOUTS["weapon"]["cells"]], ["front", "right", "back", "left"])
+        self.assertEqual(
+            [c[0] for c in lay.LAYOUTS["weapon"]["cells"]],
+            ["front", "right", "back", "left"],
+        )
         self.assertEqual(lay.LAYOUTS["weapon"]["ratio"], 2.0)
 
     def test_cells_cover_the_sheet(self):
         for kind in lay.LAYOUTS:
-            area = sum((c[3] - c[1]) * (c[4] - c[2]) for c in lay.LAYOUTS[kind]["cells"])
+            area = sum(
+                (c[3] - c[1]) * (c[4] - c[2]) for c in lay.LAYOUTS[kind]["cells"]
+            )
             self.assertAlmostEqual(area, 1.0, places=6, msg=kind)
 
     def test_line_width(self):
@@ -45,8 +50,12 @@ class Layout(unittest.TestCase):
         cells = lay.cells_px("oc-v3", 1600, 640)
         self.assertEqual(cells[0], {"name": "front", "box": (0, 0, 320, 640)})
         self.assertEqual(cells[4], {"name": "head-front", "box": (1280, 0, 1440, 160)})
-        self.assertEqual(cells[11], {"name": "helmet-back", "box": (1440, 480, 1600, 640)})
-        self.assertEqual(lay.cells_px("weapon", 1344, 672)[2]["box"], (672, 0, 1008, 672))
+        self.assertEqual(
+            cells[11], {"name": "helmet-back", "box": (1440, 480, 1600, 640)}
+        )
+        self.assertEqual(
+            lay.cells_px("weapon", 1344, 672)[2]["box"], (672, 0, 1008, 672)
+        )
 
     def test_draw_lines(self):
         img = lay.draw_lines("oc-v3", 1600, 640)
@@ -85,7 +94,9 @@ class V2Points(unittest.TestCase):
     def test_shape(self):
         data = self.vp.points()
         self.assertEqual((data["width"], data["height"]), (1536, 768))
-        self.assertEqual([f["view"] for f in data["figures"]], ["front", "left", "back", "right"])
+        self.assertEqual(
+            [f["view"] for f in data["figures"]], ["front", "left", "back", "right"]
+        )
         for f in data["figures"]:
             self.assertEqual(len(f["points"]), 18)
 
@@ -101,7 +112,9 @@ class V2Points(unittest.TestCase):
 
     def test_matches_the_v2_pose_sheet(self):
         drawn = self.dp.draw(self.vp.points()).convert("L")
-        ref = Image.open(os.path.join(HERE, "..", "studio", "workflows", "oc-sheet", "pose.png")).convert("L")
+        ref = Image.open(
+            os.path.join(HERE, "..", "studio", "workflows", "oc-sheet", "pose.png")
+        ).convert("L")
         diff = ImageChops.difference(drawn, ref).point(lambda v: 255 if v > 40 else 0)
         changed = sum(1 for v in diff.getdata() if v)
         self.assertLess(changed / (1536 * 768), 0.01)

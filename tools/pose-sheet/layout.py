@@ -41,7 +41,15 @@ def cells_px(kind, width, height):
     result = []
     for name, x0, y0, x1, y1 in layout["cells"]:
         result.append(
-            {"name": name, "box": (round(x0 * width), round(y0 * height), round(x1 * width), round(y1 * height))}
+            {
+                "name": name,
+                "box": (
+                    round(x0 * width),
+                    round(y0 * height),
+                    round(x1 * width),
+                    round(y1 * height),
+                ),
+            }
         )
     return result
 

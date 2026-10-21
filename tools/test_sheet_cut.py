@@ -25,7 +25,9 @@ def sheet():
     img.paste((0, 0, 0), mask=lines)
     d = ImageDraw.Draw(img)
     d.rectangle((100, 100, 199, 499), fill=(200, 30, 30))
-    d.rectangle((960, 50, 1100, 600), fill=(30, 30, 200))  # back cell is 960-1280: crosses its inner edge (966)
+    d.rectangle(
+        (960, 50, 1100, 600), fill=(30, 30, 200)
+    )  # back cell is 960-1280: crosses its inner edge (966)
     d.rectangle((1330, 40, 1389, 119), fill=(30, 160, 30))
     return img
 
@@ -48,11 +50,16 @@ class Cut(unittest.TestCase):
         self.assertFalse(res["head-front"]["touches"])
         self.assertTrue(res["helmet-left"]["empty"])
         self.assertEqual(res["helmet-left"]["trimmed_box"], res["helmet-left"]["inner"])
-        self.assertNotIn((0, 0, 0), set(front["image"].getdata()), "no separator line in the crop")
+        self.assertNotIn(
+            (0, 0, 0), set(front["image"].getdata()), "no separator line in the crop"
+        )
 
     def test_weapon_kind(self):
         img = Image.new("RGB", (1344, 672), (255, 255, 255))
-        self.assertEqual([c["name"] for c in cut.cut(img, "weapon")], ["front", "right", "back", "left"])
+        self.assertEqual(
+            [c["name"] for c in cut.cut(img, "weapon")],
+            ["front", "right", "back", "left"],
+        )
         self.assertTrue(all(c["empty"] for c in cut.cut(img, "weapon")))
 
     def test_cli(self):
@@ -60,16 +67,32 @@ class Cut(unittest.TestCase):
             src = os.path.join(tmp, "sheet.png")
             sheet().save(src)
             out = os.path.join(tmp, "out")
-            p = subprocess.run([sys.executable, CUT, src, "oc-v3", out], capture_output=True, text=True, timeout=60)
+            p = subprocess.run(
+                [sys.executable, CUT, src, "oc-v3", out],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
             self.assertEqual(p.returncode, 0, p.stderr)
             self.assertIn("back", p.stdout)  # touching cells are named
             data = json.load(open(os.path.join(out, "cut.json")))
             self.assertEqual(data["kind"], "oc-v3")
-            self.assertEqual([c["name"] for c in data["cells"]][:4], ["front", "right", "left", "back"])
+            self.assertEqual(
+                [c["name"] for c in data["cells"]][:4],
+                ["front", "right", "left", "back"],
+            )
             self.assertEqual(data["cells"][0]["trimmed_box"], [92, 92, 208, 508])
             self.assertTrue(os.path.exists(os.path.join(out, "front.png")))
-            self.assertFalse(os.path.exists(os.path.join(out, "helmet-left.png")), "empty cells are not written")
-            p = subprocess.run([sys.executable, CUT, src, "nope", out], capture_output=True, text=True, timeout=60)
+            self.assertFalse(
+                os.path.exists(os.path.join(out, "helmet-left.png")),
+                "empty cells are not written",
+            )
+            p = subprocess.run(
+                [sys.executable, CUT, src, "nope", out],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
             self.assertEqual(p.returncode, 2)
 
 
