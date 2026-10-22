@@ -30,10 +30,43 @@ fn p(base: &std::path::Path, rel: &str) -> String {
 #[test]
 fn read_inside_outside_and_escape() {
     let (b, g) = setup(1, r#""read""#);
-    let ok = run(&g, &Tool::ReadFile { path: p(&b, "inside/a.txt") }, NOW);
+    let ok = run(&g, &Tool::ReadFile { path: p(&b, "inside/a.txt"), offset: None, length: None }, NOW);
     assert!(ok.ok && ok.output.contains("hello"), "{}", ok.output);
-    assert!(!run(&g, &Tool::ReadFile { path: p(&b, "outside/b.txt") }, NOW).ok);
-    assert!(!run(&g, &Tool::ReadFile { path: p(&b, "inside/../outside/b.txt") }, NOW).ok);
+    assert!(!run(&g, &Tool::ReadFile { path: p(&b, "outside/b.txt"), offset: None, length: None }, NOW).ok);
+    assert!(!run(&g, &Tool::ReadFile { path: p(&b, "inside/../outside/b.txt"), offset: None, length: None }, NOW).ok);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+#[test]
+fn read_a_slice_of_a_file() {
+    let (b, g) = setup(20, r#""read""#);
+    let slice = run(&g, &Tool::ReadFile { path: p(&b, "inside/a.txt"), offset: Some(1), length: Some(3) }, NOW);
+    assert!(slice.ok && slice.output.starts_with("ell\n"), "{}", slice.output);
+    assert!(slice.output.contains("more follows, continue with offset 4"), "{}", slice.output);
+    let tail = run(&g, &Tool::ReadFile { path: p(&b, "inside/a.txt"), offset: Some(3), length: None }, NOW);
+    assert!(tail.ok && tail.output.starts_with("lo\n") && tail.output.contains("end of file"), "{}", tail.output);
+    let past = run(&g, &Tool::ReadFile { path: p(&b, "inside/a.txt"), offset: Some(99), length: Some(1) }, NOW);
+    assert!(!past.ok && past.output.contains("past the end"), "{}", past.output);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+#[test]
+fn a_slice_still_needs_the_read_grant() {
+    let (b, g) = setup(21, r#""read""#);
+    let out = run(&g, &Tool::ReadFile { path: p(&b, "outside/b.txt"), offset: Some(0), length: Some(2) }, NOW);
+    assert!(!out.ok && out.output.contains("not granted"), "{}", out.output);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+#[test]
+fn a_big_file_needs_a_slice_and_a_slice_reads_it() {
+    let (b, g) = setup(22, r#""read""#);
+    let big = b.join("inside/big.txt");
+    std::fs::write(&big, "x".repeat(300 * 1024)).unwrap();
+    let whole = run(&g, &Tool::ReadFile { path: p(&b, "inside/big.txt"), offset: None, length: None }, NOW);
+    assert!(!whole.ok && whole.output.contains("offset and length"), "{}", whole.output);
+    let part = run(&g, &Tool::ReadFile { path: p(&b, "inside/big.txt"), offset: Some(299 * 1024), length: Some(10) }, NOW);
+    assert!(part.ok && part.output.starts_with("xxxxxxxxxx\n"), "{}", part.output);
     let _ = std::fs::remove_dir_all(&b);
 }
 

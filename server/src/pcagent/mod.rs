@@ -307,7 +307,7 @@ impl Agent {
             let calls = msg["tool_calls"].as_array().cloned().unwrap_or_default();
             if calls.is_empty() {
                 let text = msg["content"].as_str().unwrap_or("").trim();
-                return Ok(if text.is_empty() { "Done.".into() } else { text.to_string() });
+                return Ok(final_text(text, n));
             }
             // A short "what I'll do" sentence before the tools, when the model wrote one.
             if let Some(text) = msg["content"].as_str().map(str::trim).filter(|t| !t.is_empty()) {
@@ -588,6 +588,19 @@ async fn refuse(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, jo
     format!("Refused, nothing changed: {}", reason)
 }
 
+/// The answer shown when the model stops calling tools. An empty answer is never turned into
+/// a bare "Done.": that claimed success without saying what happened.
+fn final_text(text: &str, steps_before: usize) -> String {
+    if !text.is_empty() {
+        return text.to_string();
+    }
+    if steps_before == 0 {
+        "The model sent an empty answer and ran no steps. Nothing was changed. Ask again or pick another model.".into()
+    } else {
+        format!("The model ran {steps_before} round(s) of steps but ended without a summary, so I can't say whether the whole request was finished. The step cards above show what ran; ask me what is left.")
+    }
+}
+
 /// What the model gets back from a step: the outcome first, then the end of the
 /// output (where the exit code and errors are).
 fn model_result(state: &str, result: &str) -> String {
@@ -765,6 +778,18 @@ mod tests {
     fn prompt_names_the_machine() {
         let p = system_prompt("soucouyant");
         assert!(p.contains("soucouyant") && p.contains("approves"));
+    }
+
+    #[test]
+    fn an_empty_final_answer_is_never_a_bare_done() {
+        assert_eq!(final_text("Installed git 2.45.", 3), "Installed git 2.45.");
+        for (text, n) in [("", 0), ("", 4)] {
+            let r = final_text(text, n);
+            assert_ne!(r.trim(), "Done.");
+            assert!(r.len() > 40, "{r}");
+        }
+        assert!(final_text("", 0).contains("Nothing was changed"));
+        assert!(final_text("", 4).contains("can't say"));
     }
 
     #[test]
