@@ -7,7 +7,8 @@ use crate::grants::{Grants, Right};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "tool", rename_all = "snake_case")]
 pub enum Tool {
-    ReadFile { path: String },
+    /// `offset`/`length` (bytes) read one slice of a big file; without them the whole file is read.
+    ReadFile { path: String, #[serde(default)] offset: Option<u64>, #[serde(default)] length: Option<u64> },
     WriteFile { path: String, content: String },
     ListDir { path: String },
     Shell { cwd: String, command: String },
@@ -26,7 +27,7 @@ pub struct Outcome { pub ok: bool, pub output: String }
 /// Runs one tool call if the grants allow it. Never panics.
 pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
     match tool {
-        Tool::ReadFile { path } => {
+        Tool::ReadFile { path, offset, length } => {
             let path = Path::new(path);
             let canonical_path = match canonicalize(path) {
                 Ok(p) => p,
@@ -44,8 +45,37 @@ pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
                     Err(_) => return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Read, canonical_path.display()) },
                 };
 
-                if metadata.len() > 256 * 1024 {
-                    return Outcome { ok: false, output: format!("file too big: {}", canonical_path.display()) };
+                const CAP: u64 = 256 * 1024;
+                if offset.is_some() || length.is_some() {
+                    use std::io::{Read, Seek, SeekFrom};
+                    let start = offset.unwrap_or(0);
+                    // The server keeps only the first 64 KiB of a result, so a slice stays under
+                    // that with room for the trailing "continue with offset" note.
+                    const SLICE_CAP: u64 = 60 * 1024;
+                    let want = length.unwrap_or(SLICE_CAP).min(SLICE_CAP);
+                    let size = metadata.len();
+                    if start > size {
+                        return Outcome { ok: false, output: format!("offset {start} is past the end of the file ({size} bytes): {}", canonical_path.display()) };
+                    }
+                    let mut f = match fs::File::open(&canonical_path) {
+                        Ok(f) => f,
+                        Err(_) => return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Read, canonical_path.display()) },
+                    };
+                    if f.seek(SeekFrom::Start(start)).is_err() {
+                        return Outcome { ok: false, output: format!("cannot seek in: {}", canonical_path.display()) };
+                    }
+                    let mut buf = Vec::new();
+                    if f.take(want).read_to_end(&mut buf).is_err() {
+                        return Outcome { ok: false, output: format!("cannot read: {}", canonical_path.display()) };
+                    }
+                    let end = start + buf.len() as u64;
+                    let text = String::from_utf8_lossy(&buf).into_owned();
+                    let note = if end < size { format!("\n[bytes {start}-{end} of {size}; more follows, continue with offset {end}]") } else { format!("\n[bytes {start}-{end} of {size}; end of file]") };
+                    return Outcome { ok: true, output: format!("{text}{note}") };
+                }
+
+                if metadata.len() > CAP {
+                    return Outcome { ok: false, output: format!("file too big ({} bytes, limit {CAP}): read it in slices with offset and length: {}", metadata.len(), canonical_path.display()) };
                 }
 
                 let content = match fs::read_to_string(&canonical_path) {

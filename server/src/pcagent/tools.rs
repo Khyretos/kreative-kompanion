@@ -7,11 +7,13 @@ pub fn schema() -> Value {
             "type": "function",
             "function": {
                 "name": "read_file",
-                "description": "Read a text file (up to 256 KiB).",
+                "description": "Read a text file (up to 256 KiB). For a bigger file, or to read it in parts, pass offset and length (bytes); the result says where to continue.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "path": { "type": "string" }
+                        "path": { "type": "string" },
+                        "offset": { "type": "integer", "description": "Byte to start at (default 0)." },
+                        "length": { "type": "integer", "description": "Bytes to read (at most 61440 per call)." }
                     },
                     "required": ["path"]
                 }
@@ -181,7 +183,7 @@ pub fn whole_lines(content: &str, old: &str) -> Result<(), String> {
 /// Returns None if the name is not recognized or arguments are invalid.
 pub fn to_job(name: &str, args: &Value) -> Option<Value> {
     let known = match name {
-        "read_file" => vec!["path"],
+        "read_file" => vec!["path", "offset", "length"],
         "list_dir" => vec!["path"],
         "write_file" => vec!["path", "content"],
         "edit_file" => vec!["path", "old", "new"],
@@ -214,6 +216,14 @@ pub fn to_job(name: &str, args: &Value) -> Option<Value> {
                                 }
                             } else {
                                 return None;
+                            }
+                        }
+                        "offset" | "length" => {
+                            // Byte counts: a whole number >= 0, sent as a number or as digits.
+                            let n = val.as_u64().or_else(|| val.as_str().and_then(|t| t.trim().parse::<u64>().ok()));
+                            match n {
+                                Some(n) => { out.insert(k.clone(), json!(n)); }
+                                None => return None,
                             }
                         }
                         _ => {
@@ -335,6 +345,20 @@ mod tests {
         assert!(obj.contains_key("old"));
         assert!(obj.contains_key("new"));
         assert!(!obj.contains_key("extra"));
+    }
+
+    #[test]
+    fn read_file_takes_an_optional_offset_and_length() {
+        let job = to_job("read_file", &json!({"path": "/a", "offset": 10, "length": "20"})).unwrap();
+        assert_eq!(job, json!({"tool": "read_file", "path": "/a", "offset": 10, "length": 20}));
+        // Without them the job is what it was before.
+        assert_eq!(to_job("read_file", &json!({"path": "/a"})).unwrap(), json!({"tool": "read_file", "path": "/a"}));
+        // Junk is refused rather than guessed at.
+        assert!(to_job("read_file", &json!({"path": "/a", "offset": -1})).is_none());
+        assert!(to_job("read_file", &json!({"path": "/a", "length": "lots"})).is_none());
+        assert!(to_job("read_file", &json!({"path": "/a", "offset": 1.5})).is_none());
+        // Other tools still take strings only.
+        assert!(to_job("list_dir", &json!({"path": 5})).is_none());
     }
 
     #[test]
