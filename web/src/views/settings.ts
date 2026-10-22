@@ -37,9 +37,9 @@ function stepsSection(s: AppState): SafeHtml {
     <h3 class="label">Steps per request</h3>
     <div class="field">
       <label for="max-steps">Default number of steps</label>
-      <input id="max-steps" type="number" min="1" max="100" step="1" value="${s.maxSteps}">
+      <input id="max-steps" type="number" min="0" max="100" step="1" value="${s.maxSteps}">
     </div>
-    <p class="muted small">How many tool steps one request may take before I stop and ask how to go on (1 to 100). Automatic mode ignores this limit; use Stop to end it at any step.</p>
+    <p class="muted small">How many tool steps one request may take before I stop and ask how to go on (1 to 100, or 0 for no limit). Automatic mode ignores this limit; use Stop to end it at any step.</p>
   </section>`;
 }
 

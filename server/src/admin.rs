@@ -297,7 +297,7 @@ pub struct Prefs {
     overseer_name: Option<String>,
     /// OVR-01: may the Overseer add context to running tasks without asking.
     overseer_interject: Option<bool>,
-    /// AUTO-01: how many tool steps one request may take (1-100).
+    /// AUTO-01: how many tool steps one request may take (1-100, 0 = no limit).
     max_steps: Option<i64>,
 }
 
@@ -356,8 +356,8 @@ pub async fn set_prefs(
         sqlx::query("UPDATE users SET overseer_interject = ? WHERE id = ?").bind(on).bind(&u.id).execute(&s.db).await?;
     }
     if let Some(n) = b.max_steps {
-        if !(1..=100).contains(&n) {
-            return Err(ApiError::BadRequest("Steps per request is a number from 1 to 100.".into()));
+        if !(0..=100).contains(&n) {
+            return Err(ApiError::BadRequest("Steps per request is a number from 1 to 100, or 0 for no limit.".into()));
         }
         sqlx::query("UPDATE users SET max_steps = ? WHERE id = ?").bind(n).bind(&u.id).execute(&s.db).await?;
     }

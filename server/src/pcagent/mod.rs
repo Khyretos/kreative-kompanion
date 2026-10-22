@@ -131,9 +131,9 @@ pub async fn stop(State(s): State<AppState>, Extension(u): Extension<User>, Path
     }
 }
 
-/// AUTO-01: how many tool steps one request may take: the user's setting, kept between 1 and 100.
+/// AUTO-01: how many tool steps one request may take: the user's setting, kept between 1 and 100; 0 means no limit.
 pub fn clamp_steps(n: i64) -> usize {
-    n.clamp(1, 100) as usize
+    if n == 0 { usize::MAX } else { n.clamp(1, 100) as usize }
 }
 
 /// AUTO-01: does this chat run steps without asking? Only when the chat's own toggle is on, or the
@@ -763,6 +763,15 @@ fn needs_text(job: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn steps_per_request_are_clamped_and_zero_means_no_limit() {
+        assert_eq!(clamp_steps(0), usize::MAX);
+        assert_eq!(clamp_steps(1), 1);
+        assert_eq!(clamp_steps(100), 100);
+        assert_eq!(clamp_steps(500), 100);
+        assert_eq!(clamp_steps(-5), 1);
+    }
 
     #[test]
     fn a_task_folder_confines_paths() {

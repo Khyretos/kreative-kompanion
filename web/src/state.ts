@@ -12,7 +12,7 @@ export interface AppState {
   draftMcp?: string[]; // CHAT-01: tools picked before a new chat exists
   draftOverseer?: boolean; // OVR-01: Overseer picked before a new chat exists
   draftAutoRun?: boolean; // AUTO-01: automatic mode picked before a new chat exists
-  maxSteps: number; // AUTO-01: tool steps one request may take (1-100), saved per user
+  maxSteps: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100), saved per user
   overseer: import("./api/types").OverseerPrefs; // OVR-01
   toolsMenuOpen?: boolean;
   machineName?: string; // HOST-01: the server's own computer, for "This server's computer" in Pair
