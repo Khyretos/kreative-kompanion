@@ -1474,7 +1474,9 @@ function wire(shell: HTMLElement): void {
     }
     // AUTO-01: the default number of steps per request (Settings).
     if (fid === "max-steps") {
-      const n = Math.min(100, Math.max(1, Math.round(Number((ev.target as HTMLInputElement).value) || 10)));
+      // 0 means no limit; an empty or bad value falls back to 10.
+      const raw = Number((ev.target as HTMLInputElement).value);
+      const n = Number.isFinite(raw) && String((ev.target as HTMLInputElement).value).trim() !== "" ? Math.min(100, Math.max(0, Math.round(raw))) : 10;
       (ev.target as HTMLInputElement).value = String(n);
       api.setMaxSteps(n).then(() => store.set({ maxSteps: n }), showError);
       return;

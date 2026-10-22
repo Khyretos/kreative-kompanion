@@ -314,7 +314,7 @@ export interface ServerStatus {
   mcp?: string[]; // CHAT-01: [[mcp]] tool servers a chat can turn on
   mcpInfo?: Record<string, string>; // UI-02: their one-line descriptions
   overseer?: OverseerPrefs | null; // OVR-01: the Overseer's name and whether it may add context to running tasks
-  maxSteps?: number; // AUTO-01: tool steps one request may take (1-100)
+  maxSteps?: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100)
   machineName?: string | null; // HOST-01: the server's own computer ([machine_name] in kompanion.toml)
   theme?: ThemeChoice;
   machinesRefresh?: number; // seconds; 1 = live
