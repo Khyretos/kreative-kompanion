@@ -158,7 +158,9 @@ pub async fn get_settings(
     let settings = load(&s.db).await?;
     Ok(Json(json!({
         "settings": settings,
-        "smtpPasswordSet": std::env::var("SMTP_PASSWORD").is_ok_and(|p| !p.is_empty()),
+        "smtpPasswordSet": mail::password(&|k| std::env::var(k).ok()).is_some(),
+        // NOTIFY: the server's environment sets the mail server (KOMPANION_SMTP_*): shown read-only.
+        "smtpFromEnv": mail::from_env(&|k| std::env::var(k).ok()).map(|m| json!({ "host": m.host, "port": m.port, "tls": m.tls, "user": m.user, "from": m.from })),
     })))
 }
 
@@ -218,17 +220,22 @@ pub async fn test_mail(
 ) -> ApiResult<StatusCode> {
     require_admin(&s, &u).await?;
     let st = load(&s.db).await?;
-    if st.smtp_host.is_empty() || st.smtp_from.is_empty() {
-        return Err(ApiError::BadRequest("Fill in the mail server and sender first.".into()));
-    }
-    let password = std::env::var("SMTP_PASSWORD").ok().filter(|p| !p.is_empty());
-    let smtp = mail::SmtpSettings {
-        host: st.smtp_host,
-        port: st.smtp_port,
-        tls: st.smtp_tls,
-        user: st.smtp_user,
-        from: st.smtp_from,
-        reply_to: st.smtp_reply_to,
+    let password = mail::password(&|k| std::env::var(k).ok());
+    let smtp = match mail::from_env(&|k| std::env::var(k).ok()) {
+        Some(env) => env,
+        None => {
+            if st.smtp_host.is_empty() || st.smtp_from.is_empty() {
+                return Err(ApiError::BadRequest("Fill in the mail server and sender first.".into()));
+            }
+            mail::SmtpSettings {
+                host: st.smtp_host.clone(),
+                port: st.smtp_port,
+                tls: st.smtp_tls.clone(),
+                user: st.smtp_user.clone(),
+                from: st.smtp_from.clone(),
+                reply_to: st.smtp_reply_to.clone(),
+            }
+        }
     };
     let body = format!(
         "This is a test from {}. If you can read it, mail notifications work.\n",

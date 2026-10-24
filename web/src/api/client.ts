@@ -68,7 +68,11 @@ export interface KompanionApi {
   /** ACC-01: same target and rights, a new expiry (null: permanent). */
   renewGrant(machineId: string, target: string, expiresHours: number | null): Promise<void>;
   accessHistory(): Promise<import("../views/access").AccessEvent[]>;
-  getAdmin(): Promise<{ settings: AdminSettings; smtpPasswordSet: boolean }>;
+  getAdmin(): Promise<{ settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./types").SmtpFromEnv | null }>;
+  /** NOTIFY: Web Push for this browser (the server's public key, subscribe, unsubscribe). */
+  webPushKey(): Promise<{ key: string }>;
+  webPushSubscribe(sub: { endpoint: string; keys: { p256dh: string; auth: string }; device: string }): Promise<void>;
+  webPushUnsubscribe(endpoint: string): Promise<void>;
   saveAdmin(settings: AdminSettings): Promise<AdminSettings>;
   testMail(to: string): Promise<void>;
   uploadLogo(file: File): Promise<void>;
@@ -220,6 +224,6 @@ export type ServerEvent =
   | { type: "machines"; machines: MachineStats[] }
   | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts"; machineId?: string }
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
-  | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app ignores it
+  | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app shows approvals (NOTIFY)
   | { type: "resync" };
 

@@ -40,3 +40,30 @@ self.addEventListener("fetch", (e) => {
     }
   })());
 });
+
+// NOTIFY: Web Push. The payload is {title, state, url} (task or approval); a click opens or
+// focuses Kompanion on that link.
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = {}; }
+  const title = typeof d.title === "string" && d.title ? `Kompanion: ${d.title.slice(0, 80)}` : "Kompanion";
+  const state = typeof d.state === "string" ? d.state : "";
+  const body = state === "waits for your approval" ? "A step waits for your approval." : state ? `Now: ${state}.` : "";
+  const url = typeof d.url === "string" && d.url.startsWith(self.location.origin) ? d.url : self.location.origin + "/";
+  e.waitUntil(self.registration.showNotification(title, { body, icon: "icon-192.png", badge: "icon-192.png", tag: url, data: { url } }));
+});
+
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || self.location.origin + "/";
+  e.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const open = wins.find((w) => w.url.startsWith(self.location.origin));
+    if (open) {
+      await open.focus();
+      if ("navigate" in open) await open.navigate(url).catch(() => undefined);
+      return;
+    }
+    await self.clients.openWindow(url);
+  })());
+});

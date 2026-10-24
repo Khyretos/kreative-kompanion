@@ -1306,3 +1306,16 @@ a.fact-value { color: var(--link); }
   .right .pane-head > .tabs [role="tab"] { flex: none; }
   .fact-buttons .icon-btn, .fact-actions .btn, .fact-actions select, .fact-add input, .fact-edit input, .facts-search, .facts-btn { min-height: 44px; min-width: 44px; }
 }
+
+/* NOTIFY: notification channels, quiet hours, push in this browser, mail set by the server. */
+.quiet-hours { display: grid; gap: 0.35rem; border: 0; padding: 0; margin: 0.6rem 0 0; }
+.quiet-hours legend { font-weight: 600; padding: 0; margin-bottom: 0.25rem; }
+.quiet-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.quiet-row input[type="time"] { min-width: 7.5rem; }
+.web-push-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.web-push-row .btn[aria-pressed="true"] { border-color: var(--accent); }
+.good-text { color: var(--good); }
+.env-note { margin: 0 0 0.5rem; padding: 0.5rem 0.65rem; color: var(--fg); background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: 4px; }
+.smtp-fields { border: 0; padding: 0; margin: 0; display: grid; gap: inherit; min-width: 0; }
+.smtp-fields[hidden] { display: none; }
+@media (max-width: 760px) { .quiet-row input[type="time"], .web-push-row .btn { min-height: 44px; } }

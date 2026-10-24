@@ -10,6 +10,7 @@ import { parseLinks } from "./views/overview";
 import { openSearch } from "./views/search";
 import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
+import * as webPush from "./core/webpush";
 import { saveText, onCodeAction, setCodeTheme, applyCodeTheme } from "./core/codeblocks";
 import { onMediaAction } from "./core/media";
 import { paneProject, store, loadPcChoice, savePcChoice, type AppState } from "./state";
@@ -72,7 +73,7 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 }
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
-import { renderSettings } from "./views/settings";
+import { renderSettings, webPushRow } from "./views/settings";
 import { pageHead } from "./views/pagehead";
 import { modal } from "./core/modal";
 import { doneChip as overseerDoneChip, markDone as markOverseerDone } from "./core/overseer";
@@ -489,9 +490,17 @@ function render(s: AppState, prev: AppState): void {
   if (s.section !== prev.section && !firstRender) navHistory(s.section, prev.section);
   const settings = $("#settings");
   if (s.section === "settings" && s.section !== prev.section) settingsDirty = false;
+  // NOTIFY: whether this browser gets push, read on entering Settings.
+  if (s.section === "settings" && prev.section !== "settings" && s.webPush === undefined) {
+    if (api instanceof MockApi) store.set({ webPush: "off" });
+    else void webPush.state().then((w) => store.set({ webPush: w }), () => store.set({ webPush: "unsupported" }));
+  }
   if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer", "explain"])) {
     remount(settings, renderSettings(s));
   }
+  // NOTIFY: the push row draws on its own (after the page, which may have just been drawn).
+  const pushSlot = document.getElementById("webpush-slot");
+  if (pushSlot && s.section === "settings" && (!pushSlot.firstElementChild || changed(s, prev, ["webPush"]))) remount(pushSlot, webPushRow(s));
   firstRender = false;
   restoreBusy(shell);
 }
@@ -542,6 +551,9 @@ function applyEvent(ev: ServerEvent): void {
     }
   } else if (ev.type === "changed") {
     refetch(ev.what);
+  } else if (ev.type === "notify" && ev.state === "waits for your approval") {
+    // NOTIFY: an approval waiting in another chat (or while away): this device's notification.
+    deskNotify.onApproval(ev.title, ev.url, (hash) => { location.hash = hash; });
   } else if (ev.type === "resync") {
     reload();
   } else if (ev.type === "machines") {
@@ -1128,6 +1140,16 @@ function wire(shell: HTMLElement): void {
       const i = list.findIndex((x) => x.id === el.dataset.id);
       const asked = list.slice(0, i).reverse().find((x) => x.author === "user");
       if (asked) resendMessage(asked.id);
+    },
+    // NOTIFY: push in this browser, on or off (the demo has no service worker: it only flips).
+    "web-push-toggle": async () => {
+      const on = store.get().webPush === "on";
+      try {
+        const next = api instanceof MockApi ? (on ? "off" : "on") : on ? await webPush.turnOff(api) : await webPush.turnOn(api);
+        store.set({ webPush: next });
+      } catch (e) {
+        showError(e);
+      }
     },
     "step-toggle": (el) => {
       const id = el.dataset.id ?? "";
@@ -1951,7 +1973,10 @@ function wire(shell: HTMLElement): void {
       ev.preventDefault();
       const f = new FormData(nf);
       const p = { email: String(f.get("email") ?? "").trim(), onNeedsInput: f.has("onNeedsInput"), onFailed: f.has("onFailed"),
-        onDone: f.has("onDone"), dailySummary: f.has("dailySummary") };
+        onDone: f.has("onDone"), dailySummary: f.has("dailySummary"),
+        // NOTIFY: approvals, channels and quiet hours; the time zone is this device's.
+        onApproval: f.has("onApproval"), mailOn: f.has("mailOn"), pushOn: f.has("pushOn"),
+        quietFrom: String(f.get("quietFrom") ?? ""), quietTo: String(f.get("quietTo") ?? ""), tzOffset: -new Date().getTimezoneOffset() };
       const msg = nf.querySelector("#notify-msg");
       void busyWhile(nf, api.setNotifications(p).then(() => { if (msg) msg.textContent = "Saved."; },
         (e) => { if (msg) msg.textContent = e instanceof Error ? e.message : String(e); }));

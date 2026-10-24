@@ -311,6 +311,8 @@ const providers: ModelProvider[] = [
 const overseerPrefs = { name: "Loquendo", interject: true };
 let demoMaxSteps = 10; // AUTO-01
 let demoExplain: import("./types").ExplainPrefs = { on: false, verbose: false }; // CMD-01
+const demoNotify: import("./types").NotificationPrefs = { email: "kees@example.com", onNeedsInput: true, onFailed: true, onDone: false, dailySummary: false,
+  onApproval: true, mailOn: true, pushOn: true, quietFrom: "", quietTo: "", tzOffset: 0 }; // NOTIFY
 
 let roles: RoleAssignment[] = [
   { role: "orchestrator", providerId: "deepseek", modelId: "deepseek-chat" },
@@ -449,8 +451,11 @@ export class MockApi implements KompanionApi {
   }
   async interject() {}
   async setCardStyle() {}
-  async getNotifications() { return { email: "", onNeedsInput: true, onFailed: true, onDone: false, dailySummary: false }; }
-  async setNotifications() {}
+  async getNotifications() { return structuredClone(demoNotify); }
+  async setNotifications(p: import("./types").NotificationPrefs) {
+    if (!!p.quietFrom !== !!p.quietTo) throw new Error("Quiet hours need a start and an end, like 22:00 and 07:00.");
+    Object.assign(demoNotify, p);
+  }
   async watchMachines() {}
   async pairMachine(name: string) { return { id: "demo", name, token: "demo-token" }; }
   async pairCode() { return { code: "DEMO-C0DE", expiresAt: new Date(Date.now() + 900_000).toISOString() }; }
@@ -486,7 +491,14 @@ export class MockApi implements KompanionApi {
     }, 300);
   }
   async accessHistory() { return structuredClone(history); }
-  async getAdmin() { return { settings: structuredClone(adminSettings), smtpPasswordSet: false }; }
+  async getAdmin() {
+    // NOTIFY: the demo's mail server comes from the environment, as on kireserver.
+    return { settings: structuredClone(adminSettings), smtpPasswordSet: true,
+      smtpFromEnv: { host: "mailserver", port: 587, tls: "starttls", user: "info@kreative-kompas.com", from: "Kreative Kompanion <kompanion@kreative-kompas.com>" } };
+  }
+  async webPushKey() { return { key: "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4" }; }
+  async webPushSubscribe() {}
+  async webPushUnsubscribe() {}
   async saveAdmin(s: AdminSettings) { Object.assign(adminSettings, s); return structuredClone(adminSettings); }
   async uploadLogo() {}
   async removeLogo() {}

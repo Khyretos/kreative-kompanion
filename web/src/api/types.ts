@@ -391,6 +391,22 @@ export interface NotificationPrefs {
   onFailed: boolean;
   onDone: boolean;
   dailySummary: boolean;
+  /** NOTIFY: a step waits for approval; channels; quiet hours ("HH:MM", both or neither). */
+  onApproval?: boolean;
+  mailOn?: boolean;
+  pushOn?: boolean;
+  quietFrom?: string;
+  quietTo?: string;
+  tzOffset?: number; // minutes east of UTC, from this device's clock
+}
+
+/** NOTIFY: the mail server the server's environment sets (KOMPANION_SMTP_*); never its password. */
+export interface SmtpFromEnv {
+  host: string;
+  port: number;
+  tls: string;
+  user: string;
+  from: string;
 }
 
 /** TEN-05: one task's cost line (Coder versus Claude tokens), from tools/qwen/summary.py. */

@@ -635,6 +635,10 @@ async fn ask(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: 
     if let (false, Some(run)) = (preapproved, run_id) {
         crate::thread::post_run(s, run, &format!("Waiting for your approval: {summary}. [Open it](#chat={chat_id})")).await;
     }
+    // NOTIFY: tell the user where they are (push, mail) when they want that.
+    if !preapproved {
+        crate::notify::approval_needed(s.db.clone(), user_id.to_string(), chat_id.to_string(), summary.to_string());
+    }
 
     let mut state = if preapproved { "covered".to_string() } else { "pending".to_string() };
     for _ in 0..if preapproved { 0 } else { WAIT_SECS } {

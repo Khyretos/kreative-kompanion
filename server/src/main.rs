@@ -9,6 +9,7 @@ mod config;
 mod facts;
 mod context;
 mod explain;
+mod webpush;
 mod costs;
 mod assetaudio;
 mod assetcontract;
@@ -416,6 +417,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/me/notifications", get(notify::get_prefs).put(notify::put_prefs))
         .route("/push/register", post(push::register).delete(push::unregister))
+        .route("/push/web", post(webpush::subscribe).delete(webpush::unsubscribe))
+        .route("/push/web/key", get(webpush::key))
         .route("/forge/webhook", post(forge::webhook).layer(axum::extract::DefaultBodyLimit::max(1024 * 1024)))
         .route("/me/prefs", axum::routing::put(admin::set_prefs))
         .route("/events", get(api::events))

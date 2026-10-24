@@ -32,7 +32,8 @@ export interface AppState {
   pcActions: import("./api/client").PcAction[]; // approval cards of the open chat
   lessons: import("./api/client").Lesson[]; // lessons proposed in the open chat (the project thread)
   pairing?: { code: string; expiresAt: string; name: string }; // the one-line install command, until done
-  admin?: { settings: AdminSettings; smtpPasswordSet: boolean }; // loaded when an admin opens settings
+  admin?: { settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./api/types").SmtpFromEnv | null }; // loaded when an admin opens settings
+  webPush?: "on" | "off" | "denied" | "unsupported"; // NOTIFY: push in this browser
   projects: Project[];
   chats: Chat[];
   activeChatId?: string;
