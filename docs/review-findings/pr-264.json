@@ -1,0 +1,20 @@
+{
+  "32f9151ef9f4": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "reason": "The lock is taken only after the database query, for in-memory map work that cannot panic (no unwrap or I/O under it), so there is no deadlock or poisoned state. MEMORY is a cache: when the query fails nothing is saved, and the next message falls back to the chat lines, which are the lasting record. It is never meant to survive a restart.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "7e9e20c806eb": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "c2fc5d0c9abc00db5bfae9960687f30a9ed9e06c",
+    "path": "server/src/llm_anthropic.rs",
+    "reason": "Partly real. A tool call cut at max_tokens was already reported (finish_reason length, so the agent tells the model nothing ran and goes on in smaller pieces). But broken input with any other stop reason was dropped in silence. Now any dropped call marks the answer as cut off. Test: broken_tool_input_is_reported_like_a_cut_off.",
+    "title": "Possible Issue",
+    "verdict": "bug"
+  }
+}
