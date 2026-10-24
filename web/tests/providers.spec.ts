@@ -94,12 +94,13 @@ for (const scheme of ["light", "dark"] as const) {
       await page.addStyleTag({ content: "body.demo::before{display:none!important}" });
       await page.click('[data-action="add-provider"]');
       await page.selectOption("#prov-preset", "xai");
+      // The preset redraws the form on the next frame: measure that one.
+      await expect(page.locator("#prov-name")).toHaveValue("xAI Grok");
       const form = page.locator("#provider-form");
       await expect(form).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-      const box = (await form.boundingBox())!;
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      // Polled like the contrast below: a live update can redraw the form between two reads.
+      await expect.poll(async () => { const b = await form.boundingBox(); return b ? b.x >= 0 && b.x + b.width <= width : null; }).toBe(true);
       // Polled: a live update can redraw the form while it is measured (a detached node reads NaN).
       const ratios = () => form.locator("label, small, legend, h4, p").evaluateAll((els) => els.map((el) => {
         const rgb = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number);

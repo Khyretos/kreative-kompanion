@@ -9,7 +9,6 @@ import { renderAdmin } from "./admin";
 import { DEFAULT_STYLE, KINDS, styleOf } from "../core/cardtypes";
 import { enabled as deskNotifyOn } from "../core/desknotify";
 import { t } from "../core/i18n";
-import { providersSection } from "./providerform";
 
 const roleInfo: Record<Role, { name: string; text: string }> = {
   orchestrator: { name: "Orchestrator", text: "Talks with you, plans and splits the work." },
@@ -175,6 +174,6 @@ export function renderSettings(s: AppState): SafeHtml {
       ${overseerSection(s)}
       ${voiceSection(s)}
       ${cardSection(s)}
-      ${providersSection(s)}
+      <div id="providers-slot"></div>
     </div>`;
 }

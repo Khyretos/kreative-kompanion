@@ -96,7 +96,7 @@ export function providersSection(s: AppState): SafeHtml {
           <strong>${p.name}</strong>
           <span class="chip ${p.local ? "good" : ""}">${p.local ? "Local" : "Cloud"}</span>
           ${s.isAdmin && own ? html`<span class="provider-tools">
-            <button class="btn small" type="button" data-action="provider-edit" data-id="${p.id}">${icon("edit")}${t("provEditButton")}</button>
+            <button class="btn small" id="prov-edit-${p.id}" type="button" data-action="provider-edit" data-id="${p.id}">${icon("edit")}${t("provEditButton")}</button>
             <button class="btn small danger" type="button" data-action="provider-remove" data-id="${p.id}">${icon("trash")}${t("provRemove")}</button>
           </span>` : ""}
         </div>
@@ -118,7 +118,7 @@ export function providersSection(s: AppState): SafeHtml {
       </li>`;
     })}</ul>
     ${form && !form.id ? providerForm(form, s.providerFormError, s.customProviders?.secretDirs ?? []) : ""}
-    ${s.isAdmin && !form ? html`<button class="btn" type="button" data-action="add-provider">${icon("plus")} ${t("provAdd")}</button>` : ""}
+    ${s.isAdmin && !form ? html`<button class="btn" id="add-provider" type="button" data-action="add-provider">${icon("plus")} ${t("provAdd")}</button>` : ""}
     ${s.isAdmin ? "" : html`<p class="muted small">${t("provAdminOnly")}</p>`}
   </section>`;
 }

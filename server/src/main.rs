@@ -6,6 +6,7 @@ mod auth;
 mod capabilities;
 mod capmatrix;
 mod config;
+mod facts;
 mod context;
 mod explain;
 mod providers_admin;
@@ -44,6 +45,7 @@ mod mcp;
 mod mcp_grants;
 mod repomem;
 mod chat_tools;
+mod chat_history;
 mod chat_files;
 mod chat_attach;
 mod chat_attach_web;
@@ -58,6 +60,7 @@ mod project_ctx;
 mod projects;
 mod runs;
 mod search;
+mod secrets;
 mod skills;
 mod studio;
 mod skillrepo;
@@ -347,6 +350,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/chats/{id}", patch(api::update_chat).delete(api::delete_chat))
         .route("/chats/{id}/messages", get(api::messages).post(api::send))
         .route("/chats/{id}/messages/{mid}/resend", post(api::resend))
+        .route("/facts", get(facts::get).post(facts::create))
+        .route("/facts/{id}", patch(facts::update).delete(facts::delete))
         .route("/chats/{id}/context", get(context::get))
         .route("/chats/{id}/compact", post(context::compact_now))
         .route("/chats/{id}/files/{name}", get(chat_files::file))

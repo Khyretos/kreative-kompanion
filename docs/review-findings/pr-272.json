@@ -1,0 +1,20 @@
+{
+  "173b4a254377": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/context.rs",
+    "reason": "pcagent/mod.rs calls after_summary(...).await.unwrap_or_default(): a database error gives an empty history for that computer step, it never panics. history_for (the chat answer) logs the error too.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "76a78caff230": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/context.rs",
+    "reason": "SOURCE_CHARS and SOURCE_MESSAGE only bound the input of one summary call (60,000 characters, 3,000 per message) so it fits any supported model; the per-model part, the context window, is already configurable per provider (context_window). A setting for these bounds would add a knob nobody needs.",
+    "title": "Hardcoded Constants",
+    "verdict": "false_positive"
+  }
+}

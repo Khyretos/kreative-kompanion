@@ -9,7 +9,7 @@ test("the Tools menu turns tool servers on for a new chat and keeps them after t
   await expect(chip).toHaveAttribute("aria-label", /^No tools/);
   await chip.click();
   const items = page.locator('.tools-menu [role="menuitemcheckbox"]');
-  await expect(items.locator(".effort-name")).toHaveText(["Stack Overflow", "Developer docs"]);
+  await expect(items.locator(".effort-name")).toHaveText(["Stack Overflow", "Developer docs", "Past chats", "Remember facts"]);
   await items.first().click();
   await expect(items.first().locator(".effort-hint")).toHaveText("3.5 million answered programming questions");
   await expect(items.first()).toHaveAttribute("aria-checked", "true");
@@ -46,3 +46,42 @@ test("an existing chat keeps its own tools", async ({ page }) => {
   await first.click();
   await expect(chip).toHaveText("1");
 });
+
+// HIST-01: past chats are a built-in tool, shown as "Past chats" with what they do, and turn on per chat.
+test("Past chats is in the Tools menu and turns on for the chat without a reload", async ({ page }) => {
+  await page.goto("/?demo");
+  await page.click("button.found-server");
+  await page.locator('#left [data-action="open-chat"]').first().click();
+  const chip = page.locator(".tools-chip");
+  await chip.click();
+  const item = page.locator('.tools-menu [role="menuitemcheckbox"]', { hasText: "Past chats" });
+  await expect(item.locator(".effort-hint")).toHaveText(/search them and read back what was said/);
+  await expect(item).toHaveAttribute("aria-checked", "false");
+  await item.click();
+  await expect(item).toHaveAttribute("aria-checked", "true");
+  await expect(chip).toHaveText("1");
+  await expect(chip).toHaveAttribute("aria-label", /^1 tool on/);
+});
+
+// HIST-01: at phone width the Tools menu stays on screen (it used to run off the left edge), in both themes.
+for (const scheme of ["light", "dark"] as const) {
+  test(`the Tools menu fits a 390 px phone (${scheme})`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto("/?demo");
+    await page.click("button.found-server");
+    await page.locator('#left [data-action="open-chat"]').first().click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addStyleTag({ content: "body.demo::before{display:none!important}" });
+    // Wait for the phone layout to settle (the side panel slides away), as the context meter test does.
+    await page.waitForFunction(() => document.getAnimations().length === 0 && document.querySelector(".composer-hint")!.getBoundingClientRect().x >= 0);
+    await page.locator(".tools-chip").click();
+    const box = (await page.locator(".tools-menu").boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    // Wide enough to read: it spans the hint line, not the chip.
+    expect(box.width).toBeGreaterThan(300);
+    const item = page.locator('.tools-menu [role="menuitemcheckbox"]', { hasText: "Past chats" });
+    expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  });
+}

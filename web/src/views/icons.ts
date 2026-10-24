@@ -24,6 +24,7 @@ const paths: Record<string, string> = {
   logout: "M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11",
   more: "M12 6h.01M12 12h.01M12 18h.01",
   pin: "M9 4h6l-1 6 3 3H7l3-3zM12 13v7",
+  bookmark: "M6 3h12v18l-6-4-6 4z",
   edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4",
   archive: "M3 5h18v4H3zM5 9v10h14V9M10 13h4",
   check: "M5 12l5 5 9-10",

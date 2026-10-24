@@ -73,7 +73,7 @@ export function renderSidebar(s: AppState): SafeHtml {
         <ul class="loose">${pinned.map((c) => chatRow(c))}</ul>` : ""}
       <div class="nav-head">
         <h2 class="label">Projects</h2>
-        <button class="icon-btn new-project-btn" type="button" data-action="new-project" aria-expanded="${s.newProjectOpen ? "true" : "false"}" aria-label="${t("projNew")}" title="${t("projNew")}">${icon("plus")}</button>
+        <button class="icon-btn new-project-btn" id="new-project-btn" type="button" data-action="new-project" aria-expanded="${s.newProjectOpen ? "true" : "false"}" aria-label="${t("projNew")}" title="${t("projNew")}">${icon("plus")}</button>
       </div>
       ${s.newProjectOpen ? html`<form class="new-project" id="new-project-form" aria-label="${t("projNew")}">
         <label class="sr-only" for="new-project-name">${t("projName")}</label>

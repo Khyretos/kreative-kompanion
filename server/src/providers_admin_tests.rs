@@ -1,5 +1,4 @@
 use super::*;
-use sqlx::SqlitePool;
 
 async fn state() -> AppState {
     let opts = sqlx::sqlite::SqliteConnectOptions::new().in_memory(true).foreign_keys(true);

@@ -2,7 +2,7 @@
 // a session cookie. Live updates arrive as server-sent events.
 import type { KompanionApi, ServerEvent } from "./client";
 import type {
-  AdminSettings, NotificationPrefs, ThemeChoice, TaskState, Chat, ChatContext, DaySummary, MachineStats, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, ServerStatus, Task,
+  AdminSettings, NotificationPrefs, ThemeChoice, TaskState, Chat, DaySummary, Fact, FactKind, FactsView, MachineStats, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, ServerStatus, Task, ChatContext,
 } from "./types";
 
 // STU-N1: a type with a "negative" parameter gets the Leave out field; its default words show as a hint.
@@ -142,6 +142,13 @@ export class HttpApi implements KompanionApi {
   listChats() { return this.request<Chat[]>("GET", "/chats"); }
   async search(q: string) { return (await this.request<{ results: SearchResult[] }>("GET", `/search?q=${encodeURIComponent(q)}`)).results; }
   listMessages(chatId: string) { return this.request<Message[]>("GET", `/chats/${encodeURIComponent(chatId)}/messages`); }
+  listFacts(where: { chatId?: string; projectId?: string }) {
+    const q = where.chatId ? `chatId=${encodeURIComponent(where.chatId)}` : `projectId=${encodeURIComponent(where.projectId ?? "")}`;
+    return this.request<FactsView>("GET", `/facts?${q}`);
+  }
+  addFact(f: { scope: "project" | "chat"; projectId?: string; chatId?: string; key: string; value: string; kind?: FactKind }) { return this.request<Fact>("POST", "/facts", f); }
+  updateFact(id: string, change: { key?: string; value?: string; kind?: FactKind }) { return this.request<Fact>("PATCH", `/facts/${encodeURIComponent(id)}`, change); }
+  async deleteFact(id: string) { await this.request<void>("DELETE", `/facts/${encodeURIComponent(id)}`); }
   chatContext(chatId: string) { return this.request<ChatContext>("GET", `/chats/${encodeURIComponent(chatId)}/context`); }
   compactChat(chatId: string) { return this.request<ChatContext>("POST", `/chats/${encodeURIComponent(chatId)}/compact`); }
   listTasks() { return this.request<Task[]>("GET", "/tasks"); }
