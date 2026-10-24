@@ -20,7 +20,7 @@ const projectAssets: Record<string, import("../views/projectpanel").ProjectAsset
 const emptyDev = (): DevSettings => ({ preset: "", engine: "", build: "", test: "", run: "", deploy: "", screenshots: "", last: {} });
 const DEV_PRESETS: DevSettings[] = [
   { ...emptyDev(), preset: "software", build: "make", test: "make test" },
-  { ...emptyDev(), preset: "game", engine: "kk-engine", build: "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j --target kke_tests starter_game", test: "./build/bin/kke_tests", run: "xvfb-run -a -s '-screen 0 1280x720x24' timeout 8 ./build/bin/starter_game; test $? -eq 124", screenshots: "screenshots" },
+  { ...emptyDev(), preset: "game", engine: "kk-engine", build: "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j --target kke_tests starter_game", test: "./build/bin/kke_tests", run: "cd build/bin && xvfb-run -a -s '-screen 0 1280x720x24' timeout 8 ./starter_game; test $? -eq 124", screenshots: "screenshots" },
 ];
 const devSettings: Record<string, DevSettings> = {};
 // PROJ-OVERVIEW: each project's About text and links (the demo keeps them beside the project list).
