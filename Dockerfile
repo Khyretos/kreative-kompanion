@@ -25,7 +25,7 @@ COPY machine-stats/ /src/machine-stats/
 COPY runner/ /src/runner/
 WORKDIR /src/runner
 RUN set -eu; \
-    version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1); \
+    version=$(awk -F'"' '/^version = /{print $2; exit}' Cargo.toml); \
     mkdir /dist; \
     if [ "$(uname -m)" = "x86_64" ]; then \
         cargo build --release --locked; \
@@ -33,8 +33,9 @@ RUN set -eu; \
     fi; \
     cargo build --release --locked --target x86_64-pc-windows-gnu; \
     cp target/x86_64-pc-windows-gnu/release/kompanion-runner.exe "/dist/kompanion-runner-$version-x86_64-windows-gnu.exe"; \
-    cd /dist && for f in kompanion-runner-*; do sha256sum "$f" > "$f.sha256"; done; \
-    rm -rf /src/runner/target
+    rm -rf target
+WORKDIR /dist
+RUN for f in kompanion-runner-*; do sha256sum "$f" > "$f.sha256"; done
 
 FROM alpine:3
 # ffmpeg (LGPL/GPL): asset previews (images and audio), run at nice 19.
