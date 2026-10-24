@@ -1195,6 +1195,35 @@ export class MockApi implements KompanionApi {
     }
   }
 
+  // MSG-ACT: the user's message answered again (with new text when given); what followed goes.
+  async resend(chatId: string, messageId: string, text?: string) {
+    const list = messages.filter((m) => m.chatId === chatId);
+    const i = list.findIndex((m) => m.id === messageId);
+    if (i < 0 || list[i].author !== "user") throw new Error("Only your own messages can be sent again.");
+    if (text !== undefined) {
+      const files = list[i].text.split("\n\n:::files\n")[1];
+      list[i].text = text.trim() + (files ? `\n\n:::files\n${files}` : "");
+    }
+    const drop = new Set(list.slice(i + 1).map((m) => m.id));
+    for (let k = messages.length - 1; k >= 0; k--) if (drop.has(messages[k].id)) messages.splice(k, 1);
+    setTimeout(() => void this.streamReply(chatId), 0);
+    return structuredClone(messages.filter((m) => m.chatId === chatId));
+  }
+  private async streamReply(chatId: string) {
+    const reply: Message = { id: id("m"), chatId, author: "orchestrator", text: "", at: new Date().toISOString(), streaming: true };
+    messages.push(reply);
+    await wait(300);
+    this.emit({ type: "message", message: structuredClone(reply) });
+    const full = replies[this.replyIndex++ % replies.length];
+    for (const word of full.split(/(?<=\s)/)) {
+      await wait(20);
+      reply.text += word;
+      this.emit({ type: "message-delta", messageId: reply.id, chatId, text: word, done: false });
+    }
+    reply.streaming = false;
+    this.emit({ type: "message-delta", messageId: reply.id, chatId, text: "", done: true });
+  }
+
   async answer(taskId: string, optionId: string) {
     const t = tasks.find((x) => x.id === taskId);
     if (!t || !t.question) return;

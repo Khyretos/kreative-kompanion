@@ -159,6 +159,8 @@ export interface MessageView {
   tasks: Task[];
   steps: PcAction[];
   machines: Record<string, string>;
+  /** MSG-ACT: the chat's newest message is an answer: it can be regenerated. */
+  last: boolean;
 }
 
 const cache = new Map<string, MessageView>();
@@ -189,12 +191,14 @@ export function messageViews(s: AppState): MessageView[] {
     }
   }
 
+  const lastId = s.messages.at(-1)?.id;
   return s.messages.map((m) => {
+    const last = m.id === lastId && m.author !== "user";
     const tasks = (m.taskIds ?? []).map((id) => s.tasks.find((t) => t.id === id)).filter((t): t is Task => !!t);
     const steps = byMsg.get(m.id) ?? [];
     const old = cache.get(m.id);
-    if (old && old.m === m && old.tasks.length === tasks.length && old.tasks.every((t, i) => t === tasks[i]) && old.steps.length === steps.length && old.steps.every((s, i) => s === steps[i])) return old;
-    const view = { id: m.id, m, tasks, steps, machines };
+    if (old && old.m === m && old.last === last && old.tasks.length === tasks.length && old.tasks.every((t, i) => t === tasks[i]) && old.steps.length === steps.length && old.steps.every((s, i) => s === steps[i])) return old;
+    const view = { id: m.id, m, tasks, steps, machines, last };
     cache.set(m.id, view);
     return view;
   });
@@ -204,14 +208,45 @@ export function messageViews(s: AppState): MessageView[] {
 let flashId: string | undefined;
 export function flashMessage(id: string | undefined): void { flashId = id; }
 
-export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeHtml {
+/** MSG-ACT: the user's message being edited (main.ts keeps it), and the draft typed so far. */
+export let editingMessage: { id: string; draft: string } | undefined;
+export function setEditingMessage(x: { id: string; draft: string } | undefined): void { editingMessage = x; }
+
+/** The message's own words, without the files and sources blocks (what Copy and Edit take). */
+export function messageText(m: Message): string {
+  return splitOverseer(splitSources(splitFiles(m.text).text).text).text.trim();
+}
+
+/** MSG-ACT: Copy on every message; Edit and resend on the user's, Regenerate on the newest answer. */
+function messageActions(m: Message, last: boolean): SafeHtml {
+  if (m.streaming) return html``;
+  const btn = (action: string, name: Key, ico: Parameters<typeof icon>[0]) =>
+    html`<button class="icon-btn msg-act" type="button" data-action="${action}" data-id="${m.id}" aria-label="${t(name)}" title="${t(name)}">${icon(ico)}</button>`;
+  return html`<div class="msg-actions" role="toolbar" aria-label="${t("msgActions")}">
+    ${btn("msg-copy", "msgCopy", "copy")}
+    ${m.author === "user" ? btn("msg-edit", "msgEdit", "edit") : ""}
+    ${last ? btn("msg-regen", "msgRegen", "redo") : ""}
+  </div>`;
+}
+
+export function renderMessage({ m, tasks, steps, machines, last }: MessageView): SafeHtml {
+  const editing = editingMessage?.id === m.id;
   return html`
-    <article class="msg ${m.author}${m.id === flashId ? " search-hit" : ""}" id="msg-${m.id}">
+    <article class="msg ${m.author}${m.id === flashId ? " search-hit" : ""}${editing ? " editing" : ""}" id="msg-${m.id}">
       <header>
         <span class="who">${m.author === "user" ? "You" : assistantName}</span>
         <time datetime="${m.at}">${clock(m.at)}</time>
       </header>
-      <div class="body"></div>
+      ${editing ? html`<form class="msg-edit" data-id="${m.id}">
+        <label class="sr-only" for="msg-edit-${m.id}">${t("msgEditLabel")}</label>
+        <textarea id="msg-edit-${m.id}" class="msg-edit-text" rows="3">${editingMessage?.draft ?? ""}</textarea>
+        <p class="muted small">${t("msgEditNote")}</p>
+        <div class="msg-edit-buttons">
+          <button class="btn small" type="button" data-action="msg-edit-cancel" data-id="${m.id}">${t("msgCancel")}</button>
+          <button class="btn small primary" type="submit">${t("msgSend")}</button>
+        </div>
+      </form>` : html`<div class="body"></div>`}
+      ${editing ? "" : messageActions(m, last)}
       ${renderSent(m.chatId, splitFiles(m.text).files)}
       ${renderSteps(steps, machines)}
       ${tasks.length ? html`
@@ -226,7 +261,8 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
 /** Fills the message body with sanitised markdown (never via the template). */
 export function fillMessage(el: HTMLElement, { m }: MessageView): void {
   for (const x of el.querySelectorAll<HTMLElement>("[data-explain-body]")) if (openExplains.has(x.dataset.explainBody ?? "")) fillExplain(x);
-  const body = el.querySelector(".body")!;
+  const body = el.querySelector(".body");
+  if (!body) return; // MSG-ACT: being edited, a form instead of the text
   const split = splitSources(splitFiles(m.text).text);
   const { text, proposal } = splitOverseer(split.text);
   body.append(renderMarkdown(linkSources(text)));

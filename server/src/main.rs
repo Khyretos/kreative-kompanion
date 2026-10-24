@@ -324,6 +324,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/chats", get(api::chats).post(api::create_chat))
         .route("/chats/{id}", patch(api::update_chat).delete(api::delete_chat))
         .route("/chats/{id}/messages", get(api::messages).post(api::send))
+        .route("/chats/{id}/messages/{mid}/resend", post(api::resend))
         .route("/chats/{id}/context", get(context::get))
         .route("/chats/{id}/compact", post(context::compact_now))
         .route("/chats/{id}/files/{name}", get(chat_files::file))

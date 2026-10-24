@@ -18,8 +18,8 @@ import { renderSidebar } from "./views/sidebar";
 import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
-import { lang } from "./core/i18n";
-import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, setExplainOn, explanations, openExplains, fillExplain, type MessageView } from "./views/conversation";
+import { lang, t } from "./core/i18n";
+import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, setExplainOn, explanations, openExplains, fillExplain, messageText, setEditingMessage, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { filterDeps, setDep } from "./views/deppicker";
@@ -557,6 +557,41 @@ function loadExplain(id: string): void {
   ).finally(() => { explainLoading.delete(id); fill(); });
 }
 
+/** MSG-ACT: the messages drawn again (an edit form opened or closed). */
+function redrawMessages(): void {
+  messageList?.clear();
+  store.set({ messages: [...store.get().messages] });
+}
+
+/** MSG-ACT: the user's message answered again, with new text when given. What followed it leaves at
+ *  once (the server sends the chat back as it is now); the new answer streams in as usual. */
+function resendMessage(messageId: string, text?: string): void {
+  const s = store.get();
+  const chatId = s.activeChatId;
+  if (!chatId) return;
+  const before = s.messages;
+  const i = before.findIndex((m) => m.id === messageId);
+  if (i < 0) return;
+  setEditingMessage(undefined);
+  const kept = before.slice(0, i + 1).map((m) => (m.id === messageId && text !== undefined ? { ...m, text: editedText(m.text, text) } : m));
+  messageList?.clear();
+  store.set({ messages: kept });
+  api.resend(chatId, messageId, text, s.pcMachineId).then(
+    (list) => {
+      if (store.get().activeChatId !== chatId) return;
+      const writing = store.get().messages.filter((m) => m.streaming && !list.some((x) => x.id === m.id));
+      store.set({ messages: [...list, ...writing] });
+    },
+    (e) => { messageList?.clear(); store.set({ messages: before }); showError(e); },
+  );
+}
+
+/** The edited words with the files that were sent with the message. */
+function editedText(old: string, text: string): string {
+  const files = old.split("\n\n:::files\n")[1];
+  return text.trim() + (files ? `\n\n:::files\n${files}` : "");
+}
+
 // CMD-01: explain settings change what step cards offer: draw the steps again (as card colours do).
 function setExplain(p: import("./api/types").ExplainPrefs): void {
   setExplainOn(p.on);
@@ -780,6 +815,14 @@ function refetch(what: string): void {
       if (what === "tasks") store.set({ tasks: await api.listTasks() });
       else if (what === "projects") store.set({ projects: await api.listProjects(), tasks: await api.listTasks() });
       else if (what === "chats") store.set({ chats: await api.listChats() });
+      // MSG-ACT: a message was edited or answers were removed (another tab, or someone in a shared chat).
+      else if (what === "messages" && s.activeChatId) {
+        const chatId = s.activeChatId;
+        const list = await api.listMessages(chatId);
+        // An answer being written is not stored yet: keep it.
+        const writing = store.get().messages.filter((m) => m.streaming && !list.some((x) => x.id === m.id));
+        if (store.get().activeChatId === chatId) store.set({ messages: [...list, ...writing] });
+      }
       else if (what === "machines") store.set({ machines: await api.listMachines() });
       else if (what === "lessons" && s.activeChatId) store.set({ lessons: await api.listLessons(s.activeChatId) });
       else if (what === "access") await loadAccess();
@@ -1035,6 +1078,40 @@ function wire(shell: HTMLElement): void {
     "explain-retry": (el) => {
       explanations.delete(el.dataset.id ?? "");
       loadExplain(el.dataset.id ?? "");
+    },
+    // MSG-ACT: Copy the message's words; Edit and resend; Regenerate the newest answer.
+    "msg-copy": (el) => {
+      const m = store.get().messages.find((x) => x.id === el.dataset.id);
+      if (!m) return;
+      void navigator.clipboard.writeText(messageText(m)).then(() => {
+        el.classList.add("done");
+        el.setAttribute("title", t("msgCopied"));
+        setTimeout(() => { el.classList.remove("done"); el.setAttribute("title", t("msgCopy")); }, 1500);
+      }, showError);
+    },
+    "msg-edit": (el) => {
+      const m = store.get().messages.find((x) => x.id === el.dataset.id);
+      if (!m) return;
+      setEditingMessage({ id: m.id, draft: messageText(m) });
+      redrawMessages();
+      requestAnimationFrame(() => {
+        const box = document.querySelector<HTMLTextAreaElement>(`#msg-edit-${CSS.escape(m.id)}`);
+        if (!box) return;
+        box.style.height = `${Math.min(box.scrollHeight + 2, 320)}px`;
+        box.focus();
+        box.setSelectionRange(box.value.length, box.value.length);
+      });
+    },
+    "msg-edit-cancel": (el) => {
+      setEditingMessage(undefined);
+      redrawMessages();
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`#msg-${CSS.escape(el.dataset.id ?? "")} [data-action="msg-edit"]`)?.focus());
+    },
+    "msg-regen": (el) => {
+      const list = store.get().messages;
+      const i = list.findIndex((x) => x.id === el.dataset.id);
+      const asked = list.slice(0, i).reverse().find((x) => x.author === "user");
+      if (asked) resendMessage(asked.id);
     },
     "step-toggle": (el) => {
       const id = el.dataset.id ?? "";
@@ -1653,6 +1730,33 @@ function wire(shell: HTMLElement): void {
     const c = store.get().chats.find((x) => x.id === id);
     if (c && title && title !== c.title) changeChat(id, { title });
   };
+  // MSG-ACT: the edit form under a message: Send (or Enter) resends it, Escape cancels, and the
+  // draft survives a re-render (an answer streaming in elsewhere in the chat).
+  shell.addEventListener("submit", (ev) => {
+    const f = (ev.target as HTMLElement).closest("form.msg-edit") as HTMLFormElement | null;
+    if (!f) return;
+    ev.preventDefault();
+    const text = f.querySelector<HTMLTextAreaElement>(".msg-edit-text")?.value.trim() ?? "";
+    if (text) resendMessage(f.dataset.id ?? "", text);
+  });
+  shell.addEventListener("input", (ev) => {
+    const box = ev.target as HTMLElement;
+    if (!box.classList.contains("msg-edit-text")) return;
+    const id = box.closest<HTMLElement>("form.msg-edit")?.dataset.id;
+    if (id) setEditingMessage({ id, draft: (box as HTMLTextAreaElement).value });
+  });
+  shell.addEventListener("keydown", (ev) => {
+    const box = ev.target as HTMLElement;
+    if (!box.classList.contains("msg-edit-text")) return;
+    if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
+      ev.preventDefault();
+      box.closest("form")?.requestSubmit();
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      box.closest("form")?.querySelector<HTMLElement>('[data-action="msg-edit-cancel"]')?.click();
+    }
+  });
   shell.addEventListener("submit", (ev) => {
     // CHAT-03b: create a new knowledge collection.
     const knForm = (ev.target as HTMLElement).closest("form.kn-new") as HTMLFormElement | null;
@@ -2133,6 +2237,7 @@ function applyComposerAccess(s: AppState): void {
   if (!form || !prompt) return;
   prompt.disabled = readOnly;
   form.classList.toggle("read-only", readOnly);
+  document.getElementById("msg-list")?.classList.toggle("read-only", readOnly); // MSG-ACT: no Edit or Regenerate
   const note = form.querySelector<HTMLElement>(".composer-readonly");
   if (note) note.hidden = !readOnly;
   const stopBtn = document.getElementById("stop-chat");

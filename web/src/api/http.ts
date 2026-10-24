@@ -168,6 +168,9 @@ export class HttpApi implements KompanionApi {
   send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort, attachments?: import("../core/attachments").Attached[]) {
     return this.request<void>("POST", `/chats/${encodeURIComponent(chatId)}/messages`, { text, machine_id: machineId ?? null, effort, attachments: attachments ?? [] });
   }
+  resend(chatId: string, messageId: string, text?: string, machineId?: string) {
+    return this.request<Message[]>("POST", `/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/resend`, { text: text ?? null, machine_id: machineId ?? null });
+  }
   attach(chatId: string, file: File) {
     return this.request<import("../core/attachments").Attached>("POST", `/chats/${encodeURIComponent(chatId)}/attachments?name=${encodeURIComponent(file.name)}`, file);
   }

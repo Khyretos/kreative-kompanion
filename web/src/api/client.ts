@@ -128,6 +128,9 @@ export interface KompanionApi {
   /** Sends a message; the reply streams back through `onEvent`. */
   /** With `machineId`, the answer may use that computer's tools (each step needs approval). */
   send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort, attachments?: import("../core/attachments").Attached[]): Promise<void>;
+  /** MSG-ACT: answers the user's message again (regenerate), or with new text (edit and resend);
+   *  what followed it is removed. Returns the chat's messages as they are now. */
+  resend(chatId: string, messageId: string, text?: string, machineId?: string): Promise<Message[]>;
   /** CHAT-08: uploads one file to a chat; the server keeps the picture, or the text of the document. */
   attach(chatId: string, file: File): Promise<import("../core/attachments").Attached>;
   listActions(chatId: string): Promise<PcAction[]>;

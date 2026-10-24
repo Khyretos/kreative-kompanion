@@ -490,6 +490,26 @@ li.task.dragging { opacity: 0.5; }
 .msg { width: min(46rem, 100%); margin-inline: auto; display: grid; gap: 0.35rem; }
 .msg header { display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.8rem; }
 .msg .who { font-weight: 650; }
+/* MSG-ACT: Copy, Edit and resend, Regenerate under a message: quiet until the message is hovered
+   or focused on a desktop, always there on a touch screen. */
+.msg-actions { display: flex; gap: 0.15rem; margin-top: -0.1rem; }
+.msg.user .msg-actions { justify-content: flex-end; }
+.msg-act { width: 1.9rem; height: 1.9rem; color: var(--muted); border-radius: 6px; }
+.msg-act:hover { color: var(--fg); background: var(--surface-2); }
+.msg-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.msg-act.done { color: var(--good); }
+.msg-list.read-only .msg-act[data-action="msg-edit"], .msg-list.read-only .msg-act[data-action="msg-regen"] { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .msg-actions { opacity: 0; transition: opacity 0.15s; }
+  .msg:hover .msg-actions, .msg:focus-within .msg-actions, .msg-list > .msg:last-child .msg-actions { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .msg-actions { transition: none; } }
+.msg-edit { display: grid; gap: 0.4rem; }
+.msg-edit-text { width: 100%; min-height: 4.5rem; resize: vertical; padding: 0.55rem 0.7rem; font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); }
+.msg-edit-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.msg-edit p { margin: 0; }
+.msg-edit-buttons { display: flex; justify-content: flex-end; gap: 0.4rem; }
+@media (max-width: 760px) { .msg-act { width: 44px; height: 44px; } .msg-edit-buttons .btn { min-height: 44px; } }
 .msg.orchestrator .who { color: var(--link); }
 .msg time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .msg .body { display: grid; gap: 0.6rem; overflow-wrap: anywhere; }
