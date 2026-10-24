@@ -282,6 +282,18 @@ pub fn summary(job: &Value) -> String {
     line.chars().take(200).collect()
 }
 
+/// WRITE-CHUNKS: a write_file that adds to a file (append) or writes at an offset.
+pub fn writes_in_parts(job: &Value) -> bool {
+    job["tool"] == "write_file" && (job["append"] == true || job["offset"].is_u64())
+}
+
+/// Runners from 0.6.4 on write in parts; an older one (or one that has not said) would replace the file.
+pub fn runner_writes_in_parts(version: Option<&str>) -> bool {
+    let Some(v) = version else { return false };
+    let n: Vec<u64> = v.trim_start_matches('v').split(['.', '-', '+']).take(3).map(|x| x.parse().unwrap_or(0)).collect();
+    (n.first().copied().unwrap_or(0), n.get(1).copied().unwrap_or(0), n.get(2).copied().unwrap_or(0)) >= (0, 6, 4)
+}
+
 /// The grant "Always allow" creates for this job: (target, rights).
 pub fn grant_for(job: &Value) -> Option<(String, Vec<&'static str>)> {
     let path = || job["path"].as_str().filter(|p| safe(p)).map(str::to_string);
@@ -383,6 +395,11 @@ mod tests {
         assert!(to_job("write_file", &json!({"path": "/a", "content": "x", "append": "sometimes"})).is_none());
         // The grant is the same as for a whole file: write on its folder.
         assert_eq!(grant_for(&job), Some(("/a".to_string(), vec!["write"])));
+        // Only a runner that knows parts gets them.
+        assert!(writes_in_parts(&job) && !writes_in_parts(&json!({"tool": "write_file", "append": false})));
+        for (v, ok) in [(None, false), (Some("0.6.3"), false), (Some("0.6.4"), true), (Some("0.7.0"), true), (Some("1.0.0-rc1"), true), (Some("0.5.9"), false)] {
+            assert_eq!(runner_writes_in_parts(v), ok, "{v:?}");
+        }
     }
 
     #[test]

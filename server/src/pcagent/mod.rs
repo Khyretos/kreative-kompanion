@@ -511,6 +511,10 @@ impl Agent {
                         let path = job["path"].as_str().unwrap_or("");
                                                 refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &format!("{path} is a test file and this task may not change tests. Change the code so the tests pass instead.")).await
                     }
+                    // WRITE-CHUNKS: an older runner ignores append/offset and would replace the file.
+                    Some(job) if tools::writes_in_parts(&job) && !tools::runner_writes_in_parts(s.host.runner_version(&self.machine_id).as_deref()) => {
+                        "Refused, nothing changed: the runner on this computer is too old to write a file in parts (it would replace the file). Write it whole, or ask the user to update the runner.".to_string()
+                    }
                     Some(job) if job["tool"] == "write_file" && job["path"].as_str().is_some_and(|p| missing.contains(p)) => {
                         "Blocked: that file did not exist when you looked. Ask the user before creating a new file.".to_string()
                     }
