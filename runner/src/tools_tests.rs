@@ -73,13 +73,42 @@ fn a_big_file_needs_a_slice_and_a_slice_reads_it() {
 #[test]
 fn write_needs_write() {
     let (b, g) = setup(2, r#""read""#);
-    assert!(!run(&g, &Tool::WriteFile { path: p(&b, "inside/new.txt"), content: "x".into() }, NOW).ok);
+    assert!(!run(&g, &Tool::WriteFile { path: p(&b, "inside/new.txt"), content: "x".into(), append: false, offset: None }, NOW).ok);
     let (b2, g2) = setup(3, r#""read","write""#);
-    let w = run(&g2, &Tool::WriteFile { path: p(&b2, "inside/new.txt"), content: "x".into() }, NOW);
+    let w = run(&g2, &Tool::WriteFile { path: p(&b2, "inside/new.txt"), content: "x".into(), append: false, offset: None }, NOW);
     assert!(w.ok, "{}", w.output);
     assert_eq!(std::fs::read_to_string(b2.join("inside/new.txt")).unwrap(), "x");
     let _ = std::fs::remove_dir_all(&b);
     let _ = std::fs::remove_dir_all(&b2);
+}
+
+#[test]
+fn a_big_file_is_written_in_parts_and_a_part_sent_again_lands_in_place() {
+    let (b, g) = setup(23, r#""read","write""#);
+    let w = |content: &str, append: bool, offset: Option<u64>| run(&g, &Tool::WriteFile { path: p(&b, "inside/big.txt"), content: content.into(), append, offset }, NOW);
+    // A part at an offset needs the file to be there.
+    let none = w("x", false, Some(0));
+    assert!(!none.ok && none.output.contains("write the first part without offset"), "{}", none.output);
+    assert!(w("part1|", false, None).ok);
+    let second = w("part2|", true, None);
+    assert!(second.ok && second.output.contains("the file is 12 bytes now"), "{}", second.output);
+    // Sent again at the offset the first part ended: replaces what was there, nothing doubled.
+    let again = w("PART2|", false, Some(6));
+    assert!(again.ok && again.output.contains("at byte 6"), "{}", again.output);
+    assert!(w("part3", true, None).ok);
+    assert_eq!(std::fs::read_to_string(b.join("inside/big.txt")).unwrap(), "part1|PART2|part3");
+    let past = w("x", false, Some(99));
+    assert!(!past.ok && past.output.contains("past the end"), "{}", past.output);
+    let both = w("x", true, Some(1));
+    assert!(!both.ok && both.output.contains("not both"), "{}", both.output);
+    // Append makes the file when it is missing; parts still need the write grant.
+    assert!(run(&g, &Tool::WriteFile { path: p(&b, "inside/fresh.txt"), content: "a".into(), append: true, offset: None }, NOW).ok);
+    let out = run(&g, &Tool::WriteFile { path: p(&b, "outside/x.txt"), content: "a".into(), append: true, offset: None }, NOW);
+    assert!(!out.ok && out.output.contains("not granted"), "{}", out.output);
+    // JSON from the server: the old shape still works.
+    let t: Tool = serde_json::from_str(r#"{"tool":"write_file","path":"/a","content":"x"}"#).unwrap();
+    assert!(matches!(t, Tool::WriteFile { append: false, offset: None, .. }));
+    let _ = std::fs::remove_dir_all(&b);
 }
 
 #[test]

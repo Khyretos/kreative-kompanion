@@ -41,8 +41,10 @@ export function commandText(tool: Tool): string {
       return `read ${str(t.path)}`;
     case "list_dir":
       return `ls ${str(t.path)}`;
-    case "write_file":
-      return `write ${str(t.path)} (${str(t.content).length} characters)`;
+    case "write_file": {
+      const how = t.append === true ? "append to" : typeof t.offset === "number" ? `write at byte ${t.offset} of` : "write";
+      return `${how} ${str(t.path)} (${str(t.content).length} characters)`;
+    }
     case "edit_file":
       return `edit ${str(t.path)}`;
     case "system_info":

@@ -37,12 +37,14 @@ pub fn schema() -> Value {
             "type": "function",
             "function": {
                 "name": "write_file",
-                "description": "Create or replace a file with new content.",
+                "description": "Create or replace a file with new content. A big file goes in parts of at most about 20,000 characters each: the first part without append, every next part with append: true. If a part fails, send it again with offset set to the size the last good part reported (the file is cut there first, so nothing doubles).",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "path": { "type": "string" },
-                        "content": { "type": "string" }
+                        "content": { "type": "string" },
+                        "append": { "type": "boolean", "description": "Add to the end of the file (made if missing) instead of replacing it." },
+                        "offset": { "type": "integer", "minimum": 0, "description": "Cut the file to this many bytes, then write there. Not with append." }
                     },
                     "required": ["path", "content"]
                 }
@@ -185,7 +187,7 @@ pub fn to_job(name: &str, args: &Value) -> Option<Value> {
     let known = match name {
         "read_file" => vec!["path", "offset", "length"],
         "list_dir" => vec!["path"],
-        "write_file" => vec!["path", "content"],
+        "write_file" => vec!["path", "content", "append", "offset"],
         "edit_file" => vec!["path", "old", "new"],
         "shell" => vec!["cwd", "command"],
         "service" => vec!["action", "unit"],
@@ -218,6 +220,11 @@ pub fn to_job(name: &str, args: &Value) -> Option<Value> {
                                 return None;
                             }
                         }
+                        // WRITE-CHUNKS: a flag, sent as true/false or as a word.
+                        "append" => match val.as_bool().or_else(|| val.as_str().and_then(|t| t.trim().parse::<bool>().ok())) {
+                            Some(b) => { out.insert(k.clone(), json!(b)); }
+                            None => return None,
+                        },
                         "offset" | "length" => {
                             // Byte counts: a whole number >= 0, sent as a number or as digits.
                             let n = val.as_u64().or_else(|| val.as_str().and_then(|t| t.trim().parse::<u64>().ok()));
@@ -254,6 +261,8 @@ pub fn summary(job: &Value) -> String {
     let line = match job["tool"].as_str().unwrap_or("") {
         "read_file" => format!("Read {}", s("path")),
         "list_dir" => format!("List {}", s("path")),
+        "write_file" if job["append"] == true => format!("Append to {}", s("path")),
+        "write_file" if job["offset"].is_u64() => format!("Write {} from byte {}", s("path"), job["offset"]),
         "write_file" => format!("Write {}", s("path")),
         "edit_file" => format!("Edit {}", s("path")),
         "shell" => format!("Run `{}` in {}", s("command"), s("cwd")),
@@ -360,6 +369,20 @@ mod tests {
         assert!(to_job("read_file", &json!({"path": "/a", "offset": 1.5})).is_none());
         // Other tools still take strings only.
         assert!(to_job("list_dir", &json!({"path": 5})).is_none());
+    }
+
+    #[test]
+    fn write_file_takes_append_or_an_offset_for_parts() {
+        let job = to_job("write_file", &json!({"path": "/a/b.txt", "content": "x", "append": true})).unwrap();
+        assert_eq!(job, json!({"tool": "write_file", "path": "/a/b.txt", "content": "x", "append": true}));
+        assert_eq!(summary(&job), "Append to /a/b.txt");
+        let job = to_job("write_file", &json!({"path": "/a/b.txt", "content": "x", "append": "false", "offset": "12"})).unwrap();
+        assert_eq!(job, json!({"tool": "write_file", "path": "/a/b.txt", "content": "x", "append": false, "offset": 12}));
+        assert_eq!(summary(&job), "Write /a/b.txt from byte 12");
+        assert_eq!(summary(&to_job("write_file", &json!({"path": "/a/b.txt", "content": "x"})).unwrap()), "Write /a/b.txt");
+        assert!(to_job("write_file", &json!({"path": "/a", "content": "x", "append": "sometimes"})).is_none());
+        // The grant is the same as for a whole file: write on its folder.
+        assert_eq!(grant_for(&job), Some(("/a".to_string(), vec!["write"])));
     }
 
     #[test]

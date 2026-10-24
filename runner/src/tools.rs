@@ -9,7 +9,10 @@ use crate::grants::{Grants, Right};
 pub enum Tool {
     /// `offset`/`length` (bytes) read one slice of a big file; without them the whole file is read.
     ReadFile { path: String, #[serde(default)] offset: Option<u64>, #[serde(default)] length: Option<u64> },
-    WriteFile { path: String, content: String },
+    /// WRITE-CHUNKS: a big file is written in parts: `append` adds to the end (making the file if
+    /// needed); `offset` cuts the file to that many bytes first, so a part sent again lands in the
+    /// same place. Neither: create or replace.
+    WriteFile { path: String, content: String, #[serde(default)] append: bool, #[serde(default)] offset: Option<u64> },
     ListDir { path: String },
     Shell { cwd: String, command: String },
     EditFile { path: String, old: String, new: String },
@@ -88,7 +91,7 @@ pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
                 Outcome { ok: false, output: format!("not a file: {}", canonical_path.display()) }
             }
         },
-        Tool::WriteFile { path, content } => {
+        Tool::WriteFile { path, content, append, offset } => {
             let path = Path::new(path);
             let parent_path = path.parent().unwrap_or(Path::new("."));
             let canonical_parent = match canonicalize(parent_path) {
@@ -106,16 +109,48 @@ pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
             }
 
             let canonical_path = canonical_parent.join(path.file_name().unwrap_or_default());
-            let mut file = match fs::File::create(&canonical_path) {
+            if *append && offset.is_some() {
+                return Outcome { ok: false, output: "give append or offset, not both".into() };
+            }
+            // WRITE-CHUNKS: a file grown in parts stays within this.
+            const TOTAL_CAP: u64 = 64 * 1024 * 1024;
+            let size = fs::metadata(&canonical_path).map(|m| m.len()).ok();
+            if let Some(at) = offset {
+                match size {
+                    None => return Outcome { ok: false, output: format!("no such file to write at offset {at} (write the first part without offset): {}", canonical_path.display()) },
+                    Some(len) if *at > len => return Outcome { ok: false, output: format!("offset {at} is past the end of the file ({len} bytes): {}", canonical_path.display()) },
+                    _ => {}
+                }
+            }
+            let start = if *append { size.unwrap_or(0) } else { offset.unwrap_or(0) };
+            if start + content.len() as u64 > TOTAL_CAP {
+                return Outcome { ok: false, output: format!("file would pass {} MiB: {}", TOTAL_CAP / 1024 / 1024, canonical_path.display()) };
+            }
+            let opened = if *append {
+                fs::OpenOptions::new().append(true).create(true).open(&canonical_path)
+            } else if let Some(at) = offset {
+                fs::OpenOptions::new().write(true).open(&canonical_path).and_then(|f| f.set_len(*at).map(|_| f)).and_then(|mut f| {
+                    use std::io::{Seek, SeekFrom};
+                    f.seek(SeekFrom::Start(*at)).map(|_| f)
+                })
+            } else {
+                fs::File::create(&canonical_path)
+            };
+            let mut file = match opened {
                 Ok(f) => f,
                 Err(_) => return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Write, canonical_path.display()) },
             };
 
-            if let Err(e) = file.write_all(content.as_bytes()) {
+            if file.write_all(content.as_bytes()).is_err() {
                 return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Write, canonical_path.display()) };
             }
 
-            Outcome { ok: true, output: format!("wrote {}", canonical_path.display()) }
+            let now_size = start + content.len() as u64;
+            if *append || offset.is_some() {
+                Outcome { ok: true, output: format!("wrote {} bytes at byte {start} of {}; the file is {now_size} bytes now (next part: append, or offset {now_size})", content.len(), canonical_path.display()) }
+            } else {
+                Outcome { ok: true, output: format!("wrote {}", canonical_path.display()) }
+            }
         },
         Tool::ListDir { path } => {
             let path = Path::new(path);

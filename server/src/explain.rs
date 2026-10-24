@@ -63,7 +63,10 @@ pub fn command_text(job: &Value) -> String {
         "service" => format!("systemctl {} {}", s("action"), s("unit")).trim().to_string(),
         "read_file" => format!("read {}", s("path")),
         "list_dir" => format!("ls {}", s("path")),
-        "write_file" => format!("write {} ({} characters)", s("path"), job["content"].as_str().map_or(0, |c| c.chars().count())),
+        "write_file" => {
+            let how = if job["append"] == true { "append to".to_string() } else if let Some(at) = job["offset"].as_u64() { format!("write at byte {at} of") } else { "write".to_string() };
+            format!("{how} {} ({} characters)", s("path"), job["content"].as_str().map_or(0, |c| c.chars().count()))
+        }
         "edit_file" => format!("edit {}", s("path")),
         "system_info" => format!("system_info {}", s("what")).trim().to_string(),
         other => format!("{other} {}", job).trim().to_string(),
