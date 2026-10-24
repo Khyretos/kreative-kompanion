@@ -343,6 +343,10 @@ pub struct ProviderConfig {
     /// KC-01: how long Anthropic keeps the cached prompt, "5m" (default) or "1h" (costs more to write).
     #[serde(default)]
     pub ttl: Option<String>,
+    /// Most output tokens one answer or tool step may use. Unset: 2048 for a local server, 16000
+    /// for a cloud OpenAI-compatible one, 32000 on Anthropic (its models think within this too).
+    #[serde(default)]
+    pub max_tokens: Option<u32>,
 }
 
 /// One effort level on one provider: fields merged over extra_body, and/or another model.

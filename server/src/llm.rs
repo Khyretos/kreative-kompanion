@@ -68,7 +68,7 @@ pub fn http_client() -> reqwest::Client {
         .expect("http client")
 }
 
-fn join(base: &str, path: &str) -> String {
+pub(crate) fn join(base: &str, path: &str) -> String {
     format!(
         "{}/{}",
         base.trim_end_matches('/'),
@@ -135,7 +135,7 @@ fn is_auth_error(status: reqwest::StatusCode, body: &str) -> bool {
         || body.contains("unauthorized")
 }
 
-fn authorize(req: reqwest::RequestBuilder, p: &ProviderConfig) -> reqwest::RequestBuilder {
+pub(crate) fn authorize(req: reqwest::RequestBuilder, p: &ProviderConfig) -> reqwest::RequestBuilder {
     match (p.kind.clone(), p.api_key()) {
         // Anthropic's OpenAI-compatible endpoint (api.anthropic.com/v1) answers 400 without this header.
         (ProviderKind::OpenaiCompatible, Some(key)) if p.base_url.contains("api.anthropic.com") => {
@@ -174,7 +174,7 @@ fn request_body(p: &ProviderConfig, model: &str, messages: &[ChatMessage]) -> Re
                 join(&p.base_url, "v1/messages"),
                 json!({
                     "model": model,
-                    "max_tokens": 4096,
+                    "max_tokens": p.max_tokens.unwrap_or(crate::llm_anthropic::DEFAULT_MAX_TOKENS),
                     "system": system.join("\n\n"),
                     "messages": rest,
                     "stream": true,
@@ -363,6 +363,7 @@ mod tests {
             extra_body: None,
             effort: Default::default(),
             ttl: None,
+            max_tokens: None,
         }
     }
 
@@ -466,10 +467,16 @@ async fn chat_full(
     tools: &Value,
     response_format: Option<&Value>,
 ) -> Result<(Value, Value)> {
-    anyhow::ensure!(matches!(p.kind, ProviderKind::OpenaiCompatible), "this provider can't use tools");
+    if matches!(p.kind, ProviderKind::Anthropic) {
+        return crate::llm_anthropic::chat_full(http, p, model, messages, tools, response_format).await;
+    }
     // GPU-02: see stream_chat.
     crate::gpus::role::wait_for_coder(model).await;
-    let mut body = json!({ "model": model, "messages": messages, "max_tokens": if response_format.is_some() { 8192 } else { 2048 } });
+    let mut body = json!({
+        "model": model,
+        "messages": crate::llm_anthropic::strip_blocks(messages),
+        "max_tokens": tool_max_tokens(p, response_format.is_some()),
+    });
     // No tools (plans, reviews): leave the key out; some servers reject an empty list.
     if tools.as_array().is_some_and(|t| !t.is_empty()) {
         body["tools"] = tools.clone();
@@ -491,7 +498,26 @@ async fn chat_full(
     let text = resp.text().await.unwrap_or_default();
     anyhow::ensure!(status.is_success(), "{}", readable_error(&text));
     let v: Value = serde_json::from_str(&text).context("the model's answer is not JSON")?;
-    Ok((v["choices"][0]["message"].clone(), v["usage"].clone()))
+    // The usage also says why the answer ended ("length": cut off at max_tokens).
+    let mut usage = v["usage"].clone();
+    if let Some(u) = usage.as_object_mut() {
+        u.insert("finish_reason".into(), v["choices"][0]["finish_reason"].clone());
+    } else {
+        usage = json!({ "finish_reason": v["choices"][0]["finish_reason"] });
+    }
+    Ok((v["choices"][0]["message"].clone(), usage))
+}
+
+/// Output tokens for one tool step on an OpenAI-compatible server: the provider's setting, else
+/// 2048 on a local server (small models, small context) and 16000 in the cloud, where a model
+/// that thinks first needs room to still write an edit (2048 cut off every edit Claude wrote).
+fn tool_max_tokens(p: &ProviderConfig, json_answer: bool) -> u32 {
+    match (p.max_tokens, p.local, json_answer) {
+        (Some(n), _, _) => n,
+        (None, true, true) => 8192,
+        (None, true, false) => 2048,
+        (None, false, _) => 16_000,
+    }
 }
 
 /// A short, readable reason from an error body: never raw HTML, never more

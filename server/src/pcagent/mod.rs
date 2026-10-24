@@ -25,6 +25,11 @@ static STOP_REQUESTED: LazyLock<std::sync::Mutex<std::collections::HashSet<Strin
 const STEP_STOPPED: &str = "The step was stopped by the user.";
 
 const MAX_STEPS: usize = 8;
+/// After this many cut-off answers in a row the agent stops instead of trying again.
+const MAX_CUT_OFFS: usize = 3;
+/// Told to the model when its answer hit the output limit before its tool call was complete.
+const CUT_OFF_NOTE: &str = "Your last answer was cut off at the output limit before its tool call was complete, so nothing ran. \
+    Do the same in smaller pieces: several edit_file calls that each replace a few lines, or write_file for one small file at a time.";
 /// How long a card waits for a decision, and a job for the computer (seconds).
 const WAIT_SECS: u32 = 1800;
 
@@ -34,7 +39,10 @@ fn system_prompt(machine: &str) -> String {
          Every tool call is shown to the user, who approves or declines it, and the computer only allows what \
          was granted. Prefer small, safe steps: look before you change (read a file before editing it, search \
          before installing). Explain in one short sentence what you will do before calling a tool. When done, \
-         say plainly what you changed. Never ask for passwords; the computer asks for them itself. \
+         say plainly what you changed. read_file takes offset and length for a part of a big file. Change files \
+         with edit_file in small pieces (a few lines each) rather than rewriting a whole file; you may make several \
+         calls in one answer. Once you have read what you need, make the change; read a file again only when it changed. \
+         Never ask for passwords; the computer asks for them itself. \
          Do every part of the request: after each result, call the next tool until all parts are done \
          (for \"install X and show its version\": install, then run the version command). Only say a step \
          worked when its result is \"done\" with \"exit: 0\", and quote the key output line. When a step \
@@ -156,34 +164,120 @@ async fn max_steps_for(s: &AppState, user_id: &str) -> usize {
     n.map(clamp_steps).unwrap_or(MAX_STEPS)
 }
 
+/// What the agent did in a chat's last answer: the whole exchange with the model (its tool calls
+/// and their results, not only the chat lines), so the next message goes on from there instead of
+/// reading the same files again. Kept in memory: after a restart the chat lines are used.
+struct Memory {
+    provider_id: String,
+    model_id: String,
+    /// The conversation without the system prompt, ending with the agent's last answer.
+    messages: Vec<Value>,
+    /// The time of the chat's latest message when this was saved: newer ones are new.
+    until: String,
+}
+
+static MEMORY: LazyLock<std::sync::Mutex<HashMap<String, Memory>>> = LazyLock::new(Default::default);
+/// Chats kept in MEMORY; past this the oldest is forgotten.
+const MEMORY_CHATS: usize = 64;
+
+/// How much of an earlier exchange (bytes of JSON) the next answer may carry: little for a small
+/// local model, a lot for a cloud one (about 100k tokens).
+fn memory_budget(local: bool) -> usize {
+    if local { 24_000 } else { 400_000 }
+}
+
+/// Makes `messages` fit in `budget`: old tool output first, then whole old exchanges. The list
+/// always starts with a user line, so no tool result is left without its call.
+fn trim_memory(messages: &mut Vec<Value>, budget: usize) {
+    let size = |m: &[Value]| m.iter().map(|v| v.to_string().len()).sum::<usize>();
+    for i in 0..messages.len() {
+        if size(messages) <= budget {
+            return;
+        }
+        if messages[i]["role"] == "tool" {
+            messages[i]["content"] = json!("(Older output left out to save room. Run the step again if you need it.)");
+        }
+    }
+    while size(messages) > budget && messages.len() > 1 {
+        messages.remove(0);
+        while messages.first().is_some_and(|m| !(m["role"] == "user" && m["content"].is_string())) {
+            messages.remove(0);
+        }
+    }
+}
+
+/// The chat as the model saw it last time plus the messages written since, when the agent
+/// answered in this chat before with the same model. None: build it from the chat lines.
+async fn remembered(s: &AppState, chat_id: &str, role: &RoleAssignment) -> Option<Vec<Value>> {
+    let (mut messages, until) = {
+        let mem = MEMORY.lock().unwrap();
+        let m = mem.get(chat_id).filter(|m| m.provider_id == role.provider_id && m.model_id == role.model_id)?;
+        (m.messages.clone(), m.until.clone())
+    };
+    let newer: Vec<(String, String)> = sqlx::query_as("SELECT author, text FROM messages WHERE chat_id = ? AND at > ? ORDER BY at, rowid")
+        .bind(chat_id)
+        .bind(&until)
+        .fetch_all(&s.db)
+        .await
+        .ok()?;
+    if !newer.iter().any(|(a, _)| a == "user") {
+        return None;
+    }
+    for (author, text) in newer {
+        messages.push(json!({ "role": if author == "user" { "user" } else { "assistant" }, "content": text }));
+    }
+    Some(messages)
+}
+
+async fn remember(s: &AppState, chat_id: &str, role: &RoleAssignment, mut messages: Vec<Value>, answer: &str, local: bool) {
+    messages.remove(0); // the system prompt is rebuilt every time
+    messages.push(json!({ "role": "assistant", "content": answer }));
+    trim_memory(&mut messages, memory_budget(local));
+    let until: Option<String> = sqlx::query_scalar("SELECT MAX(at) FROM messages WHERE chat_id = ?").bind(chat_id).fetch_one(&s.db).await.ok().flatten();
+    let Some(until) = until else { return };
+    let mut mem = MEMORY.lock().unwrap();
+    if mem.len() >= MEMORY_CHATS && !mem.contains_key(chat_id) {
+        if let Some(oldest) = mem.iter().min_by(|a, b| a.1.until.cmp(&b.1.until)).map(|(k, _)| k.clone()) {
+            mem.remove(&oldest);
+        }
+    }
+    mem.insert(chat_id.to_string(), Memory { provider_id: role.provider_id.clone(), model_id: role.model_id.clone(), messages, until });
+}
+
 pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: String, machine_name: String, role: RoleAssignment) {
     STOPPED_CHATS.lock().unwrap().remove(&chat_id); // a stop from an earlier answer doesn't count
     let mut messages = vec![json!({ "role": "system", "content": system_prompt(&machine_name) })];
-    let history: Vec<(String, String)> = sqlx::query_as(
-        "SELECT author, text FROM (SELECT author, text, at, rowid FROM messages WHERE chat_id = ?
-         ORDER BY at DESC, rowid DESC LIMIT 20) ORDER BY at, rowid",
-    )
-    .bind(&chat_id)
-    .fetch_all(&s.db)
-    .await
-    .unwrap_or_default();
-    for (author, text) in history {
-        let role = if author == "user" { "user" } else { "assistant" };
-        messages.push(json!({ "role": role, "content": text }));
-    }
-    if let Some(d) = steplog::digest(&s.db, &user_id, &chat_id).await {
-        messages.push(json!({ "role": "system", "content": d }));
+    if let Some(earlier) = remembered(&s, &chat_id, &role).await {
+        messages.extend(earlier);
+    } else {
+        let history: Vec<(String, String)> = sqlx::query_as(
+            "SELECT author, text FROM (SELECT author, text, at, rowid FROM messages WHERE chat_id = ?
+             ORDER BY at DESC, rowid DESC LIMIT 20) ORDER BY at, rowid",
+        )
+        .bind(&chat_id)
+        .fetch_all(&s.db)
+        .await
+        .unwrap_or_default();
+        for (author, text) in history {
+            let role = if author == "user" { "user" } else { "assistant" };
+            messages.push(json!({ "role": role, "content": text }));
+        }
+        if let Some(d) = steplog::digest(&s.db, &user_id, &chat_id).await {
+            messages.push(json!({ "role": "system", "content": d }));
+        }
     }
     let effort: Option<String> = sqlx::query_scalar("SELECT effort FROM chats WHERE id = ?").bind(&chat_id).fetch_optional(&s.db).await.ok().flatten();
     let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default();
     let auto = auto_run_for(&s, &chat_id).await;
     let max_steps = max_steps_for(&s, &user_id).await;
+    let local = s.config.provider(&role.provider_id).is_some_and(|p| p.local);
     let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None };
-    let text = match agent.run(messages).await {
+    let text = match agent.run_in(&mut messages).await {
         Ok(t) => t,
         Err(e) => e,
     };
     say(&s, &user_id, &chat_id, &text).await;
+    remember(&s, &chat_id, &agent.role, messages, &text, local).await;
 }
 
 /// One agent working on one computer for one chat: the model calls the runner's
@@ -261,6 +355,11 @@ impl Agent {
     /// Runs the tool loop on `messages` (system prompt first). Ok(final text), or
     /// Err(text to tell the user) when the model failed or ran out of steps.
     pub async fn run(&self, mut messages: Vec<Value>) -> Result<String, String> {
+        self.run_in(&mut messages).await
+    }
+
+    /// Like `run`, and `messages` keeps the whole exchange afterwards (for the next answer).
+    pub async fn run_in(&self, messages: &mut Vec<Value>) -> Result<String, String> {
         let s = &self.s;
         let Some(p) = s.config.provider(&self.role.provider_id) else {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
@@ -276,6 +375,9 @@ impl Agent {
             mcp_map = map;
         }
         let (p, model_id) = crate::effort::apply(p, &self.role.model_id, self.effort);
+        let budget = result_budget(p.local);
+        // Answers in a row that hit the output limit before their tool call was complete.
+        let mut cut_offs = 0;
         // Paths a read found missing during this answer (see the write_file guardrail).
         let mut missing = std::collections::HashSet::<String>::new();
         if self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
@@ -305,6 +407,22 @@ impl Agent {
                 return Err(e);
             }
             let calls = msg["tool_calls"].as_array().cloned().unwrap_or_default();
+            if calls.is_empty() && usage["finish_reason"] == "length" {
+                // Cut off at max_tokens, usually in the middle of a big edit: that is not the end
+                // of the work. Tell the model and let it go on in smaller pieces.
+                cut_offs += 1;
+                if cut_offs >= MAX_CUT_OFFS {
+                    return Err(format!("The model's answer was cut off at its output limit {MAX_CUT_OFFS} times in a row, so nothing more was changed. Raise max_tokens for the provider {} or ask for a smaller step.", self.role.provider_id));
+                }
+                // Only its text goes back: the cut answer has no tool call to answer.
+                if let Some(text) = msg["content"].as_str().map(str::trim).filter(|t| !t.is_empty()) {
+                    say(s, &self.user_id, &self.chat_id, text).await;
+                    messages.push(json!({ "role": "assistant", "content": text }));
+                }
+                messages.push(json!({ "role": "user", "content": CUT_OFF_NOTE }));
+                continue;
+            }
+            cut_offs = 0;
             if calls.is_empty() {
                 let text = msg["content"].as_str().unwrap_or("").trim();
                 return Ok(final_text(text, n));
@@ -366,7 +484,7 @@ impl Agent {
                         "Blocked: that file did not exist when you looked. Ask the user before creating a new file.".to_string()
                     }
                     Some(job) => {
-                        let r = step(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.auto, self.run_id.as_deref()).await;
+                        let r = step(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.auto, self.run_id.as_deref(), budget).await;
                         if r.contains("no such file") && let Some(p) = job["path"].as_str() {
                             missing.insert(p.to_string());
                         }
@@ -432,7 +550,7 @@ pub async fn fail_orphaned_steps(s: &AppState) {
 
 /// One tool call: an approval card, then (if approved) a runner job. Returns the
 /// text the model gets back.
-async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, auto: bool, run_id: Option<&str>) -> String {
+async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, auto: bool, run_id: Option<&str>, budget: usize) -> String {
 
     let id = util::new_id();
     // Under a standing grant (tasks): no card, the step runs right away.
@@ -560,7 +678,7 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
     }
     set_action(s, &id, &state, &result).await;
     changed(s, user_id);
-    model_result(&state, &result)
+    model_result(&state, &result, budget)
 }
 
 /// Refuse a job because it violates a rule (e.g., editing a test file).
@@ -601,21 +719,35 @@ fn final_text(text: &str, steps_before: usize) -> String {
     }
 }
 
-/// What the model gets back from a step: the outcome first, then the end of the
-/// output (where the exit code and errors are).
-fn model_result(state: &str, result: &str) -> String {
-    let tail_start = result.len().saturating_sub(6000);
-    let mut start = tail_start;
-    while !result.is_char_boundary(start) {
-        start += 1;
-    }
+/// How much of a step's output the model gets: a small local model keeps the old 6,000 bytes,
+/// a cloud model (1M context) sees much more, so it isn't sent back to read a file in slivers.
+pub fn result_budget(local: bool) -> usize {
+    if local { 6_000 } else { 40_000 }
+}
+
+/// What the model gets back from a step: the outcome first, then the output. Output over
+/// `budget` keeps its start (a file's top, a command's first lines) and its end (the exit code,
+/// the errors, where a read continues), with a note on what was left out between them.
+fn model_result(state: &str, result: &str, budget: usize) -> String {
     let outcome = match state {
         "done" => "The step ran.",
         "refused" => "The computer refused the step (not granted).",
         "stopped" => STEP_STOPPED,
         _ => "The step failed.",
     };
-    format!("{outcome} State: {state}.\nOutput{}:\n{}", if start > 0 { " (last part)" } else { "" }, &result[start..])
+    if result.len() <= budget {
+        return format!("{outcome} State: {state}.\nOutput:\n{result}");
+    }
+    let head = cut(result, budget / 3);
+    let mut tail_start = result.len() - (budget - head.len());
+    while !result.is_char_boundary(tail_start) {
+        tail_start += 1;
+    }
+    let left_out = tail_start - head.len();
+    format!(
+        "{outcome} State: {state}.\nOutput (start and end):\n{head}\n[... {left_out} bytes left out here. To see them, read_file with offset and length, or run a narrower command.]\n{}",
+        &result[tail_start..]
+    )
 }
 
 fn in_minutes(m: i64) -> String {
@@ -803,10 +935,21 @@ mod tests {
 
     #[test]
     fn model_result_says_the_outcome_first() {
-        let r = model_result("done", "installed\nexit: 0");
+        let r = model_result("done", "installed\nexit: 0", 6000);
         assert!(r.starts_with("The step ran. State: done."));
         assert!(r.ends_with("exit: 0"));
-        assert!(model_result("refused", "not granted: packages").contains("refused"));
+        assert!(model_result("refused", "not granted: packages", 6000).contains("refused"));
+    }
+
+    #[test]
+    fn long_output_keeps_its_start_and_its_end() {
+        let out = format!("TOP OF FILE\n{}\nexit: 0", "é".repeat(10_000));
+        let r = model_result("done", &out, 6000);
+        assert!(r.contains("TOP OF FILE"), "the start is not lost");
+        assert!(r.ends_with("exit: 0"), "nor the end");
+        assert!(r.contains("bytes left out here"));
+        assert!(r.len() < 6300);
+        assert!(!model_result("done", &out, result_budget(false)).contains("left out"), "a cloud model gets all of it");
     }
 
     #[test]
@@ -817,6 +960,26 @@ mod tests {
         // A file read cut at the cap: `old` is past the cut, so it must not be called missing.
         let cut_read = "x".repeat(STORED_RESULT_CAP);
         assert!(precheck(&cut_read, "line past the cut\n").is_none());
+    }
+
+    #[test]
+    fn memory_drops_old_output_first_then_old_exchanges() {
+        let big = "x".repeat(5000);
+        let mut m = vec![
+            json!({ "role": "user", "content": "Read a" }),
+            json!({ "role": "assistant", "content": "", "tool_calls": [{ "id": "1" }] }),
+            json!({ "role": "tool", "tool_call_id": "1", "content": big }),
+            json!({ "role": "assistant", "content": "Read it." }),
+            json!({ "role": "user", "content": "Go on" }),
+        ];
+        trim_memory(&mut m, 2000);
+        assert_eq!(m.len(), 5, "only the output went");
+        assert!(m[2]["content"].as_str().unwrap().starts_with("(Older output"));
+        trim_memory(&mut m, 120);
+        assert_eq!(m[0]["content"], "Go on", "then whole exchanges, from a user line");
+        let mut small = vec![json!({ "role": "user", "content": "Hi" })];
+        trim_memory(&mut small, 10_000);
+        assert_eq!(small.len(), 1);
     }
 
     #[test]
