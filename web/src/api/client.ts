@@ -1,7 +1,7 @@
 // The app talks to a Kompanion server only through this interface.
 // `MockApi` implements it for the draft; `HttpApi` (next milestone) will call
 // the real server over HTTPS + server-sent events.
-import type { NotificationPrefs, TaskState, AdminSettings, ThemeChoice, DaySummary, MachineStats, ServerStatus, Chat, ChatContext, Message, Project, RoleAssignment, ModelProvider, SearchResult, Server, Task } from "./types";
+import type { NotificationPrefs, TaskState, AdminSettings, ThemeChoice, DaySummary, MachineStats, ServerStatus, Chat, Fact, FactKind, FactsView, Message, Project, RoleAssignment, ModelProvider, SearchResult, Server, Task, ChatContext } from "./types";
 
 /** A lesson a task run's reviewer proposed in the project thread (SK-02). */
 export interface Lesson {
@@ -90,6 +90,11 @@ export interface KompanionApi {
   detachAsset(projectId: string, assetId: number): Promise<void>;
   listChats(): Promise<Chat[]>;
   listMessages(chatId: string): Promise<Message[]>;
+  /** FACTS: the chat's facts (with its project's) or a project's. */
+  listFacts(where: { chatId?: string; projectId?: string }): Promise<FactsView>;
+  addFact(f: { scope: "project" | "chat"; projectId?: string; chatId?: string; key: string; value: string; kind?: FactKind }): Promise<Fact>;
+  updateFact(id: string, change: { key?: string; value?: string; kind?: FactKind }): Promise<Fact>;
+  deleteFact(id: string): Promise<void>;
   /** CTX-01: the context meter's numbers and the chat's summary. */
   chatContext(chatId: string): Promise<ChatContext>;
   /** CTX-01: summarise all but the newest two messages now. */
@@ -205,7 +210,7 @@ export type ServerEvent =
   | { type: "context"; usage: ChatContext } // CTX-01
   | { type: "task"; task: Task }
   | { type: "machines"; machines: MachineStats[] }
-  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio"; machineId?: string }
+  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts"; machineId?: string }
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
   | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app ignores it
   | { type: "resync" };

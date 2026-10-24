@@ -4,7 +4,7 @@ import { AUDIO_TYPES } from "./http";
 import type { AccessEvent, GrantView } from "../views/access";
 import type { KompanionApi, Lesson, ServerEvent } from "./client";
 import type { PcAction } from "./client";
-import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, ChatContext, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task } from "./types";
+import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, Fact, FactKind, FactsView, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task, ChatContext } from "./types";
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 const grants: Record<string, GrantView[]> = {
@@ -84,6 +84,19 @@ const chats: Chat[] = [
   { id: "c-loose", title: "Which local model next?", updatedAt: ago(60 * 3) },
 ];
 
+// FACTS: kk-engine's facts and the "Debug tooling and tests" chat's own; one path fact is flagged.
+const fact = (id: string, scope: { projectId?: string; chatId?: string }, key: string, value: string, kind: FactKind, source: "user" | "assistant", min: number, flagged = false): Fact =>
+  ({ id, projectId: scope.projectId ?? null, chatId: scope.chatId ?? null, key, value, kind, source, createdAt: ago(min + 60), updatedAt: ago(min), lastUsedAt: ago(5), flaggedAt: flagged ? ago(30) : null });
+const facts: Fact[] = [
+  fact("f1", { projectId: "p-kk" }, "Build command", "cmake --build build -j8", "other", "user", 60 * 24 * 6),
+  fact("f2", { projectId: "p-kk" }, "Engine repo", "/home/kees/projects/kk-engine", "path", "user", 60 * 24 * 9),
+  fact("f3", { projectId: "p-kk" }, "Validation default", "--vk-validation is off in release builds, on in debug.", "text", "assistant", 50),
+  fact("f4", { projectId: "p-kk" }, "Docs", "https://kk-engine.kreative-kompas.com/docs", "url", "assistant", 60 * 24 * 2),
+  fact("f5", { projectId: "p-kk" }, "Shader cache", "/home/kees/.cache/kk-engine/shaders", "path", "assistant", 60 * 24 * 3, true),
+  fact("f6", { chatId: "c-kk" }, "Benchmark slot", "Tonight 01:00, when the A770 is free", "text", "assistant", 40),
+  fact("f7", { chatId: "c-kk" }, "Test runner", "ctest --output-on-failure", "other", "user", 90),
+];
+const sortFacts = (list: Fact[]) => [...list].sort((a, b) => Number(!!b.flaggedAt) - Number(!!a.flaggedAt) || a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
 // CTX-01: the context meter's demo numbers: one chat close to full with a summary, one with room.
 const contexts: Record<string, ChatContext> = {
   "c-kk": { chatId: "c-kk", used: 104_300, window: 128_000, model: "deepseek-chat", summary: {
@@ -397,7 +410,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs"], overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs", "History", "Memory"], overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}
@@ -635,6 +648,39 @@ export class MockApi implements KompanionApi {
     return structuredClone([...chats].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)));
   }
   async listMessages(chatId: string) { return structuredClone(messages.filter((m) => m.chatId === chatId)); }
+  async listFacts(where: { chatId?: string; projectId?: string }): Promise<FactsView> {
+    const chat = where.chatId ? chats.find((c) => c.id === where.chatId) : undefined;
+    const projectId = chat ? chat.projectId ?? null : where.projectId ?? null;
+    const view: FactsView = { projectId, chatId: chat?.id ?? null };
+    if (projectId) Object.assign(view, { project: sortFacts(facts.filter((f) => f.projectId === projectId)), canEditProject: true });
+    if (chat) Object.assign(view, { chat: sortFacts(facts.filter((f) => f.chatId === chat.id)), canEditChat: true });
+    return structuredClone(view);
+  }
+  async addFact(f: { scope: "project" | "chat"; projectId?: string; chatId?: string; key: string; value: string; kind?: FactKind }): Promise<Fact> {
+    const key = f.key.trim().replace(/\s+/g, " ");
+    const value = f.value.trim();
+    if (!key || !value) throw new Error("A fact needs a name and a value.");
+    if (/\b(ghp_|sk-|github_pat_)\w{16,}/.test(value)) throw new Error("This looks like a password or token. Facts never hold secrets: write where it lives instead.");
+    const scope = f.scope === "project" ? { projectId: f.projectId } : { chatId: f.chatId };
+    if (facts.some((x) => (f.scope === "project" ? x.projectId === f.projectId : x.chatId === f.chatId) && x.key.toLowerCase() === key.toLowerCase())) throw new Error(`There is already a fact named "${key}": edit that one instead.`);
+    const n = fact(id("f"), scope, key, value, f.kind ?? "text", "user", 0);
+    n.lastUsedAt = null;
+    facts.push(n);
+    this.emit({ type: "changed", what: "facts" });
+    return structuredClone(n);
+  }
+  async updateFact(fid: string, change: { key?: string; value?: string; kind?: FactKind }): Promise<Fact> {
+    const f = facts.find((x) => x.id === fid);
+    if (!f) throw new Error("That fact is gone.");
+    Object.assign(f, { key: change.key?.trim() || f.key, value: change.value?.trim() || f.value, kind: change.kind ?? f.kind, source: "user", updatedAt: new Date().toISOString(), flaggedAt: null });
+    this.emit({ type: "changed", what: "facts" });
+    return structuredClone(f);
+  }
+  async deleteFact(fid: string) {
+    const i = facts.findIndex((x) => x.id === fid);
+    if (i >= 0) facts.splice(i, 1);
+    this.emit({ type: "changed", what: "facts" });
+  }
   async chatContext(chatId: string): Promise<ChatContext> {
     return structuredClone(contexts[chatId] ?? { chatId, used: null, window: null, model: null, summary: null });
   }
