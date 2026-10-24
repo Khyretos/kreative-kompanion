@@ -34,6 +34,7 @@ mod overseer;
 mod overview;
 mod lessons;
 mod llm;
+mod llm_anthropic;
 mod mail;
 mod mailhtml;
 mod mcp;

@@ -1,0 +1,56 @@
+{
+  "0e5e1dcc362f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/llm_anthropic.rs",
+    "reason": "The flagged lines are the test helper stream(), which only feeds prepared events to Answer and parses nothing. In chat_full, a server-sent line that is not JSON (pings, empty data) is skipped on purpose, as in llm::stream_chat. A real API error event is turned into an error (bail on type error), and a broken tool input is reported as a cut-off answer.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "32f9151ef9f4": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "reason": "The lock is taken only after the database query, for in-memory map work that cannot panic (no unwrap or I/O under it), so there is no deadlock or poisoned state. MEMORY is a cache: when the query fails nothing is saved, and the next message falls back to the chat lines, which are the lasting record. It is never meant to survive a restart.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "478958e08b7b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "reason": "After each removal, trim_memory keeps removing until the list starts with a plain user line (role user with string content), so no tool result or assistant turn is left without what came before it. llm_anthropic::to_anthropic also starts every conversation with a user turn. Test: memory_drops_old_output_first_then_old_exchanges.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "62a2b16bc56c": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/llm_anthropic.rs",
+    "reason": "stop_reason is set to max_tokens in the drop loop, before `let stop = self.stop_reason...` is read further down in finish(). So a dropped call always ends with finish_reason length, whatever the API's own stop reason was. Test: broken_tool_input_is_reported_like_a_cut_off (API stop reason tool_use, result length).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "7e9e20c806eb": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "c2fc5d0c9abc00db5bfae9960687f30a9ed9e06c",
+    "path": "server/src/llm_anthropic.rs",
+    "reason": "Partly real. A tool call cut at max_tokens was already reported (finish_reason length, so the agent tells the model nothing ran and goes on in smaller pieces). But broken input with any other stop reason was dropped in silence. Now any dropped call marks the answer as cut off. Test: broken_tool_input_is_reported_like_a_cut_off.",
+    "title": "Possible Issue",
+    "verdict": "bug"
+  },
+  "b2a78827718f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "reason": "A new chat is only inserted after the oldest entry is evicted whenever the map is full (len >= 64 and the key is new). An evicted chat that comes back counts as new and evicts another, so the map never holds more than 64 chats, each trimmed to memory_budget (400 KB cloud, 24 KB local).",
+    "title": "Memory Leak Risk",
+    "verdict": "false_positive"
+  }
+}

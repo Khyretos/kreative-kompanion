@@ -769,7 +769,7 @@ pub async fn log_call(
 ) {
     let _ = sqlx::query(
         "INSERT INTO calls (user_id, id, chat_id, role, provider_id, model_id, reason, request, response,
-         tokens_in, tokens_out, ms, error, at, run_id, effort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         tokens_in, tokens_out, ms, error, at, run_id, effort, cache_write, cache_read) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(user_id)
     .bind(util::new_id())
@@ -787,6 +787,9 @@ pub async fn log_call(
     .bind(util::now())
     .bind(run_id)
     .bind(effort.as_str())
+    // Anthropic's prompt cache (tool steps on its own API); null elsewhere.
+    .bind(usage["cache_creation_input_tokens"].as_i64())
+    .bind(usage["cache_read_input_tokens"].as_i64())
     .execute(&s.db)
     .await;
 }
