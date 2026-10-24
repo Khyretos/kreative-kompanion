@@ -535,13 +535,13 @@ pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: 
     convo[0].content.push_str(&format!("\n\n{}", crate::chat_tools::when_where(time::OffsetDateTime::now_utc(), s.config.machine_name.as_deref(), s.config.location.as_deref(), web.is_some())));
     let mut used_lines = String::new();
     let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
-    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none(), s.config.provider(&role.provider_id)) {
+    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none(), s.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| m.wire(false)).collect();
         let (bus, uid, rid, cid) = (s.bus.clone(), to.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send_many(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
+        let uses = crate::chat_tools::run(&s, &p, &role.model_id, &msgs, &servers, web, knowledge, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));
             used_lines.push_str("\n\n");
@@ -592,10 +592,10 @@ pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: 
         }
         used = model_id.clone();
         used_provider = provider_id.clone();
-    match s.config.provider(provider_id) {
+    match s.provider(provider_id) {
         None => error = Some(format!("provider {provider_id} is not configured")),
         Some(p) => match {
-            let (p, model_id) = crate::effort::apply(p, model_id, effort);
+            let (p, model_id) = crate::effort::apply(&p, model_id, effort);
             used = model_id.clone();
             sent_extra = p.extra_body.clone();
             // GPU-03: say why the answer waits (shown while streaming; the saved answer is the model's text).
@@ -786,7 +786,8 @@ pub(crate) async fn history_for(s: &AppState, user_id: &str, chat_id: &str, role
 // ---- Models and roles ----
 
 pub async fn providers(State(s): State<AppState>) -> Json<Vec<Value>> {
-    let probes = s.config.providers.iter().map(|p| {
+    let all = s.providers();
+    let probes = all.iter().map(|p| {
         let http = s.http.clone();
         async move {
             let (models, error) = match llm::list_models(&http, p).await {
@@ -1050,7 +1051,7 @@ pub async fn set_role(
     if !["orchestrator", "worker", "reviewer", "overseer"].contains(&r.role.as_str()) {
         return Err(ApiError::BadRequest("Unknown role.".into()));
     }
-    if s.config.provider(&r.provider_id).is_none() {
+    if s.provider(&r.provider_id).is_none() {
         return Err(ApiError::BadRequest("Unknown provider.".into()));
     }
     let Some(effort) = crate::effort::Effort::parse(&r.effort) else {

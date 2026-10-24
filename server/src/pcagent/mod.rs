@@ -269,7 +269,7 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
     let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default();
     let auto = auto_run_for(&s, &chat_id).await;
     let max_steps = max_steps_for(&s, &user_id).await;
-    let local = s.config.provider(&role.provider_id).is_some_and(|p| p.local);
+    let local = s.provider(&role.provider_id).is_some_and(|p| p.local);
     let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None };
     let text = match agent.run_in(&mut messages).await {
         Ok(t) => t,
@@ -360,7 +360,7 @@ impl Agent {
     /// Like `run`, and `messages` keeps the whole exchange afterwards (for the next answer).
     pub async fn run_in(&self, messages: &mut Vec<Value>) -> Result<String, String> {
         let s = &self.s;
-        let Some(p) = s.config.provider(&self.role.provider_id) else {
+        let Some(p) = s.provider(&self.role.provider_id) else {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
         let mut tools = tools::schema();
@@ -378,7 +378,7 @@ impl Agent {
             }
             mcp_map = map;
         }
-        let (p, model_id) = crate::effort::apply(p, &self.role.model_id, self.effort);
+        let (p, model_id) = crate::effort::apply(&p, &self.role.model_id, self.effort);
         let budget = result_budget(p.local);
         // Answers in a row that hit the output limit before their tool call was complete.
         let mut cut_offs = 0;

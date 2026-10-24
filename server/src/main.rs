@@ -8,6 +8,7 @@ mod capmatrix;
 mod config;
 mod context;
 mod explain;
+mod providers_admin;
 mod costs;
 mod assetaudio;
 mod assetcontract;
@@ -107,6 +108,8 @@ pub struct AppState {
     pub host: Arc<hoststats::HostStats>,
     /// Windshift sync configured from the environment (WINDSHIFT_URL, WINDSHIFT_TOKEN[_FILE]).
     pub windshift: bool,
+    /// PROV-UI: providers an admin added in Settings (custom_providers), next to the config file's.
+    pub custom_providers: Arc<std::sync::RwLock<Vec<config::ProviderConfig>>>,
 }
 
 #[cfg(test)]
@@ -123,7 +126,22 @@ impl AppState {
             oidc: Default::default(),
             host: Default::default(),
             windshift: false,
+            custom_providers: Default::default(),
         }
+    }
+
+    /// PROV-UI: a provider by id: from kompanion.toml, else one added in Settings.
+    pub fn provider(&self, id: &str) -> Option<config::ProviderConfig> {
+        self.config.provider(id).cloned().or_else(|| self.custom_providers.read().ok()?.iter().find(|p| p.id == id).cloned())
+    }
+
+    /// Every provider: the config file's first, then those added in Settings.
+    pub fn providers(&self) -> Vec<config::ProviderConfig> {
+        let mut all = self.config.providers.clone();
+        if let Ok(extra) = self.custom_providers.read() {
+            all.extend(extra.iter().cloned());
+        }
+        all
     }
 }
 
@@ -267,7 +285,9 @@ async fn main() -> anyhow::Result<()> {
         oidc: Default::default(),
         host: Default::default(),
         windshift: windshift.is_some() && config.features.windshift,
+        custom_providers: Default::default(),
     };
+    providers_admin::load(&state).await;
     if args.get(1).map(String::as_str) == Some("studio-run") {
         return studio::cli(&state, &args[2..]).await;
     }
@@ -306,6 +326,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/me/theme", axum::routing::put(admin::set_my_theme))
         .route("/admin/settings", get(admin::get_settings).put(admin::put_settings))
         .route("/admin/test-mail", post(admin::test_mail))
+        .route("/admin/providers", get(providers_admin::list).post(providers_admin::create))
+        .route("/admin/providers/{id}", axum::routing::put(providers_admin::update).delete(providers_admin::delete))
         .route(
             "/admin/logo",
             axum::routing::put(admin::put_logo)
@@ -320,7 +342,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/logout", post(auth::logout))
         .route("/auth/oidc/start", get(oidc::start))
         .route("/auth/oidc/callback", get(oidc::callback))
-        .route("/projects", get(api::projects))
+        .route("/projects", get(api::projects).post(projects::create))
         .route("/chats", get(api::chats).post(api::create_chat))
         .route("/chats/{id}", patch(api::update_chat).delete(api::delete_chat))
         .route("/chats/{id}/messages", get(api::messages).post(api::send))

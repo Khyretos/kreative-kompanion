@@ -14,6 +14,11 @@ export interface AppState {
   draftAutoRun?: boolean; // AUTO-01: automatic mode picked before a new chat exists
   maxSteps: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100), saved per user
   explain: import("./api/types").ExplainPrefs; // CMD-01: "Explain running actions", saved per user
+  customProviders?: { providers: import("./api/types").CustomProvider[]; secretDirs: string[] }; // PROV-UI: admins only
+  providerForm?: import("./api/types").ProviderDraft; // PROV-UI: the provider being added or changed
+  providerFormError?: string;
+  newProjectOpen?: boolean; // PROV-UI: the sidebar's New project form
+  newProjectError?: string;
   overseer: import("./api/types").OverseerPrefs; // OVR-01
   toolsMenuOpen?: boolean;
   machineName?: string; // HOST-01: the server's own computer, for "This server's computer" in Pair

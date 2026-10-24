@@ -383,3 +383,46 @@ export interface ExplainPrefs {
   providerId?: string | null;
   modelId?: string | null;
 }
+
+/** PROV-UI: a provider an admin added in Settings (never its key; `hasKey` says one was found). */
+export interface CustomProvider {
+  id: string;
+  name: string;
+  kind: "openai-compatible" | "anthropic";
+  baseUrl: string;
+  local: boolean;
+  apiKeyEnv: string | null;
+  apiKeyFile: string | null;
+  maxTokens: number | null;
+  contextWindow: number | null;
+  hasKey: boolean;
+}
+
+/** PROV-UI: the provider form's fields as typed (numbers as text); no id = a new provider. */
+export interface ProviderDraft {
+  id?: string;
+  name: string;
+  kind: "openai-compatible" | "anthropic";
+  baseUrl: string;
+  local: boolean;
+  keySource: "env" | "file" | "none";
+  apiKeyEnv: string;
+  apiKeyFile: string;
+  maxTokens: string;
+  contextWindow: string;
+}
+
+/** PROV-UI: what the provider form sends. */
+export interface ProviderInput {
+  name: string;
+  kind: string;
+  baseUrl: string;
+  local: boolean;
+  apiKeyEnv: string | null;
+  apiKeyFile: string | null;
+  maxTokens: number | null;
+  contextWindow: number | null;
+}
+
+/** PROV-UI: a new project from the sidebar. */
+export type ProjectType = "chat" | "game" | "programming";

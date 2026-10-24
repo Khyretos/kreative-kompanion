@@ -1,5 +1,6 @@
 // Left pane: pinned chats, projects (expandable, with their chats and tasks),
 // loose chats, settings. Each chat has a menu: pin, rename, archive, delete.
+import { t } from "../core/i18n";
 import { html, type SafeHtml } from "../core/html";
 import { relTime } from "../core/time";
 import type { AppState } from "../state";
@@ -70,7 +71,25 @@ export function renderSidebar(s: AppState): SafeHtml {
       ${pinned.length ? html`
         <h2 class="label">Pinned</h2>
         <ul class="loose">${pinned.map((c) => chatRow(c))}</ul>` : ""}
-      <h2 class="label">Projects</h2>
+      <div class="nav-head">
+        <h2 class="label">Projects</h2>
+        <button class="icon-btn new-project-btn" type="button" data-action="new-project" aria-expanded="${s.newProjectOpen ? "true" : "false"}" aria-label="${t("projNew")}" title="${t("projNew")}">${icon("plus")}</button>
+      </div>
+      ${s.newProjectOpen ? html`<form class="new-project" id="new-project-form" aria-label="${t("projNew")}">
+        <label class="sr-only" for="new-project-name">${t("projName")}</label>
+        <input id="new-project-name" name="name" maxlength="80" required placeholder="${t("projName")}" autocomplete="off">
+        <label class="sr-only" for="new-project-type">${t("projType")}</label>
+        <select id="new-project-type" name="ptype">
+          <option value="chat">${t("projTypeChat")}</option>
+          <option value="game">${t("projTypeGame")}</option>
+          <option value="programming">${t("projTypeProgramming")}</option>
+        </select>
+        ${s.newProjectError ? html`<p class="error small" role="alert">${s.newProjectError}</p>` : ""}
+        <div class="form-buttons">
+          <button class="btn small" type="button" data-action="new-project-cancel">${t("msgCancel")}</button>
+          <button class="btn small primary" type="submit">${t("projCreate")}</button>
+        </div>
+      </form>` : ""}
       <ul class="projects">
         ${projects.map((p) => {
           const ts = tasksOf(p.id);

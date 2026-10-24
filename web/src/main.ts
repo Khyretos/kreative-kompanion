@@ -19,6 +19,7 @@ import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
 import { lang, t } from "./core/i18n";
+import { draftOf, PRESETS } from "./views/providerform";
 import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, setExplainOn, explanations, openExplains, fillExplain, messageText, setEditingMessage, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
@@ -351,7 +352,7 @@ function render(s: AppState, prev: AppState): void {
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
     "chatMenuId", "movingChatId", "renamingChatId", "server", "userName", "logoVersion", "section", "allTasksShown", "openTaskId",
-    "projectMenuId", "showArchived"])) {
+    "projectMenuId", "showArchived", "newProjectOpen", "newProjectError"])) {
     remount($("#left"), renderSidebar(s));
     const menu = document.querySelector<HTMLElement>(".chat-row.menu-open .menu, .project.menu-open .menu");
     if (menu) placeMenu(menu);
@@ -474,7 +475,9 @@ function render(s: AppState, prev: AppState): void {
   if (s.section !== prev.section && !firstRender) navHistory(s.section, prev.section);
   const settings = $("#settings");
   if (s.section === "settings" && s.section !== prev.section) settingsDirty = false;
-  if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer", "explain"])) {
+  // PROV-UI: an admin's own providers (with where their keys are) load on entering Settings.
+  if (s.section === "settings" && prev.section !== "settings" && s.isAdmin && !s.customProviders) void loadCustomProviders();
+  if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer", "explain", "customProviders", "providerForm", "providerFormError"])) {
     remount(settings, renderSettings(s));
   }
   firstRender = false;
@@ -555,6 +558,46 @@ function loadExplain(id: string): void {
     (r) => explanations.set(id, { text: r.text }),
     (e) => explanations.set(id, { error: e instanceof Error ? e.message : String(e) }),
   ).finally(() => { explainLoading.delete(id); fill(); });
+}
+
+/** Focuses an element once the coming renders have drawn it (a pane can be drawn more than once). */
+function focusSoon(selector: string): void {
+  let frames = 0;
+  const tick = () => {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (el && document.activeElement !== el) el.focus();
+    if (++frames < 8) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/** PROV-UI: the providers added in Settings (admins only; the list is empty for others). */
+async function loadCustomProviders(): Promise<void> {
+  if (!store.get().isAdmin) return;
+  try {
+    store.set({ customProviders: await api.listCustomProviders() });
+  } catch (e) {
+    showError(e);
+  }
+}
+
+/** PROV-UI: after a provider changed: every list of models follows, without a reload. */
+async function refreshProviders(): Promise<void> {
+  const [providers] = await Promise.all([api.listProviders(), loadCustomProviders()]);
+  store.set({ providers });
+}
+
+/** PROV-UI: the provider form's fields, as typed. */
+function readProviderForm(f: HTMLFormElement): import("./api/types").ProviderDraft {
+  const v = (n: string) => (f.elements.namedItem(n) as HTMLInputElement | null)?.value ?? "";
+  const keySource = ((f.querySelector<HTMLInputElement>('input[name="keySource"]:checked')?.value) ?? "none") as "env" | "file" | "none";
+  return {
+    id: store.get().providerForm?.id,
+    name: v("name"), kind: v("kind") === "anthropic" ? "anthropic" : "openai-compatible", baseUrl: v("baseUrl"),
+    local: !!(f.elements.namedItem("local") as HTMLInputElement | null)?.checked, keySource,
+    apiKeyEnv: v("apiKeyEnv") || store.get().providerForm?.apiKeyEnv || "", apiKeyFile: v("apiKeyFile") || store.get().providerForm?.apiKeyFile || "",
+    maxTokens: v("maxTokens"), contextWindow: v("contextWindow"),
+  };
 }
 
 /** MSG-ACT: the messages drawn again (an edit form opened or closed). */
@@ -1113,6 +1156,39 @@ function wire(shell: HTMLElement): void {
       const asked = list.slice(0, i).reverse().find((x) => x.author === "user");
       if (asked) resendMessage(asked.id);
     },
+    // PROV-UI: add, change and remove model providers (admins), in Settings.
+    "add-provider": () => {
+      const preset = PRESETS[0].draft;
+      store.set({ providerForm: { ...preset }, providerFormError: undefined });
+      if (!store.get().customProviders) void loadCustomProviders();
+      focusSoon("#prov-preset");
+    },
+    "provider-edit": (el) => {
+      const p = store.get().customProviders?.providers.find((x) => x.id === el.dataset.id);
+      if (!p) return;
+      store.set({ providerForm: draftOf(p), providerFormError: undefined });
+      focusSoon("#prov-name");
+    },
+    "provider-cancel": () => {
+      const id = store.get().providerForm?.id;
+      store.set({ providerForm: undefined, providerFormError: undefined });
+      focusSoon(id ? `[data-action="provider-edit"][data-id="${CSS.escape(id)}"]` : '[data-action="add-provider"]');
+    },
+    "provider-remove": (el) => {
+      const id = el.dataset.id ?? "";
+      const name = store.get().providers.find((p) => p.id === id)?.name ?? id;
+      if (!confirm(t("provRemoveAsk", { name }))) return;
+      return api.deleteProvider(id).then(refreshProviders, showError);
+    },
+    // PROV-UI: the sidebar's New project form.
+    "new-project": () => {
+      store.set({ newProjectOpen: !store.get().newProjectOpen, newProjectError: undefined });
+      focusSoon("#new-project-name");
+    },
+    "new-project-cancel": () => {
+      store.set({ newProjectOpen: false, newProjectError: undefined });
+      focusSoon('[data-action="new-project"]');
+    },
     "step-toggle": (el) => {
       const id = el.dataset.id ?? "";
       const d = el.closest("details");
@@ -1484,6 +1560,16 @@ function wire(shell: HTMLElement): void {
     if ((ev.target as HTMLElement).closest("#voice-mic")) releaseAt = Date.now();
   });
   shell.addEventListener("change", async (ev) => {
+    // PROV-UI: a preset fills the provider form; the key's place changes which field shows.
+    const picked = ev.target as HTMLInputElement;
+    if (picked.id === "prov-preset" || (picked.name === "keySource" && picked.closest("#provider-form"))) {
+      const form = picked.closest("form") as HTMLFormElement;
+      const draft = readProviderForm(form);
+      const preset = picked.id === "prov-preset" ? PRESETS.find((p) => p.id === picked.value)?.draft : undefined;
+      store.set({ providerForm: preset ? { ...preset } : { ...draft, keySource: picked.value as "env" | "file" | "none" }, providerFormError: undefined });
+      focusSoon(preset ? "#prov-name" : `#provider-form input[name="keySource"][value="${CSS.escape(picked.value)}"]`);
+      return;
+    }
     const fid = (ev.target as HTMLElement).id;
     if (fid === "code-theme") { setCodeTheme((ev.target as HTMLSelectElement).value); return; }
     if (fid === "desk-notify") {
@@ -1730,6 +1816,46 @@ function wire(shell: HTMLElement): void {
     const c = store.get().chats.find((x) => x.id === id);
     if (c && title && title !== c.title) changeChat(id, { title });
   };
+  // PROV-UI: the provider form (Settings) and the New project form (sidebar).
+  shell.addEventListener("submit", (ev) => {
+    const f = ev.target as HTMLFormElement;
+    if (f.id === "provider-form") {
+      ev.preventDefault();
+      const d = readProviderForm(f);
+      const num = (x: string) => (x.trim() ? Number(x) : null);
+      const input = {
+        name: d.name, kind: d.kind, baseUrl: d.baseUrl, local: d.local,
+        apiKeyEnv: d.keySource === "env" ? d.apiKeyEnv.trim() || null : null,
+        apiKeyFile: d.keySource === "file" ? d.apiKeyFile.trim() || null : null,
+        maxTokens: num(d.maxTokens), contextWindow: num(d.contextWindow),
+      };
+      const saving = d.id ? api.updateProvider(d.id, input) : api.addProvider(input);
+      saving.then(
+        async (p) => {
+          store.set({ providerForm: undefined, providerFormError: undefined });
+          await refreshProviders();
+          focusSoon(`[data-provider="${CSS.escape(p.id)}"] [data-action="provider-edit"]`);
+        },
+        (e) => store.set({ providerForm: d, providerFormError: e instanceof Error ? e.message : String(e) }),
+      );
+      return;
+    }
+    if (f.id === "new-project-form") {
+      ev.preventDefault();
+      const name = (f.elements.namedItem("name") as HTMLInputElement).value;
+      const ptype = (f.elements.namedItem("ptype") as HTMLSelectElement).value as import("./api/types").ProjectType;
+      api.createProject({ name, ptype }).then(
+        async (p) => {
+          const projects = await api.listProjects();
+          const expanded = new Set(store.get().expandedProjects);
+          expanded.add(p.id);
+          store.set({ projects, newProjectOpen: false, newProjectError: undefined, activeProjectId: p.id, expandedProjects: expanded, taskScope: "project", paneProjectId: p.id, rightTab: "tasks" });
+          focusSoon(`[data-action="project"][data-id="${CSS.escape(p.id)}"]`);
+        },
+        (e) => store.set({ newProjectError: e instanceof Error ? e.message : String(e) }),
+      );
+    }
+  });
   // MSG-ACT: the edit form under a message: Send (or Enter) resends it, Escape cancels, and the
   // draft survives a re-render (an answer streaming in elsewhere in the chat).
   shell.addEventListener("submit", (ev) => {

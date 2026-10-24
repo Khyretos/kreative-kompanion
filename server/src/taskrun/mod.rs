@@ -363,10 +363,10 @@ async fn finish_with(s: &AppState, r: &Run, state: &str, step: &str, replan: boo
 
 /// One answer from a model, without tools (plans and reviews), recorded with the run.
 async fn ask_model(s: &AppState, r: &Run, role: &RoleAssignment, reason: &str, system: &str, user: &str) -> Result<String, String> {
-    let Some(p) = s.config.provider(&role.provider_id) else {
+    let Some(p) = s.provider(&role.provider_id) else {
         return Err(format!("The provider {} is not configured.", role.provider_id));
     };
-    let (p, model_id) = crate::effort::apply(p, &role.model_id, r.effort_for(role));
+    let (p, model_id) = crate::effort::apply(&p, &role.model_id, r.effort_for(role));
     let messages = [json!({ "role": "system", "content": system }), json!({ "role": "user", "content": user })];
     let started = std::time::Instant::now();
     let answer = llm::chat_with_tools_full(&s.http, &p, &model_id, &messages, &json!([])).await;
@@ -577,7 +577,7 @@ async fn run(s: AppState, mut r: Run) {
     // KG-08: a worker role the capability matrix knows to fail this task type is skipped for a rung it knows to pass.
     let ttype = crate::capmatrix::task_type(&r.title, &r.description);
     let matrix = crate::capmatrix::load(&s.db).await;
-    if let Some(start) = crate::capmatrix::pick_start(&used[0], &rungs, ttype, &matrix, |p| s.config.provider(p).is_some()) {
+    if let Some(start) = crate::capmatrix::pick_start(&used[0], &rungs, ttype, &matrix, |p| s.provider(p).is_some()) {
         let line = format!("The capability matrix says {} rarely finishes {ttype} tasks alone; starting with {} ({}).", r.worker.model_id, start.label(), start.model);
         note(&s, &r, &line).await;
         use_rung(&mut r, start);
@@ -609,7 +609,7 @@ async fn run(s: AppState, mut r: Run) {
             .bind(&r.run_id)
             .execute(&s.db)
             .await;
-        let Some(next) = ladder::next_rung(&rungs, &used, |p| s.config.provider(p).is_some()) else {
+        let Some(next) = ladder::next_rung(&rungs, &used, |p| s.provider(p).is_some()) else {
             if tried.len() > 1 {
                 note(&s, &r, &ladder::ask_user_text(&tried)).await;
             }
