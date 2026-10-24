@@ -1311,7 +1311,8 @@ a.fact-value { color: var(--link); }
 .quiet-hours { display: grid; gap: 0.35rem; border: 0; padding: 0; margin: 0.6rem 0 0; }
 .quiet-hours legend { font-weight: 600; padding: 0; margin-bottom: 0.25rem; }
 .quiet-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.quiet-row input[type="time"] { min-width: 7.5rem; }
+.quiet-row input[type="time"] { min-width: 7.5rem; width: auto; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.45rem 0.6rem; font: inherit; }
+.quiet-row input[type="time"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .web-push-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
 .web-push-row .btn[aria-pressed="true"] { border-color: var(--accent); }
 .good-text { color: var(--good); }
