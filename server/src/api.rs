@@ -680,7 +680,14 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
 /// while that runs); if the summary fails, the newest messages that fit still go, as before.
 pub(crate) async fn history_for(s: &AppState, user_id: &str, chat_id: &str, role: &RoleAssignment, to: &[String], reply_id: &str) -> (Vec<(String, String)>, Option<crate::context::Summary>) {
     let mut summary = crate::context::summary(&s.db, chat_id).await.ok().flatten();
-    let rows = crate::context::after_summary(&s.db, chat_id, summary.as_ref(), 400).await.unwrap_or_default();
+    let rows = match crate::context::after_summary(&s.db, chat_id, summary.as_ref(), 400).await {
+        Ok(rows) => rows,
+        Err(e) => {
+            // The answer then goes without earlier messages; say so in the log instead of hiding it.
+            tracing::warn!(error = %e, chat = %chat_id, "chat history could not be read");
+            Vec::new()
+        }
+    };
     let near_full = crate::context::usage(s, chat_id).await.ok().is_some_and(|u| match (u.used, u.window) {
         (Some(used), Some(w)) if w > 0 => used * 100 >= w * crate::context::WARN_PERCENT,
         _ => false,

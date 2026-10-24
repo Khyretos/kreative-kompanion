@@ -631,7 +631,6 @@ a.attach-chip:hover { border-color: var(--accent); }
   .ctx { position: static; }
   .ctx-pop { inset: calc(100% + 0.25rem) 0.5rem auto 0.5rem; width: auto; }
 }
-}
 
 /* Tasks pane */
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 2px; }

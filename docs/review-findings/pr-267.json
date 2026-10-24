@@ -1,0 +1,29 @@
+{
+  "25a6e2ffdbf0": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "server/src/api.rs: history_for logs a warning (chat id and error) when the history cannot be read, instead of falling back silently",
+    "path": "server/src/api.rs",
+    "reason": "history_for feeds a streaming answer that has already started, so there is no caller to hand the error to; the answer still goes out, and the failure is now in the log.",
+    "title": "Missing error handling for DB query",
+    "verdict": "bug"
+  },
+  "5c415d8b32fd": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/context.rs",
+    "reason": "Rounding down is intended: near a full window the aim is to free room, so with an odd count one more message goes into the summary rather than one fewer. Nothing is dropped; summarised messages stay in the summary, and keep never goes below two messages.",
+    "title": "Off-by-one in message limit",
+    "verdict": "false_positive"
+  },
+  "ead09271a831": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/contextmeter.ts",
+    "reason": "The division only runs when c.window is truthy (not null and not 0), and the result is clamped to 100, so there is no division by zero and no overflow.",
+    "title": "Potential overflow in percentage calculation",
+    "verdict": "false_positive"
+  }
+}
