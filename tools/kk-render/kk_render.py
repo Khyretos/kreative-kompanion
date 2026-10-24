@@ -56,7 +56,14 @@ PROFILES = {
     "sdxl": ("comfyui-rocm:local", 0.50, "8.5", "--bf16-vae"),
     # TRELLIS.2: the fp16 and bf16 VAE decodes give NaN on gfx1201, so fp32 (3d-01 notes).
     "trellis": ("comfyui-rocm:local", 0.60, "6.8", "--fp32-vae"),
+    # MV-Adapter SD2.1 (STU-SHEET3D; Kees chose SD21 on 2026-10-19): 4 views at 512 measured 6.9 GB card total.
+    "mv": ("comfyui-mv:q19", 0.50, "8.5", "--bf16-vae"),
 }
+MV_MOUNTS = [
+    (f"{M}/mvadapter", "/mvm/mvadapter", "ro"),
+    (f"{HOME}/kk-mv/diffusers-cache", "/mvcache", "rw"),
+]
+MV_ENV = ["-e", "MV_HF_DIR=/mvcache", "-e", "MV_OFFLOAD=0", "-e", "HF_HOME=/mvcache/hf", "-e", "HF_HUB_OFFLINE=1"]
 TRELLIS_MOUNTS = [
     (f"{M}/diffusion_models", "/app/models/diffusion_models", "ro"),
     (f"{M}/vae/trellis_2_shape_vae_bf16.safetensors", "/app/models/vae/trellis_2_shape_vae_bf16.safetensors", "ro"),
@@ -232,7 +239,7 @@ def resume_studio():
 
 
 # ComfyUI flags a run may add (memory planning and attention only; nothing that lifts a cap)
-COMFY_FLAGS = ("--lowvram", "--novram", "--disable-smart-memory", "--use-split-cross-attention", "--use-quad-cross-attention", "--use-pytorch-cross-attention")
+COMFY_FLAGS = ("--cpu", "--lowvram", "--novram", "--disable-smart-memory", "--use-split-cross-attention", "--use-quad-cross-attention", "--use-pytorch-cross-attention")
 
 
 def start_container(profile, extra=()):
@@ -246,7 +253,10 @@ def start_container(profile, extra=()):
            "-e", "TZ=Europe/Amsterdam", "-e", "HSA_OVERRIDE_GFX_VERSION=12.0.1",
            "-e", f"KK_VRAM_FRACTION={frac}", "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False", "-e", "PYTORCH_HIP_ALLOC_CONF=expandable_segments:False",
            "-v", "kk-render-cache:/home/comfy/.cache"]
-    for src, dst, mode in MOUNTS + (TRELLIS_MOUNTS if profile == "trellis" else SDXL_MOUNTS):
+    family = {"trellis": TRELLIS_MOUNTS, "mv": MV_MOUNTS}.get(profile, SDXL_MOUNTS)
+    if profile == "mv":
+        cmd += MV_ENV
+    for src, dst, mode in MOUNTS + family:
         if os.path.exists(src):
             cmd += ["-v", f"{src}:{dst}:{mode}"]
     cmd += [image, "python", "main.py", "--listen", "127.0.0.1", "--port", str(PORT), "--disable-auto-launch",
