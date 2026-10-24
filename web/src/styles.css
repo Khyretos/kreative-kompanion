@@ -601,7 +601,7 @@ a.attach-chip:hover { border-color: var(--accent); }
 .head-tools { display: inline-flex; align-items: center; gap: 0.25rem; flex: none; }
 .export-btn:hover, .ctx-chip:hover { color: var(--fg); background: var(--surface-2); }
 .export-btn:focus-visible, .ctx-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ctx { position: relative; display: inline-flex; }
+.ctx-meter { position: relative; display: inline-flex; }
 .ctx-chip { cursor: pointer; }
 .ctx-ring { width: 2.1rem; height: 2.1rem; overflow: visible; }
 .ctx-track { fill: none; stroke: var(--surface-2); stroke-width: 3.6; }
@@ -610,12 +610,12 @@ a.attach-chip:hover { border-color: var(--accent); }
 .ctx-notch { fill: var(--fg); opacity: 0.55; }
 .ctx-centre { fill: var(--fg); font: 700 10.5px var(--mono); font-variant-numeric: tabular-nums; }
 .ctx-chip[data-level="full"] .ctx-ring { animation: ctx-glow 1.6s ease-in-out infinite; }
-@keyframes ctx-glow { 50% { filter: drop-shadow(0 0 3px hsl(0 85% 55%)); } }
+@keyframes ctx-glow { 50% { filter: drop-shadow(0 0 3px hsl(0deg 85% 55%)); } }
 .ctx-pop { position: absolute; inset: calc(100% + 0.35rem) 0 auto auto; width: min(22rem, 90vw); z-index: 30; display: grid; gap: 0.45rem; padding: 0.75rem; font-size: 0.85rem; color: var(--fg); text-align: left; }
 .ctx-pop p { margin: 0; }
 .ctx-head { font-weight: 600; font-variant-numeric: tabular-nums; }
 .ctx-scale { position: relative; display: block; height: 0.45rem; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
-.ctx-scale-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, hsl(145 80% var(--ctx-l)), hsl(var(--ctx-h) 80% var(--ctx-l))); transition: width 0.5s ease; }
+.ctx-scale-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, hsl(145deg 80% var(--ctx-l)), hsl(var(--ctx-h) 80% var(--ctx-l))); transition: width 0.5s ease; }
 .ctx-scale-warn { position: absolute; top: 0; bottom: 0; left: 80%; width: 2px; background: var(--fg); opacity: 0.55; }
 .ctx-model, .ctx-note { color: var(--muted); font-size: 0.78rem; }
 .ctx-warn { color: var(--fg); background: var(--accent-soft); border-left: 3px solid var(--attn); padding: 0.35rem 0.5rem; border-radius: 4px; }
@@ -628,7 +628,7 @@ a.attach-chip:hover { border-color: var(--accent); }
   .head-tools .icon-btn { width: 44px; height: 44px; }
   /* The details span the top bar, so they never run off a phone's edge. */
   .conv-head { position: relative; }
-  .ctx { position: static; }
+  .ctx-meter { position: static; }
   .ctx-pop { inset: calc(100% + 0.25rem) 0.5rem auto 0.5rem; width: auto; }
 }
 

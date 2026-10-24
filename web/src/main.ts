@@ -1594,7 +1594,7 @@ function wire(shell: HTMLElement): void {
     const t = ev.target as HTMLElement;
     if (store.get().effortMenuOpen && !t.closest(".effort")) store.set({ effortMenuOpen: false });
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
-    if (store.get().contextOpen && !t.closest(".ctx")) store.set({ contextOpen: false });
+    if (store.get().contextOpen && !t.closest(".ctx-meter")) store.set({ contextOpen: false });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
     if (store.get().projectMenuId && !t.closest(".menu, .project-more")) store.set({ projectMenuId: undefined });
   });
