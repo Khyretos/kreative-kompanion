@@ -67,3 +67,19 @@ for (const scheme of ["light", "dark"] as const) {
     });
   }
 }
+
+test("a task the model asks for lands in the project's task list once approved", async ({ page }) => {
+  await page.goto("/?demo");
+  await page.click("button.found-server");
+  await page.selectOption("#pc-machine", { label: "soucouyant" });
+  await page.fill("#prompt", "hand this on as a task");
+  await page.press("#prompt", "Enter");
+  const card = page.locator(".pc-action.spawn");
+  await expect(card.locator(".card-kind")).toContainText("New task");
+  await card.locator('[data-decision="approve"]').click();
+  const step = page.locator('#messages details.step-card[data-state="done"]').last();
+  await expect(step.locator(".kind-tag")).toHaveText("New task");
+  await step.locator("summary").first().click();
+  await step.locator('[data-action="open-task"]').click();
+  await expect(page.locator("#right")).toContainText("Write the battle rules");
+});

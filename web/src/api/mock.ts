@@ -1089,6 +1089,17 @@ export class MockApi implements KompanionApi {
     const step = (state: PcAction["state"], result: string | null, ms: number) =>
       setTimeout(() => { a.state = state; a.result = result; this.emit({ type: "changed", what: "actions" }); }, ms);
     if (decision === "deny") { step("denied", null, 0); return; }
+    // AGENT-SPAWN: a task in the chat's project (with the prompt as its description), as the server does.
+    if (a.tool?.tool === "start_work" && a.tool.kind === "task") {
+      const from = chats.find((c) => c.id === (a as PcAction & { chatId?: string }).chatId);
+      if (!from?.projectId) { step("failed", "failed: This chat is not in a project, so there is no task list: start a chat instead.", 0); return; }
+      const task: Task = { id: id("t"), projectId: from.projectId, title: String(a.tool.title), description: String(a.tool.prompt), state: "queued", progress: 0, step: "Waiting to start", role: "worker", model: "", events: [] };
+      tasks.unshift(task);
+      this.emit({ type: "task", task: structuredClone(task) });
+      step("running", null, 0);
+      step("done", `Added the task "${task.title}" to this project (task=${task.id}). It waits in the task list until it is started.`, 300);
+      return;
+    }
     // AGENT-SPAWN: a new chat in the same project, with the prompt as its first message.
     if (a.tool?.tool === "start_work") {
       const from = chats.find((c) => c.id === (a as PcAction & { chatId?: string }).chatId);
@@ -1137,6 +1148,12 @@ export class MockApi implements KompanionApi {
         createdAt: new Date(t0 + k).toISOString(), startedAt: new Date(t0 - 60_000 + k * 10_000).toISOString(), endedAt: new Date(t0 - 60_000 + k * 10_000 + secs * 1000).toISOString() } as PcAction & { chatId: string }));
       actions.push({ id: id("a"), chatId, machineId, summary: "Build and test", tool: { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "cmake --build build -j && ctest --test-dir build --output-on-failure" },
         state: "running", result: null, createdAt: new Date(t0 + 3).toISOString(), startedAt: new Date(Date.now() - 12_000).toISOString() } as PcAction & { chatId: string });
+      setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
+    } else if (machineId && /hand this on as a task/i.test(text)) {
+      // AGENT-SPAWN: the model asks to add a task to this chat's project.
+      actions.push({ id: id("a"), chatId, machineId, summary: "Add the task \"Write the battle rules\"",
+        tool: { tool: "start_work", kind: "task", title: "Write the battle rules", prompt: "Goal: turns, parts and damage on one page.\n1. List the parts.\nDone when two bots can fight on paper." },
+        state: "pending", result: null, createdAt: new Date(Date.now() + 50).toISOString() } as PcAction & { chatId: string });
       setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
     } else if (machineId && /hand this on/i.test(text)) {
       // AGENT-SPAWN: the model asks to start a new chat; the card waits for Approve or Deny.
