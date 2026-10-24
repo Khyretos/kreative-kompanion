@@ -1171,3 +1171,36 @@ button[aria-busy="true"]::after {
 .autorun-chip[aria-pressed="true"] .icon { color: var(--accent); }
 .autorun-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .autorun-chip.locked { cursor: default; }
+
+/* FACTS: the Facts tab (right pane): what Kompanion remembers for this chat and its project. */
+.facts-pane { display: grid; gap: 0.75rem; padding: 0.75rem 1rem 1.5rem; }
+.facts-intro, .facts-hint { margin: 0; color: var(--muted); font-size: 0.8rem; }
+.facts-search { width: 100%; }
+.facts-group { display: grid; gap: 0.5rem; }
+.facts-group h3 { margin: 0.25rem 0 0; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem; }
+.facts-group h3 .count { font-size: 0.75rem; font-weight: 600; color: var(--fg); background: var(--surface-2); border-radius: 999px; padding: 0 0.45rem; }
+.fact-add, .fact-edit { display: grid; gap: 0.35rem; }
+.fact-add input, .fact-edit input, .fact-edit textarea { width: 100%; min-width: 0; }
+.fact-actions { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
+.fact-actions select { flex: 1 1 6rem; min-width: 0; }
+.facts-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.fact { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.6rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.fact.flagged { border-left: 3px solid var(--attn); }
+.fact.editing { display: block; }
+.fact-main { display: grid; gap: 0.15rem; min-width: 0; flex: 1; }
+.fact-key { font-weight: 600; color: var(--fg-strong); }
+.fact-value { overflow-wrap: anywhere; white-space: pre-wrap; color: var(--fg); }
+.fact-value.mono { font-family: var(--mono); font-size: 0.85em; }
+a.fact-value { color: var(--link); }
+.fact-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; font-size: 0.75rem; color: var(--muted); }
+.fact-meta .chip { font-size: 0.7rem; padding: 0 0.4rem; min-height: 1.2rem; }
+.fact-flag { color: var(--fg); background: var(--accent-soft); border: 1px solid var(--attn); gap: 0.2rem; }
+.fact-flag svg { width: 0.85rem; height: 0.85rem; }
+.fact-buttons { display: flex; gap: 0.15rem; flex: none; }
+.facts-empty { margin: 0; color: var(--muted); font-size: 0.85rem; }
+@media (max-width: 760px) {
+  /* Five tabs: on a phone the row scrolls sideways instead of wrapping under the close button. */
+  .right .pane-head > .tabs { flex: 1 1 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .right .pane-head > .tabs [role="tab"] { flex: none; }
+  .fact-buttons .icon-btn, .fact-actions .btn, .fact-actions select, .fact-add input, .fact-edit input, .facts-search, .facts-btn { min-height: 44px; min-width: 44px; }
+}

@@ -21,6 +21,7 @@ import type { Attached } from "./core/attachments";
 import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
+import { renderFacts } from "./views/facts";
 import { filterDeps, setDep } from "./views/deppicker";
 import { composeDescription } from "./views/taskdesc";
 import { renderMachines, REFRESH_STEPS, setGpuView, markUpdating, unmarkUpdating } from "./views/machines";
@@ -401,6 +402,7 @@ function render(s: AppState, prev: AppState): void {
     ? ["rightTab", "tasks", "projects", "openTaskId", "editingTaskId", "taskScope", "activeProjectId", "activeChatId", "chats", "projectAssets", "devSettings", "assetPick", "runCheck", "taskRuns", "taskCosts", "taskFilter", "collapsedGroups", "machines", "showArchived", "overviews", "overviewEditing", "overviewMore", "overviewActivityAll", "overviewPreview", "overviewOpen", "overviewOpen", "memberError", "paneProjectId"]
     : s.rightTab === "access" ? ["rightTab", "grants", "accessHistory", "machines"]
     : s.rightTab === "activity" ? ["rightTab", "activity", "activityFilter", "weeklyCosts"]
+    : s.rightTab === "facts" ? ["rightTab", "facts", "factsKey", "factsQuery", "editingFactId", "factsHidden", "projects", "activeChatId", "paneProjectId"]
     : ["rightTab", "machines", "today", "machinesRefresh", "tasks", "pairing", "gpuOpen", "gpuPins", "cardStyle"];
   // Never rebuild the task editor under the user's hands; only when it opens or closes.
   const editing = s.rightTab === "tasks" && s.editingTaskId && s.editingTaskId === prev.editingTaskId && !firstRender;
@@ -417,8 +419,16 @@ function render(s: AppState, prev: AppState): void {
   if (shownProject?.type === "game" && !(shownProject.id in s.projectAssets)) void loadProjectAssets(shownProject.id);
   if ((shownProject?.type === "game" || shownProject?.type === "programming") && !(shownProject.id in s.devSettings)) void loadDevSettings(shownProject.id);
   if (shownProject && !(shownProject.id in s.overviews) && !overviewFailed.has(shownProject.id)) void loadOverview(shownProject.id);
+  // FACTS: load the list for what the Facts tab shows (the open chat, else the project in the pane).
+  if (s.rightTab === "facts") {
+    const key = factsKey(s);
+    if (key !== s.factsKey && key !== factsLoading) void loadFacts(key);
+  }
   if (!editing && changed(s, prev, rightKeys)) {
-    remount($("#right"), s.rightTab === "tasks" ? renderTasks(s) : s.rightTab === "activity" ? h`
+    remount($("#right"), s.rightTab === "tasks" ? renderTasks(s) : s.rightTab === "facts" ? h`
+      <div class="pane-head">${paneTabs(s)}
+        <button class="icon-btn only-narrow" data-action="pane" data-pane="main" aria-label="Close">✕</button></div>
+      ${renderFacts({ view: s.factsKey === factsKey(s) ? s.facts : undefined, projectName: s.projects.find((p) => p.id === s.facts?.projectId)?.name, query: s.factsQuery, editingId: s.editingFactId, hidden: s.factsHidden })}` : s.rightTab === "activity" ? h`
       <div class="pane-head">${paneTabs(s)}
         <button class="icon-btn only-narrow" data-action="pane" data-pane="main" aria-label="Close">✕</button></div>
       ${renderActivity(s.activity, s.activityFilter, s.weeklyCosts)}` : s.rightTab === "access" ? h`
@@ -428,6 +438,14 @@ function render(s: AppState, prev: AppState): void {
       <div class="pane-head">${paneTabs(s)}
         <button class="icon-btn only-narrow" data-action="pane" data-pane="main" aria-label="Close">✕</button></div>
       ${(setGpuView(s.gpuOpen, s.gpuPins), renderMachines(s.machines, s.today, s.machinesRefresh, s.pairing, s.machineName))}`);
+    // On a phone the tab row scrolls sideways: keep the selected tab in view.
+    const tabRow = document.querySelector<HTMLElement>("#right .pane-head > .tabs");
+    const selected = tabRow?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (tabRow && selected && tabRow.scrollWidth > tabRow.clientWidth) {
+      const [row, tab] = [tabRow.getBoundingClientRect(), selected.getBoundingClientRect()];
+      if (tab.right > row.right) tabRow.scrollLeft += tab.right - row.right;
+      else if (tab.left < row.left) tabRow.scrollLeft -= row.left - tab.left;
+    }
     // Task descriptions are markdown, rendered sanitised after mounting.
     for (const el of document.querySelectorAll<HTMLElement>("[data-md-task]")) {
       const t = s.tasks.find((x) => x.id === el.dataset.mdTask);
@@ -756,6 +774,7 @@ function refetch(what: string): void {
       else if (what === "chats") store.set({ chats: await api.listChats() });
       else if (what === "machines") store.set({ machines: await api.listMachines() });
       else if (what === "lessons" && s.activeChatId) store.set({ lessons: await api.listLessons(s.activeChatId) });
+      else if (what === "facts" && s.factsKey) await loadFacts(s.factsKey, true);
       else if (what === "access") await loadAccess();
       if ((what === "access" || what === "machines" || what === "gpus") && store.get().section === "capabilities") loadCapabilities();
       if (what === "studio") store.set({ studioRuns: await api.studioMine() });
@@ -1077,6 +1096,14 @@ function wire(shell: HTMLElement): void {
     "effort-menu": () => store.set({ effortMenuOpen: !store.get().effortMenuOpen }),
     // CHAT-01: the Tools menu: turn an MCP server on or off for this chat (or for the chat about to be made).
     "tools-menu": () => store.set({ toolsMenuOpen: !store.get().toolsMenuOpen }),
+    // FACTS: the Facts tab, from the chat header, and its rows.
+    "open-facts": () => {
+      store.set({ rightTab: "facts", pane: "right", openTaskId: undefined });
+      $(".shell").dispatchEvent(new CustomEvent("kk-expand", { detail: "right" }));
+    },
+    "fact-edit": (el) => store.set({ editingFactId: el.dataset.id }),
+    "fact-cancel": () => store.set({ editingFactId: undefined }),
+    "fact-delete": (el) => factDeleteLater(el.dataset.id ?? ""),
     "mcp-toggle": (el) => {
       const name = el.dataset.name ?? "";
       const s = store.get();
@@ -1586,6 +1613,13 @@ function wire(shell: HTMLElement): void {
     if (c && title && title !== c.title) changeChat(id, { title });
   };
   shell.addEventListener("submit", (ev) => {
+    // FACTS: add a fact, or save one edited in place.
+    const factForm = (ev.target as HTMLElement).closest("form.fact-add, form.fact-edit") as HTMLFormElement | null;
+    if (factForm) {
+      ev.preventDefault();
+      void submitFact(factForm);
+      return;
+    }
     // CHAT-03b: create a new knowledge collection.
     const knForm = (ev.target as HTMLElement).closest("form.kn-new") as HTMLFormElement | null;
     if (knForm) {
@@ -1813,6 +1847,7 @@ function wire(shell: HTMLElement): void {
   shell.addEventListener("input", (ev) => {
     const el = ev.target as HTMLInputElement;
     if (el.id === "task-filter") { store.set({ taskFilter: el.value }); return; }
+    if (el.id === "facts-q") { store.set({ factsQuery: el.value }); return; }
     if (el.id === "dep-search") { filterDeps(el.closest(".dep-picker") as HTMLElement, el.value); return; }
     if (el.id === "studio-prompt") { studioPrompt = el.value; return; }
     if (el.id === "studio-lyrics") { studioLyrics = el.value; return; }
@@ -2130,6 +2165,97 @@ async function removeChat(id: string): Promise<void> {
     showError(e);
   }
 }
+
+// FACTS: what the Facts tab shows: the open chat (with its project's facts), else the pane's project.
+function factsKey(s: AppState): string | undefined {
+  if (s.activeChatId) return `chat:${s.activeChatId}`;
+  const p = paneProject(s);
+  return p ? `project:${p.id}` : undefined;
+}
+let factsLoading: string | undefined;
+async function loadFacts(key: string | undefined, quiet = false): Promise<void> {
+  if (!key) {
+    store.set({ facts: undefined, factsKey: undefined });
+    return;
+  }
+  factsLoading = key;
+  const [kind, id] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+  try {
+    const facts = await api.listFacts(kind === "chat" ? { chatId: id } : { projectId: id });
+    if (factsKey(store.get()) === key) store.set({ facts, factsKey: key });
+  } catch (e) {
+    // Marked as loaded (empty), so a failing list is not asked for again on every render.
+    if (factsKey(store.get()) === key) store.set({ facts: undefined, factsKey: key });
+    if (!quiet) showError(e);
+  } finally {
+    if (factsLoading === key) factsLoading = undefined;
+  }
+}
+async function submitFact(form: HTMLFormElement): Promise<void> {
+  const field = (n: string) => (form.elements.namedItem(n) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement).value;
+  const kind = field("kind") as import("./api/types").FactKind;
+  const s = store.get();
+  const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+  if (button) button.disabled = true;
+  try {
+    if (form.classList.contains("fact-edit")) {
+      await api.updateFact(form.dataset.id ?? "", { key: field("key"), value: field("value"), kind });
+      store.set({ editingFactId: undefined });
+    } else {
+      const scope = form.dataset.scope === "project" ? "project" : "chat";
+      await api.addFact({ scope, projectId: s.facts?.projectId ?? undefined, chatId: s.facts?.chatId ?? undefined, key: field("key"), value: field("value"), kind });
+      form.reset();
+      for (const f of form.querySelectorAll<HTMLElement>("[data-edited]")) delete f.dataset.edited;
+    }
+    // Shown at once; the "changed" event refreshes other tabs and people.
+    await loadFacts(factsKey(store.get()), true);
+  } catch (e) {
+    showError(e);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+// FACTS: a deleted fact disappears at once and is deleted for real after 6 s unless Undo is pressed.
+let factPending: { id: string; timer: number; toast: HTMLElement } | undefined;
+function factDeleteLater(id: string): void {
+  if (!id) return;
+  factFlush();
+  const f = [...(store.get().facts?.project ?? []), ...(store.get().facts?.chat ?? [])].find((x) => x.id === id);
+  store.set({ factsHidden: [...store.get().factsHidden, id] });
+  const toast = document.createElement("div");
+  toast.className = "toast fact-undo";
+  toast.setAttribute("role", "status");
+  const text = document.createElement("span");
+  text.textContent = `Deleted "${f?.key ?? "fact"}".`;
+  const undo = document.createElement("button");
+  undo.type = "button";
+  undo.className = "btn small";
+  undo.textContent = "Undo";
+  undo.addEventListener("click", () => {
+    if (factPending?.toast !== toast) return;
+    clearTimeout(factPending.timer);
+    factPending = undefined;
+    toast.remove();
+    store.set({ factsHidden: store.get().factsHidden.filter((x) => x !== id) });
+  });
+  toast.append(text, undo);
+  document.body.append(toast);
+  factPending = { id, toast, timer: window.setTimeout(factFlush, 6_000) };
+}
+function factFlush(): void {
+  const p = factPending;
+  if (!p) return;
+  factPending = undefined;
+  clearTimeout(p.timer);
+  p.toast.remove();
+  api.deleteFact(p.id)
+    .then(() => loadFacts(factsKey(store.get()), true))
+    .catch((e) => {
+      store.set({ factsHidden: store.get().factsHidden.filter((x) => x !== p.id) });
+      showError(e);
+    });
+}
+window.addEventListener("pagehide", factFlush);
 
 // STU-D1: hide the runs at once, delete them for real after 10 seconds unless Undo is pressed.
 // Leaving the page sends the pending delete right away.

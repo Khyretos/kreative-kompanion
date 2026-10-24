@@ -1,6 +1,6 @@
 import { loadVoicePrefs } from "./core/voice";
 import { Store } from "./core/store";
-import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Effort, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
+import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Effort, FactsView, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
 
 export interface AppState {
   server?: Server;
@@ -41,7 +41,7 @@ export interface AppState {
   roles: RoleAssignment[];
   machines: MachineStats[];
   today?: DaySummary;
-  rightTab: "tasks" | "machines" | "access" | "activity";
+  rightTab: "tasks" | "machines" | "access" | "activity" | "facts";
   activity: import("./views/activity").ActivityItem[];
   activityFilter: import("./views/activity").ActivityFilter;
   openTaskId?: string; // task shown in detail
@@ -89,6 +89,11 @@ export interface AppState {
   showArchived?: boolean; // PROJ-ARCHIVE: archived projects shown in the sidebar, remembered on this device
   movingChatId?: string; // chat whose "Move to project" list is open
   effortMenuOpen?: boolean; // the composer's effort menu (EF-01)
+  facts?: FactsView; // FACTS: the Facts tab's list (for factsKey)
+  factsKey?: string; // "chat:<id>" or "project:<id>": what `facts` was loaded for
+  factsQuery: string; // the Facts tab's search
+  editingFactId?: string; // the fact being edited in place
+  factsHidden: string[]; // deleted facts waiting for Undo
   draftEffort?: Effort; // effort picked before the chat exists
   renamingChatId?: string; // chat being renamed in place
   editingTaskId?: string; // task open in the editor ("new" for a new one)
@@ -140,6 +145,8 @@ export const store = new Store<AppState>({
   grants: {},
   pcActions: [],
   lessons: [],
+  factsQuery: "",
+  factsHidden: [],
   activity: [],
   activityFilter: {},
   accessHistory: [],

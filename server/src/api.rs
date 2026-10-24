@@ -479,17 +479,27 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     let web = (names.iter().any(|n| n == crate::chat_tools::WEB) && s.config.search.searxng_url.is_some()).then_some(&s.config.search);
     // HIST-01: past chats, when the chat turned them on (owner only, like every tool).
     let history = (tools && names.iter().any(|n| n == crate::chat_tools::HISTORY)).then_some((user_id.as_str(), chat_id.as_str()));
+    // FACTS: remember / forget, when the chat turned Memory on (owner only, like every tool).
+    let memory = (tools && names.iter().any(|n| n == crate::chat_tools::MEMORY)).then_some(chat_id.as_str());
+    // FACTS: the project's and the chat's facts, on every request (their ids go into the call log).
+    let fact_ids = match crate::facts::prompt_block(&s.db, &chat_id, time::OffsetDateTime::now_utc()).await {
+        Some((block, ids)) => {
+            convo[0].content.push_str(&block);
+            ids
+        }
+        None => Vec::new(),
+    };
     // CHAT-04: the date and where Kompanion is installed, on every request.
     convo[0].content.push_str(&format!("\n\n{}", crate::chat_tools::when_where(time::OffsetDateTime::now_utc(), s.config.machine_name.as_deref(), s.config.location.as_deref(), web.is_some())));
     let mut used_lines = String::new();
     let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
-    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none(), s.config.provider(&role.provider_id)) {
+    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none() && memory.is_none(), s.config.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| m.wire(false)).collect();
         let (bus, uid, rid, cid) = (s.bus.clone(), to.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send_many(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, history, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
+        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, history, memory, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));
             used_lines.push_str("\n\n");
@@ -667,7 +677,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     }
 
     // Every call is recorded in full (see the call inspector in the app).
-    let request = json!({ "messages": convo, "extra_body": sent_extra });
+    let request = json!({ "messages": convo, "extra_body": sent_extra, "facts": fact_ids });
     let _ = sqlx::query(
         "INSERT INTO calls (user_id, id, chat_id, role, provider_id, model_id, reason, request, response,
          tokens_in, tokens_out, ms, error, at, effort, cache_write, cache_read) VALUES (?, ?, ?, 'orchestrator', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -844,7 +854,7 @@ pub async fn update_chat(
     }
     if let Some(list) = b.mcp {
         // CHAT-01: only names from [[mcp]] in kompanion.toml.
-        if let Some(bad) = list.iter().find(|n| !(s.config.mcp.iter().any(|m| &m.name == *n) || (n.as_str() == crate::chat_tools::WEB && s.config.search.searxng_url.is_some()) || n.as_str() == crate::chat_tools::KNOWLEDGE || n.as_str() == crate::chat_tools::HISTORY)) {
+        if let Some(bad) = list.iter().find(|n| !(s.config.mcp.iter().any(|m| &m.name == *n) || (n.as_str() == crate::chat_tools::WEB && s.config.search.searxng_url.is_some()) || n.as_str() == crate::chat_tools::KNOWLEDGE || n.as_str() == crate::chat_tools::HISTORY || n.as_str() == crate::chat_tools::MEMORY)) {
             return Err(ApiError::BadRequest(format!("There is no tool server {bad}.")));
         }
         sqlx::query("UPDATE chats SET mcp = ? WHERE id = ?")

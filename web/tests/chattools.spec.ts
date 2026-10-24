@@ -9,7 +9,7 @@ test("the Tools menu turns tool servers on for a new chat and keeps them after t
   await expect(chip).toHaveAttribute("aria-label", /^No tools/);
   await chip.click();
   const items = page.locator('.tools-menu [role="menuitemcheckbox"]');
-  await expect(items.locator(".effort-name")).toHaveText(["Stack Overflow", "Developer docs", "Past chats"]);
+  await expect(items.locator(".effort-name")).toHaveText(["Stack Overflow", "Developer docs", "Past chats", "Remember facts"]);
   await items.first().click();
   await expect(items.first().locator(".effort-hint")).toHaveText("3.5 million answered programming questions");
   await expect(items.first()).toHaveAttribute("aria-checked", "true");

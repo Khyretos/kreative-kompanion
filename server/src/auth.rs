@@ -191,6 +191,8 @@ pub async fn status(
             .chain(has_knowledge.then(|| crate::chat_tools::KNOWLEDGE.to_string()))
             // HIST-01: the user's own past chats, always there for a signed-in user.
             .chain(user.is_some().then(|| crate::chat_tools::HISTORY.to_string()))
+            // FACTS: remember / forget in plain chats (computer chats always have them).
+            .chain(user.is_some().then(|| crate::chat_tools::MEMORY.to_string()))
             .collect::<Vec<_>>(),
         // UI-02: one-line descriptions for the Tools menu (built-ins are described in the web app).
         "mcpInfo": state.config.mcp.iter().filter(|m| m.enabled && user.is_some())

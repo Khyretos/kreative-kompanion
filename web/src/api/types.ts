@@ -146,6 +146,31 @@ export interface Chat {
   autoRun?: boolean; // this chat runs its steps without asking
 }
 
+/** FACTS: one remembered fact, per project or per chat. `kind` is only a label. */
+export type FactKind = "text" | "path" | "url" | "location" | "other";
+export interface Fact {
+  id: string;
+  projectId: string | null;
+  chatId: string | null;
+  key: string;
+  value: string;
+  kind: FactKind;
+  source: "user" | "assistant";
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
+  flaggedAt: string | null; // a check found it may be out of date
+}
+/** FACTS: what the Facts tab shows: the chat's project facts and its own, or a project's. */
+export interface FactsView {
+  projectId: string | null;
+  chatId: string | null;
+  project?: Fact[];
+  chat?: Fact[];
+  canEditProject?: boolean;
+  canEditChat?: boolean;
+}
+
 /** How hard the model works on an answer (EF-01). Auto resolves to Medium on the server. */
 export type Effort = "auto" | "low" | "medium" | "high";
 

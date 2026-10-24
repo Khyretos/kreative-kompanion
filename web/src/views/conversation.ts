@@ -88,6 +88,7 @@ export function renderHeader(s: AppState): SafeHtml {
     </div>
     <span class="chip model" title="Orchestrator model">${orchestrator?.modelId ?? ""}</span>
     ${chat ? html`<a class="btn small" href="/api/chats/${encodeURIComponent(chat.id)}/report?download=1" download title="Steps and model calls of this chat as JSON">Export report</a>` : ""}
+    ${chat ? html`<button class="icon-btn facts-btn" type="button" data-action="open-facts" aria-label="Facts for this chat" title="Facts: what Kompanion remembers for this chat and its project">${icon("bookmark")}</button>` : ""}
     <button class="icon-btn only-narrow tasks-toggle" data-action="pane" data-pane="right" aria-label="Tasks">
       ${icon("tasks")}${attention ? html`<span class="badge attn">${attention}</span>` : ""}
     </button>`;
@@ -267,9 +268,10 @@ const WEB = "Web";
 const TOOL_HINTS: Record<string, string> = {
   Knowledge: "Your document collections (Capabilities > Knowledge, plus the Open WebUI ones): I search them and cite the file I used.",
   History: "Your past chats: I search them and read back what was said, also in this chat beyond what I remember.",
+  Memory: "I save facts worth keeping (paths, commands, decisions) and delete my wrong ones. I always read the Facts tab.",
 };
 /** HIST-01: built-in tools shown under a friendlier name than their server name. */
-const TOOL_LABELS: Record<string, string> = { History: "Past chats" };
+const TOOL_LABELS: Record<string, string> = { History: "Past chats", Memory: "Remember facts" };
 
 /** UI-02: Web is a core feature, so it is its own chip; shown only when a search engine is set up. */
 export function webChip(s: AppState): SafeHtml {
