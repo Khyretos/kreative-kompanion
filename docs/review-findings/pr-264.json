@@ -1,4 +1,13 @@
 {
+  "0e5e1dcc362f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/llm_anthropic.rs",
+    "reason": "The flagged lines are the test helper stream(), which only feeds prepared events to Answer and parses nothing. In chat_full, a server-sent line that is not JSON (pings, empty data) is skipped on purpose, as in llm::stream_chat. A real API error event is turned into an error (bail on type error), and a broken tool input is reported as a cut-off answer.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "32f9151ef9f4": {
     "by": "claude",
     "checked": true,
@@ -6,6 +15,15 @@
     "path": "server/src/pcagent/mod.rs",
     "reason": "The lock is taken only after the database query, for in-memory map work that cannot panic (no unwrap or I/O under it), so there is no deadlock or poisoned state. MEMORY is a cache: when the query fails nothing is saved, and the next message falls back to the chat lines, which are the lasting record. It is never meant to survive a restart.",
     "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "478958e08b7b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "reason": "After each removal, trim_memory keeps removing until the list starts with a plain user line (role user with string content), so no tool result or assistant turn is left without what came before it. llm_anthropic::to_anthropic also starts every conversation with a user turn. Test: memory_drops_old_output_first_then_old_exchanges.",
+    "title": "Possible Issue",
     "verdict": "false_positive"
   },
   "7e9e20c806eb": {
