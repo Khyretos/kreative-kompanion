@@ -58,39 +58,67 @@ In progress: the game studio (milestone 6, phases B to D). The plan is in `docs/
 - `machine-stats/`: CPU, RAM and GPU readings shared by server and runner.
 - `gpu-helper/` and `gpu-role/`: small services that let the server read and switch the GPUs (`gpu-role/README.md`).
 - `skills/`: lessons per role that the models read (`skills/README.md`).
-- `tools/`: `deploy.sh` and the drafting pipeline for the local models (`tools/qwen/pipeline.py`).
+- `tools/`: the drafting pipeline for the local models (`tools/qwen/pipeline.py`) and optional helpers.
 
-## Run it
+## Deploy
 
-```sh
-cp server/kompanion.example.toml kompanion.toml   # edit providers and roles
-cp .env.example .env                              # API keys, if any
-docker compose up -d
-docker compose logs kompanion   # shows the one-time setup code
-```
+You need Docker with Compose (Docker Desktop on Windows and macOS). Nothing else.
 
-Then open the app, enter the setup code and create your account.
+1. Get the code and start it:
 
-Optional, on the same computer: `sh tools/install-host.sh --url https://kompanion.example` lets Kompanion act on this computer too (it asks first; the runner has no rights until you grant them). See docs/runner-install.md.
+   ```sh
+   git clone https://git.kreative-kompas.com/khyretos/kreative-kompanion.git
+   cd kreative-kompanion
+   docker compose up -d
+   ```
+
+   The first build takes a while (server, web app and the runners are built in Docker).
+2. Install the app from [Releases](https://git.kreative-kompas.com/khyretos/kreative-kompanion/releases)
+   (Windows, macOS, Linux, Android), or open the address below in a browser and install it from there (PWA).
+3. Point it at your server, `http://<this computer's LAN IP>:8080` or your domain, and enter the setup
+   code from `docker compose logs kompanion` to create the first account.
+
+That is the whole install. Out of the box it talks to Ollama on the same computer
+(`http://host.docker.internal:11434`, model `qwen3.5:9b`); change roles in Settings > Roles.
+
+Optional, all in files next to `docker-compose.yml`:
+
+- `.env` (see `.env.example`): port, public address, API keys for cloud models, mail, push.
+- `kompanion.toml` (copy of `server/kompanion.example.toml`, which is the built-in default):
+  providers, roles, GPUs, MCP servers. Mount it with a `docker-compose.override.yml`.
+- `docker-compose.override.yml` (see `docker-compose.override.example.yml`): your own config file,
+  host folders, a reverse proxy's network.
+
+Update: `git pull && docker compose up -d --build`. The server refuses to start, with a clear message
+and without touching anything, on a database from a newer version.
+
+### Behind a reverse proxy (HTTPS)
+
+Forward your domain to port 8080 and keep the Host header (Nginx Proxy Manager, Caddy and Traefik
+do by default); websockets are not needed. Set `KOMPANION_PORT=127.0.0.1:8080` in `.env` so only the
+proxy can connect, and `KOMPANION_ORIGIN=https://your.domain` so mails link to it. Login cookies get
+the Secure flag on https requests on their own (`X-Forwarded-Proto`). The runner for each PC
+(`docs/runner-install.md`) only talks to an https address, so host control needs the proxy.
+
+Optional, on the same computer: `sh tools/install-host.sh --url https://kompanion.example` lets Kompanion act on this computer too (it asks first; the runner has no rights until you grant them). The server ships the newest runner; Machines shows "Update to" on an older one. See docs/runner-install.md.
 
 For development: `cd web && npm run build`, then
 `cd server && KOMPANION_CONFIG=../kompanion.toml cargo run` (set
-`web_dir = "../web/dist"` and, for plain http on localhost only,
-`secure_cookies = false`).
+`web_dir = "../web/dist"`).
 
 ## Phone app (Android)
 
 - `android/` holds the Android app (a WebView around the web app); build and checks in `android/README.md`.
 - Notifications work without any setup: after you sign in, the app keeps its own connection to the server and shows a notification when a task needs you, failed or is done (as set in Settings > Notifications). It shows one quiet "Kompanion is connected" notification so the phone does not close it. You can switch it off in the app's notification settings (long-press the app icon).
 - Some phones (Xiaomi, Huawei, Oppo, Vivo and others) stop apps in the background. On those, the app opens a settings screen once with a button to the right page: allow Autostart and set Battery to No restrictions.
-- Optional, for technical users: push through UnifiedPush with your own ntfy server, which saves a little battery. Set `KOMPANION_NTFY_URL=https://ntfy.example.com` in `.env`, run `docker compose --profile push up -d` (this also writes the address into `[push] servers` in `kompanion.toml`), put your HTTPS reverse proxy in front of port 8081, and install the ntfy app from F-Droid pointed at that server. The Kompanion app then uses push and closes its own connection.
+- Optional, for technical users: push through UnifiedPush with your own ntfy server, which saves a little battery. Set `KOMPANION_NTFY_URL=https://ntfy.example.com` in `.env`, run `docker compose --profile push up -d` (the server adds the address to `[push] servers` on its own), put your HTTPS reverse proxy in front of port 8081, and install the ntfy app from F-Droid pointed at that server. The Kompanion app then uses push and closes its own connection.
 
 ## Server security
 
 - No open endpoints except status, setup and sign-in. The first account needs a
   one-time setup code printed in the server log.
 - Session cookie: random token (stored only as a SHA-256 hash), HttpOnly,
-  Secure, SameSite=Strict. Passwords hashed with Argon2id; sign-in throttled.
+  Secure on https, SameSite=Strict. Passwords hashed with Argon2id; sign-in throttled.
 - State-changing requests need an `X-Kompanion: 1` header and an allowed Origin.
 - Strict Content-Security-Policy with Trusted Types, `nosniff`, `no-referrer`.
 - Provider URLs come only from the admin's config file (no user-supplied URLs,

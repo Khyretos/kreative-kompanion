@@ -1,0 +1,46 @@
+# Optional extras for one setup. Copy to docker-compose.override.yml (gitignored) and keep only what
+# you use; `docker compose up -d` reads it on its own. The base docker-compose.yml works without it.
+# This example is the kireserver setup: behind Nginx Proxy Manager, OVMS on the proxy's network,
+# a GPU helper on the host and read-only media folders.
+services:
+  kompanion:
+    container_name: kreative-kompanion
+    # Only this computer may connect; the reverse proxy forwards the domain to it.
+    ports: !override
+      - "127.0.0.1:8095:8080"
+    # Join the reverse proxy's network (it must exist: `docker network ls`), so the proxy and model
+    # servers on it (here OVMS as http://ovms:8000) reach Kompanion by name.
+    networks: [default, proxy]
+    volumes:
+      # Your own settings instead of the built-in default: cp server/kompanion.example.toml kompanion.toml
+      - ./kompanion.toml:/config/kompanion.toml:ro
+      # OS name in the Machines panel (Linux hosts).
+      - /etc/os-release:/host/os-release:ro
+      # kompanion-gpu-helper socket (per-engine GPU stats), when installed on the host.
+      - /run/kompanion-gpu:/host-gpu:ro
+      # M6-03: kompanion-gpu-role socket (A770 coder/artist switch; a user service on the host).
+      - /home/khyretos/.local/run/kompanion-gpu-role:/host-gpu-role
+      # CHAT-03b: Open WebUI data for the knowledge re-import: read-only.
+      - /home/khyretos/Docker/Services/ai/open-webui-data:/openwebui:ro
+      # KNOW-01: folders of documents kept as Knowledge collections ([[knowledge.folders]]): read-only.
+      - /media/Kees/KnowledgeDocs:/knowledge-docs:ro
+      # Game asset library for the Assets section: read-only, never written to.
+      - /media/Kees/GameDev:/library:ro
+      # Game repos for the Assets "Games" tab and "Used in" (scene files): read-only.
+      - /home/khyretos/Docker/Personal-projects/kk-engine:/games/kk-engine:ro
+    # Primary group 1000 (the owner of the media folders) so the server may read the asset library:
+    # /media is mergerfs, and FUSE only checks the primary gid, so group_add alone is not enough.
+    # 10050: the GPU helper socket's group.
+    user: "10001:1000"
+    group_add: ["10050"]
+    environment:
+      WINDSHIFT_URL: https://projects.kreative-kompas.com # token: WINDSHIFT_TOKEN in .env
+      ASSET_LIBRARY: /library
+      GAME_REPOS: /games/kk-engine
+      # M6-03: switch the A770 automatically. Unset to turn it off.
+      GPU_ROLE_GPU: a770
+
+networks:
+  proxy:
+    name: nginx-reverse-proxy_default
+    external: true

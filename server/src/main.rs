@@ -159,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .await
         .with_context(|| format!("opening {}", config.database.display()))?;
-    sqlx::migrate!().run(&db).await?;
+    migrate(&db, &config.database).await?;
     // CHAT-03b: the knowledge vectors (sqlite-vec, so not in a migration).
     knowledge::ensure_vectors(&db).await?;
 
@@ -447,6 +447,8 @@ async fn main() -> anyhow::Result<()> {
             header::REFERRER_POLICY,
             HeaderValue::from_static("no-referrer"),
         ))
+        // Login cookies over plain http (a LAN IP): see auth::cookie_scheme.
+        .layer(middleware::from_fn_with_state(state.clone(), auth::cookie_scheme))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
@@ -460,4 +462,25 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+/// Applies the built-in migrations. Refuses to start (and changes nothing) when the database has a
+/// migration this build doesn't know, or one that changed since it ran: that database was opened by a
+/// newer or different build, and running this one could break it.
+async fn migrate(db: &sqlx::SqlitePool, path: &std::path::Path) -> anyhow::Result<()> {
+    use sqlx::migrate::MigrateError;
+    match sqlx::migrate!().run(db).await {
+        Ok(()) => Ok(()),
+        Err(MigrateError::VersionMissing(v)) => anyhow::bail!(
+            "the database {} already has migration {v}, which this build of Kompanion doesn't have: \
+             it was used by a newer version. Start that version (or a newer one) instead; nothing was changed.",
+            path.display()
+        ),
+        Err(MigrateError::VersionMismatch(v)) => anyhow::bail!(
+            "migration {v} in the database {} differs from the one in this build: \
+             this build doesn't match the one that set up the database. Nothing was changed.",
+            path.display()
+        ),
+        Err(e) => Err(e).with_context(|| format!("migrating {}", path.display())),
+    }
 }

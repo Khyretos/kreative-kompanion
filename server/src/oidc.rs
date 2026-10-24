@@ -85,7 +85,7 @@ async fn metadata<'a>(
 }
 
 fn flow_cookie(state: &AppState, value: &str, max_age: u64) -> String {
-    let secure = if state.config.secure_cookies {
+    let secure = if state.config.secure_cookies != Some(false) {
         "; Secure"
     } else {
         ""

@@ -154,5 +154,5 @@ jobs:
           cd runner && cargo check --locked --target x86_64-pc-windows-gnu --all-targets
           BUILD
 
-# The container image is built where it is deployed (tools/deploy.sh on kireserver),
+# The container image is built where it is deployed (docker compose up -d --build on kireserver),
 # not in CI: the runner's Docker daemon is its own dind, not the host's.

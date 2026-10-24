@@ -17,6 +17,25 @@ COPY machine-stats/ /src/machine-stats/
 COPY server/ ./
 RUN cargo build --release --locked
 
+# The runner for each PC (static Linux binary and Windows .exe), served from /dist by the
+# one-line installer and the runners' self-update, so a fresh install needs no host build.
+FROM rust:1-alpine AS runner
+RUN apk add --no-cache musl-dev mingw-w64-gcc && rustup target add x86_64-pc-windows-gnu
+COPY machine-stats/ /src/machine-stats/
+COPY runner/ /src/runner/
+WORKDIR /src/runner
+RUN set -eu; \
+    version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1); \
+    mkdir /dist; \
+    if [ "$(uname -m)" = "x86_64" ]; then \
+        cargo build --release --locked; \
+        cp target/release/kompanion-runner "/dist/kompanion-runner-$version-x86_64-linux-musl"; \
+    fi; \
+    cargo build --release --locked --target x86_64-pc-windows-gnu; \
+    cp target/x86_64-pc-windows-gnu/release/kompanion-runner.exe "/dist/kompanion-runner-$version-x86_64-windows-gnu.exe"; \
+    cd /dist && for f in kompanion-runner-*; do sha256sum "$f" > "$f.sha256"; done; \
+    rm -rf /src/runner/target
+
 FROM alpine:3
 # ffmpeg (LGPL/GPL): asset previews (images and audio), run at nice 19.
 RUN apk add --no-cache ca-certificates ffmpeg poppler-utils && adduser -D -H -u 10001 kompanion && mkdir /data && chown kompanion /data
@@ -26,6 +45,7 @@ COPY --from=web /src/web/dist /app/web
 COPY skills/ /app/skills/
 # Saved ComfyUI workflows (M6-05).
 COPY studio/ /app/studio/
+COPY --from=runner /dist /dist
 USER kompanion
 ENV KOMPANION_CONFIG=/config/kompanion.toml
 VOLUME /data
