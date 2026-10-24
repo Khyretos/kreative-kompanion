@@ -11,7 +11,7 @@ async function openChat(page: Page, title: string) {
 test("a nearly full chat shows the meter in orange, its numbers, the summary and the warning", async ({ page }) => {
   await openChat(page, "Debug tooling and tests");
   const chip = page.locator(".ctx-chip");
-  await expect(chip).toHaveText("104k/128k");
+  await expect(chip).toHaveText("81%");
   await expect(chip).toHaveAttribute("data-level", "warn");
   await expect(chip).toHaveAttribute("aria-label", /^Context 81% full: 104,300 of 128,000 tokens/);
   await chip.click();
@@ -38,7 +38,7 @@ test("Summarise now shrinks the context and adds to the summary without a reload
   await btn.click();
   await expect(btn).toHaveText("Summarising…");
   await expect(btn).toBeDisabled();
-  await expect(page.locator(".ctx-chip")).toHaveText("47k/128k");
+  await expect(page.locator(".ctx-chip")).toHaveText("37%");
   await expect(page.locator(".ctx-chip")).toHaveAttribute("data-level", "ok");
   await expect(page.locator(".ctx-pop summary")).toHaveText(/^Summary of 1[5-9] older messages|^Summary of [2-9]\d older messages/);
   await expect(page.locator(".ctx-pop .ctx-warn")).toHaveCount(0);
@@ -51,11 +51,11 @@ test("a chat without an answer has no meter until the first answer, then it appe
   await page.fill("#prompt", "Which one fits 8 GB?");
   await page.press("#prompt", "Enter");
   const chip = page.locator(".ctx-chip");
-  await expect(chip).toHaveText(/2\.\dk\/128k/, { timeout: 15_000 });
+  await expect(chip).toHaveText("2%", { timeout: 15_000 });
   await expect(chip).toHaveAttribute("data-level", "ok");
   // Another chat shows its own numbers, and coming back shows these again.
   await page.locator('#left [data-action="open-chat"]', { hasText: "Renderer performance" }).click();
-  await expect(chip).toHaveText("18k/128k");
+  await expect(chip).toHaveText("14%");
 });
 
 for (const scheme of ["light", "dark"] as const) {
@@ -93,3 +93,11 @@ for (const scheme of ["light", "dark"] as const) {
     expect(ratio).toBeGreaterThanOrEqual(4.5);
   });
 }
+
+// The meter fits the hint line at 1280 px: the effort chip stays on the same line.
+test("the meter keeps the composer chips on one line at 1280 px", async ({ page }) => {
+  await openChat(page, "Debug tooling and tests");
+  const ctx = (await page.locator(".ctx-chip").boundingBox())!;
+  const effort = (await page.locator(".effort-chip").boundingBox())!;
+  expect(Math.abs(ctx.y - effort.y)).toBeLessThan(4);
+});

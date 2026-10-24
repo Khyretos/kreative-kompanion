@@ -27,7 +27,8 @@ export function contextChip(c: ChatContext | undefined, open: boolean, compactin
   if (!c || (c.used === null && !c.summary)) return html``;
   const lv = level(c);
   const pct = c.used !== null && c.window ? Math.min(100, Math.round((c.used / c.window) * 100)) : null;
-  const short = c.used === null ? "–" : c.window ? `${tokens(c.used)}/${tokens(c.window)}` : `${tokens(c.used)}`;
+  // Glance first: the share of the window (or the tokens when the window is unknown); numbers in the details.
+  const short = c.used === null ? "–" : pct !== null ? `${pct}%` : tokens(c.used);
   const label = c.used === null
     ? "Context: no answer yet. Show details"
     : pct !== null ? `Context ${pct}% full: ${c.used.toLocaleString()} of ${c.window!.toLocaleString()} tokens. Show details`
