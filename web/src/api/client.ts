@@ -71,6 +71,8 @@ export interface KompanionApi {
   getAdmin(): Promise<{ settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./types").SmtpFromEnv | null }>;
   /** NOTIFY: Web Push for this browser (the server's public key, subscribe, unsubscribe). */
   webPushKey(): Promise<{ key: string }>;
+  /** TASK-OVERVIEW: a run's model calls and steps, masked, with what it is doing now. */
+  runTrace(runId: string): Promise<import("./types").RunTrace>;
   webPushSubscribe(sub: { endpoint: string; keys: { p256dh: string; auth: string }; device: string }): Promise<void>;
   webPushUnsubscribe(endpoint: string): Promise<void>;
   saveAdmin(settings: AdminSettings): Promise<AdminSettings>;
@@ -222,7 +224,7 @@ export type ServerEvent =
   | { type: "context"; usage: ChatContext } // CTX-01
   | { type: "task"; task: Task }
   | { type: "machines"; machines: MachineStats[] }
-  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts"; machineId?: string }
+  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts" | "messages" | "trace"; machineId?: string }
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
   | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app shows approvals (NOTIFY)
   | { type: "resync" };

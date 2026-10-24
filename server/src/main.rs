@@ -9,6 +9,7 @@ mod config;
 mod facts;
 mod context;
 mod explain;
+mod trace;
 mod webpush;
 mod costs;
 mod assetaudio;
@@ -281,6 +282,7 @@ async fn main() -> anyhow::Result<()> {
     pcagent::fail_orphaned_steps(&state).await;
     hoststats::HostStats::spawn_live(state.clone());
     notify::spawn_daily(state.db.clone());
+    trace::spawn_retention(state.db.clone());
     let _ = events::BUS.set(state.bus.clone());
     let _ = push::SERVERS.set(state.config.push.servers.clone());
     let _ = assets::ai::CONFIG.set(assets::ai::settings_from(&state.config));
@@ -367,6 +369,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/tasks/{id}/costs", get(costs::of_task))
         .route("/costs/weekly", get(costs::weekly))
         .route("/runs/{id}/report", get(runs::report))
+        .route("/runs/{id}/trace", get(trace::get))
         .route("/chats/{id}/report", get(runs::chat))
         .route("/actions/{id}/stop", post(pcagent::stop))
         .route("/actions/{id}/explain", post(explain::explain))

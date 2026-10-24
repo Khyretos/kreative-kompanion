@@ -34,6 +34,10 @@ export interface AppState {
   pairing?: { code: string; expiresAt: string; name: string }; // the one-line install command, until done
   admin?: { settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./api/types").SmtpFromEnv | null }; // loaded when an admin opens settings
   webPush?: "on" | "off" | "denied" | "unsupported"; // NOTIFY: push in this browser
+  tasksOverviewOpen?: boolean; // TASK-OVERVIEW: the running-tasks panel
+  tasksOverviewTaskId?: string; // the task whose live trace the panel shows
+  tasksOverviewTrace?: import("./api/types").RunTrace;
+  tasksOverviewTraceError?: string;
   projects: Project[];
   chats: Chat[];
   activeChatId?: string;

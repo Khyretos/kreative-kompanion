@@ -425,3 +425,27 @@ export interface ExplainPrefs {
   providerId?: string | null;
   modelId?: string | null;
 }
+
+/** TASK-OVERVIEW: one model call of a run, as its trace shows it (masked, shortened). */
+export interface TraceCall {
+  kind: "call";
+  id: string;
+  at: string;
+  role: string;
+  provider: string;
+  model: string;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  ms: number;
+  error: string | null;
+  reason: string;
+  prompt: string;
+  response: string;
+}
+
+/** TASK-OVERVIEW: a run's calls and steps in order, and what it is doing now. */
+export interface RunTrace {
+  run: { id: string; taskId: string; title: string; project: string | null; status: string; startedAt: string; endedAt: string | null };
+  nowDoing: string;
+  items: (TraceCall | (import("./client").PcAction & { kind: "step" }))[];
+}

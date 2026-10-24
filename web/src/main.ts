@@ -74,6 +74,7 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
 import { renderSettings, webPushRow } from "./views/settings";
+import { renderTasksOverview } from "./views/taskoverview";
 import { pageHead } from "./views/pagehead";
 import { modal } from "./core/modal";
 import { doneChip as overseerDoneChip, markDone as markOverseerDone } from "./core/overseer";
@@ -144,6 +145,7 @@ async function start(server: Server): Promise<void> {
       <aside class="pane left" id="left" aria-label="Projects and chats"></aside>
       <main class="pane center">
         <header class="conv-head" id="conv-head"></header>
+        <div class="tasks-overview-slot" id="tasks-overview-slot"></div>
         <div class="messages" id="messages">
           <div class="empty-slot" id="empty-slot"></div>
           <div class="msg-list" id="msg-list" role="log" aria-live="polite"></div>
@@ -365,8 +367,15 @@ function render(s: AppState, prev: AppState): void {
     input?.select();
   }
   // CTX-01: the context meter lives in the header too.
-  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks", "chatContext", "contextOpen", "compacting", "contextSummaryOpen"])) {
+  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks", "chatContext", "contextOpen", "compacting", "contextSummaryOpen", "tasksOverviewOpen"])) {
+    // The chip keeps focus when the header is drawn again (it has an id; mount does not keep it).
+    const chipFocused = document.activeElement?.id === "ov-chip";
     mount($("#conv-head"), renderHeader(s));
+    if (chipFocused) document.getElementById("ov-chip")?.focus();
+  }
+  // TASK-OVERVIEW: the running-tasks panel under the top bar.
+  if (firstRender || changed(s, prev, ["tasksOverviewOpen", "tasksOverviewTaskId", "tasksOverviewTrace", "tasksOverviewTraceError", "tasks", "projects", "pcActions"])) {
+    remount($("#tasks-overview-slot"), renderTasksOverview(s));
   }
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer", "projects", "activeProjectId"])) {
     // OVR-01: the Overseer chip, and its name on the answers of an Overseer chat (its own switch or its project's).
@@ -543,6 +552,7 @@ function applyEvent(ev: ServerEvent): void {
     const exists = s.tasks.some((t) => t.id === ev.task.id);
     // Apps 1: a desktop notification when one of my tasks needs me, failed or is done.
     deskNotify.onTaskUpdate(s.tasks.find((t) => t.id === ev.task.id), ev.task, openTaskById);
+    if (ev.task.id === s.tasksOverviewTaskId) traceChanged();
     store.set({ tasks: exists ? s.tasks.map((t) => (t.id === ev.task.id ? ev.task : t)) : [ev.task, ...s.tasks] });
     // Attach new tasks to the message that created them.
     if (!exists) {
@@ -550,6 +560,7 @@ function applyEvent(ev: ServerEvent): void {
       if (last) store.set({ messages: store.get().messages.map((m) => (m.id === last.id ? { ...m, taskIds: [ev.task.id] } : m)) });
     }
   } else if (ev.type === "changed") {
+    if (ev.what === "trace" || ev.what === "actions") traceChanged();
     refetch(ev.what);
   } else if (ev.type === "notify" && ev.state === "waits for your approval") {
     // NOTIFY: an approval waiting in another chat (or while away): this device's notification.
@@ -582,6 +593,35 @@ function loadExplain(id: string): void {
     (r) => explanations.set(id, { text: r.text }),
     (e) => explanations.set(id, { error: e instanceof Error ? e.message : String(e) }),
   ).finally(() => { explainLoading.delete(id); fill(); });
+}
+
+/** TASK-OVERVIEW: the trace of a task's running (else latest) run, for the panel's drill-down. */
+let traceRun: { taskId: string; runId: string } | undefined;
+async function loadTrace(taskId: string): Promise<void> {
+  try {
+    if (traceRun?.taskId !== taskId) {
+      const runs = await api.taskRuns(taskId);
+      const run = runs.find((r) => r.status === "running") ?? runs[0];
+      if (!run) {
+        if (store.get().tasksOverviewTaskId === taskId) store.set({ tasksOverviewTraceError: t("ovEmpty") });
+        return;
+      }
+      traceRun = { taskId, runId: run.id };
+    }
+    const trace = await api.runTrace(traceRun.runId);
+    if (store.get().tasksOverviewTaskId === taskId) store.set({ tasksOverviewTrace: trace, tasksOverviewTraceError: undefined });
+  } catch (e) {
+    if (store.get().tasksOverviewTaskId === taskId) store.set({ tasksOverviewTraceError: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Live: a step, a model call or the task changed while its trace is open: read it again
+ *  (at most every half second). */
+let traceTimer: ReturnType<typeof setTimeout> | undefined;
+function traceChanged(): void {
+  const id = store.get().tasksOverviewTaskId;
+  if (!id || traceTimer) return;
+  traceTimer = setTimeout(() => { traceTimer = undefined; void loadTrace(id); }, 500);
 }
 
 /** MSG-ACT: the messages drawn again (an edit form opened or closed). */
@@ -1140,6 +1180,23 @@ function wire(shell: HTMLElement): void {
       const i = list.findIndex((x) => x.id === el.dataset.id);
       const asked = list.slice(0, i).reverse().find((x) => x.author === "user");
       if (asked) resendMessage(asked.id);
+    },
+    // TASK-OVERVIEW: open or close the panel; a running task's live trace; back to the list.
+    "tasks-overview-toggle": () => {
+      const open = !store.get().tasksOverviewOpen;
+      store.set({ tasksOverviewOpen: open, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined });
+      if (!open) requestAnimationFrame(() => document.getElementById("ov-chip")?.focus());
+    },
+    "tasks-overview-open": (el) => {
+      const id = el.dataset.id ?? "";
+      store.set({ tasksOverviewTaskId: id, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined });
+      void loadTrace(id);
+      requestAnimationFrame(() => document.getElementById("ov-back")?.focus());
+    },
+    "tasks-overview-back": () => {
+      const id = store.get().tasksOverviewTaskId;
+      store.set({ tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined });
+      requestAnimationFrame(() => document.getElementById(`ov-row-${id}`)?.focus());
     },
     // NOTIFY: push in this browser, on or off (the demo has no service worker: it only flips).
     "web-push-toggle": async () => {
@@ -1762,6 +1819,13 @@ function wire(shell: HTMLElement): void {
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
     const s = store.get();
+    // TASK-OVERVIEW: Escape leaves a task's trace, then closes the panel.
+    if (s.tasksOverviewOpen) {
+      const back = s.tasksOverviewTaskId;
+      store.set(back ? { tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined } : { tasksOverviewOpen: false });
+      requestAnimationFrame(() => document.getElementById(back ? `ov-row-${back}` : "ov-chip")?.focus());
+      return;
+    }
     if (s.effortMenuOpen) {
       store.set({ effortMenuOpen: false });
       return;
@@ -1779,6 +1843,20 @@ function wire(shell: HTMLElement): void {
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
     else if (s.section === "settings" && leaveSettingsOk()) store.set({ section: "chat", pane: "main" });
   });
+  // TASK-OVERVIEW: on a phone, pulling the top bar down opens the panel and pushing it up closes it.
+  let pullY: number | undefined;
+  shell.addEventListener("touchstart", (ev) => {
+    const target = ev.target as HTMLElement;
+    pullY = target.closest("#conv-head, .tasks-overview .ov-head, .tasks-overview .ov-handle") ? ev.touches[0]?.clientY : undefined;
+  }, { passive: true });
+  shell.addEventListener("touchmove", (ev) => {
+    if (pullY === undefined) return;
+    const dy = (ev.touches[0]?.clientY ?? pullY) - pullY;
+    const open = !!store.get().tasksOverviewOpen;
+    if (!open && dy > 48) { pullY = undefined; store.set({ tasksOverviewOpen: true }); }
+    else if (open && dy < -48) { pullY = undefined; store.set({ tasksOverviewOpen: false, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined }); }
+  }, { passive: true });
+  shell.addEventListener("touchend", () => { pullY = undefined; }, { passive: true });
   // A click anywhere outside an open chat menu closes it.
   document.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
@@ -1787,6 +1865,8 @@ function wire(shell: HTMLElement): void {
     if (store.get().effortMenuOpen && t.isConnected && !t.closest(".effort, #effort-slot")) store.set({ effortMenuOpen: false });
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
     if (store.get().contextOpen && !t.closest(".ctx-meter")) store.set({ contextOpen: false });
+    // TASK-OVERVIEW: a click outside the panel (and its chip) closes it; a redrawn target is inside.
+    if (store.get().tasksOverviewOpen && t.isConnected && !t.closest(".tasks-overview, .ov-chip, #tasks-overview-slot")) store.set({ tasksOverviewOpen: false, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
     if (store.get().projectMenuId && !t.closest(".menu, .project-more")) store.set({ projectMenuId: undefined });
   });

@@ -1072,7 +1072,25 @@ export class MockApi implements KompanionApi {
   }
   async weeklyCosts() { return { tasks: 5, coderOutput: 53100, claudeOutput: 301600, coderShare: 0.15 }; }
   async taskRuns(taskId: string) {
-    return taskId === "t-kk-1" ? [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found", effort: "high", effortPicked: true }] : [];
+    if (taskId === "t-kk-1") return [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found", effort: "high", effortPicked: true }];
+    // TASK-OVERVIEW: a running task has a running run in the demo.
+    const t = tasks.find((x) => x.id === taskId);
+    return t?.state === "running" ? [{ id: `run-${taskId}`, startedAt: ago(12), endedAt: null, status: "running", step: t.step ?? null, effort: "auto", effortPicked: false }] : [];
+  }
+  // TASK-OVERVIEW: a demo trace: two model calls around a build step that is still running.
+  async runTrace(runId: string): Promise<import("./types").RunTrace> {
+    const t = tasks.find((x) => `run-${x.id}` === runId);
+    if (!t) throw new Error("That run is gone.");
+    const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const call = (id: string, min: number, tin: number, tout: number, ms: number, prompt: string, response: string): import("./types").TraceCall =>
+      ({ kind: "call", id, at: at(min), role: "worker", provider: "ovms", model: "Qwen3.5-9B", tokensIn: tin, tokensOut: tout, ms, error: null, reason: "A step on a computer.", prompt, response });
+    const items: import("./types").RunTrace["items"] = [
+      call(`${runId}-c1`, 11, 6_200, 310, 4_100, '[\n  {"role": "user", "content": "Add a --vk-validation flag (off in release builds) and an engine.toml setting."}\n]', '{"tool_calls": [{"function": {"name": "read_file", "arguments": "{\\"path\\": \\"/home/kees/projects/kk-engine/src/config.cpp\\"}"}}]}'),
+      { kind: "step", id: `${runId}-s1`, machineId: "soucouyant", summary: "Read /home/kees/projects/kk-engine/src/config.cpp", state: "done", result: "// engine config\nstruct Config { bool validation = false; };", createdAt: at(10), startedAt: at(10), endedAt: at(10), tool: { tool: "read_file", path: "/home/kees/projects/kk-engine/src/config.cpp" } },
+      call(`${runId}-c2`, 9, 7_050, 880, 9_300, '[\n  {"role": "tool", "content": "// engine config\\nstruct Config { bool validation = false; };"}\n]', '{"content": "I will build and run the tests.", "tool_calls": [{"function": {"name": "shell"}}]}'),
+      { kind: "step", id: `${runId}-s2`, machineId: "soucouyant", summary: t.step ?? "Build and test", state: "running", result: null, createdAt: at(8), startedAt: at(8), endedAt: null, tool: { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "cmake --build build -j && ctest --test-dir build" } },
+    ];
+    return { run: { id: runId, taskId: t.id, title: t.title, project: projects.find((p) => p.id === t.projectId)?.name ?? null, status: "running", startedAt: at(12), endedAt: null }, nowDoing: t.step ?? "", items };
   }
   async stopAction(actionId: string) {
     const a = actions.find((x) => x.id === actionId);

@@ -99,6 +99,7 @@ export class HttpApi implements KompanionApi {
   setTheme(theme: ThemeChoice) { return this.request<void>("PUT", "/me/theme", { theme }); }
   getAdmin() { return this.request<{ settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./types").SmtpFromEnv | null }>("GET", "/admin/settings"); }
   webPushKey() { return this.request<{ key: string }>("GET", "/push/web/key"); }
+  runTrace(runId: string) { return this.request<import("./types").RunTrace>("GET", `/runs/${encodeURIComponent(runId)}/trace`); }
   webPushSubscribe(sub: { endpoint: string; keys: { p256dh: string; auth: string }; device: string }) { return this.request<void>("POST", "/push/web", sub); }
   webPushUnsubscribe(endpoint: string) { return this.request<void>("DELETE", "/push/web", { endpoint }); }
   saveAdmin(settings: AdminSettings) { return this.request<AdminSettings>("PUT", "/admin/settings", settings); }

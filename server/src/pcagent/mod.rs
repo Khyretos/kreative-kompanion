@@ -375,6 +375,7 @@ impl Agent {
             list.push(spawn::spec());
         }
         let mut spawned = 0;
+        let mut sent_upto = 0usize;
         // HIST-01: the user's own past chats (answered here, read-only); FACTS: remember / forget
         // and the chat's step log.
         if let Some(list) = tools.as_array_mut() {
@@ -417,7 +418,10 @@ impl Agent {
                 Ok((m, u)) => (m, u, None),
                 Err(e) => (Value::Null, Value::Null, Some(format!("The model failed: {e:#}"))),
             };
-            let request = json!({ "messages": messages.len(), "last": messages.last() });
+            // TASK-OVERVIEW: what this call got that the one before did not (the whole prompt the first
+            // time), so a run's trace shows each call's input without storing the history again and again.
+            let request = json!({ "messages": messages.len(), "new": &messages[sent_upto.min(messages.len())..] });
+            sent_upto = messages.len();
             crate::api::log_call(s, &self.user_id, &self.chat_id, self.run_id.as_deref(), &self.role.role, &self.role,
                 "A step on a computer.", &request, &msg, &usage, started.elapsed().as_millis(), err.as_deref(), self.effort).await;
             if let Some(e) = err {

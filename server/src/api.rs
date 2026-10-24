@@ -883,8 +883,8 @@ pub async fn log_call(
     .bind(&role_assignment.provider_id)
     .bind(&role_assignment.model_id)
     .bind(reason)
-    .bind(request.to_string())
-    .bind(response.to_string())
+    .bind(crate::trace::capped(request))
+    .bind(crate::trace::capped(response))
     .bind(usage["prompt_tokens"].as_i64())
     .bind(usage["completion_tokens"].as_i64())
     .bind(ms as i64)
@@ -900,6 +900,10 @@ pub async fn log_call(
     // CTX-01: the meter follows every step of the chat (a summary is not the chat's context).
     if !chat_id.is_empty() && reason != crate::context::SUMMARY_REASON && usage["prompt_tokens"].as_i64().is_some() {
         crate::context::announce(s, chat_id).await;
+    }
+    // TASK-OVERVIEW: an open run trace shows the call at once.
+    if run_id.is_some() {
+        s.bus.send(user_id, Event::Changed { what: "trace", machine_id: None });
     }
 }
 
