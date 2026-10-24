@@ -324,6 +324,7 @@ export interface ServerStatus {
   mcpInfo?: Record<string, string>; // UI-02: their one-line descriptions
   overseer?: OverseerPrefs | null; // OVR-01: the Overseer's name and whether it may add context to running tasks
   maxSteps?: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100)
+  explain?: ExplainPrefs | null; // CMD-01: "Explain running actions" on step cards
   machineName?: string | null; // HOST-01: the server's own computer ([machine_name] in kompanion.toml)
   theme?: ThemeChoice;
   machinesRefresh?: number; // seconds; 1 = live
@@ -374,3 +375,11 @@ export interface CostLine {
 }
 /** TEN-05: totals of the last 7 days. */
 export interface WeeklyCosts { tasks: number; coderOutput: number; claudeOutput: number; coderShare: number }
+
+/** CMD-01: "Explain running actions": on, compact or verbose, and the model (none = the chat's). */
+export interface ExplainPrefs {
+  on: boolean;
+  verbose: boolean;
+  providerId?: string | null;
+  modelId?: string | null;
+}

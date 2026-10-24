@@ -9,6 +9,7 @@ import { pageHead } from "./pagehead";
 import { renderAdmin } from "./admin";
 import { DEFAULT_STYLE, KINDS, styleOf } from "../core/cardtypes";
 import { enabled as deskNotifyOn } from "../core/desknotify";
+import { t } from "../core/i18n";
 
 const roleInfo: Record<Role, { name: string; text: string }> = {
   orchestrator: { name: "Orchestrator", text: "Talks with you, plans and splits the work." },
@@ -40,6 +41,30 @@ function stepsSection(s: AppState): SafeHtml {
       <input id="max-steps" type="number" min="0" max="100" step="1" value="${s.maxSteps}">
     </div>
     <p class="muted small">How many tool steps one request may take before I stop and ask how to go on (1 to 100, or 0 for no limit). Automatic mode ignores this limit; use Stop to end it at any step.</p>
+  </section>`;
+}
+
+/** CMD-01: "Explain running actions": on or off, compact or verbose, and the model that explains. */
+function explainSection(s: AppState): SafeHtml {
+  const e = s.explain;
+  const picked = e.providerId && e.modelId ? `${e.providerId}::${e.modelId}` : "";
+  return html`<section class="explain-settings">
+    <h3 class="label">${t("explainHead")}</h3>
+    <label><input type="checkbox" id="explain-on" ${e.on ? "checked" : ""}> ${t("explainHead")}</label>
+    <p class="muted small">${t("explainAbout")}</p>
+    <fieldset class="checks explain-detail" ${e.on ? "" : "disabled"}>
+      <legend>${t("explainDetail")}</legend>
+      <label><input type="radio" name="explain-mode" value="compact" ${e.verbose ? "" : "checked"}> ${t("explainCompact")}</label>
+      <label><input type="radio" name="explain-mode" value="verbose" ${e.verbose ? "checked" : ""}> ${t("explainVerbose")}</label>
+    </fieldset>
+    <div class="field">
+      <label for="explain-model">${t("explainModel")}</label>
+      <select id="explain-model" ${e.on ? "" : "disabled"}>
+        <option value="" ${picked ? "" : "selected"}>${t("explainChatModel")}</option>
+        ${s.providers.filter((p) => !p.error).map((p) => html`<optgroup label="${p.name}">${p.models.map((m) => html`<option value="${p.id}::${m.id}" ${picked === `${p.id}::${m.id}` ? "selected" : ""}>${m.id}</option>`)}</optgroup>`)}
+      </select>
+    </div>
+    <p class="muted small">${t("explainNote")}</p>
   </section>`;
 }
 
@@ -146,6 +171,7 @@ export function renderSettings(s: AppState): SafeHtml {
         })}</div>
       </section>
       ${stepsSection(s)}
+      ${explainSection(s)}
       ${overseerSection(s)}
       ${voiceSection(s)}
       ${cardSection(s)}

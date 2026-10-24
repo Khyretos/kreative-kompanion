@@ -1078,6 +1078,37 @@ button[aria-busy="true"]::after {
 .step .step-stop { margin-left: auto; min-height: 1.8rem; padding: 0.2rem 0.6rem; }
 .chip.stopped { color: var(--attn); }
 
+/* CMD-01: a step is a card. Header: type on the left, the time in the middle, risk and state on
+   the right; the summary under it. Open: the command as code (scrolls), the output, "Explain command". */
+.step-card > summary { display: grid; gap: 0.2rem; padding: 0.4rem 0.6rem; }
+.step-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.5rem; }
+.step-type { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.step-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.8rem; text-align: center; }
+.step-tags { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem; flex-wrap: wrap; }
+.step-card .step-stop { margin-left: 0; }
+.step-card .step-summary { color: var(--fg); }
+.risk-tag { border: 1px solid currentColor; border-radius: 999px; padding: 0 0.45rem; font-size: 0.72rem; font-weight: 600; line-height: 1.35rem; white-space: nowrap; }
+.risk-read { color: var(--good); }
+.risk-write { color: var(--attn); }
+.risk-network { color: var(--fg); border-style: dashed; }
+.risk-delete { color: var(--bad); }
+.step-cmd { margin: 0 0.5rem 0.5rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); }
+.step-code { margin: 0; padding: 0.55rem 0.75rem; max-height: 12rem; overflow: auto; font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; color: var(--code-fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.step-explain { margin: 0 0.5rem 0.5rem; border-top: 1px solid var(--line); padding-top: 0.35rem; }
+.step-explain > summary { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--link); list-style: none; min-height: 1.8rem; }
+.step-explain > summary::-webkit-details-marker { display: none; }
+.step-explain > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.step-explain-body { font-size: 0.88rem; padding: 0.25rem 0.1rem 0.1rem; }
+.step-explain-body > :first-child { margin-top: 0; }
+.step-explain-body > :last-child { margin-bottom: 0; }
+.danger-text { color: var(--danger-text); }
+@media (max-width: 760px) {
+  .step-head { grid-template-columns: minmax(0, 1fr) auto; }
+  .step-time { grid-column: 2; grid-row: 1; }
+  .step-tags { grid-column: 1 / -1; justify-content: flex-start; }
+  .step-explain > summary { min-height: 44px; }
+}
+
 /* A task's W2 runs: status, Copy run ID, Export report. */
 .task-runs ul { list-style: none; margin: 0 0 0.75rem; padding: 0; display: grid; gap: 0.35rem; }
 .task-runs li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }

@@ -11,10 +11,12 @@ import type { Effort, Message, Task } from "../api/types";
 import type { PcAction } from "../api/client";
 import { icon } from "./icons";
 import { contextChip } from "./contextmeter";
-import { t } from "../core/i18n";
+import { t, type Key } from "../core/i18n";
 import { stateLabel } from "./tasks";
 import { fromTool, renderOutput } from "../core/output";
 import { kindOf, styleOf, type CardStyle } from "../core/cardtypes";
+import { commandLang, commandText, RISK_LABEL, riskOf } from "../core/commandcard";
+import { highlightHtml } from "../core/codeblocks";
 
 /** Card colours per action type, set by main.ts from the user's Settings. */
 let cardStyle: CardStyle | undefined;
@@ -22,17 +24,30 @@ export function setCardStyle(c: CardStyle | undefined): void {
   cardStyle = c;
 }
 
-const STEP_LABEL: Record<string, string> = {
-  approved: "starting…",
-  always: "starting…",
-  granting: "waiting for the computer…",
-  running: "running…",
-  denied: "declined",
-  done: "done",
-  failed: "failed",
-  refused: "not allowed",
-  stopped: "stopped by you",
+const STEP_LABEL: Record<string, Key> = {
+  pending: "stPending",
+  approved: "stStarting",
+  always: "stStarting",
+  granting: "stGranting",
+  running: "stRunning",
+  denied: "stDenied",
+  done: "stDone",
+  failed: "stFailed",
+  refused: "stRefused",
+  stopped: "stStopped",
 };
+
+const BUSY = ["approved", "always", "granting", "running"];
+
+/** CMD-01: whether step cards offer "Explain command" (the user's setting; main.ts keeps it). */
+let explainOn = false;
+export function setExplainOn(on: boolean): void {
+  explainOn = on;
+}
+/** Explanations by step id (the server keeps them per command, so a re-open costs nothing), and
+ *  the steps whose explanation the user opened; both kept across re-renders. */
+export const explanations = new Map<string, { text?: string; error?: string }>();
+export const openExplains = new Set<string>();
 
 /** Steps the user opened stay open across re-renders (main.ts keeps this in step). */
 export const openSteps = new Set<string>();
@@ -47,23 +62,58 @@ export function elapsedText(since: string, now = Date.now()): string {
   return Number.isNaN(secs) ? "" : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
 }
 
+/** CMD-01: a step as a card. Header: icon and type, the time, a risk tag and the state; under it
+ *  the summary. Open: the command as highlighted code (scrolls), the output, and "Explain command". */
 function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
-  const busy = ["approved", "always", "granting", "running"].includes(a.state);
+  const busy = BUSY.includes(a.state);
+  const kind = styleOf(kindOf(a.tool), cardStyle);
+  const risk = riskOf(a.tool);
+  const command = commandText(a.tool);
+  const since = a.startedAt ?? a.createdAt;
+  const took = !busy && a.endedAt ? elapsedText(since, Date.parse(a.endedAt)) : "";
+  const icn = busy ? "spark" : a.state === "done" ? "terminal" : "close";
   return html`
-    <details class="step ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) ? "open" : ""}>
+    <details class="step step-card ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) ? "open" : ""}>
       <summary data-action="step-toggle" data-id="${a.id}">
-        ${icon(busy ? "spark" : a.state === "done" ? "terminal" : "close")}
-        <span class="kind-tag" style="--kind:${styleOf(kindOf(a.tool), cardStyle).color}">${styleOf(kindOf(a.tool), cardStyle).label}</span>
+        <span class="step-head">
+          <span class="step-type">${icon(icn)}<span class="kind-tag" style="--kind:${kind.color}">${kind.label}</span></span>
+          <span class="step-time">${a.state === "running" ? html`<span class="elapsed" data-since="${since}">${elapsedText(since)}</span>` : took ? html`<span title="${t("cmdTook", { time: took })}">${took}</span>` : ""}</span>
+          <span class="step-tags">
+            <span class="risk-tag risk-${risk}" title="${t("riskTip")}">${t(RISK_LABEL[risk])}</span>
+            <span class="chip ${a.state}">${STEP_LABEL[a.state] ? t(STEP_LABEL[a.state]) : a.state}</span>
+            ${a.state === "running" ? html`<button class="btn small danger step-stop" type="button" data-action="step-stop" data-id="${a.id}">${t("cmdStop")}</button>` : ""}
+          </span>
+        </span>
         <span class="step-summary">${a.summary}</span>
-        <span class="chip ${a.state}">${STEP_LABEL[a.state] ?? a.state}</span>
-        ${a.state === "running" ? html`<span class="elapsed" data-since="${a.startedAt ?? a.createdAt}">${elapsedText(a.startedAt ?? a.createdAt)}</span>
-          <button class="btn small danger step-stop" type="button" data-action="step-stop" data-id="${a.id}">Stop</button>` : ""}
       </summary>
+      ${command ? html`<div class="step-cmd" role="group" aria-label="${t("cmdCommand")}">
+        <pre class="step-code"><code class="hljs">${highlightHtml(command, commandLang(a.tool))}</code></pre>
+      </div>` : ""}
       ${a.result ? renderOutput(fromTool(a.tool, a.result, machines[a.machineId])) : ""}
+      ${explainOn && command ? html`<details class="step-explain" data-explain="${a.id}" ${openExplains.has(a.id) ? "open" : ""}>
+        <summary data-action="explain-toggle" data-id="${a.id}">${icon("spark")}${t("explainCmd")}</summary>
+        <div class="step-explain-body" data-explain-body="${a.id}" aria-live="polite"></div>
+      </details>` : ""}
     </details>`;
 }
 
-const BUSY = ["approved", "always", "granting", "running"];
+/** Fills an opened explanation: the text as sanitised markdown, a note while it is written, or the
+ *  error with a retry. */
+export function fillExplain(body: HTMLElement): void {
+  const id = body.dataset.explainBody ?? "";
+  const x = explanations.get(id);
+  if (!x) {
+    body.replaceChildren(Object.assign(document.createElement("p"), { className: "muted small", textContent: t("explaining") }));
+  } else if (x.error !== undefined) {
+    const p = Object.assign(document.createElement("p"), { className: "small danger-text", textContent: t("explainFailed", { error: x.error }) });
+    const retry = Object.assign(document.createElement("button"), { type: "button", className: "btn small", textContent: t("explainRetry") });
+    retry.dataset.action = "explain-retry";
+    retry.dataset.id = id;
+    body.replaceChildren(p, retry);
+  } else {
+    body.replaceChildren(renderMarkdown(x.text ?? ""));
+  }
+}
 
 function renderSteps(steps: PcAction[], machines: Record<string, string>): SafeHtml {
   if (steps.length === 0) return html``;
@@ -171,6 +221,7 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
 
 /** Fills the message body with sanitised markdown (never via the template). */
 export function fillMessage(el: HTMLElement, { m }: MessageView): void {
+  for (const x of el.querySelectorAll<HTMLElement>("[data-explain-body]")) if (openExplains.has(x.dataset.explainBody ?? "")) fillExplain(x);
   const body = el.querySelector(".body")!;
   const split = splitSources(splitFiles(m.text).text);
   const { text, proposal } = splitOverseer(split.text);

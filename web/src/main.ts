@@ -18,7 +18,8 @@ import { renderSidebar } from "./views/sidebar";
 import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
-import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { lang } from "./core/i18n";
+import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, setExplainOn, explanations, openExplains, fillExplain, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { filterDeps, setDep } from "./views/deppicker";
@@ -160,10 +161,11 @@ async function start(server: Server): Promise<void> {
   ]);
   store.set({
     server: { ...server, name: status.name || server.name }, projects, chats, tasks, providers, roles, machines, today,
-    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system", overseer: status.overseer ?? { name: "Overseer", interject: false }, maxSteps: status.maxSteps ?? 10,
+    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system", overseer: status.overseer ?? { name: "Overseer", interject: false }, maxSteps: status.maxSteps ?? 10, explain: status.explain ?? { on: false, verbose: false },
     machinesRefresh: status.machinesRefresh ?? 5, gpuPins: status.gpuPins ?? [], cardStyle: status.cardStyle ?? {}, windshift: status.windshift, windshiftWarning: status.windshiftWarning, features: { ...ALL_FEATURES, ...(status.features ?? {}) }, logoVersion: status.logoVersion,
   });
   setStepCardStyle(status.cardStyle ?? {});
+  setExplainOn(!!status.explain?.on);
   applyTheme(status.theme ?? "system");
   applyCodeTheme();
   api.voiceInfo().then((voice) => store.set({ voice }), () => store.set({ voice: { enabled: false, voices: [] } }));
@@ -472,7 +474,7 @@ function render(s: AppState, prev: AppState): void {
   if (s.section !== prev.section && !firstRender) navHistory(s.section, prev.section);
   const settings = $("#settings");
   if (s.section === "settings" && s.section !== prev.section) settingsDirty = false;
-  if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer"])) {
+  if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer", "explain"])) {
     remount(settings, renderSettings(s));
   }
   firstRender = false;
@@ -540,6 +542,26 @@ function applyEvent(ev: ServerEvent): void {
     });
     if (ev.done) readAloud(store.get().messages.find((m) => m.id === ev.messageId)?.text ?? "");
   }
+}
+
+/** CMD-01: asks for a step's explanation once and fills every open body for it. */
+const explainLoading = new Set<string>();
+function loadExplain(id: string): void {
+  const fill = () => document.querySelectorAll<HTMLElement>(`[data-explain-body="${CSS.escape(id)}"]`).forEach(fillExplain);
+  fill();
+  if (explanations.has(id) || explainLoading.has(id)) return;
+  explainLoading.add(id);
+  api.explainStep(id, lang()).then(
+    (r) => explanations.set(id, { text: r.text }),
+    (e) => explanations.set(id, { error: e instanceof Error ? e.message : String(e) }),
+  ).finally(() => { explainLoading.delete(id); fill(); });
+}
+
+// CMD-01: explain settings change what step cards offer: draw the steps again (as card colours do).
+function setExplain(p: import("./api/types").ExplainPrefs): void {
+  setExplainOn(p.on);
+  messageList?.clear();
+  store.set({ explain: p, messages: [...store.get().messages] });
 }
 
 // Card colours (item 7): applied at once (steps re-render), saved for this user, rolled back on error.
@@ -1000,6 +1022,19 @@ function wire(shell: HTMLElement): void {
       const open = !(d ? d.open : groupChoice.get(id));
       groupChoice.set(id, open);
       if (d) d.open = open;
+    },
+    // CMD-01: "Explain command" is written on the first open (then kept); a retry asks again.
+    "explain-toggle": (el) => {
+      const id = el.dataset.id ?? "";
+      const d = el.closest("details");
+      const open = !(d ? d.open : openExplains.has(id));
+      if (open) openExplains.add(id); else openExplains.delete(id);
+      if (d) d.open = open;
+      if (open) loadExplain(id);
+    },
+    "explain-retry": (el) => {
+      explanations.delete(el.dataset.id ?? "");
+      loadExplain(el.dataset.id ?? "");
     },
     "step-toggle": (el) => {
       const id = el.dataset.id ?? "";
@@ -1487,6 +1522,18 @@ function wire(shell: HTMLElement): void {
       return;
     }
     // AUTO-01: the default number of steps per request (Settings).
+    // CMD-01: "Explain running actions" (Settings): saved at once, step cards follow without a reload.
+    if (fid === "explain-on" || fid === "explain-model" || (ev.target as HTMLInputElement).name === "explain-mode") {
+      const before = store.get().explain;
+      const el = ev.target as HTMLInputElement;
+      const next = { ...before };
+      if (fid === "explain-on") next.on = el.checked;
+      else if (fid === "explain-model") [next.providerId, next.modelId] = el.value ? el.value.split("::") : [null, null];
+      else next.verbose = el.value === "verbose";
+      setExplain(next);
+      api.setExplainPrefs(next).catch((e) => { setExplain(before); showError(e); });
+      return;
+    }
     if (fid === "max-steps") {
       // 0 means no limit; an empty or bad value falls back to 10.
       const raw = Number((ev.target as HTMLInputElement).value);

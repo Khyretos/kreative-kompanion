@@ -7,6 +7,7 @@ mod capabilities;
 mod capmatrix;
 mod config;
 mod context;
+mod explain;
 mod costs;
 mod assetaudio;
 mod assetcontract;
@@ -361,6 +362,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/runs/{id}/report", get(runs::report))
         .route("/chats/{id}/report", get(runs::chat))
         .route("/actions/{id}/stop", post(pcagent::stop))
+        .route("/actions/{id}/explain", post(explain::explain))
         .route("/chats/{id}/stop", post(pcagent::stop_chat))
         .route("/projects/{id}", patch(tasks::set_project_kind))
         .route("/projects/{id}/settings", patch(projects::settings))

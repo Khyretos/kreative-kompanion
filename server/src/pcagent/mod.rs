@@ -857,8 +857,8 @@ pub async fn list(
     Extension(u): Extension<User>,
     Path(chat_id): Path<String>,
 ) -> ApiResult<Json<Vec<Value>>> {
-    let rows: Vec<(String, String, String, String, Option<String>, String, String, String)> = sqlx::query_as(
-        "SELECT id, machine_id, summary, state, result, created_at, tool, COALESCE(decided_at, created_at) FROM (
+    let rows: Vec<(String, String, String, String, Option<String>, String, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, machine_id, summary, state, result, created_at, tool, COALESCE(decided_at, created_at), ended_at FROM (
            SELECT * FROM pc_actions WHERE chat_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 50
          ) ORDER BY created_at",
     )
@@ -868,10 +868,10 @@ pub async fn list(
     .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, machine_id, summary, state, result, created_at, tool, started_at)| {
+            .map(|(id, machine_id, summary, state, result, created_at, tool, started_at, ended_at)| {
                 let job: Value = serde_json::from_str(&tool).unwrap_or(Value::Null);
                 json!({ "id": id, "machineId": machine_id, "summary": summary, "state": state, "result": result,
-                        "createdAt": created_at, "startedAt": started_at, "needs": needs_text(&job), "tool": job })
+                        "createdAt": created_at, "startedAt": started_at, "endedAt": ended_at, "needs": needs_text(&job), "tool": job })
             })
             .collect(),
     ))

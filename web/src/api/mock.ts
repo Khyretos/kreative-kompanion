@@ -297,6 +297,7 @@ const providers: ModelProvider[] = [
 
 const overseerPrefs = { name: "Loquendo", interject: true };
 let demoMaxSteps = 10; // AUTO-01
+let demoExplain: import("./types").ExplainPrefs = { on: false, verbose: false }; // CMD-01
 
 let roles: RoleAssignment[] = [
   { role: "orchestrator", providerId: "deepseek", modelId: "deepseek-chat" },
@@ -397,7 +398,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs"], overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs"], overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, explain: { ...demoExplain }, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}
@@ -406,6 +407,18 @@ export class MockApi implements KompanionApi {
   async setMachinesRefresh() {}
   async setGpuPins() {}
   async setMaxSteps(n: number) { demoMaxSteps = n; }
+  async setExplainPrefs(p: import("./types").ExplainPrefs) { demoExplain = { ...p }; }
+  // CMD-01: a canned explanation, after a short wait as if a model wrote it.
+  async explainStep(stepId: string, _lang: string) {
+    const a = actions.find((x) => x.id === stepId);
+    if (!a) throw new Error("That step is gone.");
+    await new Promise((r) => setTimeout(r, 300));
+    const cmd = String(a.tool?.command ?? a.tool?.tool ?? "");
+    const text = demoExplain.verbose
+      ? `- \`${cmd.split(" ")[0]}\`: the program that runs.\n- The rest are its arguments.\n\n**Changes:** see the risk tag; nothing outside the folder.`
+      : `Runs \`${cmd}\` in the project folder and prints what it finds. It **changes nothing** on its own.`;
+    return { text, cached: false, model: "deepseek-chat" };
+  }
   async setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) {
     if (change.overseerName !== undefined) overseerPrefs.name = change.overseerName.trim() || "Overseer";
     if (change.overseerInterject !== undefined) overseerPrefs.interject = change.overseerInterject;
@@ -1054,6 +1067,20 @@ export class MockApi implements KompanionApi {
       actions.push(a);
       setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
       setTimeout(() => { if (a.state !== "running") return; a.state = "done"; a.result = "Finished\nexit: 0"; this.emit({ type: "changed", what: "actions" }); }, 20_000);
+    } else if (machineId && /command cards/i.test(text)) {
+      // CMD-01: finished steps of each risk, and one still running, as command cards.
+      // Created after the question, so all four sit under the reply; the times are what ran.
+      const t0 = Date.now() + 20;
+      const done: [string, Record<string, unknown>, string, number][] = [
+        ["Look for TODOs in src", { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "grep -rn \"TODO\" src | head -20" }, "done", 2],
+        ["Clean the build folder", { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "rm -rf build/ && mkdir build" }, "done", 1],
+        ["Fetch the latest changes", { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "git pull --rebase origin main" }, "failed", 4],
+      ];
+      done.forEach(([summary, tool, state, secs], k) => actions.push({ id: id("a"), chatId, machineId, summary, tool, state, result: state === "done" ? "src/render.cpp:42: // TODO: batch draws\nexit: 0" : "fatal: could not read from remote\nexit: 1",
+        createdAt: new Date(t0 + k).toISOString(), startedAt: new Date(t0 - 60_000 + k * 10_000).toISOString(), endedAt: new Date(t0 - 60_000 + k * 10_000 + secs * 1000).toISOString() } as PcAction & { chatId: string }));
+      actions.push({ id: id("a"), chatId, machineId, summary: "Build and test", tool: { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "cmake --build build -j && ctest --test-dir build --output-on-failure" },
+        state: "running", result: null, createdAt: new Date(t0 + 3).toISOString(), startedAt: new Date(Date.now() - 12_000).toISOString() } as PcAction & { chatId: string });
+      setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
     } else if (machineId && /every card type/i.test(text)) {
       // Demo of every approval card type (readability checks): one pending card each.
       const tools: [string, Record<string, unknown>][] = [

@@ -34,6 +34,8 @@ export interface PcAction {
   createdAt: string;
   /** When it started running (approved, or created for automatic steps). */
   startedAt?: string;
+  /** CMD-01: when it ended (done, failed, stopped…), for the time on its card. */
+  endedAt?: string | null;
 }
 
 export interface KompanionApi {
@@ -111,6 +113,9 @@ export interface KompanionApi {
   /** OVR-01: the Overseer's name ("" = default) and whether it may add context to running tasks. */
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;
   setMaxSteps(maxSteps: number): Promise<void>;
+  /** CMD-01: the "Explain running actions" settings, and a step's explanation (made on first ask). */
+  setExplainPrefs(p: import("./types").ExplainPrefs): Promise<void>;
+  explainStep(id: string, lang: string): Promise<{ text: string; cached: boolean; model: string }>;
   /** OVR-01: creates proposed tasks, and their project when it is new. */
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }): Promise<{ projectId: string }>;
   /** OVR-01: adds context to a running task (read before its next step). */

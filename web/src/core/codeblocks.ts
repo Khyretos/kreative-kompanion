@@ -14,6 +14,7 @@ import sql from "highlight.js/lib/languages/sql";
 import dockerfile from "highlight.js/lib/languages/dockerfile";
 import diff from "highlight.js/lib/languages/diff";
 import DOMPurify from "dompurify";
+import { html, SafeHtml } from "./html";
 
 hljs.registerLanguage("rust", rust);
 hljs.registerLanguage("typescript", typescript);
@@ -59,6 +60,19 @@ export function saveText(text: string, name: string, type = "text/plain"): void 
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** CMD-01: code highlighted in the in-house code style, as markup for a template (only class'd
+ * spans survive the sanitiser; text that is not code comes back escaped). */
+export function highlightHtml(text: string, lang: string): SafeHtml {
+  const name = langAliases[lang] ?? lang;
+  if (!hljs.getLanguage(name)) return html`${text}`;
+  try {
+    const marked = hljs.highlight(text, { language: name, ignoreIllegals: true }).value;
+    return new SafeHtml(String(DOMPurify.sanitize(marked, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] })));
+  } catch {
+    return html`${text}`;
+  }
 }
 
 export function enhanceCodeBlocks(frag: DocumentFragment): void {

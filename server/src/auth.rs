@@ -175,6 +175,11 @@ pub async fn status(
         "maxSteps": max_steps,
         "gpuPins": serde_json::from_str::<serde_json::Value>(&pins).unwrap_or(serde_json::json!([])),
         "cardStyle": serde_json::from_str::<serde_json::Value>(&cards).unwrap_or(serde_json::json!({})),
+        // CMD-01: "Explain running actions" (off, compact, the chat's model unless one is picked).
+        "explain": match &user {
+            Some(u) => json!(crate::explain::prefs(&state.db, &u.id).await),
+            None => serde_json::Value::Null,
+        },
         "version": env!("CARGO_PKG_VERSION"),
         // OVR-01: the Overseer's name and whether it may add context to running tasks.
         "overseer": match &user {
