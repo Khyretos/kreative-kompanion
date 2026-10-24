@@ -231,7 +231,11 @@ def resume_studio():
     log("RESUMED", container=STUDIO)
 
 
-def start_container(profile):
+# ComfyUI flags a run may add (memory planning and attention only; nothing that lifts a cap)
+COMFY_FLAGS = ("--lowvram", "--novram", "--disable-smart-memory", "--use-split-cross-attention", "--use-quad-cross-attention", "--use-pytorch-cross-attention")
+
+
+def start_container(profile, extra=()):
     image, frac, reserve, vae = PROFILES[profile]
     for d in ("out", "in"):
         os.makedirs(os.path.join(WORK, d), exist_ok=True)
@@ -246,7 +250,7 @@ def start_container(profile):
         if os.path.exists(src):
             cmd += ["-v", f"{src}:{dst}:{mode}"]
     cmd += [image, "python", "main.py", "--listen", "127.0.0.1", "--port", str(PORT), "--disable-auto-launch",
-            "--output-directory", "/media-out", "--fast-disk", "--disable-pinned-memory", "--reserve-vram", reserve, vae, "--preview-method", "none"]
+            "--output-directory", "/media-out", "--fast-disk", "--disable-pinned-memory", "--reserve-vram", reserve, vae, "--preview-method", "none", *extra]
     subprocess.run(cmd, check=True, capture_output=True, timeout=120)
     t0 = time.time()
     while time.time() - t0 < 180:
@@ -318,6 +322,7 @@ def main():
     ap.add_argument("graphs", nargs="*")
     ap.add_argument("--timeout", type=int, default=300, help="per job, seconds")
     ap.add_argument("--profile", choices=sorted(PROFILES), default="sdxl")
+    ap.add_argument("--comfy", action="append", default=[], choices=COMFY_FLAGS, help="extra ComfyUI flag (repeatable)")
     a = ap.parse_args()
     lockf = open(LOCK, "w")
     try:
@@ -348,8 +353,8 @@ def main():
     wd.start()
     results, rc = [], 0
     try:
-        start_container(a.profile)
-        log("UP", sample=sample())
+        start_container(a.profile, a.comfy)
+        log("UP", sample=sample(), comfy=a.comfy)
         for gpath in a.graphs:
             r = run_job(gpath, a.timeout, wd)
             r["graph"] = gpath
