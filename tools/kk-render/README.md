@@ -24,7 +24,10 @@ Lessons:
 1. **One at a time**: a lock file; a second `kk_render.py` refuses.
 2. **Preflight** refuses to start while: any other container runs (CI, tests), a game runs (Funkin, Steam, Wine,
    gamescope...), the GPU averages over 30% busy for 5 s (the desktop needs it), more than 3.5 GB VRAM is in use,
-   load is over 6, less than 8 GB RAM is free, or the junction is over 70 C.
+   load is over 6, less than 8 GB RAM is free, or the junction is over 70 C. The Studio ComfyUI (`comfyui-rocm`)
+   is the exception (Kees, 2026-10-24: do not refuse render jobs because of it): kk-render waits until its queue is
+   empty (up to 30 min), `docker stop`s it for the job so two ComfyUIs never share the card, and starts it again at
+   the end, whatever the job's result. The GPU checks run after it has stopped.
 3. **A fresh container** `kk-render` on port 18190 (`comfyui-rocm:local`): torch capped at 50% of the card
    (`vram_cap.py`), `--reserve-vram 8.5` so ComfyUI plans inside that cap, `expandable_segments:False`, no pinned
    memory, bf16 VAE, 12 GB RAM cap, 8 CPUs. Only the SDXL model family is mounted (one family per container).

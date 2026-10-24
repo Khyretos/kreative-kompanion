@@ -42,6 +42,12 @@ KILL_MEM_C = 96
 MAX_LOAD1 = 6.0
 MIN_FREE_RAM_GIB = 8
 GAMES = ("Funkin", "steam_app", "gamescope", "wine64-preloader", "wineserver", ".exe", "retroarch", "dolphin-emu")
+# Kees 2026-10-24: the Studio's ComfyUI may stay up, and render jobs must not be refused because of it. kk-render
+# waits until its queue is empty, stops it for the job (two ComfyUIs on the card is how the desktop died), then starts
+# it again.
+STUDIO = "comfyui-rocm"
+STUDIO_PORT = 8188
+STUDIO_IDLE_WAIT_S = 1800
 
 M = os.path.join(HOME, "comfy-models-local")
 # One model family per container (04:38Z: MV-Adapter and SDXL in one ComfyUI kept the MV memory and hit 13.9 GB).
@@ -109,10 +115,11 @@ def running_containers():
     return [n for n in out.split() if n]
 
 
-def preflight():
-    """Return a list of reasons to refuse; empty means the GPU is free for one job."""
+def preflight(gpu=True):
+    """Return a list of reasons to refuse; empty means the GPU is free for one job.
+    gpu=False skips the VRAM/busy/heat checks (used while the Studio ComfyUI still holds the card)."""
     why = []
-    others = [n for n in running_containers() if n != NAME]
+    others = [n for n in running_containers() if n not in (NAME, STUDIO)]
     if others:
         why.append("other containers running (CI or tests): " + ", ".join(others))
     games = []
@@ -131,6 +138,8 @@ def preflight():
     avail = int([l for l in open("/proc/meminfo") if l.startswith("MemAvailable")][0].split()[1]) // (1 << 20)
     if avail < MIN_FREE_RAM_GIB:
         why.append(f"only {avail} GiB RAM available")
+    if not gpu:
+        return why
     busy = []
     for _ in range(5):
         busy.append(sample()["busy"])
@@ -188,6 +197,38 @@ class Watchdog(threading.Thread):
     def stop(self):
         self.stop_ev.set()
         self.kmsg.terminate()
+
+
+def studio_busy():
+    """True while the Studio ComfyUI has a prompt running or queued."""
+    try:
+        q = json.load(urllib.request.urlopen(f"http://127.0.0.1:{STUDIO_PORT}/queue", timeout=5))
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+    return bool(q.get("queue_running") or q.get("queue_pending"))
+
+
+def pause_studio():
+    """Stop the Studio ComfyUI once it is idle. Returns True if it was running (so it gets started again)."""
+    if STUDIO not in running_containers():
+        return False
+    t0 = time.time()
+    while studio_busy():
+        if time.time() - t0 > STUDIO_IDLE_WAIT_S:
+            raise RuntimeError(f"{STUDIO} stayed busy for {STUDIO_IDLE_WAIT_S} s")
+        log("WAIT", why=f"{STUDIO} is rendering; waiting for its queue to empty")
+        time.sleep(15)
+    subprocess.run(["docker", "stop", "-t", "20", STUDIO], capture_output=True, timeout=90)
+    log("PAUSED", container=STUDIO)
+    t0 = time.time()
+    while sample()["vram_mib"] > START_MAX_VRAM_MIB and time.time() - t0 < 30:
+        time.sleep(1)
+    return True
+
+
+def resume_studio():
+    subprocess.run(["docker", "start", STUDIO], capture_output=True, timeout=90)
+    log("RESUMED", container=STUDIO)
 
 
 def start_container(profile):
@@ -283,13 +324,26 @@ def main():
         fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         sys.exit("REFUSED: another kk-render job is running")
-    why = preflight()
+    studio_up = STUDIO in running_containers()
+    why = preflight(gpu=not studio_up)
     if why:
         log("REFUSED", why=why)
         sys.exit(2)
     if a.cmd == "check":
-        log("CLEAR", sample=sample())
+        log("CLEAR", sample=sample(), studio=("will be paused for the job" if studio_up else "not running"))
         return
+    paused = False
+    try:
+        paused = pause_studio()
+    except Exception as e:
+        log("REFUSED", why=[str(e)[:300]])
+        sys.exit(2)
+    if paused:
+        why = preflight()
+        if why:
+            resume_studio()
+            log("REFUSED", why=why)
+            sys.exit(2)
     wd = Watchdog()
     wd.start()
     results, rc = [], 0
@@ -311,6 +365,8 @@ def main():
     finally:
         stop_container()
         wd.stop()
+        if paused:
+            resume_studio()
         log("DONE", peak=wd.peak, after=sample(), tripped=wd.tripped)
     sys.exit(rc)
 
