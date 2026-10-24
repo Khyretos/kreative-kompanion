@@ -1,0 +1,7 @@
+# Public test vectors, not secrets: the example keys from RFC 8291 Appendix A (Web Push
+# encryption) used in server/src/webpush_tests.rs and as the demo's push key in web/src/api/mock.ts.
+6366e360e7dafaefb6994f8bee6b35b308056730:server/src/webpush_tests.rs:generic-api-key:11
+6366e360e7dafaefb6994f8bee6b35b308056730:server/src/webpush_tests.rs:generic-api-key:15
+6366e360e7dafaefb6994f8bee6b35b308056730:server/src/webpush_tests.rs:generic-api-key:78
+6366e360e7dafaefb6994f8bee6b35b308056730:server/src/webpush_tests.rs:generic-api-key:79
+6366e360e7dafaefb6994f8bee6b35b308056730:web/src/api/mock.ts:generic-api-key:499

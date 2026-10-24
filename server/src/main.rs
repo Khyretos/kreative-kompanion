@@ -117,6 +117,22 @@ pub struct AppState {
     pub custom_providers: Arc<std::sync::RwLock<Vec<config::ProviderConfig>>>,
 }
 
+impl AppState {
+    /// PROV-UI: a provider by id: from kompanion.toml, else one added in Settings.
+    pub fn provider(&self, id: &str) -> Option<config::ProviderConfig> {
+        self.config.provider(id).cloned().or_else(|| self.custom_providers.read().ok()?.iter().find(|p| p.id == id).cloned())
+    }
+
+    /// Every provider: the config file's first, then those added in Settings.
+    pub fn providers(&self) -> Vec<config::ProviderConfig> {
+        let mut all = self.config.providers.clone();
+        if let Ok(extra) = self.custom_providers.read() {
+            all.extend(extra.iter().cloned());
+        }
+        all
+    }
+}
+
 #[cfg(test)]
 impl AppState {
     pub fn for_tests(config: config::Config, db: SqlitePool) -> Self {
@@ -135,19 +151,6 @@ impl AppState {
         }
     }
 
-    /// PROV-UI: a provider by id: from kompanion.toml, else one added in Settings.
-    pub fn provider(&self, id: &str) -> Option<config::ProviderConfig> {
-        self.config.provider(id).cloned().or_else(|| self.custom_providers.read().ok()?.iter().find(|p| p.id == id).cloned())
-    }
-
-    /// Every provider: the config file's first, then those added in Settings.
-    pub fn providers(&self) -> Vec<config::ProviderConfig> {
-        let mut all = self.config.providers.clone();
-        if let Ok(extra) = self.custom_providers.read() {
-            all.extend(extra.iter().cloned());
-        }
-        all
-    }
 }
 
 const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; \
