@@ -388,29 +388,10 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         },
     });
 
-    // Conversation so far, oldest first (last 40 messages).
-    let history: Vec<(String, String)> = sqlx::query_as(
-        "SELECT author, text FROM (SELECT author, text, at, rowid FROM messages WHERE chat_id = ?
-         ORDER BY at DESC, rowid DESC LIMIT 40) ORDER BY at, rowid",
-    )
-    .bind(&chat_id)
-    .fetch_all(&s.db)
-    .await
-    .unwrap_or_default();
-    // Keep the prompt bounded: the newest messages that fit ~24,000 characters
-    // (long chats otherwise grow until the GPU runs out of memory).
-    let mut budget = 24_000usize;
-    let keep = history
-        .iter()
-        .rev()
-        .take_while(|(_, t)| {
-            let fits = t.len() <= budget;
-            budget = budget.saturating_sub(t.len());
-            fits
-        })
-        .count()
-        .max(1);
-    let history = history[history.len().saturating_sub(keep)..].to_vec();
+    // Conversation so far, oldest first. The prompt stays bounded (the newest messages that fit
+    // ~24,000 characters; long chats otherwise grow until the GPU runs out of memory), and what no
+    // longer fits is summarised instead of dropped (CTX-01).
+    let (history, summary) = history_for(&s, &user_id, &chat_id, &role, &to, &reply_id).await;
     // OVR-01: the Overseer gets its own prompt with a fresh scan of all the user's projects.
     let overseer_on = crate::overseer::chat_on(&s.db, &chat_id).await;
     let overseer = if overseer_on {
@@ -425,6 +406,9 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
         None => ORCHESTRATOR_PROMPT.into(),
     };
     let mut convo = vec![ChatMessage::text("system", system)];
+    if let Some(x) = &summary {
+        convo[0].content.push_str(&crate::context::prompt_block(x));
+    }
     // A project chat knows its project: description, tasks with states and steps.
     let project: Option<(Option<String>,)> = sqlx::query_as("SELECT project_id FROM chats WHERE id = ?")
         .bind(&chat_id)
@@ -690,6 +674,45 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     .bind(cache_read)
     .execute(&s.db)
     .await;
+    crate::context::announce(&s, &chat_id).await;
+}
+
+/// CTX-01: the messages that go to the model word for word (author, text; oldest first) and the
+/// summary of the ones before them. Messages that fell out are summarised first (a short note shows
+/// while that runs); if the summary fails, the newest messages that fit still go, as before.
+pub(crate) async fn history_for(s: &AppState, user_id: &str, chat_id: &str, role: &RoleAssignment, to: &[String], reply_id: &str) -> (Vec<(String, String)>, Option<crate::context::Summary>) {
+    let mut summary = crate::context::summary(&s.db, chat_id).await.ok().flatten();
+    let rows = match crate::context::after_summary(&s.db, chat_id, summary.as_ref(), 400).await {
+        Ok(rows) => rows,
+        Err(e) => {
+            // The answer then goes without earlier messages; say so in the log instead of hiding it.
+            tracing::warn!(error = %e, chat = %chat_id, "chat history could not be read");
+            Vec::new()
+        }
+    };
+    let near_full = crate::context::usage(s, chat_id).await.ok().is_some_and(|u| match (u.used, u.window) {
+        (Some(used), Some(w)) if w > 0 => used * 100 >= w * crate::context::WARN_PERCENT,
+        _ => false,
+    });
+    let plan = crate::context::plan(&rows, near_full);
+    let mut keep = plan.keep;
+    if plan.summarise {
+        s.bus.send_many(to, Event::MessageDelta {
+            message_id: reply_id.to_string(),
+            chat_id: chat_id.to_string(),
+            text: "*Summarising the older messages of this chat…*\n\n".into(),
+            done: false,
+        });
+        match crate::context::compact(s, user_id, chat_id, role, &rows[..rows.len() - plan.keep]).await {
+            Ok(x) => summary = Some(x),
+            Err(e) => {
+                tracing::warn!(error = %e, chat = %chat_id, "chat summary failed");
+                keep = crate::context::fit(&rows, crate::context::HISTORY_CHARS).min(crate::context::HISTORY_MESSAGES);
+            }
+        }
+    }
+    let history = rows[rows.len() - keep.min(rows.len())..].iter().map(|r| (r.1.clone(), r.2.clone())).collect();
+    (history, summary)
 }
 
 // ---- Models and roles ----
@@ -794,6 +817,10 @@ pub async fn log_call(
     .bind(usage["cache_read_input_tokens"].as_i64())
     .execute(&s.db)
     .await;
+    // CTX-01: the meter follows every step of the chat (a summary is not the chat's context).
+    if !chat_id.is_empty() && reason != crate::context::SUMMARY_REASON && usage["prompt_tokens"].as_i64().is_some() {
+        crate::context::announce(s, chat_id).await;
+    }
 }
 
 /// Whether `id` in `table` (projects, chats or tasks) belongs to this user.

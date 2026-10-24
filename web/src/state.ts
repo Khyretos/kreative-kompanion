@@ -1,6 +1,6 @@
 import { loadVoicePrefs } from "./core/voice";
 import { Store } from "./core/store";
-import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Effort, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
+import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, ChatContext, Effort, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
 
 export interface AppState {
   server?: Server;
@@ -89,6 +89,10 @@ export interface AppState {
   showArchived?: boolean; // PROJ-ARCHIVE: archived projects shown in the sidebar, remembered on this device
   movingChatId?: string; // chat whose "Move to project" list is open
   effortMenuOpen?: boolean; // the composer's effort menu (EF-01)
+  chatContext?: ChatContext; // CTX-01: the open chat's context meter
+  contextOpen?: boolean; // CTX-01: the meter's details are open
+  compacting?: boolean; // CTX-01: "Summarise now" is running
+  contextSummaryOpen?: boolean; // CTX-01: the summary in the meter's details is open (kept across re-renders)
   draftEffort?: Effort; // effort picked before the chat exists
   renamingChatId?: string; // chat being renamed in place
   editingTaskId?: string; // task open in the editor ("new" for a new one)

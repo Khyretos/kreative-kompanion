@@ -146,6 +146,15 @@ export interface Chat {
   autoRun?: boolean; // this chat runs its steps without asking
 }
 
+/** CTX-01: how full a chat's context is (the latest model call), and the summary of its older part. */
+export interface ChatContext {
+  chatId: string;
+  used: number | null; // tokens the latest call read and wrote; null before the first answer
+  window: number | null; // the model's context size; null when unknown
+  model: string | null;
+  summary: { messages: number; at: string; text: string } | null;
+}
+
 /** How hard the model works on an answer (EF-01). Auto resolves to Medium on the server. */
 export type Effort = "auto" | "low" | "medium" | "high";
 
