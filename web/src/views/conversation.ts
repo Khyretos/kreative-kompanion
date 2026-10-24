@@ -266,7 +266,10 @@ export function setAssistantName(name: string): void { assistantName = name; }
 const WEB = "Web";
 const TOOL_HINTS: Record<string, string> = {
   Knowledge: "Your document collections (Capabilities > Knowledge, plus the Open WebUI ones): I search them and cite the file I used.",
+  History: "Your past chats: I search them and read back what was said, also in this chat beyond what I remember.",
 };
+/** HIST-01: built-in tools shown under a friendlier name than their server name. */
+const TOOL_LABELS: Record<string, string> = { History: "Past chats" };
 
 /** UI-02: Web is a core feature, so it is its own chip; shown only when a search engine is set up. */
 export function webChip(s: AppState): SafeHtml {
@@ -291,7 +294,7 @@ export function toolsChip(s: AppState): SafeHtml {
       ${names.map((name) => {
         const hint = TOOL_HINTS[name] ?? s.mcpInfo[name] ?? `Tools from the ${name} server, added to this chat.`;
         return html`<button role="menuitemcheckbox" aria-checked="${on.includes(name) ? "true" : "false"}" data-action="mcp-toggle" data-name="${name}" title="${hint}">
-          <span class="effort-name">${name}</span><span class="effort-hint">${hint}</span></button>`;
+          <span class="effort-name">${TOOL_LABELS[name] ?? name}</span><span class="effort-hint">${hint}</span></button>`;
       })}
     </div>` : ""}
   </span>`;

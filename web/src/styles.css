@@ -739,6 +739,10 @@ a.attach-chip:hover { border-color: var(--accent); }
   /* Phones: only the effort chip stays on the hint line (EF-01). */
   .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot):not(.overseer-slot):not(.autorun-slot) { display: none; }
   .tools-chip, .tools-menu button { min-height: 44px; }
+  /* HIST-01: the Tools menu spans the hint line, so it never runs off the left edge of a phone. */
+  .composer-hint { position: relative; }
+  .tools, .tools-slot { position: static; }
+  .tools-menu { inset: auto 0 calc(100% + 0.35rem) 0; min-width: 0; max-width: none; }
   .role { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
 }
 @media (prefers-reduced-motion: reduce) {
