@@ -6,7 +6,7 @@ Spec: this chat (Loquendo, 2026-10-22, 02:26 to 02:39). Status: built on branch 
 
 - Migration is `0136_facts.sql` (0135 went to the context meter's chat summary).
 - The model saves and changes its own facts without an approval card, like the Claude app's memory; it can never change or delete a fact you set (it is told to ask you). Every save shows as a tool use in the chat and is in the call log.
-- `remember` / `forget` are always there in computer chats; plain chats turn them on as "Remember facts" in the Tools menu (a tool round costs an extra model call per message there). The facts block is read into every prompt either way.
+- `remember` / `forget` / `recall` are always there in computer chats; plain chats turn them on as "Remember facts" in the Tools menu (a tool round costs an extra model call per message there). The facts block is read into every prompt either way.
 - `read_chat_history` is the `read_chat` tool of the Past chats PR (HIST-01), with `search_chats` beside it.
 - `read_command_history` reads `pc_actions` with a cursor, results cut at 2,000 characters and masked; the 10-step digest is masked too. The one-off cleanup of stored rows is not done (it needs your OK).
 - The only automatic check: a computer step that reports "no such file" for a path flags a path fact with that value (in this chat or its project). Nothing is ever deleted by a check.
@@ -36,7 +36,7 @@ Planned changes. Items marked (assumption) were not stated in the spec and need 
 
 ### Writing facts (tools)
 
-- `remember(scope, key, value)` where scope is `project` or `chat`, and `forget(key, scope)`. Each call is approved by you like any other tool call.
+- `remember(scope, key, value)` where scope is `project` or `chat`, and `forget(key, scope)`. Each call is approved by you like any other tool call. `recall(query)` looks up facts of the chat and its project by words in their name or value, also the ones left out of the prompt (no query: all, at most 30); it only reads.
 - Only facts that can be checked get a check, such as a `path` fact whose path no longer exists. Free text and other kinds are never checked and never flagged automatically. A fact whose check fails gets `flagged_at` set and is shown as flagged, so you can update it when something moves or changes. It is never deleted silently.
 
 ### Facts page in the app (easy to find, add and remove)

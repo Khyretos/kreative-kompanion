@@ -140,6 +140,26 @@ async fn the_model_saves_replaces_and_forgets_its_own_facts() {
 }
 
 #[tokio::test]
+async fn recall_finds_facts_of_the_chat_and_its_project_by_words_and_marks_them_used() {
+    let s = state(db().await);
+    let _ = create(State(s.clone()), Extension(user("u1")), new_fact("project", Some("p1"), None, "deploy command", "docker compose up -d", None)).await.unwrap();
+    let _ = create(State(s.clone()), Extension(user("u1")), new_fact("chat", None, Some("c1"), "server", "kireserver", None)).await.unwrap();
+    let _ = create(State(s.clone()), Extension(user("u1")), new_fact("chat", None, Some("c2"), "other chat", "not here", None)).await.unwrap();
+    // Every word must match, in the name or the value, any case.
+    let r = call(&s, "c1", RECALL, &json!({ "query": "Compose DEPLOY" })).await;
+    assert!(r.starts_with("- deploy command: docker compose up -d") && r.ends_with("[project]") && !r.contains('\n'), "{r}");
+    // No query: the project's and this chat's facts, never another chat's.
+    let r = call(&s, "c1", RECALL, &json!({})).await;
+    assert_eq!(r.lines().count(), 2, "{r}");
+    assert!(r.contains("server: kireserver") && !r.contains("not here"), "{r}");
+    assert_eq!(call(&s, "c1", RECALL, &json!({ "query": "nginx" })).await, "No fact matches \"nginx\".");
+    assert_eq!(call(&s, "c3", RECALL, &json!({})).await, "No facts are saved for this chat or its project.");
+    let used = list(&s.db, &Scope::Chat("c1".into())).await.unwrap();
+    assert!(used[0].last_used_at.is_some());
+    assert!(is_tool(RECALL) && tools().iter().any(|t| t["name"] == RECALL) && specs().iter().any(|t| t["function"]["name"] == RECALL));
+}
+
+#[tokio::test]
 async fn the_prompt_block_lists_project_then_chat_facts_with_age_and_marks_them_used() {
     let s = state(db().await);
     let _ = create(State(s.clone()), Extension(user("u1")), new_fact("chat", None, Some("c1"), "server", "kireserver", None)).await.unwrap();

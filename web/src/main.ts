@@ -438,14 +438,7 @@ function render(s: AppState, prev: AppState): void {
       <div class="pane-head">${paneTabs(s)}
         <button class="icon-btn only-narrow" data-action="pane" data-pane="main" aria-label="Close">✕</button></div>
       ${(setGpuView(s.gpuOpen, s.gpuPins), renderMachines(s.machines, s.today, s.machinesRefresh, s.pairing, s.machineName))}`);
-    // On a phone the tab row scrolls sideways: keep the selected tab in view.
-    const tabRow = document.querySelector<HTMLElement>("#right .pane-head > .tabs");
-    const selected = tabRow?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (tabRow && selected && tabRow.scrollWidth > tabRow.clientWidth) {
-      const [row, tab] = [tabRow.getBoundingClientRect(), selected.getBoundingClientRect()];
-      if (tab.right > row.right) tabRow.scrollLeft += tab.right - row.right;
-      else if (tab.left < row.left) tabRow.scrollLeft -= row.left - tab.left;
-    }
+    showSelectedTab();
     // Task descriptions are markdown, rendered sanitised after mounting.
     for (const el of document.querySelectorAll<HTMLElement>("[data-md-task]")) {
       const t = s.tasks.find((x) => x.id === el.dataset.mdTask);
@@ -2165,6 +2158,18 @@ async function removeChat(id: string): Promise<void> {
     showError(e);
   }
 }
+
+// On a phone the right pane's tab row scrolls sideways: keep the selected tab in view, also when
+// the window gets narrower (a phone turned, a desktop window resized) without a re-render.
+function showSelectedTab(): void {
+  const tabRow = document.querySelector<HTMLElement>("#right .pane-head > .tabs");
+  const selected = tabRow?.querySelector<HTMLElement>('[aria-selected="true"]');
+  if (!tabRow || !selected || tabRow.scrollWidth <= tabRow.clientWidth) return;
+  const [row, tab] = [tabRow.getBoundingClientRect(), selected.getBoundingClientRect()];
+  if (tab.right > row.right) tabRow.scrollLeft += tab.right - row.right;
+  else if (tab.left < row.left) tabRow.scrollLeft -= row.left - tab.left;
+}
+window.addEventListener("resize", showSelectedTab, { passive: true });
 
 // FACTS: what the Facts tab shows: the open chat (with its project's facts), else the pane's project.
 function factsKey(s: AppState): string | undefined {

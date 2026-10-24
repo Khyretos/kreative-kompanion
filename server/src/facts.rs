@@ -1,6 +1,7 @@
 //! FACTS: things worth remembering across chats, per project or per chat (docs/plans/facts.md).
 //! The user adds, edits and deletes them in the Facts tab; the model reads them in its prompt and
-//! saves its own with `remember` / `forget`. A value is free text (a note, a path, a URL, a place, a
+//! saves its own with `remember` / `forget` and looks up any of them, also those left out of the
+//! prompt, with `recall`. A value is free text (a note, a path, a URL, a place, a
 //! command); `kind` only labels it. A value never holds a secret, only where one lives.
 
 use axum::{Extension, Json, extract::{Path, Query, State}, http::StatusCode};
@@ -16,6 +17,9 @@ const VALUE_MAX: usize = 2_000;
 const PROMPT_BUDGET: usize = 3_000;
 pub const REMEMBER: &str = "remember";
 pub const FORGET: &str = "forget";
+pub const RECALL: &str = "recall";
+/// Facts one recall answers with at most.
+const RECALL_MAX: usize = 30;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -298,9 +302,19 @@ fn params_forget() -> Value {
 
 const REMEMBER_DESC: &str = "Save a fact for later chats: something the user told you or you found that will matter again (a path, a command, a decision, a preference). Saving the same key again replaces your earlier value. Answered by Kompanion itself, not a computer.";
 const FORGET_DESC: &str = "Delete a fact you saved that is wrong or no longer true. Answered by Kompanion itself, not a computer.";
+const RECALL_DESC: &str = "Look up saved facts of this chat and its project by words in their name or value, also older ones not listed in the prompt; no query lists them all. Answered by Kompanion itself, not a computer.";
+
+fn params_recall() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "query": { "type": "string", "description": "Words to find in a fact's name or value, e.g. \"deploy\"; leave out to list every fact." }
+        }
+    })
+}
 
 pub fn is_tool(name: &str) -> bool {
-    name == REMEMBER || name == FORGET
+    name == REMEMBER || name == FORGET || name == RECALL
 }
 
 /// The tools as an MCP server lists them (chat tool rounds).
@@ -308,6 +322,7 @@ pub fn tools() -> Vec<Value> {
     vec![
         json!({ "name": REMEMBER, "description": REMEMBER_DESC, "inputSchema": params_remember() }),
         json!({ "name": FORGET, "description": FORGET_DESC, "inputSchema": params_forget() }),
+        json!({ "name": RECALL, "description": RECALL_DESC, "inputSchema": params_recall() }),
     ]
 }
 
@@ -316,6 +331,7 @@ pub fn specs() -> Vec<Value> {
     vec![
         json!({ "type": "function", "function": { "name": REMEMBER, "description": REMEMBER_DESC, "parameters": params_remember() } }),
         json!({ "type": "function", "function": { "name": FORGET, "description": FORGET_DESC, "parameters": params_forget() } }),
+        json!({ "type": "function", "function": { "name": RECALL, "description": RECALL_DESC, "parameters": params_recall() } }),
     ]
 }
 
@@ -330,8 +346,11 @@ async fn model_scope(db: &sqlx::SqlitePool, chat_id: &str, scope: &str) -> Resul
     }
 }
 
-/// Runs remember / forget for the model answering in `chat_id` (the chat's owner's tools).
+/// Runs remember / forget / recall for the model answering in `chat_id` (the chat's owner's tools).
 pub async fn call(s: &AppState, chat_id: &str, tool: &str, args: &Value) -> String {
+    if tool == RECALL {
+        return recall(&s.db, chat_id, args["query"].as_str().unwrap_or(""), time::OffsetDateTime::now_utc()).await.unwrap_or_else(|e| format!("error: {e}"));
+    }
     let scope = match model_scope(&s.db, chat_id, args["scope"].as_str().unwrap_or("")).await {
         Ok(x) => x,
         Err(e) => return format!("error: {e}"),
@@ -376,15 +395,48 @@ fn line(f: &Fact, now: time::OffsetDateTime) -> String {
     format!("- {}: {value} ({}, {who}, {}{flag})", f.key, f.kind, age(&f.updated_at, now))
 }
 
+/// The facts of a chat and its project, project first.
+async fn of_chat(db: &sqlx::SqlitePool, chat_id: &str) -> sqlx::Result<Vec<Fact>> {
+    let project: Option<String> = sqlx::query_scalar("SELECT project_id FROM chats WHERE id = ?").bind(chat_id).fetch_optional(db).await?.flatten();
+    let mut all = match project {
+        Some(p) => list(db, &Scope::Project(p)).await?,
+        None => Vec::new(),
+    };
+    all.extend(list(db, &Scope::Chat(chat_id.to_string())).await?);
+    Ok(all)
+}
+
+/// `recall`: the chat's and its project's facts whose name or value holds every word of `query`
+/// (case-insensitive; no words: all of them), at most RECALL_MAX. The ones answered count as used.
+pub async fn recall(db: &sqlx::SqlitePool, chat_id: &str, query: &str, now: time::OffsetDateTime) -> sqlx::Result<String> {
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    let hits: Vec<Fact> = of_chat(db, chat_id)
+        .await?
+        .into_iter()
+        .filter(|f| {
+            let text = format!("{} {}", f.key, f.value).to_lowercase();
+            words.iter().all(|w| text.contains(w.as_str()))
+        })
+        .collect();
+    if hits.is_empty() {
+        return Ok(if words.is_empty() { "No facts are saved for this chat or its project.".into() } else { format!("No fact matches \"{}\".", query.trim()) });
+    }
+    let stamp = util::now();
+    let mut out = Vec::new();
+    for f in hits.iter().take(RECALL_MAX) {
+        let _ = sqlx::query("UPDATE facts SET last_used_at = ? WHERE id = ?").bind(&stamp).bind(&f.id).execute(db).await;
+        out.push(format!("{} [{}]", line(f, now), if f.chat_id.is_some() { "chat" } else { "project" }));
+    }
+    if hits.len() > RECALL_MAX {
+        out.push(format!("({} more match; use more words to narrow it down.)", hits.len() - RECALL_MAX));
+    }
+    Ok(out.join("\n"))
+}
+
 /// The facts block for a chat's prompt (its project's facts, then its own) and the ids in it. Over
 /// the budget the least recently used stay out (they are kept). Marks the ones used now.
 pub async fn prompt_block(db: &sqlx::SqlitePool, chat_id: &str, now: time::OffsetDateTime) -> Option<(String, Vec<String>)> {
-    let project: Option<String> = sqlx::query_scalar("SELECT project_id FROM chats WHERE id = ?").bind(chat_id).fetch_optional(db).await.ok().flatten().flatten();
-    let mut all: Vec<Fact> = match &project {
-        Some(p) => list(db, &Scope::Project(p.clone())).await.ok()?,
-        None => Vec::new(),
-    };
-    all.extend(list(db, &Scope::Chat(chat_id.to_string())).await.ok()?);
+    let all = of_chat(db, chat_id).await.ok()?;
     if all.is_empty() {
         return None;
     }
@@ -409,7 +461,7 @@ pub async fn prompt_block(db: &sqlx::SqlitePool, chat_id: &str, now: time::Offse
         all.iter().filter(|f| f.chat_id.is_some() == chat && ids.contains(&f.id)).map(|f| line(f, now)).collect()
     };
     let (p, c) = (shown(false), shown(true));
-    let mut out = String::from("\n\nFacts saved for this work (use them; save new ones with remember, delete wrong ones you saved with forget):");
+    let mut out = String::from("\n\nFacts saved for this work (use them; save new ones with remember, delete wrong ones you saved with forget, look up others with recall):");
     if !p.is_empty() {
         out.push_str(&format!("\nProject:\n{}", p.join("\n")));
     }
