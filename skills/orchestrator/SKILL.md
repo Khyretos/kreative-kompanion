@@ -24,8 +24,9 @@ Lessons for the orchestrator role. Numbered and dated, newest last.
   another), and to claim success only when a result says "done" with "exit: 0", quoting the key
   output line. Give tool results outcome-first ("The step ran. State: done. Output: ..."), and
   the end of long output, where the exit code is.
-- Deploy only with `tools/deploy.sh`. It fetches and refuses to build unless origin/main is an
-  ancestor of HEAD: other threads merge too (2026-10-04, a deploy without their 0100 migration
+- Deploy from a clean checkout of origin/main with `docker compose up -d --build` (tools/deploy.sh
+  is gone, 2026-10-24). The server refuses to start on a database with a migration it doesn't
+  know: other threads merge too (2026-10-04, a deploy without their 0100 migration
   crash-looped production). Before adding a migration, check the numbers on origin/main
   (`git ls-tree origin/main server/migrations/`); the asset thread uses 0100 and up.
 - (2026-10-04, W2 end-to-end) Plan steps are changes, each with a "done when" the worker can see:
@@ -46,7 +47,7 @@ Lessons for the orchestrator role. Numbered and dated, newest last.
   to pass. A worker that runs out of tool calls is not a failure: the check and review decide
   (it had made the tests pass, then re-checked until the cap). Demo task, 3 runs in a row: one
   step, 5 approvals, done in round 1, 36–39 s.
-- (2026-10-05) `tools/deploy.sh` builds the working tree, untracked files included: a drafted
+- (2026-10-05) A deploy builds the working tree, untracked files included: a drafted
   migration left in the main checkout would have shipped unreviewed. Draft each item in its own
   worktree (`git worktree add ../kreative-kompanion-<item> -b <item> origin/main`, symlink
   web/node_modules) and deploy only from the clean main checkout. kireserver has no Playwright

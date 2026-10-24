@@ -1,6 +1,7 @@
 # Kreative Kompanion server configuration.
-## Copy this file to kompanion.toml next to docker-compose.yml and change what you need.
-## API keys never go in this file: name an environment variable with `api_key_env`.
+## Without a kompanion.toml the server uses this file as it is (it is built in), so a first start needs none.
+## To change it: copy it to kompanion.toml next to docker-compose.yml, edit, and mount it (see
+## docker-compose.override.example.yml). API keys never go in this file: name an environment variable with `api_key_env`.
 
 # Where to listen. Put a reverse proxy with HTTPS in front for access from outside.
 bind = "0.0.0.0:8080"
@@ -8,9 +9,14 @@ database = "/data/kompanion.db"
 # Name of this server in the Machines panel (its OS comes from /host/os-release if mounted).
 # machine_name = "my-server"
 web_dir = "/app/web"
-# Public origin(s) the web app is served from; state-changing requests from
-# other origins are refused.
-allowed_origins = ["https://kompanion.example.com"]
+# Public origin(s) the web app is served from, e.g. ["https://kompanion.example.com"]; state-changing
+# requests from other origins are refused. The address the browser used (Host header) is always allowed,
+# so a domain behind a proxy that keeps Host, or a LAN IP, works without this. Mails link to the first
+# https one. KOMPANION_ORIGIN in .env adds to this list.
+allowed_origins = []
+# Secure flag on the login cookie: unset = only on requests that came in over https (works on a LAN IP
+# over plain http too); true = always; false = never. KOMPANION_SECURE_COOKIES in .env overrides it.
+# secure_cookies = true
 
 # A local model through Ollama (https://ollama.com, MIT). Install it, then run: ollama pull qwen3.5:9b
 [[provider]]

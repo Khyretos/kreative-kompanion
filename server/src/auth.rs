@@ -13,7 +13,7 @@ use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_ha
 use axum::{
     Json,
     extract::{Request, State},
-    http::{HeaderMap, Method, header},
+    http::{HeaderMap, HeaderValue, Method, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -84,7 +84,7 @@ fn verify_password(password: &str, hash: &str) -> bool {
 }
 
 pub fn session_cookie(state: &AppState, token: &str, max_age: i64) -> String {
-    let secure = if state.config.secure_cookies {
+    let secure = if state.config.secure_cookies != Some(false) {
         "; Secure"
     } else {
         ""
@@ -405,6 +405,35 @@ pub async fn guard(State(state): State<AppState>, mut req: Request, next: Next) 
     next.run(req).await
 }
 
+/// Whether the browser reached us over https: a proxy's X-Forwarded-Proto / Forwarded, or an
+/// https Origin. A plain-http request (a LAN IP without a proxy) has none of these.
+pub fn request_is_https(headers: &HeaderMap) -> bool {
+    let value = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).unwrap_or("").to_ascii_lowercase();
+    value("x-forwarded-proto").split(',').next().is_some_and(|p| p.trim() == "https")
+        || value("forwarded").split([';', ',']).any(|p| p.trim() == "proto=https")
+        || value("origin").starts_with("https://")
+}
+
+/// With secure_cookies unset, drop the Secure flag from Set-Cookie on plain-http requests: a browser
+/// throws away a Secure cookie that comes over http, so sign-in on http://<LAN-IP>:8080 would fail.
+pub async fn cookie_scheme(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    let plain_http = state.config.secure_cookies.is_none() && !request_is_https(req.headers());
+    let mut res = next.run(req).await;
+    if plain_http {
+        let cookies: Vec<HeaderValue> = res
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|v| v.to_str().map(|c| c.replace("; Secure", "")).ok().and_then(|c| HeaderValue::from_str(&c).ok()).unwrap_or_else(|| v.clone()))
+            .collect();
+        res.headers_mut().remove(header::SET_COOKIE);
+        for c in cookies {
+            res.headers_mut().append(header::SET_COOKIE, c);
+        }
+    }
+    res
+}
+
 fn origin_allowed(state: &AppState, headers: &HeaderMap, origin: &str) -> bool {
     if state.config.allowed_origins.iter().any(|o| o == origin) {
         return true;
@@ -415,4 +444,28 @@ fn origin_allowed(state: &AppState, headers: &HeaderMap, origin: &str) -> bool {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     origin == format!("http://{host}") || origin == format!("https://{host}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers(pairs: &[(&'static str, &str)]) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        for (k, v) in pairs {
+            h.insert(*k, HeaderValue::from_str(v).unwrap());
+        }
+        h
+    }
+
+    #[test]
+    fn https_is_seen_through_a_proxy_or_the_origin() {
+        assert!(request_is_https(&headers(&[("x-forwarded-proto", "https")])));
+        assert!(request_is_https(&headers(&[("x-forwarded-proto", "HTTPS, http")])));
+        assert!(request_is_https(&headers(&[("forwarded", "for=1.2.3.4;proto=https")])));
+        assert!(request_is_https(&headers(&[("origin", "https://kk.example.org")])));
+        assert!(!request_is_https(&headers(&[("origin", "http://192.168.1.5:8080")])));
+        assert!(!request_is_https(&headers(&[("x-forwarded-proto", "http")])));
+        assert!(!request_is_https(&HeaderMap::new()));
+    }
 }

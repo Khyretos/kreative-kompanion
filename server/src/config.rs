@@ -13,9 +13,11 @@ pub struct Config {
     pub web_dir: PathBuf,
     #[serde(default)]
     pub allowed_origins: Vec<String>,
-    /// Set the Secure flag on cookies. Only turn off for plain-http testing on localhost.
-    #[serde(default = "yes")]
-    pub secure_cookies: bool,
+    /// The Secure flag on cookies: true always, false never, unset (the default) only on requests that
+    /// came in over https (X-Forwarded-Proto or an https Origin), so a LAN IP over plain http works.
+    /// `KOMPANION_SECURE_COOKIES` overrides it.
+    #[serde(default)]
+    pub secure_cookies: Option<bool>,
     /// Name shown for this server in the Machines panel.
     #[serde(default)]
     pub machine_name: Option<String>,
@@ -450,13 +452,64 @@ fn yes() -> bool {
     true
 }
 
+/// The config used when there is no kompanion.toml: the example file, which fits the Docker image.
+pub const DEFAULT_CONFIG: &str = include_str!("../kompanion.example.toml");
+
 impl Config {
+    /// Reads KOMPANION_CONFIG (default kompanion.toml). Without that file the built-in default
+    /// (server/kompanion.example.toml) is used, so `docker compose up -d` needs no config file.
+    /// KOMPANION_ORIGIN, KOMPANION_MACHINE_NAME, KOMPANION_NTFY_URL and KOMPANION_SECURE_COOKIES apply on top of either.
     pub fn load() -> Result<Self> {
         let path = std::env::var("KOMPANION_CONFIG").unwrap_or_else(|_| "kompanion.toml".into());
-        let text = std::fs::read_to_string(&path).with_context(|| format!("reading {path}"))?;
-        let config: Config = toml::from_str(&text).with_context(|| format!("parsing {path}"))?;
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            // A missing file, or the empty folder Docker makes for a bind mount whose file is missing.
+            Err(_) if !std::path::Path::new(&path).is_file() => {
+                tracing::info!("no config file at {path}: using the built-in default");
+                DEFAULT_CONFIG.to_string()
+            }
+            Err(e) => return Err(e).with_context(|| format!("reading {path}")),
+        };
+        let mut config: Config = toml::from_str(&text).with_context(|| format!("parsing {path}"))?;
+        config.apply_env(|k| std::env::var(k).ok())?;
         config.validate()?;
         Ok(config)
+    }
+
+    /// KOMPANION_ORIGIN (comma-separated public addresses, e.g. https://kompanion.example.com) joins
+    /// allowed_origins, KOMPANION_MACHINE_NAME sets machine_name, KOMPANION_NTFY_URL joins [push] servers, KOMPANION_SECURE_COOKIES (true/false)
+    /// sets secure_cookies.
+    fn apply_env(&mut self, var: impl Fn(&str) -> Option<String>) -> Result<()> {
+        if let Some(list) = var("KOMPANION_ORIGIN") {
+            for origin in list.split(',').map(|o| o.trim().trim_end_matches('/')).filter(|o| !o.is_empty()) {
+                if !(origin.starts_with("http://") || origin.starts_with("https://")) {
+                    bail!("KOMPANION_ORIGIN: {origin} must start with http:// or https://");
+                }
+                if !self.allowed_origins.iter().any(|o| o == origin) {
+                    self.allowed_origins.push(origin.to_string());
+                }
+            }
+        }
+        if let Some(name) = var("KOMPANION_MACHINE_NAME").map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) {
+            self.machine_name = Some(name);
+        }
+        // The push profile's ntfy server (docker compose --profile push): phones may register on it.
+        if let Some(url) = var("KOMPANION_NTFY_URL").map(|u| u.trim().trim_end_matches('/').to_string()).filter(|u| !u.is_empty()) {
+            if !url.starts_with("https://") {
+                bail!("KOMPANION_NTFY_URL must be ntfy's public https address, got {url}");
+            }
+            if !self.push.servers.iter().any(|s| s.trim_end_matches('/') == url) {
+                self.push.servers.push(url);
+            }
+        }
+        if let Some(v) = var("KOMPANION_SECURE_COOKIES").filter(|v| !v.trim().is_empty()) {
+            self.secure_cookies = Some(match v.trim().to_ascii_lowercase().as_str() {
+                "1" | "true" | "yes" | "on" => true,
+                "0" | "false" | "no" | "off" => false,
+                _ => bail!("KOMPANION_SECURE_COOKIES must be true or false, got {v}"),
+            });
+        }
+        Ok(())
     }
 
     fn validate(&self) -> Result<()> {
@@ -519,5 +572,34 @@ mod tests {
         assert_eq!(per.budget("Coder"), 1200);
         assert_eq!(per.budget("qwen3.5:9b"), 2000);
         assert_eq!(SkillsConfig::default().budget("x"), 1500);
+    }
+
+    #[test]
+    fn built_in_default_parses_and_validates() {
+        let config: Config = toml::from_str(DEFAULT_CONFIG).unwrap();
+        config.validate().unwrap();
+        assert_eq!(config.database, PathBuf::from("/data/kompanion.db"));
+        assert_eq!(config.web_dir, PathBuf::from("/app/web"));
+        assert_eq!(config.secure_cookies, None);
+    }
+
+    #[test]
+    fn env_adds_origins_and_sets_cookies() {
+        let mut config: Config = toml::from_str(DEFAULT_CONFIG).unwrap();
+        let env = |k: &str| match k {
+            "KOMPANION_ORIGIN" => Some("https://kk.example.org/, http://192.168.1.5:8080".to_string()),
+            "KOMPANION_SECURE_COOKIES" => Some("false".to_string()),
+            "KOMPANION_NTFY_URL" => Some("https://ntfy.example.org/".to_string()),
+            "KOMPANION_MACHINE_NAME" => Some(" homeserver ".to_string()),
+            _ => None,
+        };
+        config.apply_env(env).unwrap();
+        config.apply_env(env).unwrap(); // twice: no duplicates
+        assert_eq!(config.allowed_origins, ["https://kk.example.org", "http://192.168.1.5:8080"]);
+        assert_eq!(config.secure_cookies, Some(false));
+        assert_eq!(config.push.servers, ["https://ntfy.example.org"]);
+        assert_eq!(config.machine_name.as_deref(), Some("homeserver"));
+        let bad = |k: &str| (k == "KOMPANION_ORIGIN").then(|| "kk.example.org".to_string());
+        assert!(config.apply_env(bad).is_err());
     }
 }

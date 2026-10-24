@@ -10,3 +10,7 @@ __pycache__/
 web/test-results/
 # private skill layer of this setup (SK-03), mounted read-only at /skills-local
 /skills-local/
+# per-setup extras (copy of docker-compose.override.example.yml)
+docker-compose.override.yml
+# worktrees inside the repo
+.worktrees/

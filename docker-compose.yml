@@ -1,24 +1,23 @@
-# One-file deploy. Copy server/kompanion.example.toml to ./kompanion.toml,
-# put API keys in .env, then: docker compose up -d
-# The first start prints a setup code in the log: docker compose logs kompanion
+# One-file deploy: docker compose up -d, then open http://<this computer>:8080 (or your domain).
+# The first start prints a setup code: docker compose logs kompanion
+# Everything else is optional: settings in .env (see .env.example), your own kompanion.toml and
+# extra mounts in docker-compose.override.yml (see docker-compose.override.example.yml).
 # Phone push via ntfy (optional): set KOMPANION_NTFY_URL in .env, then docker compose --profile push up -d
 services:
   kompanion:
     build: .
-    image: kreative-kompanion:latest
+    image: ${KOMPANION_IMAGE:-kreative-kompanion:latest}
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8080:8080" # put your HTTPS reverse proxy in front
+      - "${KOMPANION_PORT:-8080}:8080" # every interface; KOMPANION_PORT=127.0.0.1:8080 keeps it to this computer
     extra_hosts:
       - "host.docker.internal:host-gateway" # reach a model server on this PC (e.g. Ollama) on Linux too
     env_file:
-      - path: .env # API keys for cloud providers, only if you use them
+      - path: .env # optional settings and API keys
         required: false
     volumes:
-      - ./kompanion.toml:/config/kompanion.toml:ro
       - kompanion-data:/data
-      - ${KOMPANION_SKILLS_LOCAL_DIR:-./skills-local}:/skills-local:ro # private skill cards of this setup (SK-03), may be empty
-      - /etc/os-release:/host/os-release:ro # OS name in the Machines panel
+      - ${KOMPANION_SKILLS_LOCAL_DIR:-kompanion-skills-local}:/skills-local:ro # private skill cards of this setup (SK-03), may be empty
       # Studio outputs (M6-05): set KOMPANION_GENERATED_DIR to a host folder and [studio]
       # output_dir under /generated; the group of that folder writes it (KOMPANION_GENERATED_GID).
       - ${KOMPANION_GENERATED_DIR:-kompanion-generated}:/generated
@@ -26,27 +25,6 @@ services:
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
-    security_opt: ["no-new-privileges:true"]
-    depends_on:
-      push-setup:
-        condition: service_completed_successfully
-        required: false # only with the push profile
-
-  push-setup:
-    profiles: [push]
-    image: busybox:1.37
-    command: ["sh", "/push-setup.sh", "/config/kompanion.toml"]
-    environment:
-      KOMPANION_NTFY_URL: ${KOMPANION_NTFY_URL:-}
-    volumes:
-      - ./kompanion.toml:/config/kompanion.toml # read-write
-      - ./tools/push-setup.sh:/push-setup.sh:ro
-    # writes ntfy's address into [push] servers so nobody edits kompanion.toml by hand
-    restart: "no"
-    read_only: true
-    tmpfs: [/tmp]
-    cap_drop: [ALL]
-    cap_add: [DAC_OVERRIDE] # root in the container may write your user's kompanion.toml
     security_opt: ["no-new-privileges:true"]
 
   ntfy:
@@ -59,7 +37,7 @@ services:
       NTFY_BEHIND_PROXY: "true"
       NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
     ports:
-      - "127.0.0.1:8081:80" # put your HTTPS reverse proxy in front
+      - "${KOMPANION_NTFY_PORT:-127.0.0.1:8081}:80" # put your HTTPS reverse proxy in front
     volumes:
       - ntfy-cache:/var/cache/ntfy
     cap_drop: [ALL]
@@ -86,4 +64,5 @@ services:
 volumes:
   kompanion-data:
   kompanion-generated:
+  kompanion-skills-local:
   ntfy-cache:

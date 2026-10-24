@@ -10,16 +10,14 @@ shows the machine id, the token (only once) and the config below.
 
 ## 2. Install the binary
 
-Static binary, no dependencies. Built by CI on kireserver (artifact
-`kompanion-runner-x86_64-linux-musl`), or locally with
-`cd runner && cargo build --release`.
+Static binary, no dependencies. The server's image builds it, and the server hands it out at
+`https://<your server>/download/kompanion-runner` (Windows: `kompanion-runner.exe`, both with a
+`.sha256`), or build it with `cd runner && cargo build --release`.
 
 ```bash
-install -Dm755 kompanion-runner-x86_64-linux-musl ~/.local/bin/kompanion-runner
+curl -fsSLo kompanion-runner https://<your server>/download/kompanion-runner
+install -Dm755 kompanion-runner ~/.local/bin/kompanion-runner
 ```
-
-On soucouyant, `~/Docker` from kireserver is mounted over NFS; the binary is at
-`~/Docker/Personal-projects/kreative-kompanion/dist/kompanion-runner-x86_64-linux-musl`.
 
 ## 3. Config and token
 
@@ -120,7 +118,7 @@ From runner 0.6.0 on, Machines shows an "Update to" button with the new version 
 
 A runner older than 0.6.0 cannot do this: rerun the one-line installer from Machines > Pair once.
 
-On the server's own computer, `tools/deploy.sh` calls `tools/sync_runner.sh` after `docker compose up`, which copies the newest `dist/kompanion-runner-<version>-x86_64-linux-musl` over `~/.local/bin/kompanion-runner` when that is newer and restarts the `kompanion-runner.service` user unit.
+The server's own computer updates the same way: the image builds the runner of its commit into `/dist`, so after `docker compose up -d --build` Machines offers the new version there too.
 
 ## What it reads
 
