@@ -93,7 +93,8 @@ test("an archived project that is open shows an Archived bar with Unarchive", as
   await expect(head(page, "p-kk")).toHaveCount(1);
 });
 
-/** WCAG contrast of an element's text against the first opaque background behind it. */
+/** WCAG contrast of an element's text against the first opaque background behind it. The sidebar can
+ * re-render while it is read, and a detached row has no computed colour (NaN), so callers poll. */
 async function contrastOf(page: Page, selector: string): Promise<number> {
   return page.locator(selector).first().evaluate((el) => {
     const rgb = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number);
@@ -125,7 +126,7 @@ for (const scheme of ["light", "dark"] as const) {
     await archive(page, "p-nohboard");
     await page.locator('#left [data-action="archived-toggle"]').click();
     await expect(page.locator("#left .project.archived")).toHaveCount(1);
-    expect(await contrastOf(page, "#left .project.archived .project-name")).toBeGreaterThanOrEqual(4.5);
+    await expect.poll(() => contrastOf(page, "#left .project.archived .project-name")).toBeGreaterThanOrEqual(4.5);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(sideways).toBe(false);
     await page.locator("#left").screenshot({ path: `test-results/projarchive-390-${scheme}.png` });
@@ -136,8 +137,8 @@ for (const scheme of ["light", "dark"] as const) {
     await openDemo(page);
     await archive(page, "p-3dco");
     await page.locator('#left [data-action="archived-toggle"]').click();
-    expect(await contrastOf(page, "#left .project.archived .project-name")).toBeGreaterThanOrEqual(4.5);
-    expect(await contrastOf(page, '#left [data-action="archived-toggle"]')).toBeGreaterThanOrEqual(4.5);
+    await expect.poll(() => contrastOf(page, "#left .project.archived .project-name")).toBeGreaterThanOrEqual(4.5);
+    await expect.poll(() => contrastOf(page, '#left [data-action="archived-toggle"]')).toBeGreaterThanOrEqual(4.5);
     await page.locator("#left").screenshot({ path: `test-results/projarchive-desktop-${scheme}.png` });
   });
 }

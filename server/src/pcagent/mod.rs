@@ -44,6 +44,8 @@ fn system_prompt(machine: &str) -> String {
          with edit_file in small pieces (a few lines each) rather than rewriting a whole file; you may make several \
          calls in one answer. Once you have read what you need, make the change; read a file again only when it changed. \
          Never ask for passwords; the computer asks for them itself. \
+         When the user refers to something said earlier or in another chat that you don't have, look it up \
+         with search_chats and read_chat before saying you don't know. \
          Do every part of the request: after each result, call the next tool until all parts are done \
          (for \"install X and show its version\": install, then run the version command). Only say a step \
          worked when its result is \"done\" with \"exit: 0\", and quote the key output line. When a step \
@@ -248,6 +250,10 @@ async fn remember(s: &AppState, chat_id: &str, role: &RoleAssignment, mut messag
 pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: String, machine_name: String, role: RoleAssignment) {
     STOPPED_CHATS.lock().unwrap().remove(&chat_id); // a stop from an earlier answer doesn't count
     let mut messages = vec![json!({ "role": "system", "content": system_prompt(&machine_name) })];
+    // FACTS: the project's and the chat's facts (fresh each request, also when the exchange is remembered).
+    if let Some((block, _)) = crate::facts::prompt_block(&s.db, &chat_id, time::OffsetDateTime::now_utc()).await {
+        messages[0]["content"] = json!(format!("{}{block}", messages[0]["content"].as_str().unwrap_or("")));
+    }
     if let Some(earlier) = remembered(&s, &chat_id, &role).await {
         messages.extend(earlier);
     } else {
@@ -369,6 +375,13 @@ impl Agent {
             list.push(spawn::spec());
         }
         let mut spawned = 0;
+        // HIST-01: the user's own past chats (answered here, read-only); FACTS: remember / forget
+        // and the chat's step log.
+        if let Some(list) = tools.as_array_mut() {
+            list.extend(crate::chat_history::specs());
+            list.extend(crate::facts::specs());
+            list.push(steplog::spec());
+        }
         // KG-05: a task's worker also gets the tools of the MCP servers the user granted (and is denied the rest).
         let mut mcp_map = std::collections::HashMap::new();
         if self.task_id.is_some() {
@@ -478,6 +491,9 @@ impl Agent {
                             }
                         }
                     }
+                    None if crate::chat_history::is_tool(name) => crate::chat_history::call(&s.db, &self.user_id, &self.chat_id, name, &args, budget).await,
+                    None if crate::facts::is_tool(name) => crate::facts::call(s, &self.chat_id, name, &args).await,
+                    None if name == steplog::READ => steplog::read(&s.db, &self.user_id, &self.chat_id, &args, budget).await,
                     None => "Unknown tool or wrong arguments.".to_string(),
                     // Guardrail: a file found missing earlier in this answer is not created
                     // behind the user's back.
@@ -502,6 +518,8 @@ impl Agent {
                         let r = step(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.auto, self.run_id.as_deref(), budget).await;
                         if r.contains("no such file") && let Some(p) = job["path"].as_str() {
                             missing.insert(p.to_string());
+                            // FACTS: a path fact pointing here may be out of date.
+                            crate::facts::flag_missing_path(s, &self.chat_id, p).await;
                         }
                         r
                     }

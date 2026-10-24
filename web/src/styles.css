@@ -597,11 +597,20 @@ a.attach-chip:hover { border-color: var(--accent); }
 .effort-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; font-family: var(--mono); min-height: 1.5rem; }
 .effort-chip:hover { border-color: var(--accent); }
 .effort-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.effort-menu { position: absolute; inset: auto 0 calc(100% + 0.35rem) auto; min-width: 17rem; z-index: 20; }
+.effort-menu { position: absolute; inset: auto 0 calc(100% + 0.35rem) auto; min-width: 17rem; max-width: min(22rem, 92vw); max-height: min(70vh, 34rem); overflow-y: auto; z-index: 20; }
 .effort-menu button { flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; color: var(--fg); }
 .effort-menu button[aria-checked="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 .effort-name { font-weight: 600; }
 .effort-hint { font-size: 0.78rem; color: var(--fg); }
+/* EFF-02: the model on top of the effort menu, its list folded open under it. */
+.effort-menu .effort-model { border-bottom: 1px solid var(--line); border-radius: 0; padding-bottom: 0.45rem; margin-bottom: 0.2rem; }
+.effort-model-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; width: 100%; }
+.effort-model-row .effort-name { font-family: var(--mono); overflow-wrap: anywhere; text-align: left; }
+.effort-change { flex: none; font-size: 0.78rem; font-weight: 600; color: var(--link); }
+.effort-models { display: grid; padding: 0.15rem 0 0.35rem 0.6rem; border-bottom: 1px solid var(--line); margin-bottom: 0.2rem; }
+.effort-models .effort-name { font-family: var(--mono); font-weight: 500; overflow-wrap: anywhere; text-align: left; }
+.effort-note { margin: 0.35rem 0.5rem 0.1rem; white-space: normal; }
+.effort-levels { display: grid; }
 /* CHAT-01: the Tools chip (MCP servers for this chat), left of the effort chip. */
 .tools-slot { position: relative; }
 .web-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; min-height: 1.5rem; gap: 0.3rem; }
@@ -797,6 +806,10 @@ a.attach-chip:hover { border-color: var(--accent); }
   /* Phones: only the effort chip stays on the hint line (EF-01). */
   .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot):not(.overseer-slot):not(.autorun-slot) { display: none; }
   .tools-chip, .tools-menu button { min-height: 44px; }
+  /* HIST-01: the Tools menu spans the hint line, so it never runs off the left edge of a phone. */
+  .composer-hint { position: relative; }
+  .tools, .tools-slot { position: static; }
+  .tools-menu { inset: auto 0 calc(100% + 0.35rem) 0; min-width: 0; max-width: none; }
   .role { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1260,3 +1273,36 @@ button[aria-busy="true"]::after {
 .autorun-chip[aria-pressed="true"] .icon { color: var(--accent); }
 .autorun-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .autorun-chip.locked { cursor: default; }
+
+/* FACTS: the Facts tab (right pane): what Kompanion remembers for this chat and its project. */
+.facts-pane { display: grid; gap: 0.75rem; padding: 0.75rem 1rem 1.5rem; }
+.facts-intro, .facts-hint { margin: 0; color: var(--muted); font-size: 0.8rem; }
+.facts-search { width: 100%; }
+.facts-group { display: grid; gap: 0.5rem; }
+.facts-group h3 { margin: 0.25rem 0 0; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem; }
+.facts-group h3 .count { font-size: 0.75rem; font-weight: 600; color: var(--fg); background: var(--surface-2); border-radius: 999px; padding: 0 0.45rem; }
+.fact-add, .fact-edit { display: grid; gap: 0.35rem; }
+.fact-add input, .fact-edit input, .fact-edit textarea { width: 100%; min-width: 0; }
+.fact-actions { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
+.fact-actions select { flex: 1 1 6rem; min-width: 0; }
+.facts-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.fact { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.5rem 0.6rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.fact.flagged { border-left: 3px solid var(--attn); }
+.fact.editing { display: block; }
+.fact-main { display: grid; gap: 0.15rem; min-width: 0; flex: 1; }
+.fact-key { font-weight: 600; color: var(--fg-strong); }
+.fact-value { overflow-wrap: anywhere; white-space: pre-wrap; color: var(--fg); }
+.fact-value.mono { font-family: var(--mono); font-size: 0.85em; }
+a.fact-value { color: var(--link); }
+.fact-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; font-size: 0.75rem; color: var(--muted); }
+.fact-meta .chip { font-size: 0.7rem; padding: 0 0.4rem; min-height: 1.2rem; }
+.fact-flag { color: var(--fg); background: var(--accent-soft); border: 1px solid var(--attn); gap: 0.2rem; }
+.fact-flag svg { width: 0.85rem; height: 0.85rem; }
+.fact-buttons { display: flex; gap: 0.15rem; flex: none; }
+.facts-empty { margin: 0; color: var(--muted); font-size: 0.85rem; }
+@media (max-width: 760px) {
+  /* Five tabs: on a phone the row scrolls sideways instead of wrapping under the close button. */
+  .right .pane-head > .tabs { flex: 1 1 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .right .pane-head > .tabs [role="tab"] { flex: none; }
+  .fact-buttons .icon-btn, .fact-actions .btn, .fact-actions select, .fact-add input, .fact-edit input, .facts-search, .facts-btn { min-height: 44px; min-width: 44px; }
+}
