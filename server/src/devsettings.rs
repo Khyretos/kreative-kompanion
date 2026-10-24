@@ -61,7 +61,7 @@ impl Settings {
                 engine: "kk-engine".into(),
                 build: "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j --target kke_tests starter_game".into(),
                 test: "./build/bin/kke_tests".into(),
-                run: "xvfb-run -a -s '-screen 0 1280x720x24' timeout 8 ./build/bin/starter_game; test $? -eq 124".into(),
+                run: "cd build/bin && xvfb-run -a -s '-screen 0 1280x720x24' timeout 8 ./starter_game; test $? -eq 124".into(),
                 screenshots: "screenshots".into(),
                 ..base
             }),
