@@ -582,6 +582,16 @@ a.attach-chip:hover { border-color: var(--accent); }
 .effort-menu button[aria-checked="true"] { box-shadow: inset 3px 0 0 var(--accent); }
 .effort-name { font-weight: 600; }
 .effort-hint { font-size: 0.78rem; color: var(--fg); }
+/* EFF-02: the model on top of the effort menu, its list folded open under it. */
+.effort-menu { max-width: min(22rem, 92vw); max-height: min(70vh, 34rem); overflow-y: auto; }
+.effort-menu .effort-model { border-bottom: 1px solid var(--line); border-radius: 0; padding-bottom: 0.45rem; margin-bottom: 0.2rem; }
+.effort-model-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; width: 100%; }
+.effort-model-row .effort-name { font-family: var(--mono); overflow-wrap: anywhere; text-align: left; }
+.effort-change { flex: none; font-size: 0.78rem; font-weight: 600; color: var(--link); }
+.effort-models { display: grid; padding: 0.15rem 0 0.35rem 0.6rem; border-bottom: 1px solid var(--line); margin-bottom: 0.2rem; }
+.effort-models .effort-name { font-family: var(--mono); font-weight: 500; overflow-wrap: anywhere; text-align: left; }
+.effort-note { margin: 0.35rem 0.5rem 0.1rem; white-space: normal; }
+.effort-levels { display: grid; }
 /* CHAT-01: the Tools chip (MCP servers for this chat), left of the effort chip. */
 .tools-slot { position: relative; }
 .web-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; min-height: 1.5rem; gap: 0.3rem; }

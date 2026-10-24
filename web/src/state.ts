@@ -89,6 +89,7 @@ export interface AppState {
   showArchived?: boolean; // PROJ-ARCHIVE: archived projects shown in the sidebar, remembered on this device
   movingChatId?: string; // chat whose "Move to project" list is open
   effortMenuOpen?: boolean; // the composer's effort menu (EF-01)
+  effortModelsOpen?: boolean; // EFF-02: the model list inside that menu
   chatContext?: ChatContext; // CTX-01: the open chat's context meter
   contextOpen?: boolean; // CTX-01: the meter's details are open
   compacting?: boolean; // CTX-01: "Summarise now" is running

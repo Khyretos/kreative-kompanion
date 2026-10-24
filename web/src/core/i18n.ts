@@ -49,6 +49,27 @@ const STRINGS = {
   ctxCompact: { en: "Summarise now", es: "Resumir ahora", nl: "Nu samenvatten" },
   ctxCompacting: { en: "Summarising…", es: "Resumiendo…", nl: "Samenvatten…" },
   ctxThis: { en: "this model", es: "este modelo", nl: "dit model" },
+  // EFF-02: the composer's effort chip and picker.
+  effAuto: { en: "Auto", es: "Auto", nl: "Auto" },
+  effLow: { en: "Low", es: "Baja", nl: "Laag" },
+  effMedium: { en: "Medium", es: "Media", nl: "Gemiddeld" },
+  effHigh: { en: "High", es: "Alta", nl: "Hoog" },
+  effAutoHint: { en: "Medium for now; picks per task later", es: "Media por ahora; luego elige por tarea", nl: "Voorlopig gemiddeld; later per taak gekozen" },
+  effLowHint: { en: "Quick answer, fewest tool rounds", es: "Respuesta rápida, menos rondas de herramientas", nl: "Snel antwoord, minste toolrondes" },
+  effMediumHint: { en: "Balanced: a few tool rounds", es: "Equilibrada: unas pocas rondas de herramientas", nl: "Gebalanceerd: een paar toolrondes" },
+  effHighHint: { en: "Thinks first, most tool rounds", es: "Piensa antes, más rondas de herramientas", nl: "Denkt eerst na, meeste toolrondes" },
+  effChip: { en: "Effort {effort}, model {model}. Change effort or model", es: "Esfuerzo {effort}, modelo {model}. Cambiar esfuerzo o modelo", nl: "Inspanning {effort}, model {model}. Inspanning of model wijzigen" },
+  effMenu: { en: "Effort and model", es: "Esfuerzo y modelo", nl: "Inspanning en model" },
+  effModel: { en: "Model", es: "Modelo", nl: "Model" },
+  effNoModel: { en: "No model set", es: "Sin modelo", nl: "Geen model ingesteld" },
+  effChange: { en: "Change", es: "Cambiar", nl: "Wijzigen" },
+  effModels: { en: "Models", es: "Modelos", nl: "Modellen" },
+  effModelNote: {
+    en: "Sets the {role} model for every chat (also in Settings › Models).",
+    es: "Cambia el modelo de {role} para todos los chats (también en Ajustes › Modelos).",
+    nl: "Stelt het {role}-model in voor alle chats (ook in Instellingen › Modellen).",
+  },
+  effNoModels: { en: "No models found: add a provider in Settings.", es: "No hay modelos: añade un proveedor en Ajustes.", nl: "Geen modellen gevonden: voeg een provider toe in Instellingen." },
 } as const;
 
 export type Key = keyof typeof STRINGS;

@@ -18,7 +18,7 @@ import { renderSidebar } from "./views/sidebar";
 import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
-import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { autoRunChip, composer, effortChip, effortChipKey, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { filterDeps, setDep } from "./views/deppicker";
@@ -37,6 +37,7 @@ import { renderStudioMake, renderStudioLibrary } from "./views/studio";
 
 // STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
 let studioPrompt = "";
+let effortKey = ""; // EFF-02: what the effort chip last showed (effortChipKey)
 let studioLyrics = ""; // STU-02: music lyrics and the audio length, kept the same way
 let studioSeconds = "";
 let studioRating = ""; // STU-01c: the picked rating ("" = the first one offered)
@@ -371,10 +372,13 @@ function render(s: AppState, prev: AppState): void {
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftAutoRun", "maxSteps", "projects", "activeProjectId"])) {
     mount($("#autorun-slot"), autoRunChip(s)); // AUTO-01
   }
-  if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "effortMenuOpen", "draftEffort", "draftOverseer", "projects", "activeProjectId"])) {
+  if (firstRender || changed(s, prev, ["chats", "activeChatId", "roles", "providers", "effortMenuOpen", "effortModelsOpen", "draftEffort", "draftOverseer", "projects", "activeProjectId"])) {
     // A re-mount (or closing the menu) drops focus inside the chip: give it back.
     const hadFocus = !!document.activeElement?.closest(".effort") || (prev.effortMenuOpen && !s.effortMenuOpen && document.activeElement === document.body);
-    mount($("#effort-slot"), effortChip(s));
+    const key = effortChipKey(s);
+    // (An empty slot: the composer around it was drawn again.)
+    if (firstRender || key !== effortKey || !$("#effort-slot").firstElementChild) mount($("#effort-slot"), effortChip(s));
+    effortKey = key;
     if (s.effortMenuOpen && !prev.effortMenuOpen) document.querySelector<HTMLElement>('.effort-menu [aria-checked="true"]')?.focus();
     else if (hadFocus && !s.effortMenuOpen) document.querySelector<HTMLElement>(".effort-chip")?.focus();
   }
@@ -1078,7 +1082,27 @@ function wire(shell: HTMLElement): void {
       store.set({ movingChatId: undefined });
       changeChat(el.dataset.id ?? "", { projectId: el.dataset.project ?? "" });
     },
-    "effort-menu": () => store.set({ effortMenuOpen: !store.get().effortMenuOpen }),
+    "effort-menu": () => store.set({ effortMenuOpen: !store.get().effortMenuOpen, effortModelsOpen: false }),
+    // EFF-02: the model on top of the effort menu opens the model list; a pick sets that role's model.
+    "effort-models": () => {
+      store.set({ effortModelsOpen: !store.get().effortModelsOpen });
+      requestAnimationFrame(() => {
+        const q = (sel: string) => document.querySelector<HTMLElement>(sel);
+        (store.get().effortModelsOpen ? q('.effort-models [aria-checked="true"]') ?? q(".effort-models button") : q(".effort-model"))?.focus();
+      });
+    },
+    "effort-model": (el) => {
+      const { role, provider, model } = el.dataset;
+      const current = store.get().roles.find((r) => r.role === role);
+      if (!role || !provider || !model) return;
+      const roles = store.get().roles.map((r) => (r.role === role ? { ...r, providerId: provider, modelId: model } : r));
+      // Shown at once; the server's list replaces it (or the old one comes back on an error).
+      store.set({ roles, effortModelsOpen: false });
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(".effort-model")?.focus());
+      api.setRole({ role: role as Role, providerId: provider, modelId: model, effort: current?.effort ?? "auto" })
+        .then(() => api.listRoles(), (e) => { showError(e); return api.listRoles(); })
+        .then((r) => store.set({ roles: r }), () => undefined);
+    },
     // CHAT-01: the Tools menu: turn an MCP server on or off for this chat (or for the chat about to be made).
     "tools-menu": () => store.set({ toolsMenuOpen: !store.get().toolsMenuOpen }),
     "context-toggle": () => store.set({ contextOpen: !store.get().contextOpen }),
@@ -1592,7 +1616,9 @@ function wire(shell: HTMLElement): void {
   // A click anywhere outside an open chat menu closes it.
   document.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
-    if (store.get().effortMenuOpen && !t.closest(".effort")) store.set({ effortMenuOpen: false });
+    // A click that re-rendered the menu (the model row) leaves its target detached, and a re-mount
+    // between press and release lands the click on the slot: neither is outside.
+    if (store.get().effortMenuOpen && t.isConnected && !t.closest(".effort, #effort-slot")) store.set({ effortMenuOpen: false });
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
     if (store.get().contextOpen && !t.closest(".ctx")) store.set({ contextOpen: false });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });

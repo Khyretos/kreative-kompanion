@@ -11,7 +11,7 @@ import type { Effort, Message, Task } from "../api/types";
 import type { PcAction } from "../api/client";
 import { icon } from "./icons";
 import { contextChip } from "./contextmeter";
-import { t } from "../core/i18n";
+import { t, type Key } from "../core/i18n";
 import { stateLabel } from "./tasks";
 import { fromTool, renderOutput } from "../core/output";
 import { kindOf, styleOf, type CardStyle } from "../core/cardtypes";
@@ -194,25 +194,49 @@ export function renderEmpty(s: AppState): SafeHtml {
     </div>`;
 }
 
-const EFFORTS: { id: Effort; label: string; hint: string }[] = [
-  { id: "auto", label: "Auto", hint: "Medium for now; picks per task later" },
-  { id: "low", label: "Low", hint: "Quick answer, fewest tool rounds" },
-  { id: "medium", label: "Medium", hint: "Balanced: a few tool rounds" },
-  { id: "high", label: "High", hint: "Thinks first, most tool rounds" },
+const EFFORTS: { id: Effort; label: Key; hint: Key }[] = [
+  { id: "auto", label: "effAuto", hint: "effAutoHint" },
+  { id: "low", label: "effLow", hint: "effLowHint" },
+  { id: "medium", label: "effMedium", hint: "effMediumHint" },
+  { id: "high", label: "effHigh", hint: "effHighHint" },
 ];
 
-/** The composer's "<model> · <effort> ▾" chip and its menu (EF-01). */
+/** What effortChip shows, as a string: the chip is mounted again only when this changes, so live
+ * updates elsewhere in a chat neither redraw the open menu nor drop its focus. */
+export function effortChipKey(s: AppState): string {
+  const role = overseerOn(s) ? "overseer" : "orchestrator";
+  const a = s.roles.find((r) => r.role === role);
+  return JSON.stringify([activeChat(s)?.effort ?? s.draftEffort ?? "auto", role, a?.providerId, a?.modelId, !!s.effortMenuOpen, !!s.effortModelsOpen,
+    s.providers.map((p) => [p.id, p.name, !!p.error, p.models.map((m) => m.id)])]);
+}
+
+/** EFF-02: the composer's effort chip ("High ▾") and its picker: the model on top (it can be
+ * changed there, for the role that answers this chat), then the four effort levels. */
 export function effortChip(s: AppState): SafeHtml {
   const level: Effort = activeChat(s)?.effort ?? s.draftEffort ?? "auto";
   const role = overseerOn(s) ? "overseer" : "orchestrator";
-  const model = s.roles.find((r) => r.role === role)?.modelId ?? "";
-  const label = EFFORTS.find((e) => e.id === level)?.label ?? "Auto";
+  const assigned = s.roles.find((r) => r.role === role);
+  const model = assigned?.modelId ?? "";
+  const label = t(EFFORTS.find((e) => e.id === level)?.label ?? "effAuto");
+  const models = s.providers.filter((p) => !p.error).flatMap((p) => p.models.map((m) => ({ provider: p, model: m.id })));
   return html`<span class="effort">
     <button class="chip effort-chip" type="button" data-action="effort-menu" aria-haspopup="menu"
-      aria-expanded="${s.effortMenuOpen ? "true" : "false"}" aria-label="Model ${model}, effort ${label}. Change effort">${model ? `${model} · ` : ""}${label} ▾</button>
-    ${s.effortMenuOpen ? html`<div class="menu effort-menu" role="menu" aria-label="Effort">
+      aria-expanded="${s.effortMenuOpen ? "true" : "false"}" aria-label="${t("effChip", { effort: label, model: model || t("effNoModel") })}"
+      title="${model}">${label} ▾</button>
+    ${s.effortMenuOpen ? html`<div class="menu effort-menu" role="menu" aria-label="${t("effMenu")}">
+      <button role="menuitem" class="effort-model" data-action="effort-models" aria-expanded="${s.effortModelsOpen ? "true" : "false"}">
+        <span class="effort-hint">${t("effModel")}</span>
+        <span class="effort-model-row"><span class="effort-name">${model || t("effNoModel")}</span><span class="effort-change">${t("effChange")} ${s.effortModelsOpen ? "▴" : "▾"}</span></span></button>
+      ${s.effortModelsOpen ? html`<div class="effort-models" role="group" aria-label="${t("effModels")}">
+        ${models.length ? models.map(({ provider, model: id }) => html`<button role="menuitemradio" class="effort-model-pick"
+          aria-checked="${assigned?.providerId === provider.id && id === model ? "true" : "false"}" data-action="effort-model" data-provider="${provider.id}" data-model="${id}" data-role="${role}">
+          <span class="effort-name">${id}</span><span class="effort-hint">${provider.name}</span></button>`) : html`<p class="effort-hint effort-note">${t("effNoModels")}</p>`}
+        <p class="effort-hint effort-note">${t("effModelNote", { role })}</p>
+      </div>` : ""}
+      <div class="effort-levels" role="group" aria-label="${t("effMenu")}">
       ${EFFORTS.map((e) => html`<button role="menuitemradio" aria-checked="${e.id === level ? "true" : "false"}" data-action="effort-set" data-effort="${e.id}">
-        <span class="effort-name">${e.label}</span><span class="effort-hint">${e.hint}</span></button>`)}
+        <span class="effort-name">${t(e.label)}</span><span class="effort-hint">${t(e.hint)}</span></button>`)}
+      </div>
     </div>` : ""}
   </span>`;
 }
