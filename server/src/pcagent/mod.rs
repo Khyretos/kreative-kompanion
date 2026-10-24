@@ -250,15 +250,13 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
     if let Some(earlier) = remembered(&s, &chat_id, &role).await {
         messages.extend(earlier);
     } else {
-        let history: Vec<(String, String)> = sqlx::query_as(
-            "SELECT author, text FROM (SELECT author, text, at, rowid FROM messages WHERE chat_id = ?
-             ORDER BY at DESC, rowid DESC LIMIT 20) ORDER BY at, rowid",
-        )
-        .bind(&chat_id)
-        .fetch_all(&s.db)
-        .await
-        .unwrap_or_default();
-        for (author, text) in history {
+        // CTX-01: the chat's summary first (when it has one), then the newest messages after it.
+        let summary = crate::context::summary(&s.db, &chat_id).await.ok().flatten();
+        if let Some(x) = &summary {
+            messages[0]["content"] = json!(format!("{}{}", messages[0]["content"].as_str().unwrap_or(""), crate::context::prompt_block(x)));
+        }
+        let history = crate::context::after_summary(&s.db, &chat_id, summary.as_ref(), 20).await.unwrap_or_default();
+        for (_, author, text, _) in history {
             let role = if author == "user" { "user" } else { "assistant" };
             messages.push(json!({ "role": role, "content": text }));
         }

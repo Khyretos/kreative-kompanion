@@ -2,7 +2,7 @@
 // a session cookie. Live updates arrive as server-sent events.
 import type { KompanionApi, ServerEvent } from "./client";
 import type {
-  AdminSettings, NotificationPrefs, ThemeChoice, TaskState, Chat, DaySummary, MachineStats, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, ServerStatus, Task,
+  AdminSettings, NotificationPrefs, ThemeChoice, TaskState, Chat, ChatContext, DaySummary, MachineStats, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, ServerStatus, Task,
 } from "./types";
 
 // STU-N1: a type with a "negative" parameter gets the Leave out field; its default words show as a hint.
@@ -135,6 +135,8 @@ export class HttpApi implements KompanionApi {
   listChats() { return this.request<Chat[]>("GET", "/chats"); }
   async search(q: string) { return (await this.request<{ results: SearchResult[] }>("GET", `/search?q=${encodeURIComponent(q)}`)).results; }
   listMessages(chatId: string) { return this.request<Message[]>("GET", `/chats/${encodeURIComponent(chatId)}/messages`); }
+  chatContext(chatId: string) { return this.request<ChatContext>("GET", `/chats/${encodeURIComponent(chatId)}/context`); }
+  compactChat(chatId: string) { return this.request<ChatContext>("POST", `/chats/${encodeURIComponent(chatId)}/compact`); }
   listTasks() { return this.request<Task[]>("GET", "/tasks"); }
   listProviders() { return this.request<ModelProvider[]>("GET", "/providers"); }
   listRoles() { return this.request<RoleAssignment[]>("GET", "/roles"); }

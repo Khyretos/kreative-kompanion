@@ -593,6 +593,34 @@ a.attach-chip:hover { border-color: var(--accent); }
 .tools-menu button { flex-direction: column; align-items: flex-start; gap: 0.1rem; width: 100%; color: var(--fg); }
 .tools-menu .effort-hint { white-space: normal; text-align: left; }
 .tools-menu button[aria-checked="true"] { box-shadow: inset 3px 0 0 var(--accent); }
+/* CTX-01: the context meter: a small bar and "used/window", green, orange near full, red when full. */
+.context-slot { position: relative; }
+.ctx { position: relative; display: inline-flex; }
+.ctx-chip { color: var(--fg); border: 1px solid transparent; cursor: pointer; min-height: 1.5rem; gap: 0.35rem; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.ctx-chip:hover { border-color: var(--accent); }
+.ctx-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ctx-chip[data-level="warn"] { border-color: var(--attn); }
+.ctx-chip[data-level="full"] { border-color: var(--bad); }
+.ctx-bar { width: 2.4rem; height: 0.4rem; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.ctx-fill { display: block; height: 100%; background: var(--good); transition: width 0.3s ease; }
+.ctx-chip[data-level="warn"] .ctx-fill { background: var(--attn); }
+.ctx-chip[data-level="full"] .ctx-fill { background: var(--bad); }
+.ctx-pop { position: absolute; inset: auto 0 calc(100% + 0.35rem) auto; width: min(22rem, 90vw); z-index: 20; display: grid; gap: 0.45rem; padding: 0.75rem; font-size: 0.85rem; color: var(--fg); text-align: left; }
+.ctx-pop p { margin: 0; }
+.ctx-head { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ctx-model, .ctx-note { color: var(--muted); font-size: 0.78rem; }
+.ctx-warn { color: var(--fg); background: var(--accent-soft); border-left: 3px solid var(--attn); padding: 0.35rem 0.5rem; border-radius: 4px; }
+.ctx-sum summary { cursor: pointer; color: var(--link); }
+.ctx-sum-text { white-space: pre-wrap; max-height: 12rem; overflow-y: auto; margin-top: 0.35rem !important; padding: 0.5rem; background: var(--surface-2); border-radius: 4px; }
+.ctx-pop .btn { justify-self: start; }
+@media (max-width: 760px) {
+  .ctx-chip, .ctx-pop .btn, .ctx-sum summary { min-height: 44px; }
+  .ctx-sum summary { display: flex; align-items: center; }
+  /* The details span the hint line, so they never run off a phone's left edge. */
+  .composer-hint { position: relative; }
+  .context-slot, .ctx { position: static; }
+  .ctx-pop { inset: auto 0 calc(100% + 0.35rem) 0; width: auto; }
+}
 
 /* Tasks pane */
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 2px; }
@@ -737,7 +765,7 @@ a.attach-chip:hover { border-color: var(--accent); }
   .messages { padding: 1rem; }
   .composer-wrap { padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
   /* Phones: only the effort chip stays on the hint line (EF-01). */
-  .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot):not(.overseer-slot):not(.autorun-slot) { display: none; }
+  .composer-hint > :not(.effort-slot):not(.tools-slot):not(.web-slot):not(.overseer-slot):not(.autorun-slot):not(.context-slot) { display: none; }
   .tools-chip, .tools-menu button { min-height: 44px; }
   .role { grid-template-columns: minmax(0, 1fr); gap: 0.35rem; }
 }

@@ -317,5 +317,6 @@ export function composer(): SafeHtml {
       <span class="autorun-slot" id="autorun-slot"></span>
       <span class="web-slot" id="web-slot"></span>
       <span class="tools-slot" id="tools-slot"></span>
+      <span class="context-slot" id="context-slot"></span>
       <span class="effort-slot" id="effort-slot"></span></p>`;
 }

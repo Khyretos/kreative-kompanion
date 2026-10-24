@@ -19,6 +19,7 @@ import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
 import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
+import { contextChip } from "./views/contextmeter";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { filterDeps, setDep } from "./views/deppicker";
@@ -274,7 +275,8 @@ function openTaskById(id: string): void {
 async function openChat(chatId?: string): Promise<void> {
   const messages = chatId ? await api.listMessages(chatId) : [];
   // The computer picked for this chat comes back; a new chat starts from the last pick.
-  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined, pcMachineId: loadPcChoice(chatId) });
+  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined, pcMachineId: loadPcChoice(chatId), chatContext: undefined, contextOpen: false });
+  if (chatId) void api.chatContext(chatId).then((c) => { if (store.get().activeChatId === chatId) store.set({ chatContext: c }); }).catch(() => undefined);
   const prompt = document.getElementById("prompt") as HTMLTextAreaElement | null;
   if (prompt && window.matchMedia("(pointer: fine)").matches) prompt.focus();
   store.set({ pcActions: chatId ? await api.listActions(chatId).catch(() => []) : [] });
@@ -375,6 +377,11 @@ function render(s: AppState, prev: AppState): void {
     mount($("#effort-slot"), effortChip(s));
     if (s.effortMenuOpen && !prev.effortMenuOpen) document.querySelector<HTMLElement>('.effort-menu [aria-checked="true"]')?.focus();
     else if (hadFocus && !s.effortMenuOpen) document.querySelector<HTMLElement>(".effort-chip")?.focus();
+  }
+  // CTX-01: the context meter (how full the chat's context is) and its details.
+  if (firstRender || changed(s, prev, ["chatContext", "contextOpen", "compacting", "activeChatId"])) {
+    const ctx = s.chatContext && s.chatContext.chatId === s.activeChatId ? s.chatContext : undefined;
+    mount($("#context-slot"), contextChip(ctx, !!s.contextOpen, !!s.compacting));
   }
   // CHAT-01: the Tools chip (MCP servers this chat may use).
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "mcpServers", "draftMcp", "toolsMenuOpen"])) {
@@ -527,6 +534,8 @@ function applyEvent(ev: ServerEvent): void {
     reload();
   } else if (ev.type === "machines") {
     store.set({ machines: ev.machines });
+  } else if (ev.type === "context" && ev.usage.chatId === s.activeChatId) {
+    store.set({ chatContext: ev.usage });
   } else if (ev.type === "message" && ev.message.chatId === s.activeChatId) {
     store.set({ messages: [...s.messages, ev.message] });
   } else if (ev.type === "message-delta" && ev.chatId === s.activeChatId) {
@@ -1077,6 +1086,16 @@ function wire(shell: HTMLElement): void {
     "effort-menu": () => store.set({ effortMenuOpen: !store.get().effortMenuOpen }),
     // CHAT-01: the Tools menu: turn an MCP server on or off for this chat (or for the chat about to be made).
     "tools-menu": () => store.set({ toolsMenuOpen: !store.get().toolsMenuOpen }),
+    "context-toggle": () => store.set({ contextOpen: !store.get().contextOpen }),
+    "context-compact": () => {
+      const id = store.get().activeChatId;
+      if (!id || store.get().compacting) return;
+      store.set({ compacting: true });
+      api.compactChat(id)
+        .then((c) => { if (store.get().activeChatId === id) store.set({ chatContext: c }); })
+        .catch(showError)
+        .finally(() => store.set({ compacting: false }));
+    },
     "mcp-toggle": (el) => {
       const name = el.dataset.name ?? "";
       const s = store.get();
@@ -1566,6 +1585,12 @@ function wire(shell: HTMLElement): void {
       store.set({ toolsMenuOpen: false });
       return;
     }
+    if (s.contextOpen) {
+      store.set({ contextOpen: false });
+      // The chip is mounted again on the next frame: focus it after that.
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(".ctx-chip")?.focus());
+      return;
+    }
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
     else if (s.section === "settings" && leaveSettingsOk()) store.set({ section: "chat", pane: "main" });
   });
@@ -1574,6 +1599,7 @@ function wire(shell: HTMLElement): void {
     const t = ev.target as HTMLElement;
     if (store.get().effortMenuOpen && !t.closest(".effort")) store.set({ effortMenuOpen: false });
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
+    if (store.get().contextOpen && !t.closest(".ctx")) store.set({ contextOpen: false });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
     if (store.get().projectMenuId && !t.closest(".menu, .project-more")) store.set({ projectMenuId: undefined });
   });

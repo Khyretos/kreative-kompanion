@@ -349,6 +349,10 @@ pub struct ProviderConfig {
     /// for a cloud OpenAI-compatible one, 32000 on Anthropic (its models think within this too).
     #[serde(default)]
     pub max_tokens: Option<u32>,
+    /// CTX-01: tokens the model takes in at most (prompt plus answer), for the context meter and
+    /// when to summarise. Unset: a known size for common cloud models (context::window), else unknown.
+    #[serde(default)]
+    pub context_window: Option<u32>,
 }
 
 /// One effort level on one provider: fields merged over extra_body, and/or another model.
