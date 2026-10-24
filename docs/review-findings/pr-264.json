@@ -26,6 +26,15 @@
     "title": "Possible Issue",
     "verdict": "false_positive"
   },
+  "62a2b16bc56c": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/llm_anthropic.rs",
+    "reason": "stop_reason is set to max_tokens in the drop loop, before `let stop = self.stop_reason...` is read further down in finish(). So a dropped call always ends with finish_reason length, whatever the API's own stop reason was. Test: broken_tool_input_is_reported_like_a_cut_off (API stop reason tool_use, result length).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
   "7e9e20c806eb": {
     "by": "claude",
     "checked": true,
@@ -34,5 +43,14 @@
     "reason": "Partly real. A tool call cut at max_tokens was already reported (finish_reason length, so the agent tells the model nothing ran and goes on in smaller pieces). But broken input with any other stop reason was dropped in silence. Now any dropped call marks the answer as cut off. Test: broken_tool_input_is_reported_like_a_cut_off.",
     "title": "Possible Issue",
     "verdict": "bug"
+  },
+  "b2a78827718f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "reason": "A new chat is only inserted after the oldest entry is evicted whenever the map is full (len >= 64 and the key is new). An evicted chat that comes back counts as new and evicts another, so the map never holds more than 64 chats, each trimmed to memory_budget (400 KB cloud, 24 KB local).",
+    "title": "Memory Leak Risk",
+    "verdict": "false_positive"
   }
 }
