@@ -17,6 +17,10 @@ pub enum Event {
         text: String,
         done: bool,
     },
+    /// CTX-01: how full a chat's context is now (after a model call or a summary).
+    Context {
+        usage: crate::context::Usage,
+    },
     /// Live machine stats for users watching the Machines tab on "Live".
     Machines {
         machines: Vec<serde_json::Value>,

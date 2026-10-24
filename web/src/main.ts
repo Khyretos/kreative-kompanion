@@ -275,7 +275,8 @@ function openTaskById(id: string): void {
 async function openChat(chatId?: string): Promise<void> {
   const messages = chatId ? await api.listMessages(chatId) : [];
   // The computer picked for this chat comes back; a new chat starts from the last pick.
-  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined, pcMachineId: loadPcChoice(chatId) });
+  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined, pcMachineId: loadPcChoice(chatId), chatContext: undefined, contextOpen: false });
+  if (chatId) void api.chatContext(chatId).then((c) => { if (store.get().activeChatId === chatId) store.set({ chatContext: c }); }).catch(() => undefined);
   const prompt = document.getElementById("prompt") as HTMLTextAreaElement | null;
   if (prompt && window.matchMedia("(pointer: fine)").matches) prompt.focus();
   store.set({ pcActions: chatId ? await api.listActions(chatId).catch(() => []) : [] });
@@ -359,7 +360,8 @@ function render(s: AppState, prev: AppState): void {
     input?.focus();
     input?.select();
   }
-  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks"])) {
+  // CTX-01: the context meter lives in the header too.
+  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks", "chatContext", "contextOpen", "compacting", "contextSummaryOpen"])) {
     mount($("#conv-head"), renderHeader(s));
   }
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer", "projects", "activeProjectId"])) {
@@ -538,6 +540,8 @@ function applyEvent(ev: ServerEvent): void {
     reload();
   } else if (ev.type === "machines") {
     store.set({ machines: ev.machines });
+  } else if (ev.type === "context" && ev.usage.chatId === s.activeChatId) {
+    store.set({ chatContext: ev.usage });
   } else if (ev.type === "message" && ev.message.chatId === s.activeChatId) {
     store.set({ messages: [...s.messages, ev.message] });
   } else if (ev.type === "message-delta" && ev.chatId === s.activeChatId) {
@@ -1097,6 +1101,16 @@ function wire(shell: HTMLElement): void {
     "fact-edit": (el) => store.set({ editingFactId: el.dataset.id }),
     "fact-cancel": () => store.set({ editingFactId: undefined }),
     "fact-delete": (el) => factDeleteLater(el.dataset.id ?? ""),
+    "context-toggle": () => store.set({ contextOpen: !store.get().contextOpen }),
+    "context-compact": () => {
+      const id = store.get().activeChatId;
+      if (!id || store.get().compacting) return;
+      store.set({ compacting: true });
+      api.compactChat(id)
+        .then((c) => { if (store.get().activeChatId === id) store.set({ chatContext: c }); })
+        .catch(showError)
+        .finally(() => store.set({ compacting: false }));
+    },
     "mcp-toggle": (el) => {
       const name = el.dataset.name ?? "";
       const s = store.get();
@@ -1586,6 +1600,12 @@ function wire(shell: HTMLElement): void {
       store.set({ toolsMenuOpen: false });
       return;
     }
+    if (s.contextOpen) {
+      store.set({ contextOpen: false });
+      // The chip is mounted again on the next frame: focus it after that.
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(".ctx-chip")?.focus());
+      return;
+    }
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
     else if (s.section === "settings" && leaveSettingsOk()) store.set({ section: "chat", pane: "main" });
   });
@@ -1594,6 +1614,7 @@ function wire(shell: HTMLElement): void {
     const t = ev.target as HTMLElement;
     if (store.get().effortMenuOpen && !t.closest(".effort")) store.set({ effortMenuOpen: false });
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
+    if (store.get().contextOpen && !t.closest(".ctx-meter")) store.set({ contextOpen: false });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
     if (store.get().projectMenuId && !t.closest(".menu, .project-more")) store.set({ projectMenuId: undefined });
   });
@@ -1832,6 +1853,11 @@ function wire(shell: HTMLElement): void {
     if (f.closest("form") && (f.matches("input[name], textarea[name], select[name]"))) f.dataset.edited = "1";
   };
   shell.addEventListener("input", markEdited, true);
+  // CTX-01: the summary in the meter's details stays open or closed when the top bar re-renders.
+  shell.addEventListener("toggle", (ev) => {
+    const d = ev.target as HTMLDetailsElement;
+    if (d.classList?.contains("ctx-sum") && d.open !== !!store.get().contextSummaryOpen) store.set({ contextSummaryOpen: d.open });
+  }, true);
   shell.addEventListener("change", markEdited, true);
   // A submitted form shows what was saved from then on.
   shell.addEventListener("submit", (ev) => {

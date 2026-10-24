@@ -1,6 +1,6 @@
 import { loadVoicePrefs } from "./core/voice";
 import { Store } from "./core/store";
-import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Effort, FactsView, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
+import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Effort, FactsView, Message, ModelProvider, Project, RoleAssignment, Server, Task, ChatContext } from "./api/types";
 
 export interface AppState {
   server?: Server;
@@ -94,6 +94,10 @@ export interface AppState {
   factsQuery: string; // the Facts tab's search
   editingFactId?: string; // the fact being edited in place
   factsHidden: string[]; // deleted facts waiting for Undo
+  chatContext?: ChatContext; // CTX-01: the open chat's context meter
+  contextOpen?: boolean; // CTX-01: the meter's details are open
+  compacting?: boolean; // CTX-01: "Summarise now" is running
+  contextSummaryOpen?: boolean; // CTX-01: the summary in the meter's details is open (kept across re-renders)
   draftEffort?: Effort; // effort picked before the chat exists
   renamingChatId?: string; // chat being renamed in place
   editingTaskId?: string; // task open in the editor ("new" for a new one)

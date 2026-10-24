@@ -1,7 +1,7 @@
 // The app talks to a Kompanion server only through this interface.
 // `MockApi` implements it for the draft; `HttpApi` (next milestone) will call
 // the real server over HTTPS + server-sent events.
-import type { NotificationPrefs, TaskState, AdminSettings, ThemeChoice, DaySummary, MachineStats, ServerStatus, Chat, Fact, FactKind, FactsView, Message, Project, RoleAssignment, ModelProvider, SearchResult, Server, Task } from "./types";
+import type { NotificationPrefs, TaskState, AdminSettings, ThemeChoice, DaySummary, MachineStats, ServerStatus, Chat, Fact, FactKind, FactsView, Message, Project, RoleAssignment, ModelProvider, SearchResult, Server, Task, ChatContext } from "./types";
 
 /** A lesson a task run's reviewer proposed in the project thread (SK-02). */
 export interface Lesson {
@@ -95,6 +95,10 @@ export interface KompanionApi {
   addFact(f: { scope: "project" | "chat"; projectId?: string; chatId?: string; key: string; value: string; kind?: FactKind }): Promise<Fact>;
   updateFact(id: string, change: { key?: string; value?: string; kind?: FactKind }): Promise<Fact>;
   deleteFact(id: string): Promise<void>;
+  /** CTX-01: the context meter's numbers and the chat's summary. */
+  chatContext(chatId: string): Promise<ChatContext>;
+  /** CTX-01: summarise all but the newest two messages now. */
+  compactChat(chatId: string): Promise<ChatContext>;
   /** Global search over the user's tasks, chats, messages and projects. */
   search(q: string): Promise<SearchResult[]>;
   listTasks(projectId?: string): Promise<Task[]>;
@@ -203,6 +207,7 @@ export interface KompanionApi {
 export type ServerEvent =
   | { type: "message"; message: Message }
   | { type: "message-delta"; messageId: string; chatId: string; text: string; done: boolean }
+  | { type: "context"; usage: ChatContext } // CTX-01
   | { type: "task"; task: Task }
   | { type: "machines"; machines: MachineStats[] }
   | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts"; machineId?: string }

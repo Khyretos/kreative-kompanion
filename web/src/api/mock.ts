@@ -4,7 +4,7 @@ import { AUDIO_TYPES } from "./http";
 import type { AccessEvent, GrantView } from "../views/access";
 import type { KompanionApi, Lesson, ServerEvent } from "./client";
 import type { PcAction } from "./client";
-import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, Fact, FactKind, FactsView, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task } from "./types";
+import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, Fact, FactKind, FactsView, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task, ChatContext } from "./types";
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 const grants: Record<string, GrantView[]> = {
@@ -97,6 +97,15 @@ const facts: Fact[] = [
   fact("f7", { chatId: "c-kk" }, "Test runner", "ctest --output-on-failure", "other", "user", 90),
 ];
 const sortFacts = (list: Fact[]) => [...list].sort((a, b) => Number(!!b.flaggedAt) - Number(!!a.flaggedAt) || a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
+// CTX-01: the context meter's demo numbers: one chat close to full with a summary, one with room.
+const contexts: Record<string, ChatContext> = {
+  "c-kk": { chatId: "c-kk", used: 104_300, window: 128_000, model: "deepseek-chat", summary: {
+    messages: 14, at: ago(40),
+    text: "Kees wants a --vk-validation flag (off by default in release builds) and an engine.toml setting.\n- ModuleLoader tests: cover the missing-file and the circular-import cases.\n- README build steps updated (done).\n- Open: benchmark at 1440p needs the GPU; asked when it can run.",
+  } },
+  "c-kk-2": { chatId: "c-kk-2", used: 18_400, window: 128_000, model: "deepseek-chat", summary: null },
+  "c-3dco": { chatId: "c-3dco", used: 123_500, window: 128_000, model: "deepseek-chat", summary: null },
+};
 
 const adminSettings: AdminSettings = {
   appName: "Kreative Kompanion", smtpHost: "", smtpPort: 587, smtpTls: "starttls", smtpUser: "", smtpFrom: "", smtpReplyTo: "",
@@ -672,6 +681,21 @@ export class MockApi implements KompanionApi {
     if (i >= 0) facts.splice(i, 1);
     this.emit({ type: "changed", what: "facts" });
   }
+  async chatContext(chatId: string): Promise<ChatContext> {
+    return structuredClone(contexts[chatId] ?? { chatId, used: null, window: null, model: null, summary: null });
+  }
+  async compactChat(chatId: string): Promise<ChatContext> {
+    const list = messages.filter((m) => m.chatId === chatId);
+    if (list.length <= 2) throw new Error("There is nothing new to summarise yet.");
+    await wait(600);
+    const c = contexts[chatId] ?? { chatId, used: null, window: 128_000, model: "deepseek-chat", summary: null };
+    const before = c.summary?.messages ?? 0;
+    c.summary = { messages: before + list.length - 2, at: new Date().toISOString(), text: (c.summary ? c.summary.text + "\n" : "") + "- Discussed: " + list.slice(0, -2).map((m) => m.text.split("\n")[0].slice(0, 60)).join("; ") };
+    c.used = c.used === null ? null : Math.round(c.used * 0.45);
+    contexts[chatId] = c;
+    this.emit({ type: "context", usage: structuredClone(c) });
+    return structuredClone(c);
+  }
   async listTasks(projectId?: string) {
     return structuredClone(projectId ? tasks.filter((t) => t.projectId === projectId) : tasks);
   }
@@ -1154,6 +1178,11 @@ export class MockApi implements KompanionApi {
     }
     reply.streaming = false;
     this.emit({ type: "message-delta", messageId: reply.id, chatId, text: "", done: true });
+    // CTX-01: the meter grows by what this exchange added (about four characters a token).
+    const ctx = contexts[chatId] ?? { chatId, used: 2_400, window: 128_000, model: "deepseek-chat", summary: null };
+    ctx.used = (ctx.used ?? 2_400) + Math.round((text.length + full.length) / 4);
+    contexts[chatId] = ctx;
+    this.emit({ type: "context", usage: structuredClone(ctx) });
 
     if (chat?.projectId) {
       const task: Task = {

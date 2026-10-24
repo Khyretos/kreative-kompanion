@@ -161,6 +161,7 @@ export interface Fact {
   lastUsedAt: string | null;
   flaggedAt: string | null; // a check found it may be out of date
 }
+
 /** FACTS: what the Facts tab shows: the chat's project facts and its own, or a project's. */
 export interface FactsView {
   projectId: string | null;
@@ -169,6 +170,15 @@ export interface FactsView {
   chat?: Fact[];
   canEditProject?: boolean;
   canEditChat?: boolean;
+}
+
+/** CTX-01: how full a chat's context is (the latest model call), and the summary of its older part. */
+export interface ChatContext {
+  chatId: string;
+  used: number | null; // tokens the latest call read and wrote; null before the first answer
+  window: number | null; // the model's context size; null when unknown
+  model: string | null;
+  summary: { messages: number; at: string; text: string } | null;
 }
 
 /** How hard the model works on an answer (EF-01). Auto resolves to Medium on the server. */

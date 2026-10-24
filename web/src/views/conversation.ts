@@ -10,6 +10,8 @@ import { activeChat, activeProject, type AppState } from "../state";
 import type { Effort, Message, Task } from "../api/types";
 import type { PcAction } from "../api/client";
 import { icon } from "./icons";
+import { contextChip } from "./contextmeter";
+import { t } from "../core/i18n";
 import { stateLabel } from "./tasks";
 import { fromTool, renderOutput } from "../core/output";
 import { kindOf, styleOf, type CardStyle } from "../core/cardtypes";
@@ -87,8 +89,11 @@ export function renderHeader(s: AppState): SafeHtml {
       <h1>${chat?.title ?? "New chat"}</h1>
     </div>
     <span class="chip model" title="Orchestrator model">${orchestrator?.modelId ?? ""}</span>
-    ${chat ? html`<a class="btn small" href="/api/chats/${encodeURIComponent(chat.id)}/report?download=1" download title="Steps and model calls of this chat as JSON">Export report</a>` : ""}
-    ${chat ? html`<button class="icon-btn facts-btn" type="button" data-action="open-facts" aria-label="Facts for this chat" title="Facts: what Kompanion remembers for this chat and its project">${icon("bookmark")}</button>` : ""}
+    ${chat ? html`<span class="head-tools">
+      ${contextChip(s.chatContext && s.chatContext.chatId === chat.id ? s.chatContext : undefined, !!s.contextOpen, !!s.compacting, !!s.contextSummaryOpen)}
+      <button class="icon-btn facts-btn" type="button" data-action="open-facts" aria-label="Facts for this chat" title="Facts: what Kompanion remembers for this chat and its project">${icon("bookmark")}</button>
+      <a class="icon-btn export-btn" href="/api/chats/${encodeURIComponent(chat.id)}/report?download=1" download aria-label="${t("export")}" title="${t("exportTip")}">${icon("download")}</a>
+    </span>` : ""}
     <button class="icon-btn only-narrow tasks-toggle" data-action="pane" data-pane="right" aria-label="Tasks">
       ${icon("tasks")}${attention ? html`<span class="badge attn">${attention}</span>` : ""}
     </button>`;

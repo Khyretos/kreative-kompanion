@@ -7,6 +7,7 @@ mod capabilities;
 mod capmatrix;
 mod config;
 mod facts;
+mod context;
 mod costs;
 mod assetaudio;
 mod assetcontract;
@@ -327,6 +328,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/chats/{id}/messages", get(api::messages).post(api::send))
         .route("/facts", get(facts::get).post(facts::create))
         .route("/facts/{id}", patch(facts::update).delete(facts::delete))
+        .route("/chats/{id}/context", get(context::get))
+        .route("/chats/{id}/compact", post(context::compact_now))
         .route("/chats/{id}/files/{name}", get(chat_files::file))
         .route("/chats/{id}/attachments", post(chat_attach_web::upload).layer(axum::extract::DefaultBodyLimit::max(25 * 1024 * 1024)))
         .route("/providers", get(api::providers))

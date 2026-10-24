@@ -364,6 +364,7 @@ mod tests {
             effort: Default::default(),
             ttl: None,
             max_tokens: None,
+            context_window: None,
         }
     }
 
