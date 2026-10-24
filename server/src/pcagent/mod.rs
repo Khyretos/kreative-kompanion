@@ -43,6 +43,8 @@ fn system_prompt(machine: &str) -> String {
          with edit_file in small pieces (a few lines each) rather than rewriting a whole file; you may make several \
          calls in one answer. Once you have read what you need, make the change; read a file again only when it changed. \
          Never ask for passwords; the computer asks for them itself. \
+         When the user refers to something said earlier or in another chat that you don't have, look it up \
+         with search_chats and read_chat before saying you don't know. \
          Do every part of the request: after each result, call the next tool until all parts are done \
          (for \"install X and show its version\": install, then run the version command). Only say a step \
          worked when its result is \"done\" with \"exit: 0\", and quote the key output line. When a step \
@@ -365,6 +367,10 @@ impl Agent {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
         let mut tools = tools::schema();
+        // HIST-01: the user's own past chats (answered here, read-only).
+        if let Some(list) = tools.as_array_mut() {
+            list.extend(crate::chat_history::specs());
+        }
         // KG-05: a task's worker also gets the tools of the MCP servers the user granted (and is denied the rest).
         let mut mcp_map = std::collections::HashMap::new();
         if self.task_id.is_some() {
@@ -463,6 +469,7 @@ impl Agent {
                     }
                     // Answered here, not by a computer.
                     None if name == "capabilities" => crate::capabilities::summary(s, &self.user_id).await,
+                    None if crate::chat_history::is_tool(name) => crate::chat_history::call(&s.db, &self.user_id, &self.chat_id, name, &args, budget).await,
                     None => "Unknown tool or wrong arguments.".to_string(),
                     // Guardrail: a file found missing earlier in this answer is not created
                     // behind the user's back.

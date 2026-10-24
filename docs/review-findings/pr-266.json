@@ -1,0 +1,20 @@
+{
+  "ef2c9a29eeee": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/chat_history.rs",
+    "reason": "A query with no searchable words (fts_query gives None) answers the model with a plain message, \"error: give words to search for\", which is the intended tool reply; database errors propagate with ? as in the other tools. sqlx cannot return an unexpected type here: the row shape is checked at decode and fails as an error, not a panic.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "f109ccbec415": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/chat_history.rs",
+    "reason": "secrets::mask keeps only the characters before the first letter or digit (quotes, brackets) and after the last token character; a prefix such as sk- starts with a letter, so the whole token, prefix included, becomes [hidden secret]. The secrets.rs test checks token=ghp_..., key: \"AIza...\" and a bare token.",
+    "title": "Potential Data Loss in Masking",
+    "verdict": "false_positive"
+  }
+}

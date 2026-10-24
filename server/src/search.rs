@@ -12,7 +12,7 @@ pub struct SearchQuery { q: String }
 
 /// FTS5 query from what the user typed: every word must match, as a prefix.
 /// Quotes keep FTS syntax (AND, NEAR, *, :) from being read as operators.
-fn fts_query(q: &str) -> Option<String> {
+pub(crate) fn fts_query(q: &str) -> Option<String> {
     let words: Vec<String> = q
         .split(|c: char| !c.is_alphanumeric())
         .filter(|w| !w.is_empty())
