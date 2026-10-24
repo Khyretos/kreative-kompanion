@@ -36,8 +36,8 @@ fn system(template: &str, lim: &Limits) -> String {
 /// One planning run on the user's orchestrator model, schema-constrained, with the rule-fixing rounds.
 async fn plan_with_model(s: &AppState, user_id: &str, system: &str, user: &str) -> ApiResult<(Plan, Vec<planner::Issue>)> {
     let role = api::user_role(s, user_id, "orchestrator").await?.ok_or_else(|| ApiError::BadRequest("Set the orchestrator model first.".into()))?;
-    let provider = s.config.provider(&role.provider_id).ok_or_else(|| ApiError::BadRequest(format!("The provider {} is not configured.", role.provider_id)))?;
-    let (p, model) = crate::effort::apply(provider, &role.model_id, crate::effort::Effort::default());
+    let provider = s.provider(&role.provider_id).ok_or_else(|| ApiError::BadRequest(format!("The provider {} is not configured.", role.provider_id)))?;
+    let (p, model) = crate::effort::apply(&provider, &role.model_id, crate::effort::Effort::default());
     let schema = planner::schema();
     let ask = |messages: Vec<Value>| {
         let (http, p, model, schema) = (s.http.clone(), p.clone(), model.clone(), schema.clone());

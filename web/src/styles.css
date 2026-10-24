@@ -1383,3 +1383,26 @@ a.fact-value { color: var(--link); }
   .trace-body > summary { display: flex; align-items: center; }
 }
 @keyframes ov-down { from { transform: translateY(-100%); } }
+/* PROV-UI: providers added in Settings, and the sidebar's New project. */
+.provider-head { flex-wrap: wrap; }
+.provider-tools { display: inline-flex; gap: 0.35rem; margin-left: auto; }
+.provider-tools .btn { display: inline-flex; align-items: center; gap: 0.3rem; }
+.provider-form { display: grid; gap: 0.6rem; margin: 0.6rem 0; padding: 0.8rem; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface); max-width: 36rem; }
+.provider-form h4 { margin: 0; font-size: 0.95rem; }
+.provider-form .field { display: grid; gap: 0.25rem; }
+.provider-form input:not([type="checkbox"]):not([type="radio"]), .provider-form select { width: 100%; }
+.provider-form .check { display: flex; align-items: center; gap: 0.4rem; }
+.prov-numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+.form-buttons { display: flex; justify-content: flex-end; gap: 0.4rem; flex-wrap: wrap; }
+.nav-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.nav-head .label { margin: 0; }
+.new-project-btn { width: 1.9rem; height: 1.9rem; color: var(--fg); }
+.new-project-btn:hover { background: var(--surface-2); }
+.new-project-btn[aria-expanded="true"] { color: var(--accent-strong); }
+.new-project { display: grid; gap: 0.4rem; margin: 0.2rem 0 0.6rem; padding: 0.55rem; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--surface); }
+.new-project input, .new-project select { width: 100%; }
+@media (max-width: 760px) {
+  .prov-numbers { grid-template-columns: minmax(0, 1fr); }
+  .new-project-btn { width: 44px; height: 44px; }
+  .provider-form .btn, .new-project .btn { min-height: 44px; }
+}

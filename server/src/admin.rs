@@ -373,7 +373,7 @@ pub async fn set_prefs(
     if let Some(p) = b.explain {
         let p = p.normalised();
         if let Some(id) = &p.provider_id {
-            if s.config.provider(id).is_none() || p.model_id.as_deref().is_some_and(|m| m.chars().count() > 200) {
+            if s.provider(id).is_none() || p.model_id.as_deref().is_some_and(|m| m.chars().count() > 200) {
                 return Err(ApiError::BadRequest("Pick a model of a configured provider to explain with.".into()));
             }
         }

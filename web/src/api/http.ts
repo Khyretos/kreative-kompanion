@@ -74,6 +74,11 @@ export class HttpApi implements KompanionApi {
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) { return this.request<void>("PUT", "/me/prefs", change); }
   setMaxSteps(maxSteps: number) { return this.request<void>("PUT", "/me/prefs", { maxSteps }); }
   setExplainPrefs(explain: import("./types").ExplainPrefs) { return this.request<void>("PUT", "/me/prefs", { explain }); }
+  listCustomProviders() { return this.request<{ providers: import("./types").CustomProvider[]; secretDirs: string[] }>("GET", "/admin/providers"); }
+  addProvider(p: import("./types").ProviderInput) { return this.request<import("./types").CustomProvider>("POST", "/admin/providers", p); }
+  updateProvider(id: string, p: import("./types").ProviderInput) { return this.request<import("./types").CustomProvider>("PUT", `/admin/providers/${encodeURIComponent(id)}`, p); }
+  deleteProvider(id: string) { return this.request<void>("DELETE", `/admin/providers/${encodeURIComponent(id)}`); }
+  createProject(p: { name: string; description?: string; ptype?: import("./types").ProjectType }) { return this.request<{ id: string; name: string }>("POST", "/projects", p); }
   explainStep(id: string, lang: string) { return this.request<{ text: string; cached: boolean; model: string }>("POST", `/actions/${encodeURIComponent(id)}/explain`, { lang }); }
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }) { return this.request<{ projectId: string }>("POST", "/overseer/tasks", b); }
   interject(taskId: string, text: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(taskId)}/interject`, { text }); }

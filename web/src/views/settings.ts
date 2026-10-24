@@ -4,7 +4,6 @@ import { html, type SafeHtml } from "../core/html";
 import type { AppState } from "../state";
 import type { AdminSettings, Effort, Role } from "../api/types";
 import { EFFORT_LABELS } from "./tasks";
-import { icon } from "./icons";
 import { pageHead } from "./pagehead";
 import { renderAdmin } from "./admin";
 import { DEFAULT_STYLE, KINDS, styleOf } from "../core/cardtypes";
@@ -201,29 +200,6 @@ export function renderSettings(s: AppState): SafeHtml {
       ${overseerSection(s)}
       ${voiceSection(s)}
       ${cardSection(s)}
-      <section>
-        <h3 class="label">Connected models</h3>
-        <ul class="providers">${s.providers.map((p) => html`
-          <li class="provider">
-            <div class="provider-head">
-              <strong>${p.name}</strong>
-              <span class="chip ${p.local ? "good" : ""}">${p.local ? "Local" : "Cloud"}</span>
-            </div>
-            <small class="muted">${p.kind === "anthropic" ? "Anthropic API" : "OpenAI-compatible API"} · ${p.baseUrl}</small>
-            ${p.error ? html`<p class="error small">Can't reach it: ${p.error}</p>` : ""}
-            ${p.models.map((m) => html`
-              <div class="model-row">
-                <code>${m.id}</code>
-                <span class="chips">
-                  ${m.contextTokens ? html`<span class="chip">${Math.round(m.contextTokens / 1024)}k context</span>` : ""}
-                  ${m.tokensPerSecond ? html`<span class="chip">${m.tokensPerSecond} tok/s</span>` : ""}
-                  ${m.toolCalls === undefined ? html`<span class="chip">not tested yet</span>` : html`
-                    <span class="chip ${m.toolCalls ? "good" : "bad"}">tool calls ${m.toolCalls ? "ok" : "no"}</span>
-                    <span class="chip ${m.jsonSchema ? "good" : "bad"}">JSON schema ${m.jsonSchema ? "ok" : "no"}</span>`}
-                </span>
-              </div>`)}
-          </li>`)}</ul>
-        <button class="btn" data-action="add-provider" disabled title="Comes with the server">${icon("plus")} Add a model or API</button>
-      </section>
+      <div id="providers-slot"></div>
     </div>`;
 }

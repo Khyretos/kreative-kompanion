@@ -78,8 +78,9 @@ for (const scheme of ["light", "dark"] as const) {
     expect(box.x + box.width).toBeLessThanOrEqual(390);
     expect(box.width).toBeGreaterThan(300);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-    // The warning text keeps AA contrast on its tinted background.
-    const ratio = await page.locator(".ctx-warn").evaluate((el) => {
+    // The warning text keeps AA contrast on its tinted background (polled: a live update can redraw
+    // the popover while it is read, and a detached node reads NaN).
+    const ratio = () => page.locator(".ctx-warn").evaluate((el) => {
       const rgb = (s: string) => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
       const lum = (c: number[]) => {
         const [r, g, b] = c.map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
@@ -93,7 +94,7 @@ for (const scheme of ["light", "dark"] as const) {
       const [l1, l2] = [lum(rgb(getComputedStyle(el).color)), lum(bg)].sort((x, y) => y - x);
       return (l1 + 0.05) / (l2 + 0.05);
     });
-    expect(ratio).toBeGreaterThanOrEqual(4.5);
+    await expect.poll(ratio).toBeGreaterThanOrEqual(4.5);
   });
 }
 

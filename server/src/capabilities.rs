@@ -33,7 +33,8 @@ fn needs(tool: &str) -> &'static str {
 /// it and the newest failed call.
 pub async fn models(s: &AppState, user_id: &str) -> ApiResult<Vec<Value>> {
     let roles = crate::api::user_roles(s, user_id).await?;
-    let probes = s.config.providers.iter().map(|p| async move {
+    let all = s.providers();
+    let probes = all.iter().map(|p| async move {
         match timeout(Duration::from_secs(5), llm::list_models(&s.http, p)).await {
             Ok(Ok(models)) => ("ok", None, models.into_iter().map(|m| m.id).collect::<Vec<_>>()),
             Ok(Err(e)) => ("down", Some(format!("{e:#}")), Vec::new()),
@@ -42,7 +43,7 @@ pub async fn models(s: &AppState, user_id: &str) -> ApiResult<Vec<Value>> {
     });
     let results = join_all(probes).await;
     let mut output = Vec::new();
-    for (p, (status, error, model_ids)) in s.config.providers.iter().zip(results) {
+    for (p, (status, error, model_ids)) in all.iter().zip(results) {
         let last: Option<(String, String)> = sqlx::query_as(
             "SELECT error, at FROM calls WHERE user_id = ? AND provider_id = ? AND error IS NOT NULL ORDER BY at DESC LIMIT 1",
         )

@@ -126,6 +126,12 @@ export interface KompanionApi {
   setMaxSteps(maxSteps: number): Promise<void>;
   /** CMD-01: the "Explain running actions" settings, and a step's explanation (made on first ask). */
   setExplainPrefs(p: import("./types").ExplainPrefs): Promise<void>;
+  /** PROV-UI: providers added in Settings (admins), and a new project. */
+  listCustomProviders(): Promise<{ providers: import("./types").CustomProvider[]; secretDirs: string[] }>;
+  addProvider(p: import("./types").ProviderInput): Promise<import("./types").CustomProvider>;
+  updateProvider(id: string, p: import("./types").ProviderInput): Promise<import("./types").CustomProvider>;
+  deleteProvider(id: string): Promise<void>;
+  createProject(p: { name: string; description?: string; ptype?: import("./types").ProjectType }): Promise<{ id: string; name: string }>;
   explainStep(id: string, lang: string): Promise<{ text: string; cached: boolean; model: string }>;
   /** OVR-01: creates proposed tasks, and their project when it is new. */
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }): Promise<{ projectId: string }>;

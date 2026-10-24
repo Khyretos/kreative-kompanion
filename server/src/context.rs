@@ -99,7 +99,7 @@ pub async fn usage(s: &AppState, chat_id: &str) -> sqlx::Result<Usage> {
         Some((provider, model, i, o, cw, cr)) => Usage {
             chat_id: chat_id.into(),
             used: used(i, o, cw, cr),
-            window: window(s.config.provider(&provider), &model),
+            window: window(s.provider(&provider).as_ref(), &model),
             model: Some(model),
             summary,
         },
@@ -230,9 +230,9 @@ earlier summary that still matters. Write plain notes, newest state last, at mos
 /// the last of them, with the chat's model at low effort; the call is logged like any other.
 pub async fn compact(s: &AppState, user_id: &str, chat_id: &str, role: &RoleAssignment, rows: &[Row]) -> anyhow::Result<Summary> {
     let Some(last) = rows.last() else { anyhow::bail!("there is nothing to summarise") };
-    let Some(p) = s.config.provider(&role.provider_id) else { anyhow::bail!("the provider {} is not configured", role.provider_id) };
+    let Some(p) = s.provider(&role.provider_id) else { anyhow::bail!("the provider {} is not configured", role.provider_id) };
     let previous = summary(&s.db, chat_id).await?;
-    let (p, model) = crate::effort::apply(p, &role.model_id, crate::effort::Effort::Low);
+    let (p, model) = crate::effort::apply(&p, &role.model_id, crate::effort::Effort::Low);
     let convo = vec![
         llm::ChatMessage::text("system", SUMMARY_PROMPT.into()),
         llm::ChatMessage::text("user", source(previous.as_ref().map(|x| x.text.as_str()), rows)),

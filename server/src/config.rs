@@ -334,6 +334,9 @@ pub struct ProviderConfig {
     pub local: bool,
     /// Name of the environment variable that holds the API key.
     pub api_key_env: Option<String>,
+    /// PROV-UI: or a file that holds it (a Docker secret, say); read on use, never shown.
+    #[serde(default)]
+    pub api_key_file: Option<String>,
     /// Extra fields merged into every chat request, e.g. to turn off long
     /// "thinking" on Qwen: `extra_body = { chat_template_kwargs = { enable_thinking = false } }`
     #[serde(default)]
@@ -369,6 +372,8 @@ impl ProviderConfig {
         self.api_key_env
             .as_ref()
             .and_then(|v| std::env::var(v).ok())
+            .or_else(|| self.api_key_file.as_ref().and_then(|f| std::fs::read_to_string(f).ok()))
+            .map(|k| k.trim().to_string())
             .filter(|k| !k.is_empty())
     }
 }

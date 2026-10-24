@@ -9,6 +9,54 @@ use crate::{AppState, auth::User, error::{ApiError, ApiResult}, events::Event, u
 
 const TYPES: &[&str] = &["chat", "game", "programming"];
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewProject {
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    ptype: Option<String>,
+}
+
+/// PROV-UI: POST /api/projects {name, description?, ptype?}: a new project of the user's, opened
+/// from the sidebar's New project button. The same name twice (not archived) is refused.
+pub async fn create(State(s): State<AppState>, Extension(u): Extension<User>, Json(b): Json<NewProject>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let name = b.name.split_whitespace().collect::<Vec<_>>().join(" ");
+    if name.is_empty() || name.chars().count() > 80 {
+        return Err(ApiError::BadRequest("Name the project (up to 80 characters).".into()));
+    }
+    let description = b.description.trim().to_string();
+    if description.chars().count() > 500 {
+        return Err(ApiError::BadRequest("The description is up to 500 characters.".into()));
+    }
+    let ptype = b.ptype.unwrap_or_else(|| "chat".into());
+    if !TYPES.contains(&ptype.as_str()) {
+        return Err(ApiError::BadRequest("The type is chat, game or programming.".into()));
+    }
+    let taken: Option<String> = sqlx::query_scalar("SELECT id FROM projects WHERE user_id = ? AND lower(name) = lower(?) AND archived_at IS NULL")
+        .bind(&u.id)
+        .bind(&name)
+        .fetch_optional(&s.db)
+        .await?;
+    if taken.is_some() {
+        return Err(ApiError::BadRequest(format!("You already have a project called \"{name}\".")));
+    }
+    let (id, now) = (util::new_id(), util::now());
+    sqlx::query("INSERT INTO projects (id, name, description, ptype, updated_at, created_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .bind(&id)
+        .bind(&name)
+        .bind(&description)
+        .bind(&ptype)
+        .bind(&now)
+        .bind(&now)
+        .bind(&u.id)
+        .execute(&s.db)
+        .await?;
+    s.bus.send(&u.id, Event::Changed { what: "projects", machine_id: None });
+    Ok((StatusCode::CREATED, Json(json!({ "id": id, "name": name }))))
+}
+
 async fn owned(s: &AppState, project_id: &str, u: &User) -> ApiResult<()> {
     let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM projects WHERE id = ? AND user_id = ?")
         .bind(project_id)
@@ -259,6 +307,24 @@ mod tests {
 
     fn body(v: Value) -> Json<SettingsBody> {
         Json(serde_json::from_value(v).unwrap())
+    }
+
+    #[tokio::test]
+    async fn a_new_project_is_the_users_own_with_a_unique_name_and_a_known_type() {
+        let s = state(db().await);
+        let new = |v: Value| Json(serde_json::from_value::<NewProject>(v).unwrap());
+        let (code, Json(p)) = create(State(s.clone()), Extension(user("u2")), new(json!({ "name": "  Shop   site ", "description": "Landing page", "ptype": "programming" }))).await.unwrap();
+        assert_eq!(code, StatusCode::CREATED);
+        let row: (String, String, String, String) = sqlx::query_as("SELECT name, description, ptype, user_id FROM projects WHERE id = ?").bind(p["id"].as_str().unwrap()).fetch_one(&s.db).await.unwrap();
+        assert_eq!(row, ("Shop site".into(), "Landing page".into(), "programming".into(), "u2".into()));
+        // Another user may use the same name; the same user may not (any case).
+        assert!(create(State(s.clone()), Extension(user("u2")), new(json!({ "name": "shop SITE" }))).await.is_err());
+        assert!(create(State(s.clone()), Extension(user("u1")), new(json!({ "name": "Shop site" }))).await.is_ok());
+        assert!(create(State(s.clone()), Extension(user("u1")), new(json!({ "name": " " }))).await.is_err());
+        assert!(create(State(s.clone()), Extension(user("u1")), new(json!({ "name": "X", "ptype": "film" }))).await.is_err());
+        let (_, Json(chat)) = create(State(s.clone()), Extension(user("u1")), new(json!({ "name": "Plain" }))).await.unwrap();
+        let t: String = sqlx::query_scalar("SELECT ptype FROM projects WHERE id = ?").bind(chat["id"].as_str().unwrap()).fetch_one(&s.db).await.unwrap();
+        assert_eq!(t, "chat");
     }
 
     #[test]

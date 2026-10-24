@@ -313,6 +313,7 @@ let demoMaxSteps = 10; // AUTO-01
 let demoExplain: import("./types").ExplainPrefs = { on: false, verbose: false }; // CMD-01
 const demoNotify: import("./types").NotificationPrefs = { email: "kees@example.com", onNeedsInput: true, onFailed: true, onDone: false, dailySummary: false,
   onApproval: true, mailOn: true, pushOn: true, quietFrom: "", quietTo: "", tzOffset: 0 }; // NOTIFY
+const demoCustom: import("./types").CustomProvider[] = []; // PROV-UI
 
 let roles: RoleAssignment[] = [
   { role: "orchestrator", providerId: "deepseek", modelId: "deepseek-chat" },
@@ -423,6 +424,52 @@ export class MockApi implements KompanionApi {
   async setGpuPins() {}
   async setMaxSteps(n: number) { demoMaxSteps = n; }
   async setExplainPrefs(p: import("./types").ExplainPrefs) { demoExplain = { ...p }; }
+  // PROV-UI: providers added in Settings (checked like the server) and new projects.
+  async listCustomProviders() { return structuredClone({ providers: demoCustom, secretDirs: ["/run/secrets", "/data/secrets"] }); }
+  private checkProvider(p: import("./types").ProviderInput) {
+    if (!p.name.trim()) throw new Error("Give the provider a name of up to 60 characters.");
+    if (!/^https?:\/\/[^/\s]+/.test(p.baseUrl.trim())) throw new Error("The address starts with https:// (or http:// on your own network).");
+    if (p.apiKeyEnv && !/^[A-Z][A-Z0-9_]*_(KEY|TOKEN)$/.test(p.apiKeyEnv)) throw new Error("The key's environment variable is in capitals and ends in _KEY or _TOKEN, like XAI_API_KEY.");
+    if (p.apiKeyFile && !/^\/(run\/secrets|data\/secrets)\/[^.][^/]*$/.test(p.apiKeyFile)) throw new Error("The key file must be in /run/secrets or /data/secrets.");
+  }
+  private showProvider(c: import("./types").CustomProvider) {
+    const models = /x\.ai/.test(c.baseUrl) ? [{ id: "grok-4" }, { id: "grok-4-fast" }] : [{ id: "default" }];
+    const shown: ModelProvider = { id: c.id, name: c.name, kind: c.kind, baseUrl: c.baseUrl, local: c.local, models };
+    const i = providers.findIndex((p) => p.id === c.id);
+    if (i >= 0) providers[i] = shown; else providers.push(shown);
+  }
+  async addProvider(p: import("./types").ProviderInput) {
+    this.checkProvider(p);
+    let id = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "provider";
+    for (let n = 2; providers.some((x) => x.id === id); n++) id = `${id.replace(/-\d+$/, "")}-${n}`;
+    const c = { id, ...p, kind: p.kind as "openai-compatible" | "anthropic", baseUrl: p.baseUrl.trim().replace(/\/$/, ""), hasKey: !!p.apiKeyEnv };
+    demoCustom.push(c);
+    this.showProvider(c);
+    return structuredClone(c);
+  }
+  async updateProvider(pid: string, p: import("./types").ProviderInput) {
+    this.checkProvider(p);
+    const c = demoCustom.find((x) => x.id === pid);
+    if (!c) throw new Error("That provider is gone.");
+    Object.assign(c, p, { baseUrl: p.baseUrl.trim().replace(/\/$/, ""), hasKey: !!p.apiKeyEnv });
+    this.showProvider(c);
+    return structuredClone(c);
+  }
+  async deleteProvider(pid: string) {
+    const used = roles.filter((r) => r.providerId === pid).map((r) => r.role);
+    if (used.length) throw new Error(`Roles still use it (${used.join(", ")}): pick another model for them first.`);
+    demoCustom.splice(demoCustom.findIndex((x) => x.id === pid), 1);
+    providers.splice(providers.findIndex((x) => x.id === pid), 1);
+  }
+  async createProject(p: { name: string; description?: string; ptype?: import("./types").ProjectType }) {
+    const name = p.name.trim().replace(/\s+/g, " ");
+    if (!name) throw new Error("Name the project (up to 80 characters).");
+    if (projects.some((x) => !x.archivedAt && x.name.toLowerCase() === name.toLowerCase())) throw new Error(`You already have a project called "${name}".`);
+    const proj: Project = { id: id("p"), name, description: p.description ?? "", updatedAt: new Date().toISOString(), type: p.ptype ?? "chat" };
+    projects.unshift(proj);
+    this.emit({ type: "changed", what: "projects" });
+    return { id: proj.id, name };
+  }
   // CMD-01: a canned explanation, after a short wait as if a model wrote it.
   async explainStep(stepId: string, _lang: string) {
     const a = actions.find((x) => x.id === stepId);
