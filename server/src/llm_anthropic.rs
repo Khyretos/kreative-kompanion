@@ -231,13 +231,21 @@ impl Answer {
     /// input was cut off at max_tokens is dropped: running half an edit would break the file.
     fn finish(mut self) -> (Value, Value) {
         let mut blocks = Vec::new();
+        let mut dropped = false;
         for (mut b, raw) in self.blocks.drain(..).zip(self.partial.drain(..)) {
             if b["type"] == "tool_use" {
                 let input = if raw.trim().is_empty() { Some(json!({})) } else { serde_json::from_str::<Value>(&raw).ok().filter(Value::is_object) };
-                let Some(input) = input else { continue };
+                let Some(input) = input else {
+                    dropped = true;
+                    continue;
+                };
                 b["input"] = input;
             }
             blocks.push(b);
+        }
+        // A dropped call is reported as a cut-off answer, so the agent says nothing ran and goes on.
+        if dropped {
+            self.stop_reason = Some("max_tokens".into());
         }
         let text: Vec<&str> = blocks.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect();
         let mut text = text.join("\n\n");
@@ -436,6 +444,17 @@ base_url = "https://api.anthropic.com""#)
         assert!(msg.get("tool_calls").is_none());
         assert_eq!(msg[ANTHROPIC_BLOCKS].as_array().unwrap().len(), 1, "no half tool call left to answer");
         assert_eq!(usage["finish_reason"], "length");
+    }
+
+    #[test]
+    fn broken_tool_input_is_reported_like_a_cut_off() {
+        let (msg, usage) = stream(&[
+            json!({ "type": "content_block_start", "index": 0, "content_block": { "type": "tool_use", "id": "tu", "name": "edit_file", "input": {} } }),
+            json!({ "type": "content_block_delta", "index": 0, "delta": { "type": "input_json_delta", "partial_json": "{\"path\": " } }),
+            json!({ "type": "message_delta", "delta": { "stop_reason": "tool_use" } }),
+        ]);
+        assert!(msg.get("tool_calls").is_none());
+        assert_eq!(usage["finish_reason"], "length", "never dropped in silence");
     }
 
     #[test]
