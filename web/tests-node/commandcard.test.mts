@@ -33,3 +33,15 @@ test("CMD-01: risk tags from the tool and the command", () => {
   assert.equal(riskOf({ tool: "package", action: "remove", names: ["x"] }), "delete");
   assert.equal(riskOf({ tool: "package", action: "install", names: ["x"] }), "network");
 });
+
+test("AGENT-SPAWN: a spawn step has no command or risk, and its result names what it made", async () => {
+  const { spawnOf, spawnedRef } = await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString("base64")}`);
+  const tool = { tool: "start_work", kind: "task", title: "Ship", prompt: "Goal: ship" };
+  assert.equal(commandText(tool), "");
+  assert.equal(riskOf(tool), undefined);
+  assert.deepEqual(spawnOf(tool), { kind: "task", title: "Ship", prompt: "Goal: ship" });
+  assert.equal(spawnOf({ tool: "shell", command: "ls" }), undefined);
+  assert.deepEqual(spawnedRef('Started the chat "X" (chat=c-12ab); it is answering.'), { kind: "chat", id: "c-12ab" });
+  assert.deepEqual(spawnedRef("Added the task \"Y\" to this project (task=t9)."), { kind: "task", id: "t9" });
+  assert.equal(spawnedRef("failed: no"), undefined);
+});

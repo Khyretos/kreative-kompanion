@@ -360,7 +360,7 @@ pub(crate) async fn insert_message(
 }
 
 /// `tools`: the chat's MCP tools only run for the owner (PROJECT-SHARING: an editor's message is answered without them).
-async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool) {
+pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool) {
     let to = match crate::sharing::chat_audience(&s.db, &chat_id).await {
         Ok(to) => to,
         Err(e) => {

@@ -3,6 +3,7 @@
 //! approval card (Approve, Always allow for 24 h, Deny); approved calls run as
 //! runner jobs, which still check the computer's grants.
 //! (The model drafted this twice; Claude rewrote it from the same spec.)
+pub mod spawn;
 pub mod steplog;
 pub mod tools;
 
@@ -363,6 +364,11 @@ impl Agent {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
         let mut tools = tools::schema();
+        // AGENT-SPAWN: a chat's agent may hand work on to a new chat or task (a task's may not).
+        if self.task_id.is_none() && let Some(list) = tools.as_array_mut() {
+            list.push(spawn::spec());
+        }
+        let mut spawned = 0;
         // KG-05: a task's worker also gets the tools of the MCP servers the user granted (and is denied the rest).
         let mut mcp_map = std::collections::HashMap::new();
         if self.task_id.is_some() {
@@ -461,6 +467,17 @@ impl Agent {
                     }
                     // Answered here, not by a computer.
                     None if name == "capabilities" => crate::capabilities::summary(s, &self.user_id).await,
+                    None if name == spawn::NAME && self.task_id.is_none() => {
+                        spawned += 1;
+                        if spawned > spawn::MAX_PER_ANSWER {
+                            format!("Refused: one answer starts at most {} chats or tasks.", spawn::MAX_PER_ANSWER)
+                        } else {
+                            match spawn::job(&args) {
+                                Err(e) => format!("Refused, nothing made: {e}"),
+                                Ok(job) => self.start_work(&job).await,
+                            }
+                        }
+                    }
                     None => "Unknown tool or wrong arguments.".to_string(),
                     // Guardrail: a file found missing earlier in this answer is not created
                     // behind the user's back.
@@ -497,6 +514,26 @@ impl Agent {
             }
         }
         Err(format!("{STEP_LIMIT} {} steps. Tell me how to go on.", self.max_steps))
+    }
+}
+
+impl Agent {
+    /// AGENT-SPAWN: an approval card for `start_work` (none in Automatic mode), then the chat or task.
+    async fn start_work(&self, job: &Value) -> String {
+        let s = &self.s;
+        let id = match ask(s, &self.user_id, &self.chat_id, &self.machine_id, job, &spawn::summary(job), self.auto, self.run_id.as_deref()).await {
+            Ok((id, _)) => id,
+            Err(e) => return e,
+        };
+        set_action(s, &id, "running", "").await;
+        changed(s, &self.user_id);
+        let (state, text) = match spawn::perform(s, &self.user_id, &self.chat_id, job).await {
+            Ok(t) => ("done", t),
+            Err(e) => ("failed", format!("failed: {e}")),
+        };
+        set_action(s, &id, state, &text).await;
+        changed(s, &self.user_id);
+        text
     }
 }
 
@@ -546,13 +583,12 @@ pub async fn fail_orphaned_steps(s: &AppState) {
     }
 }
 
-/// One tool call: an approval card, then (if approved) a runner job. Returns the
-/// text the model gets back.
-async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, auto: bool, run_id: Option<&str>, budget: usize) -> String {
-
+/// The approval card for a step: stored as pending (or running when `preapproved`), then the
+/// user's decision is awaited. Ok((card id, "covered" | "approved" | "always")) to go on, else the
+/// text for the model (declined, or no answer in time).
+#[allow(clippy::too_many_arguments)]
+async fn ask(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, summary: &str, preapproved: bool, run_id: Option<&str>) -> Result<(String, String), String> {
     let id = util::new_id();
-    // Under a standing grant (tasks): no card, the step runs right away.
-    let preapproved = auto && covered(s, machine_id, job).await;
     let stored = sqlx::query(
         "INSERT INTO pc_actions (id, chat_id, user_id, machine_id, tool, summary, state, created_at, run_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -562,20 +598,20 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
     .bind(user_id)
     .bind(machine_id)
     .bind(job.to_string())
-    .bind(tools::summary(job))
+    .bind(summary)
     .bind(if preapproved { "running" } else { "pending" })
     .bind(util::now())
     .bind(run_id)
     .execute(&s.db)
     .await;
     if let Err(e) = stored {
-        return format!("Could not ask the user: {e}");
+        return Err(format!("Could not ask the user: {e}"));
     }
     changed(s, user_id);
 
     // A task run waiting for the user: say so in the project thread, with a link to the card's chat.
     if let (false, Some(run)) = (preapproved, run_id) {
-        crate::thread::post_run(s, run, &format!("Waiting for your approval: {}. [Open it](#chat={chat_id})", tools::summary(job))).await;
+        crate::thread::post_run(s, run, &format!("Waiting for your approval: {summary}. [Open it](#chat={chat_id})")).await;
     }
 
     let mut state = if preapproved { "covered".to_string() } else { "pending".to_string() };
@@ -595,11 +631,23 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
         "pending" => {
             set_action(s, &id, "denied", "No answer within 30 minutes.").await;
             changed(s, user_id);
-            return "The user did not answer; nothing was done.".into();
+            Err("The user did not answer; nothing was done.".into())
         }
-        "denied" => return "The user declined this step; nothing was done.".into(),
-        _ => {}
+        "denied" => Err("The user declined this step; nothing was done.".into()),
+        _ => Ok((id, state)),
     }
+}
+
+/// One tool call: an approval card, then (if approved) a runner job. Returns the
+/// text the model gets back.
+async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, auto: bool, run_id: Option<&str>, budget: usize) -> String {
+
+    // Under a standing grant (tasks): no card, the step runs right away.
+    let preapproved = auto && covered(s, machine_id, job).await;
+    let (id, state) = match ask(s, user_id, chat_id, machine_id, job, &tools::summary(job), preapproved, run_id).await {
+        Ok(x) => x,
+        Err(e) => return e,
+    };
     let always = state == "always";
 
     // The computer only runs what is granted. Approve adds a grant for this one

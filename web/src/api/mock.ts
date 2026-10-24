@@ -1037,12 +1037,23 @@ export class MockApi implements KompanionApi {
     return p in tree ? { state: "ok" as const, path: p, folders: tree[p], files: 3 }
       : { state: "missing" as const, path: p, message: `Folder not found on soucouyant: ${p}` };
   }
-  async decideAction(id: string, decision: "approve" | "always" | "deny") {
-    const a = actions.find((x) => x.id === id);
+  async decideAction(actionId: string, decision: "approve" | "always" | "deny") {
+    const a = actions.find((x) => x.id === actionId);
     if (!a || a.state !== "pending") throw new Error("This step was already decided.");
     const step = (state: PcAction["state"], result: string | null, ms: number) =>
       setTimeout(() => { a.state = state; a.result = result; this.emit({ type: "changed", what: "actions" }); }, ms);
     if (decision === "deny") { step("denied", null, 0); return; }
+    // AGENT-SPAWN: a new chat in the same project, with the prompt as its first message.
+    if (a.tool?.tool === "start_work") {
+      const from = chats.find((c) => c.id === (a as PcAction & { chatId?: string }).chatId);
+      const chat: Chat = { id: id("c"), title: String(a.tool.title), projectId: from?.projectId, updatedAt: new Date().toISOString() };
+      chats.unshift(chat);
+      messages.push({ id: id("m"), chatId: chat.id, author: "user", at: new Date().toISOString(), text: String(a.tool.prompt) });
+      this.emit({ type: "changed", what: "chats" });
+      step("running", null, 0);
+      step("done", `Started the chat "${chat.title}" (chat=${chat.id}); it is answering the prompt there now.`, 300);
+      return;
+    }
     step("granting", null, 0);
     if (decision === "always") {
       // One grant per target, like the runner (ACC-01: the demo already has a system grant).
@@ -1080,6 +1091,12 @@ export class MockApi implements KompanionApi {
         createdAt: new Date(t0 + k).toISOString(), startedAt: new Date(t0 - 60_000 + k * 10_000).toISOString(), endedAt: new Date(t0 - 60_000 + k * 10_000 + secs * 1000).toISOString() } as PcAction & { chatId: string }));
       actions.push({ id: id("a"), chatId, machineId, summary: "Build and test", tool: { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "cmake --build build -j && ctest --test-dir build --output-on-failure" },
         state: "running", result: null, createdAt: new Date(t0 + 3).toISOString(), startedAt: new Date(Date.now() - 12_000).toISOString() } as PcAction & { chatId: string });
+      setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
+    } else if (machineId && /hand this on/i.test(text)) {
+      // AGENT-SPAWN: the model asks to start a new chat; the card waits for Approve or Deny.
+      actions.push({ id: id("a"), chatId, machineId, summary: "Start a new chat: \"Logo ideas for the shop\"",
+        tool: { tool: "start_work", kind: "chat", title: "Logo ideas for the shop", prompt: "Sketch three logo ideas for the shop: round, with the compass mark, readable at 32 px.\nSay which one you would pick and why." },
+        state: "pending", result: null, createdAt: new Date(Date.now() + 50).toISOString() } as PcAction & { chatId: string });
       setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
     } else if (machineId && /every card type/i.test(text)) {
       // Demo of every approval card type (readability checks): one pending card each.

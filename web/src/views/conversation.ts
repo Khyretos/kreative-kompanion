@@ -15,7 +15,7 @@ import { t, type Key } from "../core/i18n";
 import { stateLabel } from "./tasks";
 import { fromTool, renderOutput } from "../core/output";
 import { kindOf, styleOf, type CardStyle } from "../core/cardtypes";
-import { commandLang, commandText, RISK_LABEL, riskOf } from "../core/commandcard";
+import { commandLang, commandText, RISK_LABEL, riskOf, spawnedRef, spawnOf } from "../core/commandcard";
 import { highlightHtml } from "../core/codeblocks";
 
 /** Card colours per action type, set by main.ts from the user's Settings. */
@@ -69,6 +69,8 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
   const kind = styleOf(kindOf(a.tool), cardStyle);
   const risk = riskOf(a.tool);
   const command = commandText(a.tool);
+  const spawn = spawnOf(a.tool);
+  const made = spawn && a.state === "done" ? spawnedRef(a.result) : undefined;
   const since = a.startedAt ?? a.createdAt;
   const took = !busy && a.endedAt ? elapsedText(since, Date.parse(a.endedAt)) : "";
   const icn = busy ? "spark" : a.state === "done" ? "terminal" : "close";
@@ -76,10 +78,10 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
     <details class="step step-card ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) ? "open" : ""}>
       <summary data-action="step-toggle" data-id="${a.id}">
         <span class="step-head">
-          <span class="step-type">${icon(icn)}<span class="kind-tag" style="--kind:${kind.color}">${kind.label}</span></span>
+          <span class="step-type">${icon(icn)}<span class="kind-tag" style="--kind:${kind.color}">${spawn ? t(spawn.kind === "task" ? "spawnTask" : "spawnChat") : kind.label}</span></span>
           <span class="step-time">${a.state === "running" ? html`<span class="elapsed" data-since="${since}">${elapsedText(since)}</span>` : took ? html`<span title="${t("cmdTook", { time: took })}">${took}</span>` : ""}</span>
           <span class="step-tags">
-            <span class="risk-tag risk-${risk}" title="${t("riskTip")}">${t(RISK_LABEL[risk])}</span>
+            ${risk ? html`<span class="risk-tag risk-${risk}" title="${t("riskTip")}">${t(RISK_LABEL[risk])}</span>` : ""}
             <span class="chip ${a.state}">${STEP_LABEL[a.state] ? t(STEP_LABEL[a.state]) : a.state}</span>
             ${a.state === "running" ? html`<button class="btn small danger step-stop" type="button" data-action="step-stop" data-id="${a.id}">${t("cmdStop")}</button>` : ""}
           </span>
@@ -89,7 +91,9 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
       ${command ? html`<div class="step-cmd" role="group" aria-label="${t("cmdCommand")}">
         <pre class="step-code"><code class="hljs">${highlightHtml(command, commandLang(a.tool))}</code></pre>
       </div>` : ""}
-      ${a.result ? renderOutput(fromTool(a.tool, a.result, machines[a.machineId])) : ""}
+      ${spawn ? html`<div class="spawn-prompt" role="group" aria-label="${t("spawnPrompt")}">${spawn.prompt}</div>` : ""}
+      ${spawn && a.result ? html`<p class="spawn-result small">${a.result}</p>` : a.result ? renderOutput(fromTool(a.tool, a.result, machines[a.machineId])) : ""}
+      ${made ? html`<p class="spawn-open"><button class="btn small" type="button" data-action="${made.kind === "task" ? "open-task" : "open-chat"}" data-id="${made.id}">${t(made.kind === "task" ? "spawnOpenTask" : "spawnOpenChat")}</button></p>` : ""}
       ${explainOn && command ? html`<details class="step-explain" data-explain="${a.id}" ${openExplains.has(a.id) ? "open" : ""}>
         <summary data-action="explain-toggle" data-id="${a.id}">${icon("spark")}${t("explainCmd")}</summary>
         <div class="step-explain-body" data-explain-body="${a.id}" aria-live="polite"></div>

@@ -1102,6 +1102,10 @@ button[aria-busy="true"]::after {
 .step-explain-body > :first-child { margin-top: 0; }
 .step-explain-body > :last-child { margin-bottom: 0; }
 .danger-text { color: var(--danger-text); }
+/* AGENT-SPAWN: the prompt of a new chat or task, on its card and its approval card. */
+.spawn-prompt { margin: 0 0.5rem 0.5rem; padding: 0.5rem 0.65rem; max-height: 10rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; color: var(--fg); background: var(--surface-2); border-radius: var(--radius); }
+.pc-action.spawn .spawn-prompt { margin: 0; }
+.spawn-result, .spawn-open { margin: 0 0.5rem 0.5rem; }
 @media (max-width: 760px) {
   .step-head { grid-template-columns: minmax(0, 1fr) auto; }
   .step-time { grid-column: 2; grid-row: 1; }
