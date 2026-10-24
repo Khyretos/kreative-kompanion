@@ -1943,7 +1943,7 @@ function wire(shell: HTMLElement): void {
   let pullY: number | undefined;
   shell.addEventListener("touchstart", (ev) => {
     const target = ev.target as HTMLElement;
-    pullY = target.closest("#conv-head, .tasks-overview .ov-head, .tasks-overview .ov-handle") ? ev.touches[0]?.clientY : undefined;
+    pullY = target.closest("#conv-head, .tasks-overview .tov-head, .tasks-overview .tov-handle") ? ev.touches[0]?.clientY : undefined;
   }, { passive: true });
   shell.addEventListener("touchmove", (ev) => {
     if (pullY === undefined) return;
@@ -1962,7 +1962,7 @@ function wire(shell: HTMLElement): void {
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
     if (store.get().contextOpen && !t.closest(".ctx-meter")) store.set({ contextOpen: false });
     // TASK-OVERVIEW: a click outside the panel (and its chip) closes it; a redrawn target is inside.
-    if (store.get().tasksOverviewOpen && t.isConnected && !t.closest(".tasks-overview, .ov-chip, #tasks-overview-slot")) store.set({ tasksOverviewOpen: false, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined });
+    if (store.get().tasksOverviewOpen && t.isConnected && !t.closest(".tasks-overview, .tov-chip, #tasks-overview-slot")) store.set({ tasksOverviewOpen: false, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
     if (store.get().projectMenuId && !t.closest(".menu, .project-more")) store.set({ projectMenuId: undefined });
   });

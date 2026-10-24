@@ -1,0 +1,47 @@
+{
+  "2e87a4d8b6f2": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "title": "Incomplete Validation",
+    "verdict": "false_positive",
+    "reason": "An empty or blank baseUrl fails the demo's check: it must match ^https?://[^/\\s]+ after trimming, the same rule the server applies with a parsed URL and a host."
+  },
+  "6d2179070d82": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/providers_admin.rs",
+    "title": "Missing Validation",
+    "verdict": "false_positive",
+    "reason": "A key file may be added after the provider (a Docker secret mounted on the next start), so a missing file is allowed on purpose; the provider's row says whether the key was found (hasKey), and the path is limited to the secret folders."
+  },
+  "871323b85125": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/tools.rs",
+    "title": "Resource Leak",
+    "verdict": "false_positive",
+    "reason": "The file handle is dropped at the end of the match arm, which closes it (std::fs::File has no close method); write_all's error is checked, so nothing is left open."
+  },
+  "bc7b314940a4": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/mail.rs",
+    "title": "Hard-coded Secret",
+    "verdict": "false_positive",
+    "reason": "No secret: STARTTLS on 587 is only the default when KOMPANION_SMTP_TLS is unset; tls (465) and none are taken from the environment, and the port follows the choice. The test covers both."
+  },
+  "cc6a11a4ff3e": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/notify.rs",
+    "title": "Possible Issue",
+    "verdict": "false_positive",
+    "reason": "rem_euclid is what makes west-of-UTC right: 01:00 UTC at UTC-5 is 20:00 the evening before, which is the user's local time; the quiet-hours test checks offsets and a span over midnight."
+  }
+}
