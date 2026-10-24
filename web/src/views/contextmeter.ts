@@ -60,7 +60,7 @@ export function contextChip(c: ChatContext | undefined, open: boolean, compactin
   const label = c.used === null ? t("ctxNone")
     : pct !== null ? t("ctxFull", { pct, used: num(c.used), window: num(c.window!) })
     : t("ctxUnknown", { used: num(c.used) });
-  return html`<span class="ctx">
+  return html`<span class="ctx-meter">
     <button class="icon-btn ctx-chip" type="button" data-action="context-toggle" data-level="${lv}" aria-haspopup="dialog"
       aria-expanded="${open ? "true" : "false"}" aria-label="${label}" title="${label}">${ring(pct, centre)}</button>
     ${open ? details(c, pct, lv, compacting, summaryOpen) : ""}
