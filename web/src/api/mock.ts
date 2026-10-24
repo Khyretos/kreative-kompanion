@@ -1126,6 +1126,8 @@ export class MockApi implements KompanionApi {
   }
   // TASK-OVERVIEW: a demo trace: two model calls around a build step that is still running.
   async runTrace(runId: string): Promise<import("./types").RunTrace> {
+    // Tests call this to act as a live update of the open trace (as a new step would).
+    (globalThis as { __kkDemoTraceTick?: () => void }).__kkDemoTraceTick = () => this.emit({ type: "changed", what: "trace" });
     const t = tasks.find((x) => `run-${x.id}` === runId);
     if (!t) throw new Error("That run is gone.");
     const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString();

@@ -33,17 +33,21 @@ export function tasksOverviewChip(s: AppState): SafeHtml {
   </button>`;
 }
 
+/** The call cards and their prompt/answer parts the user opened, kept while the trace redraws live. */
+export const openTrace = new Set<string>();
+
+function folded(key: string, cls: string, summary: SafeHtml, body: SafeHtml): SafeHtml {
+  return html`<details class="${cls}" ${openTrace.has(key) ? "open" : ""}><summary data-action="trace-toggle" data-key="${key}">${summary}</summary>${body}</details>`;
+}
+
 function callCard(c: TraceCall): SafeHtml {
   const tokens = c.tokensIn !== null || c.tokensOut !== null ? t("ovTokens", { in: c.tokensIn ?? 0, out: c.tokensOut ?? 0 }) : "";
-  return html`<details class="trace-call ${c.error ? "failed" : ""}">
-    <summary>
+  return folded(c.id, `trace-call ${c.error ? "failed" : ""}`, html`
       <span class="trace-head">${icon("spark")}<span class="kind-tag trace-tag">${t("ovCall")}</span><span class="trace-model">${c.model}</span><span class="muted">${c.provider}</span></span>
-      <span class="trace-nums">${tokens}${tokens ? " · " : ""}${(c.ms / 1000).toFixed(1)} s</span>
-    </summary>
+      <span class="trace-nums">${tokens}${tokens ? " · " : ""}${(c.ms / 1000).toFixed(1)} s</span>`, html`
     ${c.error ? html`<p class="small danger-text">${c.error}</p>` : ""}
-    <details class="trace-body"><summary>${t("ovPrompt")}</summary><pre>${c.prompt}</pre></details>
-    <details class="trace-body"><summary>${t("ovAnswer")}</summary><pre>${c.response}</pre></details>
-  </details>`;
+    ${folded(`${c.id}:prompt`, "trace-body", html`${t("ovPrompt")}`, html`<pre>${c.prompt}</pre>`)}
+    ${folded(`${c.id}:answer`, "trace-body", html`${t("ovAnswer")}`, html`<pre>${c.response}</pre>`)}`);
 }
 
 function detail(s: AppState, task: Task, n: number, of: number): SafeHtml {

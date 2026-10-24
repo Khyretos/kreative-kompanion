@@ -42,6 +42,7 @@ import { renderStudioMake, renderStudioLibrary } from "./views/studio";
 // STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
 let studioPrompt = "";
 let effortKey = ""; // EFF-02: what the effort chip last showed (effortChipKey)
+let trayKey = ""; // TASK-OVERVIEW: the running tasks the desktop tray last got
 let studioLyrics = ""; // STU-02: music lyrics and the audio length, kept the same way
 let studioSeconds = "";
 let studioRating = ""; // STU-01c: the picked rating ("" = the first one offered)
@@ -75,7 +76,7 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
 import { renderSettings, webPushRow } from "./views/settings";
-import { renderTasksOverview } from "./views/taskoverview";
+import { counts as taskCounts, openTrace, renderTasksOverview } from "./views/taskoverview";
 import { pageHead } from "./views/pagehead";
 import { modal } from "./core/modal";
 import { doneChip as overseerDoneChip, markDone as markOverseerDone } from "./core/overseer";
@@ -373,6 +374,16 @@ function render(s: AppState, prev: AppState): void {
     const chipFocused = document.activeElement?.id === "ov-chip";
     mount($("#conv-head"), renderHeader(s));
     if (chipFocused) document.getElementById("ov-chip")?.focus();
+  }
+  // TASK-OVERVIEW: the desktop app's tray follows the running tasks (count, badge, menu).
+  const tauriCore = (window as { __TAURI__?: { core?: { invoke(cmd: string, args: unknown): Promise<unknown> } } }).__TAURI__?.core;
+  if (tauriCore && (firstRender || changed(s, prev, ["tasks", "projects"]))) {
+    const running = taskCounts(s).running.map((x) => ({ id: x.id, title: x.title, step: x.step ?? "" }));
+    const key = JSON.stringify(running);
+    if (key !== trayKey) {
+      trayKey = key;
+      tauriCore.invoke("running_tasks", { tasks: running }).catch(() => undefined);
+    }
   }
   // TASK-OVERVIEW: the running-tasks panel under the top bar.
   if (firstRender || changed(s, prev, ["tasksOverviewOpen", "tasksOverviewTaskId", "tasksOverviewTrace", "tasksOverviewTraceError", "tasks", "projects", "pcActions"])) {
@@ -1293,6 +1304,14 @@ function wire(shell: HTMLElement): void {
     "new-project-cancel": () => {
       store.set({ newProjectOpen: false, newProjectError: undefined });
       focusSoon('[data-action="new-project"]');
+    },
+    // TASK-OVERVIEW: a call card or its prompt/answer, opened or closed; kept while the trace redraws.
+    "trace-toggle": (el) => {
+      const key = el.dataset.key ?? "";
+      const d = el.closest("details");
+      const open = !(d ? d.open : openTrace.has(key));
+      if (open) openTrace.add(key); else openTrace.delete(key);
+      if (d) d.open = open;
     },
     "step-toggle": (el) => {
       const id = el.dataset.id ?? "";

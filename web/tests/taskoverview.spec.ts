@@ -33,6 +33,10 @@ test("the chip counts running and done tasks; the panel numbers the running ones
   await call.locator("summary").first().click();
   await call.locator(".trace-body summary").first().click();
   await expect(call.locator(".trace-body pre").first()).toContainText("--vk-validation");
+  // Opened parts stay open while the trace redraws live (a new step arrives).
+  await page.evaluate(() => (window as unknown as { __kkDemoTraceTick?: () => void }).__kkDemoTraceTick?.());
+  await page.waitForTimeout(800);
+  await expect(call.locator(".trace-body pre").first()).toBeVisible();
   // The running step is a step card with its command.
   await expect(panel.locator('.ov-trace details.step-card[data-state="running"] .step-code')).toContainText("cmake --build build");
   // Escape: back to the list, then closed, focus back on the chip.
@@ -62,7 +66,8 @@ test("on a phone, pulling the top bar down opens the panel and pushing it up clo
   const pull = async (selector: string, from: number, to: number) => {
     await page.locator(selector).first().dispatchEvent("touchstart", { touches: [{ identifier: 1, clientX: 200, clientY: from }] });
     await page.locator(selector).first().dispatchEvent("touchmove", { touches: [{ identifier: 1, clientX: 200, clientY: to }] });
-    await page.locator(selector).first().dispatchEvent("touchend", { touches: [] });
+    // The panel may be gone by now (it closed): the finger lifts over the top bar.
+    await page.locator("#conv-head").dispatchEvent("touchend", { touches: [] });
   };
   await pull("#conv-head", 20, 120);
   await expect(page.locator(".tasks-overview")).toBeVisible();
