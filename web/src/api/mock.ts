@@ -91,6 +91,7 @@ const contexts: Record<string, ChatContext> = {
     text: "Kees wants a --vk-validation flag (off by default in release builds) and an engine.toml setting.\n- ModuleLoader tests: cover the missing-file and the circular-import cases.\n- README build steps updated (done).\n- Open: benchmark at 1440p needs the GPU; asked when it can run.",
   } },
   "c-kk-2": { chatId: "c-kk-2", used: 18_400, window: 128_000, model: "deepseek-chat", summary: null },
+  "c-3dco": { chatId: "c-3dco", used: 123_500, window: 128_000, model: "deepseek-chat", summary: null },
 };
 
 const adminSettings: AdminSettings = {

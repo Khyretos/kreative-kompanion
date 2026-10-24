@@ -19,7 +19,6 @@ import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
 import { autoRunChip, composer, effortChip, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, type MessageView } from "./views/conversation";
-import { contextChip } from "./views/contextmeter";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { filterDeps, setDep } from "./views/deppicker";
@@ -360,7 +359,8 @@ function render(s: AppState, prev: AppState): void {
     input?.focus();
     input?.select();
   }
-  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks"])) {
+  // CTX-01: the context meter lives in the header too.
+  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks", "chatContext", "contextOpen", "compacting", "contextSummaryOpen"])) {
     mount($("#conv-head"), renderHeader(s));
   }
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer", "projects", "activeProjectId"])) {
@@ -377,11 +377,6 @@ function render(s: AppState, prev: AppState): void {
     mount($("#effort-slot"), effortChip(s));
     if (s.effortMenuOpen && !prev.effortMenuOpen) document.querySelector<HTMLElement>('.effort-menu [aria-checked="true"]')?.focus();
     else if (hadFocus && !s.effortMenuOpen) document.querySelector<HTMLElement>(".effort-chip")?.focus();
-  }
-  // CTX-01: the context meter (how full the chat's context is) and its details.
-  if (firstRender || changed(s, prev, ["chatContext", "contextOpen", "compacting", "activeChatId"])) {
-    const ctx = s.chatContext && s.chatContext.chatId === s.activeChatId ? s.chatContext : undefined;
-    mount($("#context-slot"), contextChip(ctx, !!s.contextOpen, !!s.compacting));
   }
   // CHAT-01: the Tools chip (MCP servers this chat may use).
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "mcpServers", "draftMcp", "toolsMenuOpen"])) {
@@ -1831,6 +1826,11 @@ function wire(shell: HTMLElement): void {
     if (f.closest("form") && (f.matches("input[name], textarea[name], select[name]"))) f.dataset.edited = "1";
   };
   shell.addEventListener("input", markEdited, true);
+  // CTX-01: the summary in the meter's details stays open or closed when the top bar re-renders.
+  shell.addEventListener("toggle", (ev) => {
+    const d = ev.target as HTMLDetailsElement;
+    if (d.classList?.contains("ctx-sum") && d.open !== !!store.get().contextSummaryOpen) store.set({ contextSummaryOpen: d.open });
+  }, true);
   shell.addEventListener("change", markEdited, true);
   // A submitted form shows what was saved from then on.
   shell.addEventListener("submit", (ev) => {
