@@ -175,6 +175,11 @@ pub async fn status(
         "maxSteps": max_steps,
         "gpuPins": serde_json::from_str::<serde_json::Value>(&pins).unwrap_or(serde_json::json!([])),
         "cardStyle": serde_json::from_str::<serde_json::Value>(&cards).unwrap_or(serde_json::json!({})),
+        // CMD-01: "Explain running actions" (off, compact, the chat's model unless one is picked).
+        "explain": match &user {
+            Some(u) => json!(crate::explain::prefs(&state.db, &u.id).await),
+            None => serde_json::Value::Null,
+        },
         "version": env!("CARGO_PKG_VERSION"),
         // OVR-01: the Overseer's name and whether it may add context to running tasks.
         "overseer": match &user {
@@ -191,6 +196,8 @@ pub async fn status(
             .chain(has_knowledge.then(|| crate::chat_tools::KNOWLEDGE.to_string()))
             // HIST-01: the user's own past chats, always there for a signed-in user.
             .chain(user.is_some().then(|| crate::chat_tools::HISTORY.to_string()))
+            // FACTS: remember / forget in plain chats (computer chats always have them).
+            .chain(user.is_some().then(|| crate::chat_tools::MEMORY.to_string()))
             .collect::<Vec<_>>(),
         // UI-02: one-line descriptions for the Tools menu (built-ins are described in the web app).
         "mcpInfo": state.config.mcp.iter().filter(|m| m.enabled && user.is_some())

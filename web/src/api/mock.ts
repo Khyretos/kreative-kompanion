@@ -4,7 +4,7 @@ import { AUDIO_TYPES } from "./http";
 import type { AccessEvent, GrantView } from "../views/access";
 import type { KompanionApi, Lesson, ServerEvent } from "./client";
 import type { PcAction } from "./client";
-import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, ChatContext, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task } from "./types";
+import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, Fact, FactKind, FactsView, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task, ChatContext } from "./types";
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 const grants: Record<string, GrantView[]> = {
@@ -84,6 +84,19 @@ const chats: Chat[] = [
   { id: "c-loose", title: "Which local model next?", updatedAt: ago(60 * 3) },
 ];
 
+// FACTS: kk-engine's facts and the "Debug tooling and tests" chat's own; one path fact is flagged.
+const fact = (id: string, scope: { projectId?: string; chatId?: string }, key: string, value: string, kind: FactKind, source: "user" | "assistant", min: number, flagged = false): Fact =>
+  ({ id, projectId: scope.projectId ?? null, chatId: scope.chatId ?? null, key, value, kind, source, createdAt: ago(min + 60), updatedAt: ago(min), lastUsedAt: ago(5), flaggedAt: flagged ? ago(30) : null });
+const facts: Fact[] = [
+  fact("f1", { projectId: "p-kk" }, "Build command", "cmake --build build -j8", "other", "user", 60 * 24 * 6),
+  fact("f2", { projectId: "p-kk" }, "Engine repo", "/home/kees/projects/kk-engine", "path", "user", 60 * 24 * 9),
+  fact("f3", { projectId: "p-kk" }, "Validation default", "--vk-validation is off in release builds, on in debug.", "text", "assistant", 50),
+  fact("f4", { projectId: "p-kk" }, "Docs", "https://kk-engine.kreative-kompas.com/docs", "url", "assistant", 60 * 24 * 2),
+  fact("f5", { projectId: "p-kk" }, "Shader cache", "/home/kees/.cache/kk-engine/shaders", "path", "assistant", 60 * 24 * 3, true),
+  fact("f6", { chatId: "c-kk" }, "Benchmark slot", "Tonight 01:00, when the A770 is free", "text", "assistant", 40),
+  fact("f7", { chatId: "c-kk" }, "Test runner", "ctest --output-on-failure", "other", "user", 90),
+];
+const sortFacts = (list: Fact[]) => [...list].sort((a, b) => Number(!!b.flaggedAt) - Number(!!a.flaggedAt) || a.key.toLowerCase().localeCompare(b.key.toLowerCase()));
 // CTX-01: the context meter's demo numbers: one chat close to full with a summary, one with room.
 const contexts: Record<string, ChatContext> = {
   "c-kk": { chatId: "c-kk", used: 104_300, window: 128_000, model: "deepseek-chat", summary: {
@@ -297,6 +310,7 @@ const providers: ModelProvider[] = [
 
 const overseerPrefs = { name: "Loquendo", interject: true };
 let demoMaxSteps = 10; // AUTO-01
+let demoExplain: import("./types").ExplainPrefs = { on: false, verbose: false }; // CMD-01
 
 let roles: RoleAssignment[] = [
   { role: "orchestrator", providerId: "deepseek", modelId: "deepseek-chat" },
@@ -397,7 +411,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs", "History"], overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs", "History", "Memory"], overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, explain: { ...demoExplain }, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}
@@ -406,6 +420,18 @@ export class MockApi implements KompanionApi {
   async setMachinesRefresh() {}
   async setGpuPins() {}
   async setMaxSteps(n: number) { demoMaxSteps = n; }
+  async setExplainPrefs(p: import("./types").ExplainPrefs) { demoExplain = { ...p }; }
+  // CMD-01: a canned explanation, after a short wait as if a model wrote it.
+  async explainStep(stepId: string, _lang: string) {
+    const a = actions.find((x) => x.id === stepId);
+    if (!a) throw new Error("That step is gone.");
+    await new Promise((r) => setTimeout(r, 300));
+    const cmd = String(a.tool?.command ?? a.tool?.tool ?? "");
+    const text = demoExplain.verbose
+      ? `- \`${cmd.split(" ")[0]}\`: the program that runs.\n- The rest are its arguments.\n\n**Changes:** see the risk tag; nothing outside the folder.`
+      : `Runs \`${cmd}\` in the project folder and prints what it finds. It **changes nothing** on its own.`;
+    return { text, cached: false, model: "deepseek-chat" };
+  }
   async setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) {
     if (change.overseerName !== undefined) overseerPrefs.name = change.overseerName.trim() || "Overseer";
     if (change.overseerInterject !== undefined) overseerPrefs.interject = change.overseerInterject;
@@ -635,6 +661,39 @@ export class MockApi implements KompanionApi {
     return structuredClone([...chats].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned)));
   }
   async listMessages(chatId: string) { return structuredClone(messages.filter((m) => m.chatId === chatId)); }
+  async listFacts(where: { chatId?: string; projectId?: string }): Promise<FactsView> {
+    const chat = where.chatId ? chats.find((c) => c.id === where.chatId) : undefined;
+    const projectId = chat ? chat.projectId ?? null : where.projectId ?? null;
+    const view: FactsView = { projectId, chatId: chat?.id ?? null };
+    if (projectId) Object.assign(view, { project: sortFacts(facts.filter((f) => f.projectId === projectId)), canEditProject: true });
+    if (chat) Object.assign(view, { chat: sortFacts(facts.filter((f) => f.chatId === chat.id)), canEditChat: true });
+    return structuredClone(view);
+  }
+  async addFact(f: { scope: "project" | "chat"; projectId?: string; chatId?: string; key: string; value: string; kind?: FactKind }): Promise<Fact> {
+    const key = f.key.trim().replace(/\s+/g, " ");
+    const value = f.value.trim();
+    if (!key || !value) throw new Error("A fact needs a name and a value.");
+    if (/\b(ghp_|sk-|github_pat_)\w{16,}/.test(value)) throw new Error("This looks like a password or token. Facts never hold secrets: write where it lives instead.");
+    const scope = f.scope === "project" ? { projectId: f.projectId } : { chatId: f.chatId };
+    if (facts.some((x) => (f.scope === "project" ? x.projectId === f.projectId : x.chatId === f.chatId) && x.key.toLowerCase() === key.toLowerCase())) throw new Error(`There is already a fact named "${key}": edit that one instead.`);
+    const n = fact(id("f"), scope, key, value, f.kind ?? "text", "user", 0);
+    n.lastUsedAt = null;
+    facts.push(n);
+    this.emit({ type: "changed", what: "facts" });
+    return structuredClone(n);
+  }
+  async updateFact(fid: string, change: { key?: string; value?: string; kind?: FactKind }): Promise<Fact> {
+    const f = facts.find((x) => x.id === fid);
+    if (!f) throw new Error("That fact is gone.");
+    Object.assign(f, { key: change.key?.trim() || f.key, value: change.value?.trim() || f.value, kind: change.kind ?? f.kind, source: "user", updatedAt: new Date().toISOString(), flaggedAt: null });
+    this.emit({ type: "changed", what: "facts" });
+    return structuredClone(f);
+  }
+  async deleteFact(fid: string) {
+    const i = facts.findIndex((x) => x.id === fid);
+    if (i >= 0) facts.splice(i, 1);
+    this.emit({ type: "changed", what: "facts" });
+  }
   async chatContext(chatId: string): Promise<ChatContext> {
     return structuredClone(contexts[chatId] ?? { chatId, used: null, window: null, model: null, summary: null });
   }
@@ -1024,12 +1083,34 @@ export class MockApi implements KompanionApi {
     return p in tree ? { state: "ok" as const, path: p, folders: tree[p], files: 3 }
       : { state: "missing" as const, path: p, message: `Folder not found on soucouyant: ${p}` };
   }
-  async decideAction(id: string, decision: "approve" | "always" | "deny") {
-    const a = actions.find((x) => x.id === id);
+  async decideAction(actionId: string, decision: "approve" | "always" | "deny") {
+    const a = actions.find((x) => x.id === actionId);
     if (!a || a.state !== "pending") throw new Error("This step was already decided.");
     const step = (state: PcAction["state"], result: string | null, ms: number) =>
       setTimeout(() => { a.state = state; a.result = result; this.emit({ type: "changed", what: "actions" }); }, ms);
     if (decision === "deny") { step("denied", null, 0); return; }
+    // AGENT-SPAWN: a task in the chat's project (with the prompt as its description), as the server does.
+    if (a.tool?.tool === "start_work" && a.tool.kind === "task") {
+      const from = chats.find((c) => c.id === (a as PcAction & { chatId?: string }).chatId);
+      if (!from?.projectId) { step("failed", "failed: This chat is not in a project, so there is no task list: start a chat instead.", 0); return; }
+      const task: Task = { id: id("t"), projectId: from.projectId, title: String(a.tool.title), description: String(a.tool.prompt), state: "queued", progress: 0, step: "Waiting to start", role: "worker", model: "", events: [] };
+      tasks.unshift(task);
+      this.emit({ type: "task", task: structuredClone(task) });
+      step("running", null, 0);
+      step("done", `Added the task "${task.title}" to this project (task=${task.id}). It waits in the task list until it is started.`, 300);
+      return;
+    }
+    // AGENT-SPAWN: a new chat in the same project, with the prompt as its first message.
+    if (a.tool?.tool === "start_work") {
+      const from = chats.find((c) => c.id === (a as PcAction & { chatId?: string }).chatId);
+      const chat: Chat = { id: id("c"), title: String(a.tool.title), projectId: from?.projectId, updatedAt: new Date().toISOString() };
+      chats.unshift(chat);
+      messages.push({ id: id("m"), chatId: chat.id, author: "user", at: new Date().toISOString(), text: String(a.tool.prompt) });
+      this.emit({ type: "changed", what: "chats" });
+      step("running", null, 0);
+      step("done", `Started the chat "${chat.title}" (chat=${chat.id}); it is answering the prompt there now.`, 300);
+      return;
+    }
     step("granting", null, 0);
     if (decision === "always") {
       // One grant per target, like the runner (ACC-01: the demo already has a system grant).
@@ -1054,6 +1135,32 @@ export class MockApi implements KompanionApi {
       actions.push(a);
       setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
       setTimeout(() => { if (a.state !== "running") return; a.state = "done"; a.result = "Finished\nexit: 0"; this.emit({ type: "changed", what: "actions" }); }, 20_000);
+    } else if (machineId && /command cards/i.test(text)) {
+      // CMD-01: finished steps of each risk, and one still running, as command cards.
+      // Created after the question, so all four sit under the reply; the times are what ran.
+      const t0 = Date.now() + 20;
+      const done: [string, Record<string, unknown>, string, number][] = [
+        ["Look for TODOs in src", { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "grep -rn \"TODO\" src | head -20" }, "done", 2],
+        ["Clean the build folder", { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "rm -rf build/ && mkdir build" }, "done", 1],
+        ["Fetch the latest changes", { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "git pull --rebase origin main" }, "failed", 4],
+      ];
+      done.forEach(([summary, tool, state, secs], k) => actions.push({ id: id("a"), chatId, machineId, summary, tool, state, result: state === "done" ? "src/render.cpp:42: // TODO: batch draws\nexit: 0" : "fatal: could not read from remote\nexit: 1",
+        createdAt: new Date(t0 + k).toISOString(), startedAt: new Date(t0 - 60_000 + k * 10_000).toISOString(), endedAt: new Date(t0 - 60_000 + k * 10_000 + secs * 1000).toISOString() } as PcAction & { chatId: string }));
+      actions.push({ id: id("a"), chatId, machineId, summary: "Build and test", tool: { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "cmake --build build -j && ctest --test-dir build --output-on-failure" },
+        state: "running", result: null, createdAt: new Date(t0 + 3).toISOString(), startedAt: new Date(Date.now() - 12_000).toISOString() } as PcAction & { chatId: string });
+      setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
+    } else if (machineId && /hand this on as a task/i.test(text)) {
+      // AGENT-SPAWN: the model asks to add a task to this chat's project.
+      actions.push({ id: id("a"), chatId, machineId, summary: "Add the task \"Write the battle rules\"",
+        tool: { tool: "start_work", kind: "task", title: "Write the battle rules", prompt: "Goal: turns, parts and damage on one page.\n1. List the parts.\nDone when two bots can fight on paper." },
+        state: "pending", result: null, createdAt: new Date(Date.now() + 50).toISOString() } as PcAction & { chatId: string });
+      setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
+    } else if (machineId && /hand this on/i.test(text)) {
+      // AGENT-SPAWN: the model asks to start a new chat; the card waits for Approve or Deny.
+      actions.push({ id: id("a"), chatId, machineId, summary: "Start a new chat: \"Logo ideas for the shop\"",
+        tool: { tool: "start_work", kind: "chat", title: "Logo ideas for the shop", prompt: "Sketch three logo ideas for the shop: round, with the compass mark, readable at 32 px.\nSay which one you would pick and why." },
+        state: "pending", result: null, createdAt: new Date(Date.now() + 50).toISOString() } as PcAction & { chatId: string });
+      setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
     } else if (machineId && /every card type/i.test(text)) {
       // Demo of every approval card type (readability checks): one pending card each.
       const tools: [string, Record<string, unknown>][] = [
@@ -1149,6 +1256,35 @@ export class MockApi implements KompanionApi {
       reply.taskIds = [task.id];
       this.emit({ type: "task", task: structuredClone(task) });
     }
+  }
+
+  // MSG-ACT: the user's message answered again (with new text when given); what followed goes.
+  async resend(chatId: string, messageId: string, text?: string) {
+    const list = messages.filter((m) => m.chatId === chatId);
+    const i = list.findIndex((m) => m.id === messageId);
+    if (i < 0 || list[i].author !== "user") throw new Error("Only your own messages can be sent again.");
+    if (text !== undefined) {
+      const files = list[i].text.split("\n\n:::files\n")[1];
+      list[i].text = text.trim() + (files ? `\n\n:::files\n${files}` : "");
+    }
+    const drop = new Set(list.slice(i + 1).map((m) => m.id));
+    for (let k = messages.length - 1; k >= 0; k--) if (drop.has(messages[k].id)) messages.splice(k, 1);
+    setTimeout(() => void this.streamReply(chatId), 0);
+    return structuredClone(messages.filter((m) => m.chatId === chatId));
+  }
+  private async streamReply(chatId: string) {
+    const reply: Message = { id: id("m"), chatId, author: "orchestrator", text: "", at: new Date().toISOString(), streaming: true };
+    messages.push(reply);
+    await wait(300);
+    this.emit({ type: "message", message: structuredClone(reply) });
+    const full = replies[this.replyIndex++ % replies.length];
+    for (const word of full.split(/(?<=\s)/)) {
+      await wait(20);
+      reply.text += word;
+      this.emit({ type: "message-delta", messageId: reply.id, chatId, text: word, done: false });
+    }
+    reply.streaming = false;
+    this.emit({ type: "message-delta", messageId: reply.id, chatId, text: "", done: true });
   }
 
   async answer(taskId: string, optionId: string) {

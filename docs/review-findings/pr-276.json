@@ -1,0 +1,11 @@
+{
+  "922700c65b3d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/conversation.ts",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "GET /api/providers always sends models as an array (an unreachable provider gets [] and an error), and the demo does the same; ModelProvider.models is typed as a required array. Providers with an error are left out first."
+  }
+}

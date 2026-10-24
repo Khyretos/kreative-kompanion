@@ -1,6 +1,6 @@
 import { loadVoicePrefs } from "./core/voice";
 import { Store } from "./core/store";
-import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, ChatContext, Effort, Message, ModelProvider, Project, RoleAssignment, Server, Task } from "./api/types";
+import type { NotificationPrefs, AdminSettings, ThemeChoice, DaySummary, MachineStats, Chat, Effort, FactsView, Message, ModelProvider, Project, RoleAssignment, Server, Task, ChatContext } from "./api/types";
 
 export interface AppState {
   server?: Server;
@@ -13,6 +13,7 @@ export interface AppState {
   draftOverseer?: boolean; // OVR-01: Overseer picked before a new chat exists
   draftAutoRun?: boolean; // AUTO-01: automatic mode picked before a new chat exists
   maxSteps: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100), saved per user
+  explain: import("./api/types").ExplainPrefs; // CMD-01: "Explain running actions", saved per user
   overseer: import("./api/types").OverseerPrefs; // OVR-01
   toolsMenuOpen?: boolean;
   machineName?: string; // HOST-01: the server's own computer, for "This server's computer" in Pair
@@ -41,7 +42,7 @@ export interface AppState {
   roles: RoleAssignment[];
   machines: MachineStats[];
   today?: DaySummary;
-  rightTab: "tasks" | "machines" | "access" | "activity";
+  rightTab: "tasks" | "machines" | "access" | "activity" | "facts";
   activity: import("./views/activity").ActivityItem[];
   activityFilter: import("./views/activity").ActivityFilter;
   openTaskId?: string; // task shown in detail
@@ -89,6 +90,12 @@ export interface AppState {
   showArchived?: boolean; // PROJ-ARCHIVE: archived projects shown in the sidebar, remembered on this device
   movingChatId?: string; // chat whose "Move to project" list is open
   effortMenuOpen?: boolean; // the composer's effort menu (EF-01)
+  effortModelsOpen?: boolean; // EFF-02: the model list inside that menu
+  facts?: FactsView; // FACTS: the Facts tab's list (for factsKey)
+  factsKey?: string; // "chat:<id>" or "project:<id>": what `facts` was loaded for
+  factsQuery: string; // the Facts tab's search
+  editingFactId?: string; // the fact being edited in place
+  factsHidden: string[]; // deleted facts waiting for Undo
   chatContext?: ChatContext; // CTX-01: the open chat's context meter
   contextOpen?: boolean; // CTX-01: the meter's details are open
   compacting?: boolean; // CTX-01: "Summarise now" is running
@@ -116,6 +123,7 @@ export const store = new Store<AppState>({
   mcpServers: [],
   overseer: { name: "Overseer", interject: false },
   maxSteps: 10,
+  explain: { on: false, verbose: false },
   pane: "main",
   section: "chat",
   studioForm: { type: "", size: "", count: 1, busy: false },
@@ -144,6 +152,8 @@ export const store = new Store<AppState>({
   grants: {},
   pcActions: [],
   lessons: [],
+  factsQuery: "",
+  factsHidden: [],
   activity: [],
   activityFilter: {},
   accessHistory: [],

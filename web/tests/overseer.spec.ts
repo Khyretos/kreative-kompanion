@@ -20,7 +20,7 @@ test.describe("Overseer (OVR-01)", () => {
     await expect(chip).toHaveAttribute("aria-pressed", "true");
     await expect(chip).toContainText("Loquendo");
     // The effort chip names the Overseer role's model.
-    await expect(page.locator(".effort-chip")).toContainText("qwen3.5-9b");
+    await expect(page.locator(".effort-chip")).toHaveAttribute("title", "qwen3.5-9b");
 
     await page.fill("#prompt", "How are my projects? Also plan Medabots.");
     await page.press("#prompt", "Enter");
@@ -76,7 +76,7 @@ test.describe("Overseer (OVR-01)", () => {
     await expect(chip).toHaveAttribute("aria-pressed", "true");
     await expect(chip).toHaveAttribute("aria-disabled", "true");
     await expect(chip).toHaveAttribute("title", /always on in this project/);
-    await expect(page.locator(".effort-chip")).toContainText("qwen3.5-9b");
+    await expect(page.locator(".effort-chip")).toHaveAttribute("title", "qwen3.5-9b");
     await chip.click({ force: true }); // locked: nothing changes
     await expect(chip).toHaveAttribute("aria-pressed", "true");
     // Another project's new chat starts with it off.

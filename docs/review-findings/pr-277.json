@@ -1,0 +1,92 @@
+{
+  "0c05d5502c44": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/spawn.rs",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "An absent kind, title or prompt reads as \"\" and is then refused: kind must be chat or task, the title 1 to 120 characters and the prompt 1 to 8,000 after trimming (job() returns Err, the model gets \"Refused, nothing made\"). spawn_tests.rs checks the empty cases."
+  },
+  "5181c61e2eb2": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "web/src/api/mock.ts: start_work with kind task adds a task to the chat's project (or fails outside a project) like the server; spawn.spec covers it",
+    "path": "web/src/api/mock.ts",
+    "title": "Incomplete Mock Implementation",
+    "verdict": "bug",
+    "reason": "The demo only showed new chats. It now makes tasks too, with the same result text and Open the task button."
+  },
+  "5a70e44e1376": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/facts.rs",
+    "title": "SQL Injection Vulnerability",
+    "verdict": "false_positive",
+    "reason": "The column name comes from the Scope enum as one of two literals (project_id, chat_id); nothing a user or model sends reaches it, and every value is bound with ?."
+  },
+  "716df022850a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "title": "Potential Resource Leak / Unbounded Growth",
+    "verdict": "false_positive",
+    "reason": "Facts are the user's own notes, shown in the Facts tab where they edit and delete them, and removed with their chat or project. Pruning ones the prompt left out would delete data the user can still see and recall; the prompt itself stays within its 3,000-character budget."
+  },
+  "7cd880bfb70d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/api.rs",
+    "title": "Missing Input Validation",
+    "verdict": "false_positive",
+    "reason": "resend reads the message with WHERE id = ? AND chat_id = ? after chat_editor confirmed the caller may write in that chat, so a message of another chat is NotFound; api_resend_tests.rs checks an unknown id and another user."
+  },
+  "0c9a41958d36": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "title": "Incomplete Validation Logic",
+    "verdict": "false_positive",
+    "reason": "The demo mirrors the server, where only the value is checked: a key names the fact (\"Forgejo token location\") and is shown in the list; facts.rs refuses a token-looking value, which is where a secret would sit. A key cannot hold a value."
+  },
+  "46adbc180f57": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/api.rs",
+    "title": "Missing Input Validation for Message Edit",
+    "verdict": "false_positive",
+    "reason": "text is optional on purpose: none is Regenerate (answer the same message again), some is Edit and resend. Some(\"\") or blank is refused before anything changes; api_resend_tests.rs covers all three."
+  },
+  "56cf5c157be9": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/facts.rs",
+    "title": "SQL Injection Risk",
+    "verdict": "false_positive",
+    "reason": "col is one of two string literals chosen by the Scope enum inside facts.rs (project_id or chat_id); no request value can reach it, and all values are bound with ?."
+  },
+  "a20f815fff65": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/spawn.rs",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "unwrap_or(\"\") cannot panic; a missing field becomes \"\" and job() then returns Err (kind must be chat or task, title and prompt must not be empty), which the model gets as \"Refused, nothing made\"."
+  },
+  "ef943bd5c450": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "title": "Potential Infinite Loop / Resource Exhaustion",
+    "verdict": "false_positive",
+    "reason": "The tool list is built once before the loop (push into the array, no iteration while pushing; the borrow checker would not allow that). start_work runs at most MAX_PER_ANSWER (3) times per answer, and a started chat answers without a computer, so it cannot start more."
+  }
+}

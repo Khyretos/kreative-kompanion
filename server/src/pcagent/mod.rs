@@ -3,6 +3,7 @@
 //! approval card (Approve, Always allow for 24 h, Deny); approved calls run as
 //! runner jobs, which still check the computer's grants.
 //! (The model drafted this twice; Claude rewrote it from the same spec.)
+pub mod spawn;
 pub mod steplog;
 pub mod tools;
 
@@ -249,6 +250,10 @@ async fn remember(s: &AppState, chat_id: &str, role: &RoleAssignment, mut messag
 pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: String, machine_name: String, role: RoleAssignment) {
     STOPPED_CHATS.lock().unwrap().remove(&chat_id); // a stop from an earlier answer doesn't count
     let mut messages = vec![json!({ "role": "system", "content": system_prompt(&machine_name) })];
+    // FACTS: the project's and the chat's facts (fresh each request, also when the exchange is remembered).
+    if let Some((block, _)) = crate::facts::prompt_block(&s.db, &chat_id, time::OffsetDateTime::now_utc()).await {
+        messages[0]["content"] = json!(format!("{}{block}", messages[0]["content"].as_str().unwrap_or("")));
+    }
     if let Some(earlier) = remembered(&s, &chat_id, &role).await {
         messages.extend(earlier);
     } else {
@@ -365,9 +370,17 @@ impl Agent {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
         let mut tools = tools::schema();
-        // HIST-01: the user's own past chats (answered here, read-only).
+        // AGENT-SPAWN: a chat's agent may hand work on to a new chat or task (a task's may not).
+        if self.task_id.is_none() && let Some(list) = tools.as_array_mut() {
+            list.push(spawn::spec());
+        }
+        let mut spawned = 0;
+        // HIST-01: the user's own past chats (answered here, read-only); FACTS: remember / forget
+        // and the chat's step log.
         if let Some(list) = tools.as_array_mut() {
             list.extend(crate::chat_history::specs());
+            list.extend(crate::facts::specs());
+            list.push(steplog::spec());
         }
         // KG-05: a task's worker also gets the tools of the MCP servers the user granted (and is denied the rest).
         let mut mcp_map = std::collections::HashMap::new();
@@ -467,7 +480,20 @@ impl Agent {
                     }
                     // Answered here, not by a computer.
                     None if name == "capabilities" => crate::capabilities::summary(s, &self.user_id).await,
+                    None if name == spawn::NAME && self.task_id.is_none() => {
+                        spawned += 1;
+                        if spawned > spawn::MAX_PER_ANSWER {
+                            format!("Refused: one answer starts at most {} chats or tasks.", spawn::MAX_PER_ANSWER)
+                        } else {
+                            match spawn::job(&args) {
+                                Err(e) => format!("Refused, nothing made: {e}"),
+                                Ok(job) => self.start_work(&job).await,
+                            }
+                        }
+                    }
                     None if crate::chat_history::is_tool(name) => crate::chat_history::call(&s.db, &self.user_id, &self.chat_id, name, &args, budget).await,
+                    None if crate::facts::is_tool(name) => crate::facts::call(s, &self.chat_id, name, &args).await,
+                    None if name == steplog::READ => steplog::read(&s.db, &self.user_id, &self.chat_id, &args, budget).await,
                     None => "Unknown tool or wrong arguments.".to_string(),
                     // Guardrail: a file found missing earlier in this answer is not created
                     // behind the user's back.
@@ -492,6 +518,8 @@ impl Agent {
                         let r = step(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.auto, self.run_id.as_deref(), budget).await;
                         if r.contains("no such file") && let Some(p) = job["path"].as_str() {
                             missing.insert(p.to_string());
+                            // FACTS: a path fact pointing here may be out of date.
+                            crate::facts::flag_missing_path(s, &self.chat_id, p).await;
                         }
                         r
                     }
@@ -504,6 +532,26 @@ impl Agent {
             }
         }
         Err(format!("{STEP_LIMIT} {} steps. Tell me how to go on.", self.max_steps))
+    }
+}
+
+impl Agent {
+    /// AGENT-SPAWN: an approval card for `start_work` (none in Automatic mode), then the chat or task.
+    async fn start_work(&self, job: &Value) -> String {
+        let s = &self.s;
+        let id = match ask(s, &self.user_id, &self.chat_id, &self.machine_id, job, &spawn::summary(job), self.auto, self.run_id.as_deref()).await {
+            Ok((id, _)) => id,
+            Err(e) => return e,
+        };
+        set_action(s, &id, "running", "").await;
+        changed(s, &self.user_id);
+        let (state, text) = match spawn::perform(s, &self.user_id, &self.chat_id, job).await {
+            Ok(t) => ("done", t),
+            Err(e) => ("failed", format!("failed: {e}")),
+        };
+        set_action(s, &id, state, &text).await;
+        changed(s, &self.user_id);
+        text
     }
 }
 
@@ -553,13 +601,12 @@ pub async fn fail_orphaned_steps(s: &AppState) {
     }
 }
 
-/// One tool call: an approval card, then (if approved) a runner job. Returns the
-/// text the model gets back.
-async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, auto: bool, run_id: Option<&str>, budget: usize) -> String {
-
+/// The approval card for a step: stored as pending (or running when `preapproved`), then the
+/// user's decision is awaited. Ok((card id, "covered" | "approved" | "always")) to go on, else the
+/// text for the model (declined, or no answer in time).
+#[allow(clippy::too_many_arguments)]
+async fn ask(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, summary: &str, preapproved: bool, run_id: Option<&str>) -> Result<(String, String), String> {
     let id = util::new_id();
-    // Under a standing grant (tasks): no card, the step runs right away.
-    let preapproved = auto && covered(s, machine_id, job).await;
     let stored = sqlx::query(
         "INSERT INTO pc_actions (id, chat_id, user_id, machine_id, tool, summary, state, created_at, run_id)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -569,20 +616,20 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
     .bind(user_id)
     .bind(machine_id)
     .bind(job.to_string())
-    .bind(tools::summary(job))
+    .bind(summary)
     .bind(if preapproved { "running" } else { "pending" })
     .bind(util::now())
     .bind(run_id)
     .execute(&s.db)
     .await;
     if let Err(e) = stored {
-        return format!("Could not ask the user: {e}");
+        return Err(format!("Could not ask the user: {e}"));
     }
     changed(s, user_id);
 
     // A task run waiting for the user: say so in the project thread, with a link to the card's chat.
     if let (false, Some(run)) = (preapproved, run_id) {
-        crate::thread::post_run(s, run, &format!("Waiting for your approval: {}. [Open it](#chat={chat_id})", tools::summary(job))).await;
+        crate::thread::post_run(s, run, &format!("Waiting for your approval: {summary}. [Open it](#chat={chat_id})")).await;
     }
 
     let mut state = if preapproved { "covered".to_string() } else { "pending".to_string() };
@@ -602,11 +649,23 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
         "pending" => {
             set_action(s, &id, "denied", "No answer within 30 minutes.").await;
             changed(s, user_id);
-            return "The user did not answer; nothing was done.".into();
+            Err("The user did not answer; nothing was done.".into())
         }
-        "denied" => return "The user declined this step; nothing was done.".into(),
-        _ => {}
+        "denied" => Err("The user declined this step; nothing was done.".into()),
+        _ => Ok((id, state)),
     }
+}
+
+/// One tool call: an approval card, then (if approved) a runner job. Returns the
+/// text the model gets back.
+async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, auto: bool, run_id: Option<&str>, budget: usize) -> String {
+
+    // Under a standing grant (tasks): no card, the step runs right away.
+    let preapproved = auto && covered(s, machine_id, job).await;
+    let (id, state) = match ask(s, user_id, chat_id, machine_id, job, &tools::summary(job), preapproved, run_id).await {
+        Ok(x) => x,
+        Err(e) => return e,
+    };
     let always = state == "always";
 
     // The computer only runs what is granted. Approve adds a grant for this one
@@ -864,8 +923,8 @@ pub async fn list(
     Extension(u): Extension<User>,
     Path(chat_id): Path<String>,
 ) -> ApiResult<Json<Vec<Value>>> {
-    let rows: Vec<(String, String, String, String, Option<String>, String, String, String)> = sqlx::query_as(
-        "SELECT id, machine_id, summary, state, result, created_at, tool, COALESCE(decided_at, created_at) FROM (
+    let rows: Vec<(String, String, String, String, Option<String>, String, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, machine_id, summary, state, result, created_at, tool, COALESCE(decided_at, created_at), ended_at FROM (
            SELECT * FROM pc_actions WHERE chat_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 50
          ) ORDER BY created_at",
     )
@@ -875,10 +934,10 @@ pub async fn list(
     .await?;
     Ok(Json(
         rows.into_iter()
-            .map(|(id, machine_id, summary, state, result, created_at, tool, started_at)| {
+            .map(|(id, machine_id, summary, state, result, created_at, tool, started_at, ended_at)| {
                 let job: Value = serde_json::from_str(&tool).unwrap_or(Value::Null);
                 json!({ "id": id, "machineId": machine_id, "summary": summary, "state": state, "result": result,
-                        "createdAt": created_at, "startedAt": started_at, "needs": needs_text(&job), "tool": job })
+                        "createdAt": created_at, "startedAt": started_at, "endedAt": ended_at, "needs": needs_text(&job), "tool": job })
             })
             .collect(),
     ))

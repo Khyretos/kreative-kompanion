@@ -299,6 +299,8 @@ pub struct Prefs {
     overseer_interject: Option<bool>,
     /// AUTO-01: how many tool steps one request may take (1-100, 0 = no limit).
     max_steps: Option<i64>,
+    /// CMD-01: "Explain running actions" on step cards.
+    explain: Option<crate::explain::Prefs>,
 }
 
 /// A valid card style: an object whose keys are action kinds, each {label: 1-30 chars, color: "#rrggbb"}.
@@ -360,6 +362,15 @@ pub async fn set_prefs(
             return Err(ApiError::BadRequest("Steps per request is a number from 1 to 100, or 0 for no limit.".into()));
         }
         sqlx::query("UPDATE users SET max_steps = ? WHERE id = ?").bind(n).bind(&u.id).execute(&s.db).await?;
+    }
+    if let Some(p) = b.explain {
+        let p = p.normalised();
+        if let Some(id) = &p.provider_id {
+            if s.config.provider(id).is_none() || p.model_id.as_deref().is_some_and(|m| m.chars().count() > 200) {
+                return Err(ApiError::BadRequest("Pick a model of a configured provider to explain with.".into()));
+            }
+        }
+        crate::explain::set_prefs(&s.db, &u.id, p).await?;
     }
     Ok(StatusCode::NO_CONTENT)
 }

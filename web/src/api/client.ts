@@ -1,7 +1,7 @@
 // The app talks to a Kompanion server only through this interface.
 // `MockApi` implements it for the draft; `HttpApi` (next milestone) will call
 // the real server over HTTPS + server-sent events.
-import type { NotificationPrefs, TaskState, AdminSettings, ThemeChoice, DaySummary, MachineStats, ServerStatus, Chat, ChatContext, Message, Project, RoleAssignment, ModelProvider, SearchResult, Server, Task } from "./types";
+import type { NotificationPrefs, TaskState, AdminSettings, ThemeChoice, DaySummary, MachineStats, ServerStatus, Chat, Fact, FactKind, FactsView, Message, Project, RoleAssignment, ModelProvider, SearchResult, Server, Task, ChatContext } from "./types";
 
 /** A lesson a task run's reviewer proposed in the project thread (SK-02). */
 export interface Lesson {
@@ -34,6 +34,8 @@ export interface PcAction {
   createdAt: string;
   /** When it started running (approved, or created for automatic steps). */
   startedAt?: string;
+  /** CMD-01: when it ended (done, failed, stopped…), for the time on its card. */
+  endedAt?: string | null;
 }
 
 export interface KompanionApi {
@@ -90,6 +92,11 @@ export interface KompanionApi {
   detachAsset(projectId: string, assetId: number): Promise<void>;
   listChats(): Promise<Chat[]>;
   listMessages(chatId: string): Promise<Message[]>;
+  /** FACTS: the chat's facts (with its project's) or a project's. */
+  listFacts(where: { chatId?: string; projectId?: string }): Promise<FactsView>;
+  addFact(f: { scope: "project" | "chat"; projectId?: string; chatId?: string; key: string; value: string; kind?: FactKind }): Promise<Fact>;
+  updateFact(id: string, change: { key?: string; value?: string; kind?: FactKind }): Promise<Fact>;
+  deleteFact(id: string): Promise<void>;
   /** CTX-01: the context meter's numbers and the chat's summary. */
   chatContext(chatId: string): Promise<ChatContext>;
   /** CTX-01: summarise all but the newest two messages now. */
@@ -111,6 +118,9 @@ export interface KompanionApi {
   /** OVR-01: the Overseer's name ("" = default) and whether it may add context to running tasks. */
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;
   setMaxSteps(maxSteps: number): Promise<void>;
+  /** CMD-01: the "Explain running actions" settings, and a step's explanation (made on first ask). */
+  setExplainPrefs(p: import("./types").ExplainPrefs): Promise<void>;
+  explainStep(id: string, lang: string): Promise<{ text: string; cached: boolean; model: string }>;
   /** OVR-01: creates proposed tasks, and their project when it is new. */
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }): Promise<{ projectId: string }>;
   /** OVR-01: adds context to a running task (read before its next step). */
@@ -123,6 +133,9 @@ export interface KompanionApi {
   /** Sends a message; the reply streams back through `onEvent`. */
   /** With `machineId`, the answer may use that computer's tools (each step needs approval). */
   send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort, attachments?: import("../core/attachments").Attached[]): Promise<void>;
+  /** MSG-ACT: answers the user's message again (regenerate), or with new text (edit and resend);
+   *  what followed it is removed. Returns the chat's messages as they are now. */
+  resend(chatId: string, messageId: string, text?: string, machineId?: string): Promise<Message[]>;
   /** CHAT-08: uploads one file to a chat; the server keeps the picture, or the text of the document. */
   attach(chatId: string, file: File): Promise<import("../core/attachments").Attached>;
   listActions(chatId: string): Promise<PcAction[]>;
@@ -205,7 +218,7 @@ export type ServerEvent =
   | { type: "context"; usage: ChatContext } // CTX-01
   | { type: "task"; task: Task }
   | { type: "machines"; machines: MachineStats[] }
-  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio"; machineId?: string }
+  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts"; machineId?: string }
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
   | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app ignores it
   | { type: "resync" };

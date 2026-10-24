@@ -11,10 +11,12 @@ import type { Effort, Message, Task } from "../api/types";
 import type { PcAction } from "../api/client";
 import { icon } from "./icons";
 import { contextChip } from "./contextmeter";
-import { t } from "../core/i18n";
+import { t, type Key } from "../core/i18n";
 import { stateLabel } from "./tasks";
 import { fromTool, renderOutput } from "../core/output";
 import { kindOf, styleOf, type CardStyle } from "../core/cardtypes";
+import { commandLang, commandText, RISK_LABEL, riskOf, spawnedRef, spawnOf } from "../core/commandcard";
+import { highlightHtml } from "../core/codeblocks";
 
 /** Card colours per action type, set by main.ts from the user's Settings. */
 let cardStyle: CardStyle | undefined;
@@ -22,17 +24,30 @@ export function setCardStyle(c: CardStyle | undefined): void {
   cardStyle = c;
 }
 
-const STEP_LABEL: Record<string, string> = {
-  approved: "starting…",
-  always: "starting…",
-  granting: "waiting for the computer…",
-  running: "running…",
-  denied: "declined",
-  done: "done",
-  failed: "failed",
-  refused: "not allowed",
-  stopped: "stopped by you",
+const STEP_LABEL: Record<string, Key> = {
+  pending: "stPending",
+  approved: "stStarting",
+  always: "stStarting",
+  granting: "stGranting",
+  running: "stRunning",
+  denied: "stDenied",
+  done: "stDone",
+  failed: "stFailed",
+  refused: "stRefused",
+  stopped: "stStopped",
 };
+
+const BUSY = ["approved", "always", "granting", "running"];
+
+/** CMD-01: whether step cards offer "Explain command" (the user's setting; main.ts keeps it). */
+let explainOn = false;
+export function setExplainOn(on: boolean): void {
+  explainOn = on;
+}
+/** Explanations by step id (the server keeps them per command, so a re-open costs nothing), and
+ *  the steps whose explanation the user opened; both kept across re-renders. */
+export const explanations = new Map<string, { text?: string; error?: string }>();
+export const openExplains = new Set<string>();
 
 /** Steps the user opened stay open across re-renders (main.ts keeps this in step). */
 export const openSteps = new Set<string>();
@@ -47,23 +62,62 @@ export function elapsedText(since: string, now = Date.now()): string {
   return Number.isNaN(secs) ? "" : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
 }
 
+/** CMD-01: a step as a card. Header: icon and type, the time, a risk tag and the state; under it
+ *  the summary. Open: the command as highlighted code (scrolls), the output, and "Explain command". */
 function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
-  const busy = ["approved", "always", "granting", "running"].includes(a.state);
+  const busy = BUSY.includes(a.state);
+  const kind = styleOf(kindOf(a.tool), cardStyle);
+  const risk = riskOf(a.tool);
+  const command = commandText(a.tool);
+  const spawn = spawnOf(a.tool);
+  const made = spawn && a.state === "done" ? spawnedRef(a.result) : undefined;
+  const since = a.startedAt ?? a.createdAt;
+  const took = !busy && a.endedAt ? elapsedText(since, Date.parse(a.endedAt)) : "";
+  const icn = busy ? "spark" : a.state === "done" ? "terminal" : "close";
   return html`
-    <details class="step ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) ? "open" : ""}>
+    <details class="step step-card ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) ? "open" : ""}>
       <summary data-action="step-toggle" data-id="${a.id}">
-        ${icon(busy ? "spark" : a.state === "done" ? "terminal" : "close")}
-        <span class="kind-tag" style="--kind:${styleOf(kindOf(a.tool), cardStyle).color}">${styleOf(kindOf(a.tool), cardStyle).label}</span>
+        <span class="step-head">
+          <span class="step-type">${icon(icn)}<span class="kind-tag" style="--kind:${kind.color}">${spawn ? t(spawn.kind === "task" ? "spawnTask" : "spawnChat") : kind.label}</span></span>
+          <span class="step-time">${a.state === "running" ? html`<span class="elapsed" data-since="${since}">${elapsedText(since)}</span>` : took ? html`<span title="${t("cmdTook", { time: took })}">${took}</span>` : ""}</span>
+          <span class="step-tags">
+            ${risk ? html`<span class="risk-tag risk-${risk}" title="${t("riskTip")}">${t(RISK_LABEL[risk])}</span>` : ""}
+            <span class="chip ${a.state}">${STEP_LABEL[a.state] ? t(STEP_LABEL[a.state]) : a.state}</span>
+            ${a.state === "running" ? html`<button class="btn small danger step-stop" type="button" data-action="step-stop" data-id="${a.id}">${t("cmdStop")}</button>` : ""}
+          </span>
+        </span>
         <span class="step-summary">${a.summary}</span>
-        <span class="chip ${a.state}">${STEP_LABEL[a.state] ?? a.state}</span>
-        ${a.state === "running" ? html`<span class="elapsed" data-since="${a.startedAt ?? a.createdAt}">${elapsedText(a.startedAt ?? a.createdAt)}</span>
-          <button class="btn small danger step-stop" type="button" data-action="step-stop" data-id="${a.id}">Stop</button>` : ""}
       </summary>
-      ${a.result ? renderOutput(fromTool(a.tool, a.result, machines[a.machineId])) : ""}
+      ${command ? html`<div class="step-cmd" role="group" aria-label="${t("cmdCommand")}">
+        <pre class="step-code"><code class="hljs">${highlightHtml(command, commandLang(a.tool))}</code></pre>
+      </div>` : ""}
+      ${spawn ? html`<div class="spawn-prompt" role="group" aria-label="${t("spawnPrompt")}">${spawn.prompt}</div>` : ""}
+      ${spawn && a.result ? html`<p class="spawn-result small">${a.result}</p>` : a.result ? renderOutput(fromTool(a.tool, a.result, machines[a.machineId])) : ""}
+      ${made ? html`<p class="spawn-open"><button class="btn small" type="button" data-action="${made.kind === "task" ? "open-task" : "open-chat"}" data-id="${made.id}">${t(made.kind === "task" ? "spawnOpenTask" : "spawnOpenChat")}</button></p>` : ""}
+      ${explainOn && command ? html`<details class="step-explain" data-explain="${a.id}" ${openExplains.has(a.id) ? "open" : ""}>
+        <summary data-action="explain-toggle" data-id="${a.id}">${icon("spark")}${t("explainCmd")}</summary>
+        <div class="step-explain-body" data-explain-body="${a.id}" aria-live="polite"></div>
+      </details>` : ""}
     </details>`;
 }
 
-const BUSY = ["approved", "always", "granting", "running"];
+/** Fills an opened explanation: the text as sanitised markdown, a note while it is written, or the
+ *  error with a retry. */
+export function fillExplain(body: HTMLElement): void {
+  const id = body.dataset.explainBody ?? "";
+  const x = explanations.get(id);
+  if (!x) {
+    body.replaceChildren(Object.assign(document.createElement("p"), { className: "muted small", textContent: t("explaining") }));
+  } else if (x.error !== undefined) {
+    const p = Object.assign(document.createElement("p"), { className: "small danger-text", textContent: t("explainFailed", { error: x.error }) });
+    const retry = Object.assign(document.createElement("button"), { type: "button", className: "btn small", textContent: t("explainRetry") });
+    retry.dataset.action = "explain-retry";
+    retry.dataset.id = id;
+    body.replaceChildren(p, retry);
+  } else {
+    body.replaceChildren(renderMarkdown(x.text ?? ""));
+  }
+}
 
 function renderSteps(steps: PcAction[], machines: Record<string, string>): SafeHtml {
   if (steps.length === 0) return html``;
@@ -91,6 +145,7 @@ export function renderHeader(s: AppState): SafeHtml {
     <span class="chip model" title="Orchestrator model">${orchestrator?.modelId ?? ""}</span>
     ${chat ? html`<span class="head-tools">
       ${contextChip(s.chatContext && s.chatContext.chatId === chat.id ? s.chatContext : undefined, !!s.contextOpen, !!s.compacting, !!s.contextSummaryOpen)}
+      <button class="icon-btn facts-btn" type="button" data-action="open-facts" aria-label="Facts for this chat" title="Facts: what Kompanion remembers for this chat and its project">${icon("bookmark")}</button>
       <a class="icon-btn export-btn" href="/api/chats/${encodeURIComponent(chat.id)}/report?download=1" download aria-label="${t("export")}" title="${t("exportTip")}">${icon("download")}</a>
     </span>` : ""}
     <button class="icon-btn only-narrow tasks-toggle" data-action="pane" data-pane="right" aria-label="Tasks">
@@ -105,6 +160,8 @@ export interface MessageView {
   tasks: Task[];
   steps: PcAction[];
   machines: Record<string, string>;
+  /** MSG-ACT: the chat's newest message is an answer: it can be regenerated. */
+  last: boolean;
 }
 
 const cache = new Map<string, MessageView>();
@@ -135,12 +192,14 @@ export function messageViews(s: AppState): MessageView[] {
     }
   }
 
+  const lastId = s.messages.at(-1)?.id;
   return s.messages.map((m) => {
+    const last = m.id === lastId && m.author !== "user";
     const tasks = (m.taskIds ?? []).map((id) => s.tasks.find((t) => t.id === id)).filter((t): t is Task => !!t);
     const steps = byMsg.get(m.id) ?? [];
     const old = cache.get(m.id);
-    if (old && old.m === m && old.tasks.length === tasks.length && old.tasks.every((t, i) => t === tasks[i]) && old.steps.length === steps.length && old.steps.every((s, i) => s === steps[i])) return old;
-    const view = { id: m.id, m, tasks, steps, machines };
+    if (old && old.m === m && old.last === last && old.tasks.length === tasks.length && old.tasks.every((t, i) => t === tasks[i]) && old.steps.length === steps.length && old.steps.every((s, i) => s === steps[i])) return old;
+    const view = { id: m.id, m, tasks, steps, machines, last };
     cache.set(m.id, view);
     return view;
   });
@@ -150,14 +209,45 @@ export function messageViews(s: AppState): MessageView[] {
 let flashId: string | undefined;
 export function flashMessage(id: string | undefined): void { flashId = id; }
 
-export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeHtml {
+/** MSG-ACT: the user's message being edited (main.ts keeps it), and the draft typed so far. */
+export let editingMessage: { id: string; draft: string } | undefined;
+export function setEditingMessage(x: { id: string; draft: string } | undefined): void { editingMessage = x; }
+
+/** The message's own words, without the files and sources blocks (what Copy and Edit take). */
+export function messageText(m: Message): string {
+  return splitOverseer(splitSources(splitFiles(m.text).text).text).text.trim();
+}
+
+/** MSG-ACT: Copy on every message; Edit and resend on the user's, Regenerate on the newest answer. */
+function messageActions(m: Message, last: boolean): SafeHtml {
+  if (m.streaming) return html``;
+  const btn = (action: string, name: Key, ico: Parameters<typeof icon>[0]) =>
+    html`<button class="icon-btn msg-act" type="button" data-action="${action}" data-id="${m.id}" aria-label="${t(name)}" title="${t(name)}">${icon(ico)}</button>`;
+  return html`<div class="msg-actions" role="toolbar" aria-label="${t("msgActions")}">
+    ${btn("msg-copy", "msgCopy", "copy")}
+    ${m.author === "user" ? btn("msg-edit", "msgEdit", "edit") : ""}
+    ${last ? btn("msg-regen", "msgRegen", "redo") : ""}
+  </div>`;
+}
+
+export function renderMessage({ m, tasks, steps, machines, last }: MessageView): SafeHtml {
+  const editing = editingMessage?.id === m.id;
   return html`
-    <article class="msg ${m.author}${m.id === flashId ? " search-hit" : ""}" id="msg-${m.id}">
+    <article class="msg ${m.author}${m.id === flashId ? " search-hit" : ""}${editing ? " editing" : ""}" id="msg-${m.id}">
       <header>
         <span class="who">${m.author === "user" ? "You" : assistantName}</span>
         <time datetime="${m.at}">${clock(m.at)}</time>
       </header>
-      <div class="body"></div>
+      ${editing ? html`<form class="msg-edit" data-id="${m.id}">
+        <label class="sr-only" for="msg-edit-${m.id}">${t("msgEditLabel")}</label>
+        <textarea id="msg-edit-${m.id}" class="msg-edit-text" rows="3">${editingMessage?.draft ?? ""}</textarea>
+        <p class="muted small">${t("msgEditNote")}</p>
+        <div class="msg-edit-buttons">
+          <button class="btn small" type="button" data-action="msg-edit-cancel" data-id="${m.id}">${t("msgCancel")}</button>
+          <button class="btn small primary" type="submit">${t("msgSend")}</button>
+        </div>
+      </form>` : html`<div class="body"></div>`}
+      ${editing ? "" : messageActions(m, last)}
       ${renderSent(m.chatId, splitFiles(m.text).files)}
       ${renderSteps(steps, machines)}
       ${tasks.length ? html`
@@ -171,7 +261,9 @@ export function renderMessage({ m, tasks, steps, machines }: MessageView): SafeH
 
 /** Fills the message body with sanitised markdown (never via the template). */
 export function fillMessage(el: HTMLElement, { m }: MessageView): void {
-  const body = el.querySelector(".body")!;
+  for (const x of el.querySelectorAll<HTMLElement>("[data-explain-body]")) if (openExplains.has(x.dataset.explainBody ?? "")) fillExplain(x);
+  const body = el.querySelector(".body");
+  if (!body) return; // MSG-ACT: being edited, a form instead of the text
   const split = splitSources(splitFiles(m.text).text);
   const { text, proposal } = splitOverseer(split.text);
   body.append(renderMarkdown(linkSources(text)));
@@ -194,25 +286,49 @@ export function renderEmpty(s: AppState): SafeHtml {
     </div>`;
 }
 
-const EFFORTS: { id: Effort; label: string; hint: string }[] = [
-  { id: "auto", label: "Auto", hint: "Medium for now; picks per task later" },
-  { id: "low", label: "Low", hint: "Quick answer, fewest tool rounds" },
-  { id: "medium", label: "Medium", hint: "Balanced: a few tool rounds" },
-  { id: "high", label: "High", hint: "Thinks first, most tool rounds" },
+const EFFORTS: { id: Effort; label: Key; hint: Key }[] = [
+  { id: "auto", label: "effAuto", hint: "effAutoHint" },
+  { id: "low", label: "effLow", hint: "effLowHint" },
+  { id: "medium", label: "effMedium", hint: "effMediumHint" },
+  { id: "high", label: "effHigh", hint: "effHighHint" },
 ];
 
-/** The composer's "<model> · <effort> ▾" chip and its menu (EF-01). */
+/** What effortChip shows, as a string: the chip is mounted again only when this changes, so live
+ * updates elsewhere in a chat neither redraw the open menu nor drop its focus. */
+export function effortChipKey(s: AppState): string {
+  const role = overseerOn(s) ? "overseer" : "orchestrator";
+  const a = s.roles.find((r) => r.role === role);
+  return JSON.stringify([activeChat(s)?.effort ?? s.draftEffort ?? "auto", role, a?.providerId, a?.modelId, !!s.effortMenuOpen, !!s.effortModelsOpen,
+    s.providers.map((p) => [p.id, p.name, !!p.error, p.models.map((m) => m.id)])]);
+}
+
+/** EFF-02: the composer's effort chip ("High ▾") and its picker: the model on top (it can be
+ * changed there, for the role that answers this chat), then the four effort levels. */
 export function effortChip(s: AppState): SafeHtml {
   const level: Effort = activeChat(s)?.effort ?? s.draftEffort ?? "auto";
   const role = overseerOn(s) ? "overseer" : "orchestrator";
-  const model = s.roles.find((r) => r.role === role)?.modelId ?? "";
-  const label = EFFORTS.find((e) => e.id === level)?.label ?? "Auto";
+  const assigned = s.roles.find((r) => r.role === role);
+  const model = assigned?.modelId ?? "";
+  const label = t(EFFORTS.find((e) => e.id === level)?.label ?? "effAuto");
+  const models = s.providers.filter((p) => !p.error).flatMap((p) => p.models.map((m) => ({ provider: p, model: m.id })));
   return html`<span class="effort">
     <button class="chip effort-chip" type="button" data-action="effort-menu" aria-haspopup="menu"
-      aria-expanded="${s.effortMenuOpen ? "true" : "false"}" aria-label="Model ${model}, effort ${label}. Change effort">${model ? `${model} · ` : ""}${label} ▾</button>
-    ${s.effortMenuOpen ? html`<div class="menu effort-menu" role="menu" aria-label="Effort">
+      aria-expanded="${s.effortMenuOpen ? "true" : "false"}" aria-label="${t("effChip", { effort: label, model: model || t("effNoModel") })}"
+      title="${model}">${label} ▾</button>
+    ${s.effortMenuOpen ? html`<div class="menu effort-menu" role="menu" aria-label="${t("effMenu")}">
+      <button role="menuitem" class="effort-model" data-action="effort-models" aria-expanded="${s.effortModelsOpen ? "true" : "false"}">
+        <span class="effort-hint">${t("effModel")}</span>
+        <span class="effort-model-row"><span class="effort-name">${model || t("effNoModel")}</span><span class="effort-change">${t("effChange")} ${s.effortModelsOpen ? "▴" : "▾"}</span></span></button>
+      ${s.effortModelsOpen ? html`<div class="effort-models" role="group" aria-label="${t("effModels")}">
+        ${models.length ? models.map(({ provider, model: id }) => html`<button role="menuitemradio" class="effort-model-pick"
+          aria-checked="${assigned?.providerId === provider.id && id === model ? "true" : "false"}" data-action="effort-model" data-provider="${provider.id}" data-model="${id}" data-role="${role}">
+          <span class="effort-name">${id}</span><span class="effort-hint">${provider.name}</span></button>`) : html`<p class="effort-hint effort-note">${t("effNoModels")}</p>`}
+        <p class="effort-hint effort-note">${t("effModelNote", { role })}</p>
+      </div>` : ""}
+      <div class="effort-levels" role="group" aria-label="${t("effMenu")}">
       ${EFFORTS.map((e) => html`<button role="menuitemradio" aria-checked="${e.id === level ? "true" : "false"}" data-action="effort-set" data-effort="${e.id}">
-        <span class="effort-name">${e.label}</span><span class="effort-hint">${e.hint}</span></button>`)}
+        <span class="effort-name">${t(e.label)}</span><span class="effort-hint">${t(e.hint)}</span></button>`)}
+      </div>
     </div>` : ""}
   </span>`;
 }
@@ -272,9 +388,10 @@ const WEB = "Web";
 const TOOL_HINTS: Record<string, string> = {
   Knowledge: "Your document collections (Capabilities > Knowledge, plus the Open WebUI ones): I search them and cite the file I used.",
   History: "Your past chats: I search them and read back what was said, also in this chat beyond what I remember.",
+  Memory: "I save facts worth keeping (paths, commands, decisions) and delete my wrong ones. I always read the Facts tab.",
 };
 /** HIST-01: built-in tools shown under a friendlier name than their server name. */
-const TOOL_LABELS: Record<string, string> = { History: "Past chats" };
+const TOOL_LABELS: Record<string, string> = { History: "Past chats", Memory: "Remember facts" };
 
 /** UI-02: Web is a core feature, so it is its own chip; shown only when a search engine is set up. */
 export function webChip(s: AppState): SafeHtml {

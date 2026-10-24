@@ -6,7 +6,9 @@ mod auth;
 mod capabilities;
 mod capmatrix;
 mod config;
+mod facts;
 mod context;
+mod explain;
 mod costs;
 mod assetaudio;
 mod assetcontract;
@@ -325,6 +327,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/chats", get(api::chats).post(api::create_chat))
         .route("/chats/{id}", patch(api::update_chat).delete(api::delete_chat))
         .route("/chats/{id}/messages", get(api::messages).post(api::send))
+        .route("/chats/{id}/messages/{mid}/resend", post(api::resend))
+        .route("/facts", get(facts::get).post(facts::create))
+        .route("/facts/{id}", patch(facts::update).delete(facts::delete))
         .route("/chats/{id}/context", get(context::get))
         .route("/chats/{id}/compact", post(context::compact_now))
         .route("/chats/{id}/files/{name}", get(chat_files::file))
@@ -363,6 +368,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/runs/{id}/report", get(runs::report))
         .route("/chats/{id}/report", get(runs::chat))
         .route("/actions/{id}/stop", post(pcagent::stop))
+        .route("/actions/{id}/explain", post(explain::explain))
         .route("/chats/{id}/stop", post(pcagent::stop_chat))
         .route("/projects/{id}", patch(tasks::set_project_kind))
         .route("/projects/{id}/settings", patch(projects::settings))

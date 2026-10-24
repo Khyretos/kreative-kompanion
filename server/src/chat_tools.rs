@@ -136,6 +136,8 @@ pub const WEB: &str = "Web";
 pub const KNOWLEDGE: &str = "Knowledge";
 /// HIST-01: the built-in search over the user's own past chats.
 pub const HISTORY: &str = "History";
+/// FACTS: the built-in remember / forget tools (facts are read into every prompt anyway).
+pub const MEMORY: &str = "Memory";
 
 /// CHAT-03b: the query's embedding for the knowledge search; None when the Embedder is not there.
 async fn knowledge_vector(s: &AppState, q: &str) -> Option<Vec<f32>> {
@@ -169,6 +171,7 @@ pub async fn run(
     web: Option<&crate::config::SearchConfig>,
     knowledge: Option<(&str, Option<&str>)>,
     history: Option<(&str, &str)>,
+    memory: Option<&str>,
     files: Option<(&std::path::Path, &str)>,
     on_use: &(dyn Fn(&ToolUse) + Send + Sync),
 ) -> Vec<ToolUse> {
@@ -194,6 +197,10 @@ pub async fn run(
     
     if history.is_some() {
         tools.push((HISTORY.to_string(), crate::chat_history::tools()));
+    }
+
+    if memory.is_some() {
+        tools.push((MEMORY.to_string(), crate::facts::tools()));
     }
 
     if tools.is_empty() {
@@ -244,6 +251,10 @@ pub async fn run(
                 Some((srv, tool)) if srv == HISTORY => match history {
                     Some((uid, chat)) => crate::chat_history::call(&s.db, uid, chat, &tool, &args, MAX_RESULT - 500).await,
                     None => "error: past chats are not turned on".to_string(),
+                },
+                Some((srv, tool)) if srv == MEMORY => match memory {
+                    Some(chat) => crate::facts::call(s, chat, &tool, &args).await,
+                    None => "error: memory is not turned on".to_string(),
                 },
                 Some((srv, tool)) => match servers.iter().find(|x| x.name == srv) {
                     None => format!("error: there is no tool {name}"),

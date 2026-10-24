@@ -2,6 +2,8 @@ import { html, type SafeHtml } from "../core/html";
 import type { PcAction } from "../api/client";
 import { fromTool, renderOutput } from "../core/output";
 import { kindOf, NEED_LABEL, styleOf, type CardStyle } from "../core/cardtypes";
+import { spawnOf } from "../core/commandcard";
+import { t } from "../core/i18n";
 
 export function renderPcPicker(
   machines: { id: string; name: string; online?: boolean }[],
@@ -59,6 +61,24 @@ export function renderPcActions(actions: PcAction[], machineNames: Record<string
           <button class="btn small danger" data-action="pc-decide" data-id="${a.id}" data-decision="deny">Deny</button>
         `;
 
+        // AGENT-SPAWN: a new chat or task: its prompt, Approve or Deny (no computer, no grant).
+        const spawn = spawnOf(a.tool);
+        if (spawn) {
+          return html`
+          <article class="pc-action spawn ${a.state} kind-${kindOf(a.tool)}">
+            <header class="card-kind" style="--kind:${styleOf(kindOf(a.tool), cardStyle).color}">
+              <span>${t(spawn.kind === "task" ? "spawnTask" : "spawnChat")}</span>
+              <span class="need">${a.state === "pending" ? NEED_LABEL.approval : NEED_LABEL.automatic}</span>
+            </header>
+            <strong>${a.summary}</strong>
+            <span class="muted small">${t("spawnBy")}</span>
+            <div class="spawn-prompt" role="group" aria-label="${t("spawnPrompt")}">${spawn.prompt}</div>
+            <span class="chip ${a.state}">${label}</span>
+            ${a.state === "pending" ? html`
+              <button class="btn small primary" data-action="pc-decide" data-id="${a.id}" data-decision="approve">${t("approve")}</button>
+              <button class="btn small danger" data-action="pc-decide" data-id="${a.id}" data-decision="deny">${t("deny")}</button>` : null}
+          </article>`;
+        }
         return html`
           <article class="pc-action ${a.state} kind-${kindOf(a.tool)}">
             <header class="card-kind" style="--kind:${styleOf(kindOf(a.tool), cardStyle).color}">

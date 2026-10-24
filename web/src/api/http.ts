@@ -2,7 +2,7 @@
 // a session cookie. Live updates arrive as server-sent events.
 import type { KompanionApi, ServerEvent } from "./client";
 import type {
-  AdminSettings, NotificationPrefs, ThemeChoice, TaskState, Chat, ChatContext, DaySummary, MachineStats, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, ServerStatus, Task,
+  AdminSettings, NotificationPrefs, ThemeChoice, TaskState, Chat, DaySummary, Fact, FactKind, FactsView, MachineStats, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, ServerStatus, Task, ChatContext,
 } from "./types";
 
 // STU-N1: a type with a "negative" parameter gets the Leave out field; its default words show as a hint.
@@ -73,6 +73,8 @@ export class HttpApi implements KompanionApi {
   setGpuPins(pins: string[]) { return this.request<void>("PUT", "/me/prefs", { gpuPins: pins }); }
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) { return this.request<void>("PUT", "/me/prefs", change); }
   setMaxSteps(maxSteps: number) { return this.request<void>("PUT", "/me/prefs", { maxSteps }); }
+  setExplainPrefs(explain: import("./types").ExplainPrefs) { return this.request<void>("PUT", "/me/prefs", { explain }); }
+  explainStep(id: string, lang: string) { return this.request<{ text: string; cached: boolean; model: string }>("POST", `/actions/${encodeURIComponent(id)}/explain`, { lang }); }
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }) { return this.request<{ projectId: string }>("POST", "/overseer/tasks", b); }
   interject(taskId: string, text: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(taskId)}/interject`, { text }); }
   setCardStyle(style: import("../core/cardtypes").CardStyle) { return this.request<void>("PUT", "/me/prefs", { cardStyle: style }); }
@@ -135,6 +137,13 @@ export class HttpApi implements KompanionApi {
   listChats() { return this.request<Chat[]>("GET", "/chats"); }
   async search(q: string) { return (await this.request<{ results: SearchResult[] }>("GET", `/search?q=${encodeURIComponent(q)}`)).results; }
   listMessages(chatId: string) { return this.request<Message[]>("GET", `/chats/${encodeURIComponent(chatId)}/messages`); }
+  listFacts(where: { chatId?: string; projectId?: string }) {
+    const q = where.chatId ? `chatId=${encodeURIComponent(where.chatId)}` : `projectId=${encodeURIComponent(where.projectId ?? "")}`;
+    return this.request<FactsView>("GET", `/facts?${q}`);
+  }
+  addFact(f: { scope: "project" | "chat"; projectId?: string; chatId?: string; key: string; value: string; kind?: FactKind }) { return this.request<Fact>("POST", "/facts", f); }
+  updateFact(id: string, change: { key?: string; value?: string; kind?: FactKind }) { return this.request<Fact>("PATCH", `/facts/${encodeURIComponent(id)}`, change); }
+  async deleteFact(id: string) { await this.request<void>("DELETE", `/facts/${encodeURIComponent(id)}`); }
   chatContext(chatId: string) { return this.request<ChatContext>("GET", `/chats/${encodeURIComponent(chatId)}/context`); }
   compactChat(chatId: string) { return this.request<ChatContext>("POST", `/chats/${encodeURIComponent(chatId)}/compact`); }
   listTasks() { return this.request<Task[]>("GET", "/tasks"); }
@@ -165,6 +174,9 @@ export class HttpApi implements KompanionApi {
   deleteChat(chatId: string) { return this.request<void>("DELETE", `/chats/${encodeURIComponent(chatId)}`); }
   send(chatId: string, text: string, machineId?: string, effort?: import("./types").Effort, attachments?: import("../core/attachments").Attached[]) {
     return this.request<void>("POST", `/chats/${encodeURIComponent(chatId)}/messages`, { text, machine_id: machineId ?? null, effort, attachments: attachments ?? [] });
+  }
+  resend(chatId: string, messageId: string, text?: string, machineId?: string) {
+    return this.request<Message[]>("POST", `/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/resend`, { text: text ?? null, machine_id: machineId ?? null });
   }
   attach(chatId: string, file: File) {
     return this.request<import("../core/attachments").Attached>("POST", `/chats/${encodeURIComponent(chatId)}/attachments?name=${encodeURIComponent(file.name)}`, file);

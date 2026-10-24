@@ -9,7 +9,7 @@ test("the Tools menu turns tool servers on for a new chat and keeps them after t
   await expect(chip).toHaveAttribute("aria-label", /^No tools/);
   await chip.click();
   const items = page.locator('.tools-menu [role="menuitemcheckbox"]');
-  await expect(items.locator(".effort-name")).toHaveText(["Stack Overflow", "Developer docs", "Past chats"]);
+  await expect(items.locator(".effort-name")).toHaveText(["Stack Overflow", "Developer docs", "Past chats", "Remember facts"]);
   await items.first().click();
   await expect(items.first().locator(".effort-hint")).toHaveText("3.5 million answered programming questions");
   await expect(items.first()).toHaveAttribute("aria-checked", "true");
@@ -72,6 +72,8 @@ for (const scheme of ["light", "dark"] as const) {
     await page.locator('#left [data-action="open-chat"]').first().click();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.addStyleTag({ content: "body.demo::before{display:none!important}" });
+    // Wait for the phone layout to settle (the side panel slides away), as the context meter test does.
+    await page.waitForFunction(() => document.getAnimations().length === 0 && document.querySelector(".composer-hint")!.getBoundingClientRect().x >= 0);
     await page.locator(".tools-chip").click();
     const box = (await page.locator(".tools-menu").boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0);

@@ -267,6 +267,7 @@ pub fn summary(job: &Value) -> String {
         }
         "reload" => format!("reload {}", s("what")),
         "system_info" => "Show system info".to_string(),
+        super::spawn::NAME => super::spawn::summary(job),
         other => format!("Run {other}"),
     };
     line.chars().take(200).collect()

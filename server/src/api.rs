@@ -296,37 +296,107 @@ pub async fn send(
         return Ok(StatusCode::ACCEPTED);
     }
 
+    start_answer(&s, &u, &owner_id, &chat_id, &to, b.machine_id).await?;
+    Ok(StatusCode::ACCEPTED)
+}
+
+/// Answers the chat's newest message: on the picked computer (the owner's own), else as a chat.
+async fn start_answer(s: &AppState, u: &User, owner_id: &str, chat_id: &str, to: &[String], machine_id: Option<String>) -> ApiResult<()> {
     // OVR-01: an Overseer chat is answered by the overseer role.
-    let overseer = crate::overseer::chat_on(&s.db, &chat_id).await;
+    let overseer = crate::overseer::chat_on(&s.db, chat_id).await;
     let wanted = if overseer { "overseer" } else { "orchestrator" };
-    let role = user_roles(&s, &owner_id)
+    let role = user_roles(s, owner_id)
         .await?
         .into_iter()
         .find(|r| r.role == wanted);
     let Some(role) = role else {
         let m = insert_message(
-            &s,
-            &chat_id,
+            s,
+            chat_id,
             "orchestrator",
             "No model is set for the orchestrator role yet. Pick one under Models and roles.",
         )
         .await?;
-        s.bus.send_many(&to, Event::Message { message: m });
-        return Ok(StatusCode::ACCEPTED);
+        s.bus.send_many(to, Event::Message { message: m });
+        return Ok(());
     };
 
-    if let Some(machine_id) = b.machine_id.filter(|m| !m.is_empty()) {
+    if let Some(machine_id) = machine_id.filter(|m| !m.is_empty()) {
         let machine: Option<(String,)> = sqlx::query_as("SELECT name FROM machines WHERE id = ? AND user_id = ?")
             .bind(&machine_id)
             .bind(&u.id)
             .fetch_optional(&s.db)
             .await?;
         let Some((machine_name,)) = machine else { return Err(ApiError::NotFound) };
-        tokio::spawn(crate::pcagent::run(s.clone(), u.id.clone(), chat_id, machine_id, machine_name, role));
-        return Ok(StatusCode::ACCEPTED);
+        tokio::spawn(crate::pcagent::run(s.clone(), u.id.clone(), chat_id.to_string(), machine_id, machine_name, role));
+        return Ok(());
     }
-    tokio::spawn(answer(s.clone(), owner_id.clone(), chat_id, role, owner_id == u.id));
-    Ok(StatusCode::ACCEPTED)
+    tokio::spawn(answer(s.clone(), owner_id.to_string(), chat_id.to_string(), role, owner_id == u.id));
+    Ok(())
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct ResendBody {
+    /// The message's new text (edit and resend); none answers it again as it is (regenerate).
+    text: Option<String>,
+    machine_id: Option<String>,
+}
+
+/// MSG-ACT: POST /api/chats/{id}/messages/{mid}/resend: the user's message `mid` is answered again,
+/// with its text replaced when `text` is given. Everything after it in the chat goes first (a
+/// summary that covered any of it too). Returns the chat's messages as they are now.
+pub async fn resend(
+    State(s): State<AppState>,
+    Extension(u): Extension<User>,
+    Path((chat_id, message_id)): Path<(String, String)>,
+    Json(b): Json<ResendBody>,
+) -> ApiResult<Json<Vec<Message>>> {
+    let Some(owner_id) = crate::sharing::chat_editor(&s.db, &u.id, &chat_id).await? else {
+        return Err(ApiError::NotFound);
+    };
+    if owner_id != u.id && b.machine_id.as_deref().is_some_and(|m| !m.is_empty()) {
+        return Err(ApiError::Forbidden("Only the owner can use a computer in this chat.".into()));
+    }
+    let row: Option<(i64, String, String, String)> = sqlx::query_as("SELECT rowid, author, text, at FROM messages WHERE id = ? AND chat_id = ?")
+        .bind(&message_id)
+        .bind(&chat_id)
+        .fetch_optional(&s.db)
+        .await?;
+    let Some((rowid, author, old_text, at)) = row else { return Err(ApiError::NotFound) };
+    if author != "user" {
+        return Err(ApiError::BadRequest("Only your own messages can be sent again.".into()));
+    }
+    if let Some(text) = &b.text {
+        let text = text.trim();
+        if text.is_empty() || text.len() > 100_000 {
+            return Err(ApiError::BadRequest("Messages must be 1 to 100,000 characters.".into()));
+        }
+        // The files sent with it stay with it.
+        let files = old_text.split_once("\n\n:::files\n").map(|(_, f)| format!("\n\n:::files\n{f}")).unwrap_or_default();
+        sqlx::query("UPDATE messages SET text = ? WHERE id = ?").bind(format!("{text}{files}")).bind(&message_id).execute(&s.db).await?;
+    }
+    // Later messages go, in the order the prompt reads them (at, rowid).
+    sqlx::query("DELETE FROM messages WHERE chat_id = ?1 AND (at > ?2 OR (at = ?2 AND rowid > ?3))")
+        .bind(&chat_id)
+        .bind(&at)
+        .bind(rowid)
+        .execute(&s.db)
+        .await?;
+    sqlx::query("DELETE FROM chat_summary WHERE chat_id = ?1 AND (upto_at > ?2 OR (upto_at = ?2 AND upto_rowid >= ?3))")
+        .bind(&chat_id)
+        .bind(&at)
+        .bind(rowid)
+        .execute(&s.db)
+        .await?;
+    let to = crate::sharing::chat_audience(&s.db, &chat_id).await?;
+    s.bus.send_many(&to, Event::Changed { what: "messages", machine_id: None });
+    let rows: Vec<Message> = sqlx::query_as("SELECT id, chat_id, author, text, at FROM messages WHERE chat_id = ? ORDER BY at, rowid")
+        .bind(&chat_id)
+        .fetch_all(&s.db)
+        .await?;
+    start_answer(&s, &u, &owner_id, &chat_id, &to, b.machine_id).await?;
+    Ok(Json(rows))
 }
 
 pub(crate) async fn insert_message(
@@ -360,7 +430,7 @@ pub(crate) async fn insert_message(
 }
 
 /// `tools`: the chat's MCP tools only run for the owner (PROJECT-SHARING: an editor's message is answered without them).
-async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool) {
+pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignment, tools: bool) {
     let to = match crate::sharing::chat_audience(&s.db, &chat_id).await {
         Ok(to) => to,
         Err(e) => {
@@ -463,17 +533,27 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     let web = (names.iter().any(|n| n == crate::chat_tools::WEB) && s.config.search.searxng_url.is_some()).then_some(&s.config.search);
     // HIST-01: past chats, when the chat turned them on (owner only, like every tool).
     let history = (tools && names.iter().any(|n| n == crate::chat_tools::HISTORY)).then_some((user_id.as_str(), chat_id.as_str()));
+    // FACTS: remember / forget, when the chat turned Memory on (owner only, like every tool).
+    let memory = (tools && names.iter().any(|n| n == crate::chat_tools::MEMORY)).then_some(chat_id.as_str());
+    // FACTS: the project's and the chat's facts, on every request (their ids go into the call log).
+    let fact_ids = match crate::facts::prompt_block(&s.db, &chat_id, time::OffsetDateTime::now_utc()).await {
+        Some((block, ids)) => {
+            convo[0].content.push_str(&block);
+            ids
+        }
+        None => Vec::new(),
+    };
     // CHAT-04: the date and where Kompanion is installed, on every request.
     convo[0].content.push_str(&format!("\n\n{}", crate::chat_tools::when_where(time::OffsetDateTime::now_utc(), s.config.machine_name.as_deref(), s.config.location.as_deref(), web.is_some())));
     let mut used_lines = String::new();
     let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
-    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none(), s.config.provider(&role.provider_id)) {
+    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none() && memory.is_none(), s.config.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| m.wire(false)).collect();
         let (bus, uid, rid, cid) = (s.bus.clone(), to.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send_many(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, history, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
+        let uses = crate::chat_tools::run(&s, p, &role.model_id, &msgs, &servers, web, knowledge, history, memory, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));
             used_lines.push_str("\n\n");
@@ -651,7 +731,7 @@ async fn answer(s: AppState, user_id: String, chat_id: String, role: RoleAssignm
     }
 
     // Every call is recorded in full (see the call inspector in the app).
-    let request = json!({ "messages": convo, "extra_body": sent_extra });
+    let request = json!({ "messages": convo, "extra_body": sent_extra, "facts": fact_ids });
     let _ = sqlx::query(
         "INSERT INTO calls (user_id, id, chat_id, role, provider_id, model_id, reason, request, response,
          tokens_in, tokens_out, ms, error, at, effort, cache_write, cache_read) VALUES (?, ?, ?, 'orchestrator', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -871,7 +951,7 @@ pub async fn update_chat(
     }
     if let Some(list) = b.mcp {
         // CHAT-01: only names from [[mcp]] in kompanion.toml.
-        if let Some(bad) = list.iter().find(|n| !(s.config.mcp.iter().any(|m| &m.name == *n) || (n.as_str() == crate::chat_tools::WEB && s.config.search.searxng_url.is_some()) || n.as_str() == crate::chat_tools::KNOWLEDGE || n.as_str() == crate::chat_tools::HISTORY)) {
+        if let Some(bad) = list.iter().find(|n| !(s.config.mcp.iter().any(|m| &m.name == *n) || (n.as_str() == crate::chat_tools::WEB && s.config.search.searxng_url.is_some()) || n.as_str() == crate::chat_tools::KNOWLEDGE || n.as_str() == crate::chat_tools::HISTORY || n.as_str() == crate::chat_tools::MEMORY)) {
             return Err(ApiError::BadRequest(format!("There is no tool server {bad}.")));
         }
         sqlx::query("UPDATE chats SET mcp = ? WHERE id = ?")
@@ -1130,3 +1210,7 @@ mod tests {
         assert!(user_role(&s, "u1", "reviewer").await.unwrap().is_none());
     }
 }
+
+#[cfg(test)]
+#[path = "api_resend_tests.rs"]
+mod resend_tests;

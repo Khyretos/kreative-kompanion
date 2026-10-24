@@ -1,0 +1,47 @@
+{
+  "225ad7aa7d2f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/facts.ts",
+    "title": "XSS Vulnerability in Fact Value",
+    "verdict": "false_positive",
+    "reason": "html`` (core/html.ts) escapes every interpolated value (&, <, >, quotes) unless it is already SafeHtml; a fact value is a plain string, so <script> or onerror=... show as text."
+  },
+  "24ed3b3a6d22": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/http.ts",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "deleteFact awaits this.request, which throws on any non-2xx answer with the server's message; the caller (factDeleteLater) shows the error and puts the fact back."
+  },
+  "6d61dfc6445c": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/facts.ts",
+    "title": "Potential XSS via URL Attribute",
+    "verdict": "false_positive",
+    "reason": "valueView only makes a link when the value starts with http:// or https:// (checked with a regex), and the attribute is escaped by html``; javascript: values stay plain text."
+  },
+  "baf6a1a55025": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/steplog.rs",
+    "title": "Potential Data Loss in Truncation",
+    "verdict": "false_positive",
+    "reason": "Cutting is the point: the result must fit the caller's tool-result budget. It says how many characters were left out, and the cursor lets the model read the next page; nothing is lost from the stored step."
+  },
+  "f1a327c81c27": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/facts.rs",
+    "title": "SQL Injection Vulnerability",
+    "verdict": "false_positive",
+    "reason": "format! only inserts COLUMNS (a constant) and the column name from the Scope enum (\"project_id\" or \"chat_id\", both literals); every value is bound with ?. flag_missing_path binds chat_id and path too."
+  }
+}
