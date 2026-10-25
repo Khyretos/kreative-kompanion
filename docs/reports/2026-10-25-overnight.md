@@ -3,13 +3,11 @@
 Kees went to bed at 01:55Z with the order: get as far as possible, take the
 recommended option for each decision, report in the morning. Newest first.
 
-## Morning status (12:06Z)
+## Morning status (12:30Z)
 
-- Live: main a125369 (PRs 289, 290, 291, 294) deployed at 12:05Z; the container is
-  healthy, /api/status answers, no warnings in the log, no new migrations.
-- Still in CI with main merged in: 295 (review-gate concurrency), 296 (this report) and
-  297 (Gemini and Mistral presets, see below). They merge on their own; 297 goes live
-  with the next deploy.
+- Live: main e9b8804 (PRs 289, 290, 291, 294, 295, 297), deployed at 12:05Z and again
+  for 297; the container is healthy, /api/status answers, no warnings in the log, no
+  new migrations.
 - CI was the bottleneck: no Kompanion job started between 05:50Z and about 11:00Z. Every
   Linux runner slot was on kk-engine jobs that came first in pick-up order. With Kees's
   OK ("reorder CI") the Kompanion PR jobs went to the front on the CI page, right behind
@@ -18,6 +16,15 @@ recommended option for each decision, report in the morning. Newest first.
   ("review-gate"), and only the oldest may run. PR 295 gives each PR its own group and
   lets a newer event replace a waiting one. Forgejo 15 has no way to cancel the old runs
   (no API, and the CI page has no cancel), so they drain one by one.
+
+## Handoff
+
+- Open: only this report (PR 296); it merges on its own.
+- The old "review-gate" concurrency group still holds about 115 runs from before PR 295.
+  They drain one at a time behind other jobs and only re-check gates; nothing needs them.
+  New events use review-gate-<PR> or review-gate-cron.
+- Next ideas, not started: translate the rest of Settings, the project overview and the
+  code block buttons (still English only).
 
 ## PR 297: Gemini and Mistral presets
 
