@@ -3,7 +3,63 @@
 Kees went to bed at 01:55Z with the order: get as far as possible, take the
 recommended option for each decision, report in the morning. Newest first.
 
-## Self-audit: compact approval cards and project overview
+## PR 294: fixes from a real-model dogfood
+
+A throwaway Kompanion (the deployed image) with Claude as orchestrator and the local Coder
+(via ovms-queue) as worker and reviewer, a paired runner and a small fixture repo. Three
+scenarios the way Kees works:
+
+1. Fix a function in the middle of a 918-line file and add a test: done and correct, but
+   16 steps and 22 calls. Causes: the run refused the test the task asked for, the worker
+   then wrote it with `cat >> test_big.py` (and the review gate missed that); and the cut
+   read only offered byte offsets, so the whole file was read again (same cut).
+2. Use a fact from an earlier chat in a new one: the chat did not know the project's
+   folder, searched the computer, was refused and ended on "Now I'll find the project folder."
+3. Start two sub-tasks from a chat and report: clean (2 calls, 19 s).
+
+Fixed: the test protection holds against the shell (and the gate counts shell writes);
+test files the description asks to change may change; a cut read names the missing lines
+and how to read them; project chats get the folder, computer and build/test commands; an
+answer that only announces its next step gets one nudge.
+
+## PR 291: reliability for long runs
+
+- Runs left "running" by a server restart were never touched (they stayed running for
+  ever). Now they are marked interrupted at startup and the task starts again after 30 s
+  on the same computer and folder with the same settings; twice within the hour and it
+  waits for you instead.
+- Tool steps and task-run calls retry a dropped line or a busy provider (429/5xx, up to
+  three tries, Retry-After respected); errors name the provider, the status and what it
+  means ("too many requests, or the credit ran out"). Chat answers already retried.
+- Every place that cut text for you or a model now says how much it left out.
+
+## PR 290: artifacts pane
+
+Long code (20+ lines) and HTML, SVG and Markdown blocks show a few lines in the chat with
+Open/Preview; the pane (side panel on desktop, sheet on phones) shows them whole with
+Preview/Code, Copy and Download. HTML runs in a sandboxed frame with its own policy: its
+scripts work, but it has no network and no access to the app or your login. Files a step
+wrote or read open from the step card.
+
+## PR 295: review-gate concurrency
+
+Every PR comment queued a review-gate run in one shared group (45 waiting while the runners
+were short). Now one run per PR, and a newer event replaces the waiting one; each run sweeps
+all open PRs anyway.
+
+## Decisions taken (recommended option each time)
+
+- Explain needs no setting: the click is the opt-in, the answer is cached.
+- Export button hidden on phones so the top bar fits 390 px.
+- The artifact pane overlays the chat on desktop (like a dialog) instead of squeezing the
+  three columns; Escape or × closes it.
+- A test file the task explicitly asks to change is allowed; any other stays protected.
+- After a restart a run starts again from the folder as it is (a fresh plan), not from
+  the middle of the old plan.
+- CI was starved for hours by kk-engine release builds (another thread); I did not touch
+  the runners or the CI page.
+
+## PR 289: self-audit, compact approval cards and project overview
 
 I clicked through every new feature at 390 px (dark) and 1280 px (light) on demo data
 (chat, context meter, effort menu, facts, all four right-hand tabs, step and approval
@@ -37,8 +93,3 @@ project overview and the code block buttons. Noted for a later PR.
 - CI: the server job failed once on a commit that only added the findings JSON
   (same code passed one commit earlier, 676 tests pass locally); this report is the
   next commit, which re-runs it.
-
-## Decisions taken
-
-- Explain needs no setting: the click is the opt-in, the answer is cached.
-- Export button hidden on phones so the top bar fits 390 px (still on desktop).
