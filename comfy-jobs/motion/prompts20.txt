@@ -1,0 +1,20 @@
+a person walks forward.#NA
+a person runs forward quickly.#NA
+a person jumps up in place twice.#NA
+a person waves with the right hand.#NA
+a person sits down on a chair and stands up again.#NA
+a person kicks with the right leg.#NA
+a person punches forward with both hands.#NA
+a person turns around and walks back.#NA
+a person crouches and sneaks forward.#NA
+a person climbs up a ladder.#NA
+a person dances happily.#NA
+a person swings a sword from right to left.#NA
+a person bows politely.#NA
+a person picks something up from the floor.#NA
+a person stumbles and almost falls.#NA
+a person throws a ball with the right hand.#NA
+a person stretches both arms above the head.#NA
+a person walks in a circle.#NA
+a person jumps forward over an obstacle.#NA
+a person claps hands while standing.#NA

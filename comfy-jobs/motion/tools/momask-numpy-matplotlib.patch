@@ -1,0 +1,315 @@
+diff --git a/.gitignore b/.gitignore
+old mode 100644
+new mode 100755
+diff --git a/LICENSE b/LICENSE
+old mode 100644
+new mode 100755
+diff --git a/README.md b/README.md
+old mode 100644
+new mode 100755
+diff --git a/assets/mapping.json b/assets/mapping.json
+old mode 100644
+new mode 100755
+diff --git a/assets/mapping6.json b/assets/mapping6.json
+old mode 100644
+new mode 100755
+diff --git a/assets/text_prompt.txt b/assets/text_prompt.txt
+old mode 100644
+new mode 100755
+diff --git a/common/__init__.py b/common/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/common/quaternion.py b/common/quaternion.py
+old mode 100644
+new mode 100755
+diff --git a/common/skeleton.py b/common/skeleton.py
+old mode 100644
+new mode 100755
+diff --git a/data/__init__.py b/data/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/data/t2m_dataset.py b/data/t2m_dataset.py
+old mode 100644
+new mode 100755
+diff --git a/dataset/__init__.py b/dataset/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/edit_t2m.py b/edit_t2m.py
+old mode 100644
+new mode 100755
+diff --git a/environment.yml b/environment.yml
+old mode 100644
+new mode 100755
+diff --git a/eval_t2m_trans_res.py b/eval_t2m_trans_res.py
+old mode 100644
+new mode 100755
+diff --git a/eval_t2m_vq.py b/eval_t2m_vq.py
+old mode 100644
+new mode 100755
+diff --git a/example_data/000612.mp4 b/example_data/000612.mp4
+old mode 100644
+new mode 100755
+diff --git a/example_data/000612.npy b/example_data/000612.npy
+old mode 100644
+new mode 100755
+diff --git a/gen_t2m.py b/gen_t2m.py
+old mode 100644
+new mode 100755
+diff --git a/models/.DS_Store b/models/.DS_Store
+old mode 100644
+new mode 100755
+diff --git a/models/__init__.py b/models/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/models/mask_transformer/__init__.py b/models/mask_transformer/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/models/mask_transformer/tools.py b/models/mask_transformer/tools.py
+old mode 100644
+new mode 100755
+diff --git a/models/mask_transformer/transformer.py b/models/mask_transformer/transformer.py
+old mode 100644
+new mode 100755
+diff --git a/models/mask_transformer/transformer_trainer.py b/models/mask_transformer/transformer_trainer.py
+old mode 100644
+new mode 100755
+diff --git a/models/t2m_eval_modules.py b/models/t2m_eval_modules.py
+old mode 100644
+new mode 100755
+diff --git a/models/t2m_eval_wrapper.py b/models/t2m_eval_wrapper.py
+old mode 100644
+new mode 100755
+diff --git a/models/vq/__init__.py b/models/vq/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/models/vq/encdec.py b/models/vq/encdec.py
+old mode 100644
+new mode 100755
+diff --git a/models/vq/model.py b/models/vq/model.py
+old mode 100644
+new mode 100755
+diff --git a/models/vq/quantizer.py b/models/vq/quantizer.py
+old mode 100644
+new mode 100755
+diff --git a/models/vq/residual_vq.py b/models/vq/residual_vq.py
+old mode 100644
+new mode 100755
+diff --git a/models/vq/resnet.py b/models/vq/resnet.py
+old mode 100644
+new mode 100755
+diff --git a/models/vq/vq_trainer.py b/models/vq/vq_trainer.py
+old mode 100644
+new mode 100755
+diff --git a/motion_loaders/__init__.py b/motion_loaders/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/motion_loaders/dataset_motion_loader.py b/motion_loaders/dataset_motion_loader.py
+old mode 100644
+new mode 100755
+diff --git a/options/__init__.py b/options/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/options/base_option.py b/options/base_option.py
+old mode 100644
+new mode 100755
+diff --git a/options/eval_option.py b/options/eval_option.py
+old mode 100644
+new mode 100755
+diff --git a/options/train_option.py b/options/train_option.py
+old mode 100644
+new mode 100755
+diff --git a/options/vq_option.py b/options/vq_option.py
+old mode 100644
+new mode 100755
+diff --git a/prepare/.DS_Store b/prepare/.DS_Store
+old mode 100644
+new mode 100755
+diff --git a/prepare/download_evaluator.sh b/prepare/download_evaluator.sh
+old mode 100644
+new mode 100755
+diff --git a/prepare/download_glove.sh b/prepare/download_glove.sh
+old mode 100644
+new mode 100755
+diff --git a/prepare/download_models.sh b/prepare/download_models.sh
+old mode 100644
+new mode 100755
+diff --git a/requirements.txt b/requirements.txt
+old mode 100644
+new mode 100755
+diff --git a/train_res_transformer.py b/train_res_transformer.py
+old mode 100644
+new mode 100755
+diff --git a/train_t2m_transformer.py b/train_t2m_transformer.py
+old mode 100644
+new mode 100755
+diff --git a/train_vq.py b/train_vq.py
+old mode 100644
+new mode 100755
+diff --git a/utils/eval_t2m.py b/utils/eval_t2m.py
+old mode 100644
+new mode 100755
+diff --git a/utils/fixseed.py b/utils/fixseed.py
+old mode 100644
+new mode 100755
+diff --git a/utils/get_opt.py b/utils/get_opt.py
+old mode 100644
+new mode 100755
+diff --git a/utils/metrics.py b/utils/metrics.py
+old mode 100644
+new mode 100755
+diff --git a/utils/motion_process.py b/utils/motion_process.py
+old mode 100644
+new mode 100755
+diff --git a/utils/paramUtil.py b/utils/paramUtil.py
+old mode 100644
+new mode 100755
+diff --git a/utils/plot_script.py b/utils/plot_script.py
+old mode 100644
+new mode 100755
+index 91b09d9..8d168ed
+--- a/utils/plot_script.py
++++ b/utils/plot_script.py
+@@ -123,8 +123,8 @@ def plot_3d_motion_v2(motion, kinematic_tree, save_path, interval=50, dataset=No
+     print(data.shape)
+ 
+     def update(index):
+-        ax.lines = []
+-        ax.collections = []
++        [l.remove() for l in list(ax.lines)]
++        [c.remove() for c in list(ax.collections)]
+         ax.view_init(elev=110, azim=-90)
+         ax.scatter(motion[index, :, 0], motion[index, :, 1], motion[index, :, 2], color='black')
+         for chain, color in zip(kinematic_tree, colors):
+@@ -192,8 +192,8 @@ def plot_3d_motion_kit(save_path, kinematic_tree, joints, title, figsize=(5, 5),
+ 
+     def update(index):
+         #         print(index)
+-        ax.lines = []
+-        ax.collections = []
++        [l.remove() for l in list(ax.lines)]
++        [c.remove() for c in list(ax.collections)]
+         ax.view_init(elev=110, azim=-90)
+         ax.dist = 7.5
+         #         ax =
+@@ -250,8 +250,8 @@ def plot_3d_motion_gt_pred(save_path, kinematic_tree, gt_joints, pred_joints, ti
+ 
+     def update(index):
+         for i, ax in enumerate(axs):
+-            ax.lines = []
+-            ax.collections = []
++            [l.remove() for l in list(ax.lines)]
++            [c.remove() for c in list(ax.collections)]
+             ax.view_init(elev=120, azim=-90)
+             ax.dist = 7.5
+ 
+@@ -375,8 +375,8 @@ def plot_3d_motion(save_path, kinematic_tree, joints, title, figsize=(10, 10), f
+ 
+     def update(index):
+         #         print(index)
+-        ax.lines = []
+-        ax.collections = []
++        [l.remove() for l in list(ax.lines)]
++        [c.remove() for c in list(ax.collections)]
+         ax.view_init(elev=120, azim=-90)
+         ax.dist = 7.5
+         #         ax =
+@@ -438,8 +438,8 @@ def plot_3d_motion_old(motion, pose_tree, class_type, save_path, interval=300, e
+     print(data.shape)
+ 
+     def update(index):
+-        ax.lines = []
+-        ax.collections = []
++        [l.remove() for l in list(ax.lines)]
++        [c.remove() for c in list(ax.collections)]
+         if excluded_joints is None:
+             ax.scatter(data[index, :, 0], data[index, :, 1], data[index, :, 2], color='b', marker='h', s=15)
+         else:
+@@ -517,8 +517,8 @@ def plot_3d_multi_motion(motion_list, kinematic_tree, save_path, interval=50, da
+     # print(data.shape)
+     print("Number of motions %d" % (len(motion_list)))
+     def update(index):
+-        ax.lines = []
+-        ax.collections = []
++        [l.remove() for l in list(ax.lines)]
++        [c.remove() for c in list(ax.collections)]
+         if dataset == "mocap":
+             ax.view_init(elev=110, azim=-90)
+         else:
+diff --git a/utils/utils.py b/utils/utils.py
+old mode 100644
+new mode 100755
+diff --git a/utils/word_vectorizer.py b/utils/word_vectorizer.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/.DS_Store b/visualization/.DS_Store
+old mode 100644
+new mode 100755
+diff --git a/visualization/.bvh b/visualization/.bvh
+old mode 100644
+new mode 100755
+diff --git a/visualization/Animation.py b/visualization/Animation.py
+old mode 100644
+new mode 100755
+index f1237fd..52e340b
+--- a/visualization/Animation.py
++++ b/visualization/Animation.py
+@@ -1,7 +1,10 @@
+ import operator
+ 
+ import numpy as np
+-import numpy.core.umath_tests as ut
++try:
++    import numpy.core.umath_tests as ut
++except (ImportError, RuntimeError):
++    ut = None  # numpy >= 1.25: only inner1d uses it below
+ 
+ from visualization.Quaternions import Quaternions
+ 
+diff --git a/visualization/AnimationStructure.py b/visualization/AnimationStructure.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/BVH.py b/visualization/BVH.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/BVH_mod.py b/visualization/BVH_mod.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/InverseKinematics.py b/visualization/InverseKinematics.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/Quaternions.py b/visualization/Quaternions.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/__init__.py b/visualization/__init__.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/data/.DS_Store b/visualization/data/.DS_Store
+old mode 100644
+new mode 100755
+diff --git a/visualization/data/gBR_sBM_cAll_d04_mBR0_ch01.pkl b/visualization/data/gBR_sBM_cAll_d04_mBR0_ch01.pkl
+old mode 100644
+new mode 100755
+diff --git a/visualization/data/smpl/smpl/.DS_Store b/visualization/data/smpl/smpl/.DS_Store
+old mode 100644
+new mode 100755
+diff --git a/visualization/data/smpl/smpl/smpl.txt b/visualization/data/smpl/smpl/smpl.txt
+old mode 100644
+new mode 100755
+diff --git a/visualization/data/template.bvh b/visualization/data/template.bvh
+old mode 100644
+new mode 100755
+diff --git a/visualization/joints2bvh.py b/visualization/joints2bvh.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/remove_fs.py b/visualization/remove_fs.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/smpl2bvh.py b/visualization/smpl2bvh.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/utils/bvh.py b/visualization/utils/bvh.py
+old mode 100644
+new mode 100755
+diff --git a/visualization/utils/quat.py b/visualization/utils/quat.py
+old mode 100644
+new mode 100755
