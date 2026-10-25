@@ -78,16 +78,18 @@ pub fn render(name: &str, at: &str, rows: &[Row], merged: &[(String, String)]) -
     cut(out.trim_end())
 }
 
+/// Within LIMIT bytes, at a line end; a cut says so on its last line (RELIABILITY: never silent).
 fn cut(text: &str) -> String {
+    const MORE: &str = "\n(more lines left out)";
     if text.len() <= LIMIT {
         return text.to_string();
     }
-    let mut end = LIMIT;
+    let mut end = LIMIT - MORE.len();
     while !text.is_char_boundary(end) {
         end -= 1;
     }
     let head = &text[..end];
-    head[..head.rfind('\n').unwrap_or(head.len())].to_string()
+    format!("{}{MORE}", &head[..head.rfind('\n').unwrap_or(head.len())])
 }
 
 async fn build(db: &SqlitePool, project_id: &str, user_id: &str) -> sqlx::Result<Option<String>> {

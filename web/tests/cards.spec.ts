@@ -51,3 +51,24 @@ test.describe("PC Action Cards", () => {
     await expect(page.locator(".pc-action").last().locator(".card-kind")).toContainText("Package / system");
   });
 });
+
+// AUDIT: a waiting card is three rows: header, the step with its computer, the buttons side by side.
+for (const width of [390, 1280]) {
+  test(`a waiting card is compact at ${width} px: one line for the step, one row of buttons`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?demo");
+    await page.click("button.found-server");
+    await page.selectOption("#pc-machine", { label: "soucouyant" });
+    await page.fill("#prompt", "show me every card type");
+    await page.press("#prompt", "Enter");
+    const card = page.locator(".pc-action.pending").first();
+    await expect(card.locator(".pc-line code")).toHaveText("Cargo.toml");
+    await expect(card.locator(".pc-line")).not.toContainText("`");
+    await expect(card.locator(".pc-line")).toContainText("on soucouyant");
+    await expect(card.locator(".chip")).toHaveCount(0); // the header badge already says it waits
+    const tops = await card.locator(".actions .btn").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(tops).toHaveLength(3);
+    expect(new Set(tops).size).toBe(1);
+    expect((await card.boundingBox())!.height).toBeLessThan(140);
+  });
+}

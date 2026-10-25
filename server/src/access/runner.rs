@@ -118,17 +118,6 @@ pub struct ResultsBody {
     pub grants: Option<Vec<Value>>,
 }
 
-fn cut(s: &str, max: usize) -> &str {
-    if s.len() <= max {
-        return s;
-    }
-    let mut end = max;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    &s[..end]
-}
-
 /// A runner reports the outcome of a job (and its current grants).
 pub async fn results(
     State(s): State<AppState>,
@@ -149,7 +138,7 @@ pub async fn results(
         let new_state = if b.refused { "refused" } else if b.ok { "done" } else { "failed" };
         sqlx::query("UPDATE machine_jobs SET state = ?, result = ?, done_at = ? WHERE id = ?")
             .bind(new_state)
-            .bind(cut(&b.output, 64 * 1024))
+            .bind(crate::util::cut_marked(&b.output, 64 * 1024))
             .bind(util::now())
             .bind(&b.job_id)
             .execute(&s.db)
@@ -179,17 +168,6 @@ pub async fn results(
     // The Access tab of every open tab reloads this machine's grants and history.
     s.bus.send(&user_id, Event::Changed { what: "access", machine_id: Some(machine_id.clone()) });
     Ok(StatusCode::NO_CONTENT)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::cut;
-
-    #[test]
-    fn cuts_on_char_boundaries() {
-        assert_eq!(cut("abc", 10), "abc");
-        assert_eq!(cut("aé", 2), "a");
-    }
 }
 
 #[cfg(test)]
