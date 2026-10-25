@@ -9,9 +9,13 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 
+# One run per PR at a time: a newer event for the same PR (a comment storm, a push) replaces the run
+# still waiting or running, so the queue holds at most one per PR plus one for the cron. Every run
+# sweeps all open PRs, so a cancelled one loses nothing. The comment trigger stays: PR-Agent's review
+# arrives as a comment and the gate should answer it without waiting for the cron.
 concurrency:
-  group: review-gate
-  cancel-in-progress: false
+  group: review-gate-${{ github.event.issue.number || github.event.pull_request.number || 'cron' }}
+  cancel-in-progress: true
 
 jobs:
   sweep:
