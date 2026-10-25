@@ -13,7 +13,9 @@ def _vae(vae_name, device):
     import comfy.utils
     import folder_paths
 
-    sd = comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae", vae_name))
+    sd = comfy.utils.load_torch_file(
+        folder_paths.get_full_path_or_raise("vae", vae_name)
+    )
     return comfy.sd.VAE(sd=sd, device=device, dtype=torch.float32)
 
 
@@ -22,7 +24,12 @@ class KKVAELoaderFP32:
     def INPUT_TYPES(cls):
         import folder_paths
 
-        return {"required": {"vae_name": (folder_paths.get_filename_list("vae"),), "device": (["gpu", "cpu"],)}}
+        return {
+            "required": {
+                "vae_name": (folder_paths.get_filename_list("vae"),),
+                "device": (["gpu", "cpu"],),
+            }
+        }
 
     RETURN_TYPES = ("VAE",)
     FUNCTION = "run"
@@ -31,7 +38,12 @@ class KKVAELoaderFP32:
     def run(self, vae_name, device):
         import comfy.model_management as mm
 
-        return (_vae(vae_name, mm.get_torch_device() if device == "gpu" else torch.device("cpu")),)
+        return (
+            _vae(
+                vae_name,
+                mm.get_torch_device() if device == "gpu" else torch.device("cpu"),
+            ),
+        )
 
 
 class KKVaeDecodeTextureCPU:
@@ -58,20 +70,30 @@ class KKVaeDecodeTextureCPU:
         cpu = torch.device("cpu")
         vae = _vae(vae_name, cpu)
         subs = [
-            type(s)(feats=s.feats.to(cpu, torch.float32), coords=s.coords.to(cpu), shape=s.shape, scale=s._scale)
+            type(s)(
+                feats=s.feats.to(cpu, torch.float32),
+                coords=s.coords.to(cpu),
+                shape=s.shape,
+                scale=s._scale,
+            )
             for s in shape_subdivides
         ]
         old = mm.get_torch_device
-        mm.get_torch_device = lambda: cpu  # the node decodes on get_torch_device(), not on the VAE's device
+        mm.get_torch_device = (
+            lambda: cpu
+        )  # the node decodes on get_torch_device(), not on the VAE's device
         try:
             out = VaeDecodeTextureTrellis.execute(samples, vae, subs)
         finally:
             mm.get_torch_device = old
-        del vae
+            del vae  # free the CPU copy (about 1.8 GB) also when the decode fails
         return (out[0] if isinstance(out, tuple) else out.result[0],)
 
 
-NODE_CLASS_MAPPINGS = {"KKVAELoaderFP32": KKVAELoaderFP32, "KKVaeDecodeTextureCPU": KKVaeDecodeTextureCPU}
+NODE_CLASS_MAPPINGS = {
+    "KKVAELoaderFP32": KKVAELoaderFP32,
+    "KKVaeDecodeTextureCPU": KKVaeDecodeTextureCPU,
+}
 NODE_DISPLAY_NAME_MAPPINGS = {
     "KKVAELoaderFP32": "VAE Loader (fp32)",
     "KKVaeDecodeTextureCPU": "Trellis2 VAE Decode Texture (CPU)",
