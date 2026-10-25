@@ -398,6 +398,8 @@ impl Agent {
         let budget = result_budget(p.local);
         // Answers in a row that hit the output limit before their tool call was complete.
         let mut cut_offs = 0;
+        // DOGFOOD: an answer that only announced its next step ("Now I'll find the folder.") gets one nudge.
+        let mut nudged = false;
         // Paths a read found missing during this answer (see the write_file guardrail).
         let mut missing = std::collections::HashSet::<String>::new();
         if self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
@@ -448,6 +450,13 @@ impl Agent {
             cut_offs = 0;
             if calls.is_empty() {
                 let text = msg["content"].as_str().unwrap_or("").trim();
+                if !nudged && announces_next_step(text) {
+                    nudged = true;
+                    say(s, &self.user_id, &self.chat_id, text).await;
+                    messages.push(json!({ "role": "assistant", "content": text }));
+                    messages.push(json!({ "role": "user", "content": NEXT_STEP_NOTE }));
+                    continue;
+                }
                 return Ok(final_text(text, n));
             }
             // A short "what I'll do" sentence before the tools, when the model wrote one.
@@ -812,6 +821,25 @@ async fn refuse(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, jo
 
 /// The answer shown when the model stops calling tools. An empty answer is never turned into
 /// a bare "Done.": that claimed success without saying what happened.
+/// What a model gets after an answer that only said what it would do next (once per answer).
+const NEXT_STEP_NOTE: &str = "You said what you would do next but did not do it. Do it now with a tool; if you can't, say what you need from the user and stop.";
+
+/// DOGFOOD: an answer whose last sentence announces a step instead of reporting ("Now I'll find the
+/// project folder.", "Let me check the tests:"), so the work isn't left half done.
+fn announces_next_step(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() || t.len() > 600 || t.ends_with('?') {
+        return false;
+    }
+    if t.ends_with(':') {
+        return true;
+    }
+    let last = t.rsplit(['.', '!', '\n']).find(|s| !s.trim().is_empty()).unwrap_or(t).trim().to_lowercase();
+    ["now i'll", "now i will", "let me", "i'll now", "i will now", "next, i'll", "next i'll", "first, i'll", "first i'll", "now let me"]
+        .iter()
+        .any(|p| last.starts_with(p))
+}
+
 fn final_text(text: &str, steps_before: usize) -> String {
     if !text.is_empty() {
         return text.to_string();
@@ -1049,6 +1077,17 @@ mod tests {
         assert!(r.starts_with("The step ran. State: done."));
         assert!(r.ends_with("exit: 0"));
         assert!(model_result("refused", "not granted: packages", 6000).contains("refused"));
+    }
+
+    #[test]
+    fn an_announced_step_is_not_an_answer() {
+        assert!(announces_next_step("Now I'll find the project folder."));
+        assert!(announces_next_step("Found the note. Let me check the README:"));
+        assert!(announces_next_step("I'll now add the Release section."));
+        assert!(!announces_next_step("Added a Release section to README.md that says --strict-cfg."));
+        assert!(!announces_next_step("Which folder should I use?"));
+        assert!(!announces_next_step("Done. I'll leave the tests as they are because they already pass."), "a report that mentions a choice is fine");
+        assert!(!announces_next_step(""));
     }
 
     #[test]
