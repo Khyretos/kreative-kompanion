@@ -157,6 +157,8 @@ struct Run {
     picked: crate::effort::Effort,
     protected: Vec<String>,
     tests_may_change: bool,
+    /// DOGFOOD: test files the description asks to change (protect::named_in).
+    tests_allowed: Vec<String>,
     /// KG-03: the limits of a run the scheduler started (None: a run started by hand).
     budget: Option<crate::scheduler::Budget>,
     /// KG-04: the fix rounds the current ladder rung may use (None: the effort level's).
@@ -280,9 +282,11 @@ pub async fn start_task(s: &AppState, user_id: &str, id: &str, b: StartBody, sch
         protected.extend(protect::check_files(cmd));
     }
     let budget = if scheduled { Some(crate::scheduler::budget_of(&s, &id).await) } else { None };
+    let tests_allowed = protect::named_in(&description, &protected);
     let r = Run {
         user_id: u.id.clone(), task_id: id, title, description, chat_id, machine_id: b.machine_id,
         machine_name, folder, check, orchestrator, worker, reviewer, run_id, effort, picked: crate::effort::Effort::Auto,
+        tests_allowed,
         protected,
         tests_may_change: b.tests_may_change,
         budget,
@@ -440,6 +444,7 @@ fn agent(s: &AppState, r: &Run, max_steps: usize) -> pcagent::Agent {
         task_id: Some(r.task_id.clone()),
         run_id: Some(r.run_id.clone()),
         protect: if r.tests_may_change { None } else { Some(r.protected.clone()) },
+        tests_allowed: r.tests_allowed.clone(),
     }
 }
 
@@ -486,17 +491,27 @@ fn cut(text: &str, max: usize) -> String {
 }
 
 /// The protected files (tests, the check's own files) the steps in this chat edited or wrote since `since`.
-pub(crate) async fn protected_changed(s: &AppState, chat_id: &str, since: &str, protected: &[String]) -> Vec<String> {
-    let rows: Vec<(Option<String>,)> = sqlx::query_as(
-        "SELECT DISTINCT json_extract(tool, '$.path') FROM pc_actions WHERE chat_id = ? AND created_at >= ? AND state = 'done'
-         AND json_extract(tool, '$.tool') IN ('edit_file', 'write_file')",
+/// Shell steps count by the files their command writes (RUN-01); files the task asks to change don't count.
+pub(crate) async fn protected_changed(s: &AppState, chat_id: &str, since: &str, protected: &[String], allowed: &[String]) -> Vec<String> {
+    let rows: Vec<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT json_extract(tool, '$.tool'), json_extract(tool, '$.path'), json_extract(tool, '$.command') FROM pc_actions
+         WHERE chat_id = ? AND created_at >= ? AND state = 'done' AND json_extract(tool, '$.tool') IN ('edit_file', 'write_file', 'shell')",
     )
     .bind(chat_id)
     .bind(since)
     .fetch_all(&s.db)
     .await
     .unwrap_or_default();
-    rows.into_iter().filter_map(|(p,)| p).filter(|p| protect::is_protected(p, protected)).collect()
+    let mut out: Vec<String> = Vec::new();
+    for (tool, path, command) in rows {
+        let paths = if tool.as_deref() == Some("shell") { protect::shell_writes(command.as_deref().unwrap_or("")) } else { path.into_iter().collect() };
+        for p in paths {
+            if protect::guarded(&p, protected, allowed) && !out.contains(&p) {
+                out.push(p);
+            }
+        }
+    }
+    out
 }
 
 /// The file changes the steps of this run made, from the edit/write results themselves
@@ -831,7 +846,7 @@ async fn attempt(s: &AppState, r: &mut Run, began: std::time::Instant, started: 
             }
         };
         // A changed test can't pass review, whatever the reviewer said (RUN-01).
-        let changed = if r.tests_may_change { vec![] } else { protected_changed(&s, &r.chat_id, &started, &r.protected).await };
+        let changed = if r.tests_may_change { vec![] } else { protected_changed(&s, &r.chat_id, &started, &r.protected, &r.tests_allowed).await };
         if !changed.is_empty() {
             review.ok = false;
             review.findings.push(format!(
@@ -906,7 +921,7 @@ mod tests {
         let r = Run {
             user_id: "u".into(), task_id: "t".into(), title: "T".into(), description: "D".into(), chat_id: "c".into(),
             machine_id: "m".into(), machine_name: "soucouyant".into(), folder: "/home/k/app".into(), check: None,
-            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, budget: None, rung_rounds: None,
+            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::Auto, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, tests_allowed: vec![], budget: None, rung_rounds: None,
         };
         let p = worker_prompt(&r);
         assert!(p.contains("/home/k/app") && p.contains("soucouyant"));
@@ -917,7 +932,7 @@ mod tests {
         let mut r = Run {
             user_id: "u".into(), task_id: "t".into(), title: "T".into(), description: "D".into(), chat_id: "c".into(),
             machine_id: "m".into(), machine_name: "x".into(), folder: "/f".into(), check: None,
-            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::High, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, budget: None, rung_rounds: None,
+            orchestrator: role(), worker: role(), reviewer: role(), run_id: "r".into(), effort: crate::effort::Effort::High, picked: crate::effort::Effort::Auto, protected: vec![], tests_may_change: false, tests_allowed: vec![], budget: None, rung_rounds: None,
         };
         let before = rounds_for(&r);
         assert!(before >= 2);

@@ -276,7 +276,7 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
     let auto = auto_run_for(&s, &chat_id).await;
     let max_steps = max_steps_for(&s, &user_id).await;
     let local = s.provider(&role.provider_id).is_some_and(|p| p.local);
-    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None };
+    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None, tests_allowed: Vec::new() };
     let text = match agent.run_in(&mut messages).await {
         Ok(t) => t,
         Err(e) => e,
@@ -308,6 +308,8 @@ pub struct Agent {
     pub run_id: Option<String>,
     /// W2 tasks that may not change tests: Some(extra protected files); None = no protection.
     pub protect: Option<Vec<String>>,
+    /// DOGFOOD: test files the task's description asks to change; those stay open (protect::named_in).
+    pub tests_allowed: Vec<String>,
 }
 
 /// Why an edit_file job would break the file, if it would: reads the file through the
@@ -510,10 +512,15 @@ impl Agent {
                     Some(_) if edit_err.is_some() => format!("Refused, nothing changed: {}", edit_err.as_deref().unwrap_or("")),
                     Some(job)
                         if matches!(job["tool"].as_str(), Some("edit_file" | "write_file"))
-                            && self.protect.as_ref().is_some_and(|x| crate::taskrun::protect::is_protected(job["path"].as_str().unwrap_or(""), x)) =>
+                            && self.protect.as_ref().is_some_and(|x| crate::taskrun::protect::guarded(job["path"].as_str().unwrap_or(""), x, &self.tests_allowed)) =>
                     {
                         let path = job["path"].as_str().unwrap_or("");
-                                                refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &format!("{path} is a test file and this task may not change tests. Change the code so the tests pass instead.")).await
+                        refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &tests_refused(path)).await
+                    }
+                    // RUN-01: the shell is no way round it (cat >> test_x.py, sed -i, cp, rm…).
+                    Some(job) if self.shell_writes_tests(&job).is_some() => {
+                        let path = self.shell_writes_tests(&job).unwrap_or_default();
+                        refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &tests_refused(&path)).await
                     }
                     // WRITE-CHUNKS: an older runner ignores append/offset and would replace the file.
                     Some(job) if tools::writes_in_parts(&job) && !tools::runner_writes_in_parts(s.host.runner_version(&self.machine_id).as_deref()) => {
@@ -759,6 +766,27 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
 
 /// Refuse a job because it violates a rule (e.g., editing a test file).
 /// Inserts a pc_actions row with state 'refused' and returns the reason.
+impl Agent {
+    /// RUN-01: the protected test file a shell job would write, if any.
+    fn shell_writes_tests(&self, job: &Value) -> Option<String> {
+        let protect = self.protect.as_ref()?;
+        if job["tool"] != "shell" {
+            return None;
+        }
+        crate::taskrun::protect::shell_writes(job["command"].as_str().unwrap_or(""))
+            .into_iter()
+            .find(|p| crate::taskrun::protect::guarded(p, protect, &self.tests_allowed))
+    }
+}
+
+/// Why a step on a protected test file was refused, and what to do instead of working around it.
+fn tests_refused(path: &str) -> String {
+    format!(
+        "{path} is a test file and this run may not change tests (\"Tests may change\" was off, and the task doesn't ask to change this file). \
+         Don't work around it with another tool or the shell: fix the code so the tests pass, and if a test is missing, say in your answer which test to add."
+    )
+}
+
 async fn refuse(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, run_id: Option<&str>, reason: &str) -> String {
     let id = util::new_id();
     let _ = sqlx::query(
@@ -820,8 +848,14 @@ fn model_result(state: &str, result: &str, budget: usize) -> String {
         tail_start += 1;
     }
     let left_out = tail_start - head.len();
+    // DOGFOOD: say which lines are missing, so the model reads just those (a re-read of the whole
+    // file comes back cut the same way; a byte offset is hard for a model to aim with).
+    let (from, to) = (head.matches('\n').count() + 1, result[..tail_start].matches('\n').count() + 1);
     format!(
-        "{outcome} State: {state}.\nOutput (start and end):\n{head}\n[... {left_out} bytes left out here. To see them, read_file with offset and length, or run a narrower command.]\n{}",
+        "{outcome} State: {state}.\nOutput (start and end):\n{head}\n[... lines {from} to {to} ({left_out} bytes) left out here; reading it all again gives the same cut. \
+         To see them: grep -n for what you need, then read just those lines (sed -n '{from},{}p' FILE, a part at a time), or read_file with offset {} and length.]\n{}",
+        (from + 80).min(to),
+        head.len(),
         &result[tail_start..]
     )
 }
@@ -1023,7 +1057,12 @@ mod tests {
         let r = model_result("done", &out, 6000);
         assert!(r.contains("TOP OF FILE"), "the start is not lost");
         assert!(r.ends_with("exit: 0"), "nor the end");
-        assert!(r.contains("bytes left out here"));
+        assert!(r.contains("bytes) left out here"));
+        // The note names the missing lines and how to read them.
+        let lines: String = (1..=900).map(|i| format!("line {i}\n")).collect();
+        let r = model_result("done", &lines, 6000);
+        assert!(r.contains("[... lines 235 to 456 (1992 bytes) left out here"), "{r}");
+        assert!(r.contains("sed -n '235,315p' FILE"));
         assert!(r.len() < 6300);
         assert!(!model_result("done", &out, result_budget(false)).contains("left out"), "a cloud model gets all of it");
     }
