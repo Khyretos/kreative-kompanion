@@ -1,0 +1,20 @@
+{
+  "04dbd4e18aab": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "436f7d5",
+    "path": "studio/comfy-nodes/kk_trellis.py",
+    "title": "Resource Leak",
+    "verdict": "bug",
+    "reason": "The CPU texture VAE (about 1.8 GB) was only deleted after a successful decode; del vae now sits in the finally block."
+  },
+  "8d3b0651968b": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/studio/workflow.rs",
+    "title": "Hardcoded Test Data",
+    "verdict": "false_positive",
+    "reason": "The registry test asserts the shipped image-to-3d graph on purpose: the node names and the texture VAE file are what soucouyant's ComfyUI must provide, so a changed graph must fail the test."
+  }
+}
