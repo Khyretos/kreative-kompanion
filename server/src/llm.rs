@@ -217,7 +217,7 @@ pub async fn stream_chat(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        bail!("{} answered {status}: {}", p.name, readable_error(&text));
+        bail!("{}", failure(p, status, &text, 1));
     }
 
     let kind = p.kind.clone();
@@ -491,14 +491,9 @@ async fn chat_full(
             obj.insert(k.clone(), v.clone());
         }
     }
-    let resp = authorize(http.post(join(&p.base_url, "chat/completions")), p)
-        .json(&body)
-        .send()
-        .await
-        .context("model request failed")?;
-    let status = resp.status();
+    let url = join(&p.base_url, "chat/completions");
+    let resp = send_retrying(p, || authorize(http.post(url.clone()), p).json(&body)).await?;
     let text = resp.text().await.unwrap_or_default();
-    anyhow::ensure!(status.is_success(), "{}", readable_error(&text));
     let v: Value = serde_json::from_str(&text).context("the model's answer is not JSON")?;
     // The usage also says why the answer ended ("length": cut off at max_tokens).
     let mut usage = v["usage"].clone();
@@ -519,6 +514,69 @@ fn tool_max_tokens(p: &ProviderConfig, json_answer: bool) -> u32 {
         (None, true, true) => 8192,
         (None, true, false) => 2048,
         (None, false, _) => 16_000,
+    }
+}
+
+/// RELIABILITY: the waits before the second and third try of a call that met a busy provider or a dropped line.
+#[cfg(not(test))]
+const RETRY_WAITS: [u64; 2] = [2, 6];
+#[cfg(test)]
+const RETRY_WAITS: [u64; 2] = [0, 0];
+
+/// Answers worth asking again: a timeout, rate limits, overload and server errors.
+pub(crate) fn retryable(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 408 | 429 | 500 | 502 | 503 | 504 | 529)
+}
+
+/// The wait the provider asked for (Retry-After in seconds), at most 30 s.
+fn retry_after(resp: &reqwest::Response) -> Option<u64> {
+    resp.headers().get(reqwest::header::RETRY_AFTER)?.to_str().ok()?.trim().parse::<u64>().ok().map(|s| s.min(30))
+}
+
+/// What an error status means, in plain words.
+pub(crate) fn status_meaning(status: reqwest::StatusCode) -> &'static str {
+    match status.as_u16() {
+        401 | 403 => "the API key was refused",
+        404 => "the model or the address was not found",
+        408 | 504 => "it took too long",
+        413 => "the request was too big",
+        429 => "too many requests, or the credit ran out",
+        400..=499 => "the request was refused",
+        _ => "the service had a problem or was overloaded",
+    }
+}
+
+/// A failed answer as one readable line: who, the status and what it means, the provider's own reason.
+pub(crate) fn failure(p: &ProviderConfig, status: reqwest::StatusCode, body: &str, tries: usize) -> String {
+    let after = if tries > 1 { format!(" (after {tries} tries)") } else { String::new() };
+    let reason = readable_error(body);
+    let reason = if reason.is_empty() { String::new() } else { format!(": {reason}") };
+    format!("{} answered {} ({}){after}{reason}", p.name, status.as_u16(), status_meaning(status))
+}
+
+/// Sends a request built by `req`, and again after a short wait (up to three tries in all) when the
+/// line drops or the provider is busy. A success, or the last failure as a readable error.
+pub(crate) async fn send_retrying(p: &ProviderConfig, req: impl Fn() -> reqwest::RequestBuilder) -> Result<reqwest::Response> {
+    let mut tries = 0;
+    loop {
+        tries += 1;
+        let last = tries > RETRY_WAITS.len();
+        let wait = match req().send().await {
+            Ok(r) if r.status().is_success() => return Ok(r),
+            Ok(r) if !last && retryable(r.status()) => retry_after(&r).unwrap_or(RETRY_WAITS[tries - 1]),
+            Ok(r) => {
+                let status = r.status();
+                let text = r.text().await.unwrap_or_default();
+                bail!("{}", failure(p, status, &text, tries));
+            }
+            Err(e) if !last && (e.is_connect() || e.is_timeout()) => RETRY_WAITS[tries - 1],
+            Err(e) => {
+                let after = if tries > 1 { format!(" after {tries} tries") } else { String::new() };
+                bail!("{} could not be reached{after}: {}", p.name, if e.is_timeout() { "no answer in time".to_string() } else { e.without_url().to_string() });
+            }
+        };
+        tracing::info!(provider = %p.name, wait, "the provider is busy or the line dropped; trying again");
+        tokio::time::sleep(Duration::from_secs(wait)).await;
     }
 }
 
@@ -545,5 +603,69 @@ mod readable_tests {
         assert_eq!(readable_error("<html><body><h1>504 Gateway Time-out</h1></body></html>"), "an error page instead of an answer");
         assert_eq!(readable_error("{\"error\":\"Mediapipe ... LLMExecutor ... intel_gpu\"}"), "the model is busy or out of GPU memory");
         assert_eq!(readable_error("bad\n  key"), "bad key");
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
+    /// A model server that answers `fail` with `status` first, then a plain answer; counts its calls.
+    async fn flaky(status: u16, fail: usize, calls: Arc<AtomicUsize>) -> ProviderConfig {
+        use axum::{Router, routing::post};
+        let app = Router::new().route("/v1/chat/completions", post(move || async move {
+            let n = calls.fetch_add(1, Ordering::SeqCst);
+            if n < fail {
+                return (axum::http::StatusCode::from_u16(status).unwrap(), [("retry-after", "0")], r#"{"error":{"message":"busy, try later"}}"#.to_string());
+            }
+            (axum::http::StatusCode::OK, [("retry-after", "0")], json!({ "choices": [{ "message": { "role": "assistant", "content": "done" }, "finish_reason": "stop" }] }).to_string())
+        }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        toml::from_str(&format!("id = \"f\"\nname = \"Fake\"\nkind = \"openai-compatible\"\nbase_url = \"http://{addr}/v1\"\nlocal = true\n")).unwrap()
+    }
+
+    async fn ask(p: &ProviderConfig) -> Result<(Value, Value)> {
+        chat_with_tools_full(&http_client(), p, "m", &[json!({ "role": "user", "content": "hi" })], &json!([])).await
+    }
+
+    #[tokio::test]
+    async fn a_busy_provider_is_asked_again_and_the_step_goes_on() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let p = flaky(503, 2, calls.clone()).await;
+        let (msg, _) = ask(&p).await.unwrap();
+        assert_eq!(msg["content"], "done");
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn three_tries_at_most_then_a_readable_error() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let p = flaky(429, 9, calls.clone()).await;
+        let e = ask(&p).await.unwrap_err().to_string();
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
+        assert_eq!(e, "Fake answered 429 (too many requests, or the credit ran out) (after 3 tries): {\"error\":{\"message\":\"busy, try later\"}}");
+    }
+
+    #[tokio::test]
+    async fn a_refused_key_is_not_asked_again() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let p = flaky(401, 9, calls.clone()).await;
+        let e = ask(&p).await.unwrap_err().to_string();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(e.starts_with("Fake answered 401 (the API key was refused): "), "{e}");
+    }
+
+    #[tokio::test]
+    async fn a_provider_that_is_down_says_so() {
+        // A port nothing listens on: refused at once, three times.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let p: ProviderConfig = toml::from_str(&format!("id = \"f\"\nname = \"Fake\"\nkind = \"openai-compatible\"\nbase_url = \"http://{addr}/v1\"\nlocal = true\n")).unwrap();
+        let e = ask(&p).await.unwrap_err().to_string();
+        assert!(e.starts_with("Fake could not be reached after 3 tries: "), "{e}");
     }
 }

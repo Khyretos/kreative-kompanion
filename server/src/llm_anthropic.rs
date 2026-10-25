@@ -295,16 +295,8 @@ pub async fn chat_full(
     response_format: Option<&Value>,
 ) -> Result<(Value, Value)> {
     let body = request_body(p, model, messages, tools, response_format)?;
-    let resp = crate::llm::authorize(http.post(crate::llm::join(&p.base_url, "v1/messages")), p)
-        .json(&body)
-        .send()
-        .await
-        .context("model request failed")?;
-    let status = resp.status();
-    if !status.is_success() {
-        let text = resp.text().await.unwrap_or_default();
-        bail!("{} answered {status}: {}", p.name, crate::llm::readable_error(&text));
-    }
+    let url = crate::llm::join(&p.base_url, "v1/messages");
+    let resp = crate::llm::send_retrying(p, || crate::llm::authorize(http.post(url.clone()), p).json(&body)).await?;
     let mut answer = Answer::default();
     let mut bytes = resp.bytes_stream();
     let mut buf = String::new();
