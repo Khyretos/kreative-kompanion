@@ -213,7 +213,7 @@ pub async fn read_page(url: &str, allow_private: bool) -> Result<String> {
             body.split_whitespace().collect::<Vec<_>>().join(" ")
         };
         
-        return Ok(text.chars().take(MAX_TEXT).collect());
+        return Ok(crate::util::cut_marked(&text, MAX_TEXT));
     }
     
     bail!("too many redirects")

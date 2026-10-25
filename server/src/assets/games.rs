@@ -175,7 +175,7 @@ fn game_docs(source: &str, path: Option<&str>) -> String {
         .iter()
         .find_map(|f| std::fs::read_to_string(dir.join(f)).ok())
         .unwrap_or_default();
-    readme.chars().take(6000).collect()
+    crate::util::cut_marked(&readme, 6000)
 }
 
 // ---------- live updates ----------
