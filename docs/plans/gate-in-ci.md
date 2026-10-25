@@ -1,7 +1,7 @@
 # GATE-IN-CI: the review gate as a required CI status
 
 Before: the review gate (`tools/qwen/review_findings.py`) only ran inside auto-merge, so a PR looked mergeable (all CI green) while PR-Agent findings were still open.
-After: the workflow `review-gate` runs the gate for every open PR on each PR event, comment and every 10 minutes, and posts the commit status `review-gate / gate` (success / pending / failure / error). The status is in `required` of `.forgejo/auto-merge.json`, so auto-merge waits for it.
+After: the workflow `review-gate` runs the gate for every open PR on each PR event and every 5 minutes (one shared concurrency group, a newer run cancels the waiting one), and posts the commit status `review-gate / gate` (success / pending / failure / error). The status is in `required` of `.forgejo/auto-merge.json`, so auto-merge waits for it.
 
 Files: `tools/review_status.py` (status_for, sweep), `tools/review_status_io.py` (StatusClient, main), `tools/test_review_status.py`, `.forgejo/workflows/review-gate.yml`, `.forgejo/auto-merge.json`.
 
