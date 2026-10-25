@@ -316,24 +316,27 @@ input[type="url"]:focus, select:focus, textarea:focus { outline: none; border-co
 
 /* PROJ-OVERVIEW: the project Overview at the top of the Tasks pane. */
 .overview { display: grid; gap: 0.75rem; margin-bottom: 1rem; min-width: 0; container-type: inline-size; }
-.ov-title { display: flex; align-items: center; gap: 0.5rem; }
+.ov-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; }
 .ov-name { margin: 0; font-size: 1.15rem; color: var(--fg-strong); overflow-wrap: anywhere; }
-.ov-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ov-chips { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; }
 .ov-members { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0 0 0.75rem; min-width: 0; }
 .member-chip { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 100%; overflow-wrap: anywhere; }
 .member-remove { width: 1.5rem; height: 1.5rem; flex: none; }
 @media (max-width: 760px), (hover: none) { .member-remove { width: 2.75rem; height: 2.75rem; } }
-form.member-add { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; flex: 1 1 100%; min-width: 0; }
-form.member-add input { flex: 1 1 8rem; min-width: 0; font: inherit; }
-form.member-add select { font: inherit; }
+/* One row: name, role, Add (it wraps only when the pane is narrower than that). */
+form.member-add { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; flex: 1 1 13rem; min-width: 0; }
+form.member-add input { flex: 1 1 5rem; width: auto; min-width: 0; font: inherit; }
+form.member-add select { flex: 0 0 auto; width: auto; font: inherit; }
+form.member-add .member-error:empty { display: none; }
 .member-error { flex: 1 1 100%; font-size: 0.85rem; }
 .ov-desc { margin: 0; color: var(--fg); }
 .ov-desc.muted { color: var(--muted); }
-.ov-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; }
-@container (max-width: 34rem) { .ov-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.ov-tile { display: grid; gap: 0.15rem; padding: 0.6rem 0.7rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
-.ov-num { font-size: 1.15rem; font-weight: 600; color: var(--fg-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ov-label { font-size: 0.8rem; color: var(--muted); }
+/* Four small stats on one row, also on a phone (Kees: no big tiles). */
+.ov-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.35rem; }
+@container (max-width: 18rem) { .ov-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ov-tile { display: grid; gap: 0.05rem; padding: 0.3rem 0.45rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
+.ov-num { font-size: 0.95rem; font-weight: 600; color: var(--fg-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ov-tile.attn { border-color: var(--attn); }
 .ov-tile.attn .ov-num { color: var(--attn); }
 .ov-tiles.loading .ov-num { opacity: 0.5; }

@@ -90,8 +90,8 @@ function cardSection(s: AppState): SafeHtml {
     <p class="muted small">Steps and approval cards get a header tinted with this colour and a coloured edge; the text stays bright, whatever colour you pick.</p>
     <ul class="card-kinds">${KINDS.map((k) => {
       const st = styleOf(k, s.cardStyle);
-      return html`<li>
-        <span class="kind-tag" style="--kind:${st.color}">${st.label}</span>
+      return html`<li style="--kind:${st.color}">
+        <span class="kind-tag">${st.label}</span>
         <label class="sr-only" for="card-label-${k}">Label for ${DEFAULT_STYLE[k].label}</label>
         <input id="card-label-${k}" data-kind="${k}" class="card-label" value="${st.label}" maxlength="30">
         <label class="sr-only" for="card-color-${k}">Colour for ${DEFAULT_STYLE[k].label}</label>

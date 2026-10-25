@@ -1,6 +1,10 @@
 
 /* Item 7: action-type headers on approval cards, kind tags on steps, and the Settings list. */
 .pc-action { overflow: hidden; }
+/* Compact: the step and its computer on one line, the buttons on one row (Kees: no one-element rows). */
+.pc-action .pc-line { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; }
+.pc-action .pc-line .chip { margin-left: auto; }
+.pc-action .actions .btn { flex: 0 1 auto; }
 /* Headers: a dark tint of the kind colour with a coloured accent and bright text, never a light
    fill with dark text (Kees, 2026-10-05: "I like my text bright"). --kind is set inline. */
 .pc-action .card-kind { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin: -0.6rem -0.75rem 0.4rem; padding: 0.35rem 0.75rem;
@@ -18,4 +22,5 @@
 .card-kinds li { display: grid; grid-template-columns: 9rem minmax(0, 1fr) 2.5rem; align-items: center; gap: 0.5rem; }
 .card-kinds input.card-label { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.35rem 0.5rem; min-width: 0; }
 .card-kinds input.card-color { width: 2.5rem; height: 2rem; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: none; }
-@media (max-width: 480px) { .card-kinds li { grid-template-columns: minmax(0, 1fr) 2.5rem; } .card-kinds li .kind-tag { grid-column: 1 / -1; justify-self: start; } }
+/* Phones: one row per kind; the label field carries the colour on its edge instead of a preview tag above it. */
+@media (max-width: 480px) { .card-kinds li { grid-template-columns: minmax(0, 1fr) 2.5rem; } .card-kinds li .kind-tag { display: none; } .card-kinds li input.card-label { border-left: 4px solid var(--kind); } }
