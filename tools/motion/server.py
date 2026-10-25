@@ -18,9 +18,30 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 MOMASK = os.environ.get("MOMASK_DIR", "/momask")
 FPS = 20
 MAX_FRAMES = 196  # HumanML3D clips are at most 9.8 s
-JOINT_NAMES = ["pelvis", "l_hip", "r_hip", "spine1", "l_knee", "r_knee", "spine2", "l_ankle", "r_ankle", "spine3", "l_foot",
-               "r_foot", "neck", "l_collar", "r_collar", "head", "l_shoulder", "r_shoulder", "l_elbow", "r_elbow", "l_wrist",
-               "r_wrist"]
+JOINT_NAMES = [
+    "pelvis",
+    "l_hip",
+    "r_hip",
+    "spine1",
+    "l_knee",
+    "r_knee",
+    "spine2",
+    "l_ankle",
+    "r_ankle",
+    "spine3",
+    "l_foot",
+    "r_foot",
+    "neck",
+    "l_collar",
+    "r_collar",
+    "head",
+    "l_shoulder",
+    "r_shoulder",
+    "l_elbow",
+    "r_elbow",
+    "l_wrist",
+    "r_wrist",
+]
 
 
 def check_request(body):
@@ -33,12 +54,20 @@ def check_request(body):
     if len(prompt) > 300:
         raise ValueError("prompt is at most 300 characters")
     seconds = body.get("seconds", 0)
-    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or not (seconds == 0 or 1 <= seconds <= MAX_FRAMES / FPS):
+    if (
+        not isinstance(seconds, (int, float))
+        or isinstance(seconds, bool)
+        or not (seconds == 0 or 1 <= seconds <= MAX_FRAMES / FPS)
+    ):
         raise ValueError("seconds is 0 (let the model choose) or 1 to 9.8")
     seed = body.get("seed", 1)
     if not isinstance(seed, int) or isinstance(seed, bool) or not (0 <= seed < 2**31):
         raise ValueError("seed is a whole number from 0")
-    frames = 0 if seconds == 0 else max(4, min(MAX_FRAMES, int(round(seconds * FPS)) // 4 * 4))
+    frames = (
+        0
+        if seconds == 0
+        else max(4, min(MAX_FRAMES, int(round(seconds * FPS)) // 4 * 4))
+    )
     return prompt.strip(), frames, seed
 
 
@@ -48,9 +77,21 @@ class Generator:
     def __init__(self):
         sys.path.insert(0, MOMASK)
         os.chdir(MOMASK)
-        sys.argv = ["gen_t2m.py", "--gpu_id", "-1", "--dataset_name", "t2m", "--name",
-                    "t2m_nlayer8_nhead6_ld384_ff1024_cdp0.1_rvq6ns", "--res_name",
-                    "tres_nlayer8_ld384_ff1024_rvq6ns_cdp0.2_sw", "--cond_scale", "4", "--time_steps", "10"]
+        sys.argv = [
+            "gen_t2m.py",
+            "--gpu_id",
+            "-1",
+            "--dataset_name",
+            "t2m",
+            "--name",
+            "t2m_nlayer8_nhead6_ld384_ff1024_cdp0.1_rvq6ns",
+            "--res_name",
+            "tres_nlayer8_ld384_ff1024_rvq6ns_cdp0.2_sw",
+            "--cond_scale",
+            "4",
+            "--time_steps",
+            "10",
+        ]
         import numpy as np
         import torch
         import gen_t2m as g
@@ -63,11 +104,21 @@ class Generator:
         opt.device = torch.device("cpu")
         root = pjoin(opt.checkpoints_dir, opt.dataset_name, opt.name)
         model_opt = get_opt(pjoin(root, "opt.txt"), device=opt.device)
-        vq_opt = get_opt(pjoin(opt.checkpoints_dir, opt.dataset_name, model_opt.vq_name, "opt.txt"), device=opt.device)
+        vq_opt = get_opt(
+            pjoin(opt.checkpoints_dir, opt.dataset_name, model_opt.vq_name, "opt.txt"),
+            device=opt.device,
+        )
         vq_opt.dim_pose = 263
         self.vq, vq_opt = g.load_vq_model(vq_opt)
-        model_opt.num_tokens, model_opt.num_quantizers, model_opt.code_dim = vq_opt.nb_code, vq_opt.num_quantizers, vq_opt.code_dim
-        res_opt = get_opt(pjoin(opt.checkpoints_dir, opt.dataset_name, opt.res_name, "opt.txt"), device=opt.device)
+        model_opt.num_tokens, model_opt.num_quantizers, model_opt.code_dim = (
+            vq_opt.nb_code,
+            vq_opt.num_quantizers,
+            vq_opt.code_dim,
+        )
+        res_opt = get_opt(
+            pjoin(opt.checkpoints_dir, opt.dataset_name, opt.res_name, "opt.txt"),
+            device=opt.device,
+        )
         g.opt = opt  # the loaders read the module-level opt
         self.res = g.load_res_model(res_opt, vq_opt, opt)
         self.t2m = g.load_trans_model(model_opt, opt, "latest.tar")
@@ -75,7 +126,9 @@ class Generator:
         for m in (self.vq, self.res, self.t2m, self.length):
             m.eval()
         meta = pjoin(opt.checkpoints_dir, opt.dataset_name, model_opt.vq_name, "meta")
-        self.mean, self.std = np.load(pjoin(meta, "mean.npy")), np.load(pjoin(meta, "std.npy"))
+        self.mean, self.std = np.load(pjoin(meta, "mean.npy")), np.load(
+            pjoin(meta, "std.npy")
+        )
         self.opt = opt
         self.lock = threading.Lock()
 
@@ -95,18 +148,36 @@ class Generator:
             else:
                 tokens = torch.LongTensor([frames // 4])
             o = self.opt
-            ids = self.t2m.generate([prompt], tokens, timesteps=o.time_steps, cond_scale=o.cond_scale,
-                                    temperature=o.temperature, topk_filter_thres=o.topkr, gsample=o.gumbel_sample)
+            ids = self.t2m.generate(
+                [prompt],
+                tokens,
+                timesteps=o.time_steps,
+                cond_scale=o.cond_scale,
+                temperature=o.temperature,
+                topk_filter_thres=o.topkr,
+                gsample=o.gumbel_sample,
+            )
             ids = self.res.generate(ids, [prompt], tokens, temperature=1, cond_scale=5)
-            data = self.vq.forward_decoder(ids).detach().cpu().numpy() * self.std + self.mean
+            data = (
+                self.vq.forward_decoder(ids).detach().cpu().numpy() * self.std
+                + self.mean
+            )
             n = int(tokens[0]) * 4
             joint = recover_from_ric(torch.from_numpy(data[0][:n]).float(), 22).numpy()
             with tempfile.TemporaryDirectory() as d:
                 path = os.path.join(d, "m.bvh")
-                _, ik_joint = Joint2BVHConvertor().convert(joint, filename=path, iterations=100)
+                _, ik_joint = Joint2BVHConvertor().convert(
+                    joint, filename=path, iterations=100
+                )
                 bvh = open(path, encoding="utf-8").read()
         joints = [[[round(float(v), 4) for v in p] for p in fr] for fr in ik_joint]
-        return {"fps": FPS, "frames": len(joints), "joint_names": JOINT_NAMES, "joints": joints, "bvh": bvh}
+        return {
+            "fps": FPS,
+            "frames": len(joints),
+            "joint_names": JOINT_NAMES,
+            "joints": joints,
+            "bvh": bvh,
+        }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -124,7 +195,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        self.send_json(200, {"ok": True}) if self.path == "/health" else self.send_json(404, {"error": "not found"})
+        self.send_json(200, {"ok": True}) if self.path == "/health" else self.send_json(
+            404, {"error": "not found"}
+        )
 
     def do_POST(self):
         if self.path != "/motion":
