@@ -52,7 +52,7 @@ function failures(page: Page): Promise<string[]> {
       const kind = card.querySelector(".card-kind > span:first-child")?.textContent?.trim() ?? "?";
       check(card.querySelector(".card-kind > span:first-child"), 7, `${kind} header`);
       check(card.querySelector(".card-kind .need"), 7, `${kind} badge`);
-      check(card.querySelector(".chip"), 7, `${kind} state chip`);
+      if (card.querySelector(".chip")) check(card.querySelector(".chip"), 7, `${kind} state chip`); // pending: the badge says it
       card.querySelectorAll(".actions .btn").forEach((b) => check(b, 7, `${kind} button`));
       card.querySelectorAll(".muted").forEach((m) => check(m, 4.5, `${kind} secondary`));
     }

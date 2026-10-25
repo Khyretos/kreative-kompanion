@@ -64,6 +64,13 @@ const STRINGS = {
   stRefused: { en: "not allowed", es: "no permitido", nl: "niet toegestaan" },
   stStopped: { en: "stopped by you", es: "parado por ti", nl: "door jou gestopt" },
   stPending: { en: "waiting for you", es: "esperándote", nl: "wacht op jou" },
+  // Approval cards: one header row, the step on one line, the buttons on one row.
+  needApproval: { en: "needs your approval", es: "necesita tu aprobación", nl: "wacht op je akkoord" },
+  needAutomatic: { en: "automatic", es: "automático", nl: "automatisch" },
+  alwaysAllow: { en: "Always allow (24 h)", es: "Permitir siempre (24 h)", nl: "Altijd toestaan (24 u)" },
+  onMachine: { en: "on {name}", es: "en {name}", nl: "op {name}" },
+  aComputer: { en: "a computer", es: "un ordenador", nl: "een computer" },
+  needsWhat: { en: "Needs: {what}", es: "Necesita: {what}", nl: "Nodig: {what}" },
   cmdCommand: { en: "Command", es: "Comando", nl: "Commando" },
   cmdOutput: { en: "Output", es: "Salida", nl: "Uitvoer" },
   cmdStop: { en: "Stop", es: "Parar", nl: "Stoppen" },

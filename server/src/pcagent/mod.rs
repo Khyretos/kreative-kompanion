@@ -588,7 +588,7 @@ pub async fn covered(s: &AppState, machine_id: &str, job: &Value) -> bool {
 async fn set_action(s: &AppState, id: &str, state: &str, result: &str) {
     let _ = sqlx::query("UPDATE pc_actions SET state = ?, result = ?, ended_at = CASE WHEN ? IN ('done', 'failed', 'refused', 'denied', 'stopped') THEN ? ELSE ended_at END WHERE id = ?")
         .bind(state)
-        .bind(cut(result, 4000))
+        .bind(util::cut_marked(result, 4000))
         .bind(state)
         .bind(util::now())
         .bind(id)

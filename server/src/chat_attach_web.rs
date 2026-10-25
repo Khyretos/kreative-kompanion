@@ -40,7 +40,7 @@ pub async fn upload(State(s): State<AppState>, Extension(u): Extension<User>, Pa
     } else {
         let text = text_of(&name, &body).await.map_err(bad)?;
         if text.trim().is_empty() { return Err(ApiError::BadRequest(format!("{name}: no text found in the file."))) }
-        let kept: String = text.chars().take(chat_files::MAX_BYTES / 4).collect();
+        let kept = crate::util::cut_marked(&text, chat_files::MAX_BYTES / 4);
         chat_files::save_bytes(&dir, &chat_id, "txt", kept.as_bytes()).await.map_err(bad)?
     };
     Ok((StatusCode::CREATED, Json(Attached { name, file, kind: kind.into() })))

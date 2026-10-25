@@ -79,11 +79,3 @@ export function textOn(hex: string): string {
 
   return contrastNight >= contrastWhite ? "#0c0917" : "#ffffff";
 }
-
-export type CardNeed = "automatic" | "approval" | "input";
-
-export const NEED_LABEL: Record<CardNeed, string> = {
-  automatic: "automatic",
-  approval: "needs your approval",
-  input: "needs your input",
-};
