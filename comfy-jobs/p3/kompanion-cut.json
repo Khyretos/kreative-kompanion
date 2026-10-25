@@ -1,0 +1,59 @@
+{
+ "1": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "p3/kompanion-subject.png"
+  }
+ },
+ "90": {
+  "class_type": "LoadBackgroundRemovalModel",
+  "inputs": {
+   "bg_removal_name": "birefnet.safetensors"
+  }
+ },
+ "91": {
+  "class_type": "RemoveBackground",
+  "inputs": {
+   "bg_removal_model": [
+    "90",
+    0
+   ],
+   "image": [
+    "1",
+    0
+   ]
+  }
+ },
+ "92": {
+  "class_type": "InvertMask",
+  "inputs": {
+   "mask": [
+    "91",
+    0
+   ]
+  }
+ },
+ "93": {
+  "class_type": "JoinImageWithAlpha",
+  "inputs": {
+   "image": [
+    "1",
+    0
+   ],
+   "alpha": [
+    "92",
+    0
+   ]
+  }
+ },
+ "9": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "93",
+    0
+   ],
+   "filename_prefix": "p3/kompanion-cut"
+  }
+ }
+}

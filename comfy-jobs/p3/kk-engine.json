@@ -1,0 +1,172 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+  }
+ },
+ "3": {
+  "class_type": "CLIPSetLastLayer",
+  "inputs": {
+   "clip": [
+    "1",
+    1
+   ],
+   "stop_at_clip_layer": -2
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "lowres, blurry, text, watermark, logo, signature, frame, border"
+  }
+ },
+ "14": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, no humans, scenery, wide fantasy valley at dusk, floating islands, glowing purple and orange sky, cinematic lighting, game world"
+  }
+ },
+ "16": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 1344,
+   "height": 704,
+   "batch_size": 1
+  }
+ },
+ "17": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "14",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "16",
+    0
+   ],
+   "seed": 11,
+   "steps": 28,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "18": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "17",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "19": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "18",
+    0
+   ],
+   "filename_prefix": "p3/kk-engine-bg"
+  }
+ },
+ "24": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, full body, adventurer in a purple and orange jacket with a sword, dynamic heroic pose, simple white background"
+  }
+ },
+ "26": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 832,
+   "height": 1216,
+   "batch_size": 1
+  }
+ },
+ "27": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "24",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "26",
+    0
+   ],
+   "seed": 12,
+   "steps": 28,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "28": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "27",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "29": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "28",
+    0
+   ],
+   "filename_prefix": "p3/kk-engine-subject"
+  }
+ }
+}
