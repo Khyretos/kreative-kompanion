@@ -3,6 +3,30 @@
 Kees went to bed at 01:55Z with the order: get as far as possible, take the
 recommended option for each decision, report in the morning. Newest first.
 
+## Morning status (12:06Z)
+
+- Live: main a125369 (PRs 289, 290, 291, 294) deployed at 12:05Z; the container is
+  healthy, /api/status answers, no warnings in the log, no new migrations.
+- Still in CI with main merged in: 295 (review-gate concurrency), 296 (this report) and
+  297 (Gemini and Mistral presets, see below). They merge on their own; 297 goes live
+  with the next deploy.
+- CI was the bottleneck: no Kompanion job started between 05:50Z and about 11:00Z. Every
+  Linux runner slot was on kk-engine jobs that came first in pick-up order. With Kees's
+  OK ("reorder CI") the Kompanion PR jobs went to the front on the CI page, right behind
+  kk-engine PR 108's fix pipeline, as agreed with the engine thread.
+- The review gate had not run since 03:30Z: 116 runs sat in one concurrency queue
+  ("review-gate"), and only the oldest may run. PR 295 gives each PR its own group and
+  lets a newer event replace a waiting one. Forgejo 15 has no way to cancel the old runs
+  (no API, and the CI page has no cancel), so they drain one by one.
+
+## PR 297: Gemini and Mistral presets
+
+Kees doesn't need xAI now; he wants Kompanion able to use any frontier provider. Settings
+already had presets for xAI Grok, OpenAI, Claude, DeepSeek, OpenRouter and Ollama, plus
+"Other" for any OpenAI-compatible API. Added: Google Gemini (its OpenAI-compatible
+endpoint, key in GEMINI_API_KEY) and Mistral (key in MISTRAL_API_KEY). The context meter
+knows Mistral (128k) and Codestral/Devstral (256k) windows without a setting.
+
 ## PR 294: fixes from a real-model dogfood
 
 A throwaway Kompanion (the deployed image) with Claude as orchestrator and the local Coder
