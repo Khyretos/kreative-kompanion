@@ -7,7 +7,7 @@ pub fn schema() -> Value {
             "type": "function",
             "function": {
                 "name": "read_file",
-                "description": "Read a text file (up to 256 KiB). For a bigger file, or to read it in parts, pass offset and length (bytes); the result says where to continue.",
+                "description": "Read a text file (up to 256 KiB). A long result comes back cut in the middle, the same way each time: for one part of a big file (a function by name), find its line first (shell: grep -n 'def parse_line' big.py) and read just those lines (shell: sed -n '790,840p' big.py). Or pass offset and length (bytes); the result says where to continue.",
                 "parameters": {
                     "type": "object",
                     "properties": {

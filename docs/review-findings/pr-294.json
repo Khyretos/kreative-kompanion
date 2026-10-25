@@ -1,0 +1,11 @@
+{
+  "4d3143ccab0e": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/taskrun/protect.rs",
+    "title": "Incomplete Shell Command Parsing",
+    "verdict": "false_positive",
+    "reason": "Redirections are caught whatever the command (echo \"x\" > f, printf ... >> f, cat > f, 2> f), and tee, sed/perl -i, cp/mv/install, rm/truncate/touch and dd of= are handled; shell_writes_finds_what_a_command_changes covers each. It is a guard against a model working around the protection, not a shell parser (documented on the function); the runner's grants still limit where a command may write."
+  }
+}

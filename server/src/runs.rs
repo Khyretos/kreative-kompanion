@@ -192,7 +192,9 @@ pub async fn run_report(s: &AppState, user_id: &str, run_id: &str) -> ApiResult<
     let plan: Value = serde_json::from_str(&plan_str).unwrap_or(json!([]));
     let rounds: Value = serde_json::from_str(&rounds_str).unwrap_or(json!([]));
     let protected: Vec<String> = serde_json::from_str(&protected_str).unwrap_or_default();
-    let changed = crate::taskrun::protected_changed(s, &chat_id, &started, &protected).await;
+    let description: String = sqlx::query_scalar("SELECT description FROM tasks WHERE id = ?").bind(&task_id).fetch_one(&s.db).await.unwrap_or_default();
+    let allowed = crate::taskrun::protect::named_in(&description, &protected);
+    let changed = crate::taskrun::protected_changed(s, &chat_id, &started, &protected, &allowed).await;
     
     let steps = steps_where(s, "run_id", run_id).await?;
     let calls = calls_where(s, "run_id", run_id).await?;

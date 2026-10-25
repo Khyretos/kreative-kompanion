@@ -276,7 +276,7 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
     let auto = auto_run_for(&s, &chat_id).await;
     let max_steps = max_steps_for(&s, &user_id).await;
     let local = s.provider(&role.provider_id).is_some_and(|p| p.local);
-    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None };
+    let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None, tests_allowed: Vec::new() };
     let text = match agent.run_in(&mut messages).await {
         Ok(t) => t,
         Err(e) => e,
@@ -308,6 +308,8 @@ pub struct Agent {
     pub run_id: Option<String>,
     /// W2 tasks that may not change tests: Some(extra protected files); None = no protection.
     pub protect: Option<Vec<String>>,
+    /// DOGFOOD: test files the task's description asks to change; those stay open (protect::named_in).
+    pub tests_allowed: Vec<String>,
 }
 
 /// Why an edit_file job would break the file, if it would: reads the file through the
@@ -396,6 +398,8 @@ impl Agent {
         let budget = result_budget(p.local);
         // Answers in a row that hit the output limit before their tool call was complete.
         let mut cut_offs = 0;
+        // DOGFOOD: an answer that only announced its next step ("Now I'll find the folder.") gets one nudge.
+        let mut nudged = false;
         // Paths a read found missing during this answer (see the write_file guardrail).
         let mut missing = std::collections::HashSet::<String>::new();
         if self.task_id.as_deref().is_some_and(crate::taskrun::is_stopped) {
@@ -446,6 +450,13 @@ impl Agent {
             cut_offs = 0;
             if calls.is_empty() {
                 let text = msg["content"].as_str().unwrap_or("").trim();
+                if !nudged && announces_next_step(text) {
+                    nudged = true;
+                    say(s, &self.user_id, &self.chat_id, text).await;
+                    messages.push(json!({ "role": "assistant", "content": text }));
+                    messages.push(json!({ "role": "user", "content": NEXT_STEP_NOTE }));
+                    continue;
+                }
                 return Ok(final_text(text, n));
             }
             // A short "what I'll do" sentence before the tools, when the model wrote one.
@@ -510,10 +521,15 @@ impl Agent {
                     Some(_) if edit_err.is_some() => format!("Refused, nothing changed: {}", edit_err.as_deref().unwrap_or("")),
                     Some(job)
                         if matches!(job["tool"].as_str(), Some("edit_file" | "write_file"))
-                            && self.protect.as_ref().is_some_and(|x| crate::taskrun::protect::is_protected(job["path"].as_str().unwrap_or(""), x)) =>
+                            && self.protect.as_ref().is_some_and(|x| crate::taskrun::protect::guarded(job["path"].as_str().unwrap_or(""), x, &self.tests_allowed)) =>
                     {
                         let path = job["path"].as_str().unwrap_or("");
-                                                refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &format!("{path} is a test file and this task may not change tests. Change the code so the tests pass instead.")).await
+                        refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &tests_refused(path)).await
+                    }
+                    // RUN-01: the shell is no way round it (cat >> test_x.py, sed -i, cp, rm…).
+                    Some(job) if self.shell_writes_tests(&job).is_some() => {
+                        let path = self.shell_writes_tests(&job).unwrap_or_default();
+                        refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &tests_refused(&path)).await
                     }
                     // WRITE-CHUNKS: an older runner ignores append/offset and would replace the file.
                     Some(job) if tools::writes_in_parts(&job) && !tools::runner_writes_in_parts(s.host.runner_version(&self.machine_id).as_deref()) => {
@@ -759,6 +775,27 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
 
 /// Refuse a job because it violates a rule (e.g., editing a test file).
 /// Inserts a pc_actions row with state 'refused' and returns the reason.
+impl Agent {
+    /// RUN-01: the protected test file a shell job would write, if any.
+    fn shell_writes_tests(&self, job: &Value) -> Option<String> {
+        let protect = self.protect.as_ref()?;
+        if job["tool"] != "shell" {
+            return None;
+        }
+        crate::taskrun::protect::shell_writes(job["command"].as_str().unwrap_or(""))
+            .into_iter()
+            .find(|p| crate::taskrun::protect::guarded(p, protect, &self.tests_allowed))
+    }
+}
+
+/// Why a step on a protected test file was refused, and what to do instead of working around it.
+fn tests_refused(path: &str) -> String {
+    format!(
+        "{path} is a test file and this run may not change tests (\"Tests may change\" was off, and the task doesn't ask to change this file). \
+         Don't work around it with another tool or the shell: fix the code so the tests pass, and if a test is missing, say in your answer which test to add."
+    )
+}
+
 async fn refuse(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: &Value, run_id: Option<&str>, reason: &str) -> String {
     let id = util::new_id();
     let _ = sqlx::query(
@@ -784,6 +821,25 @@ async fn refuse(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, jo
 
 /// The answer shown when the model stops calling tools. An empty answer is never turned into
 /// a bare "Done.": that claimed success without saying what happened.
+/// What a model gets after an answer that only said what it would do next (once per answer).
+const NEXT_STEP_NOTE: &str = "You said what you would do next but did not do it. Do it now with a tool; if you can't, say what you need from the user and stop.";
+
+/// DOGFOOD: an answer whose last sentence announces a step instead of reporting ("Now I'll find the
+/// project folder.", "Let me check the tests:"), so the work isn't left half done.
+fn announces_next_step(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() || t.len() > 600 || t.ends_with('?') {
+        return false;
+    }
+    if t.ends_with(':') {
+        return true;
+    }
+    let last = t.rsplit(['.', '!', '\n']).find(|s| !s.trim().is_empty()).unwrap_or(t).trim().to_lowercase();
+    ["now i'll", "now i will", "let me", "i'll now", "i will now", "next, i'll", "next i'll", "first, i'll", "first i'll", "now let me"]
+        .iter()
+        .any(|p| last.starts_with(p))
+}
+
 fn final_text(text: &str, steps_before: usize) -> String {
     if !text.is_empty() {
         return text.to_string();
@@ -820,8 +876,14 @@ fn model_result(state: &str, result: &str, budget: usize) -> String {
         tail_start += 1;
     }
     let left_out = tail_start - head.len();
+    // DOGFOOD: say which lines are missing, so the model reads just those (a re-read of the whole
+    // file comes back cut the same way; a byte offset is hard for a model to aim with).
+    let (from, to) = (head.matches('\n').count() + 1, result[..tail_start].matches('\n').count() + 1);
     format!(
-        "{outcome} State: {state}.\nOutput (start and end):\n{head}\n[... {left_out} bytes left out here. To see them, read_file with offset and length, or run a narrower command.]\n{}",
+        "{outcome} State: {state}.\nOutput (start and end):\n{head}\n[... lines {from} to {to} ({left_out} bytes) left out here; reading it all again gives the same cut. \
+         To see them: grep -n for what you need, then read just those lines (sed -n '{from},{}p' FILE, a part at a time), or read_file with offset {} and length.]\n{}",
+        (from + 80).min(to),
+        head.len(),
         &result[tail_start..]
     )
 }
@@ -1018,12 +1080,28 @@ mod tests {
     }
 
     #[test]
+    fn an_announced_step_is_not_an_answer() {
+        assert!(announces_next_step("Now I'll find the project folder."));
+        assert!(announces_next_step("Found the note. Let me check the README:"));
+        assert!(announces_next_step("I'll now add the Release section."));
+        assert!(!announces_next_step("Added a Release section to README.md that says --strict-cfg."));
+        assert!(!announces_next_step("Which folder should I use?"));
+        assert!(!announces_next_step("Done. I'll leave the tests as they are because they already pass."), "a report that mentions a choice is fine");
+        assert!(!announces_next_step(""));
+    }
+
+    #[test]
     fn long_output_keeps_its_start_and_its_end() {
         let out = format!("TOP OF FILE\n{}\nexit: 0", "é".repeat(10_000));
         let r = model_result("done", &out, 6000);
         assert!(r.contains("TOP OF FILE"), "the start is not lost");
         assert!(r.ends_with("exit: 0"), "nor the end");
-        assert!(r.contains("bytes left out here"));
+        assert!(r.contains("bytes) left out here"));
+        // The note names the missing lines and how to read them.
+        let lines: String = (1..=900).map(|i| format!("line {i}\n")).collect();
+        let r = model_result("done", &lines, 6000);
+        assert!(r.contains("[... lines 235 to 456 (1992 bytes) left out here"), "{r}");
+        assert!(r.contains("sed -n '235,315p' FILE"));
         assert!(r.len() < 6300);
         assert!(!model_result("done", &out, result_budget(false)).contains("left out"), "a cloud model gets all of it");
     }

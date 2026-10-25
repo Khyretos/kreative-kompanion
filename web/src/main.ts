@@ -21,7 +21,8 @@ import { accept as acceptFiles, release as releaseFiles, renderPending, type Pen
 import type { Attached } from "./core/attachments";
 import { lang, t } from "./core/i18n";
 import { draftOf, PRESETS, providersSection } from "./views/providerform";
-import { autoRunChip, composer, effortChip, effortChipKey, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, setExplainOn, explanations, openExplains, fillExplain, messageText, setEditingMessage, type MessageView } from "./views/conversation";
+import { autoRunChip, composer, effortChip, effortChipKey, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, setExplainOn, explanations, openExplains, fillExplain, messageText, setEditingMessage, stepArtifact, type MessageView } from "./views/conversation";
+import { openArtifact } from "./views/artifactpane";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
 import { renderFacts } from "./views/facts";
@@ -1035,6 +1036,17 @@ function wire(shell: HTMLElement): void {
     "code-copy": (el) => onCodeAction(el),
     "code-wrap": (el) => onCodeAction(el),
     "code-download": (el) => onCodeAction(el),
+    // ARTIFACTS: a code block or a step's file in the side pane.
+    "code-open": (el) => {
+      const block = el.closest<HTMLElement>(".codeblock");
+      const text = block?.querySelector("code")?.textContent ?? "";
+      const lang = block?.dataset.lang ?? "text";
+      openArtifact({ title: lang, lang, text }, el);
+    },
+    "artifact-step": (el) => {
+      const a = stepArtifact(el.dataset.id ?? "");
+      if (a) openArtifact(a, el);
+    },
     "media-copy": (el) => void onMediaAction(el),
     "media-download": (el) => void onMediaAction(el),
     "open-chat": (el) => openChat(el.dataset.id),
