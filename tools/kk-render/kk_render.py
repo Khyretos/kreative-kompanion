@@ -64,7 +64,9 @@ PROFILES = {
     "mv": ("comfyui-mv:q19", 0.50, "8.5", "--bf16-vae"),
 }
 KK_NODES = [(f"{HOME}/.local/lib/kk-render/kk_trellis.py", "/app/custom_nodes/kk_trellis.py", "ro"),
-            (f"{HOME}/.local/lib/kk-render/kk_sheet.py", "/app/custom_nodes/kk_sheet.py", "ro")]
+            (f"{HOME}/.local/lib/kk-render/kk_sheet.py", "/app/custom_nodes/kk_sheet.py", "ro"),
+            (f"{HOME}/.local/lib/kk-render/kk_promo.py", "/app/custom_nodes/kk_promo.py", "ro"),
+            (f"{HOME}/.local/lib/kk-render/kk_promo_compose.py", "/app/custom_nodes/kk_promo_compose.py", "ro")]
 MV_MOUNTS = [
     (f"{M}/mvadapter", "/mvm/mvadapter", "ro"),
     (f"{HOME}/kk-mv/diffusers-cache", "/mvcache", "rw"),
