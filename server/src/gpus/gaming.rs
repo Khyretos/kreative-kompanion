@@ -132,6 +132,18 @@ async fn send(s: &AppState, m: &Machine, tool: Value) {
     }
 }
 
+/// STU-SHEET3D: start or stop one studio app on a computer through its runner (`gpu_apps`); false when the
+/// computer is unknown, has no "gpu" grant or the job could not be queued. The runner does it when it next polls.
+pub async fn app_action(s: &AppState, machine: &str, action: &str, app: &str) -> bool {
+    let Some(m) = machines(s).await.into_iter().find(|m| m.name == machine) else { return false };
+    if !m.granted {
+        return false;
+    }
+    crate::access::queue_job(&s.db, &m.id, &m.user_id, &json!({"tool": "gpu_apps", "action": action, "app": app}), None)
+        .await
+        .is_ok()
+}
+
 /// BUG-02: Studio off is off: kill the apps, unload Ollama and end this computer's studio jobs now.
 async fn off_now(s: &AppState, m: &Machine) {
     send(s, m, json!({"tool": "gpu_apps", "action": "kill"})).await;

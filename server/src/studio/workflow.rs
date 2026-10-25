@@ -146,8 +146,33 @@ pub struct Workflow {
     /// STU-C4: check each result ([studio] anatomy_url) and re-roll the seed when it fails.
     #[serde(default)]
     pub check: Option<Check>,
+    /// STU-SHEET3D: a first graph on another studio app's ComfyUI on the same computer (MV-Adapter), whose
+    /// pictures feed this graph. The main ComfyUI is stopped while it runs: two ComfyUIs on one card filled it.
+    #[serde(default)]
+    pub pre: Option<Pre>,
     #[serde(default, skip_serializing)]
     pub dir: PathBuf,
+}
+
+/// STU-SHEET3D: `[pre]` in workflow.toml.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Pre {
+    /// Its graph file in the workflow's folder.
+    pub graph: String,
+    /// The runner's `[gpu_apps]` name of the app that serves it (started for the stage, stopped after).
+    pub app: String,
+    /// The app's ComfyUI port on the same host as the main ComfyUI.
+    pub port: u16,
+    /// Its output nodes (SaveImage), read in order.
+    pub outputs: Vec<String>,
+    /// The main graph's LoadImage nodes that take those pictures, in the same order.
+    pub feeds: Vec<String>,
+    #[serde(default = "pre_timeout")]
+    pub timeout_s: u64,
+}
+
+fn pre_timeout() -> u64 {
+    600
 }
 
 /// STU-C4: `[check]` in workflow.toml: re-roll at most `retries` times and keep the best result;
@@ -196,6 +221,13 @@ impl Workflow {
         let content =
             std::fs::read_to_string(self.dir.join(file)).map_err(|e| format!("{file}: {e}"))?;
         serde_json::from_str(&content).map_err(|e| format!("{file}: {e}"))
+    }
+
+    /// STU-SHEET3D: the `[pre]` stage's graph, if the workflow has one.
+    pub fn pre_graph(&self) -> Result<Option<Value>, String> {
+        let Some(p) = &self.pre else { return Ok(None) };
+        let content = std::fs::read_to_string(self.dir.join(&p.graph)).map_err(|e| format!("{}: {e}", p.graph))?;
+        serde_json::from_str(&content).map(Some).map_err(|e| format!("{}: {e}", p.graph))
     }
 
     pub fn face_graph(&self, image: &str, weight: f64) -> Result<Value, String> {
@@ -905,6 +937,39 @@ licence = "CreativeML OpenRAIL-M"
         assert!(text("4").contains("purple starry night sky background") && !text("4").contains("white background"), "{}", text("4"));
         assert!(text("5").contains("white background, simple background, frame") && !text("5").contains("starry"), "{}", text("5"));
         assert!(w.fill(&g, &given(json!({"prompt": "x", "background": "beach"}))).unwrap_err().contains("background must be one of white, starry"));
+    }
+
+    /// STU-SHEET3D: oc-sheet-mv's [pre] stage makes the four views on the "mv" app and feeds the sheet graph.
+    #[test]
+    fn oc_sheet_mv_feeds_the_views_from_its_pre_stage() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let w = all.iter().find(|(n, _)| n == "oc-sheet-mv").expect("oc-sheet-mv missing").1.as_ref().unwrap();
+        assert!(w.studio.as_ref().unwrap().refine, "made from a picture");
+        let p = w.pre.as_ref().expect("[pre]");
+        assert_eq!((p.app.as_str(), p.port), ("mv", 8192));
+        let pre = w.pre_graph().unwrap().unwrap();
+        let source = w.inputs.get("source").unwrap();
+        assert_eq!(pre[source.as_str()]["class_type"], json!("LoadImage"), "the picture goes to the MV graph");
+        for o in &p.outputs {
+            assert_eq!(pre[o.as_str()]["class_type"], json!("SaveImage"));
+        }
+        let g = w.graph_for("soucouyant").unwrap();
+        assert!(g.get(source.as_str()).is_none_or(|n| n["class_type"] != json!("LoadImage")), "not a main-graph LoadImage");
+        for f in &p.feeds {
+            assert_eq!(g[f.as_str()]["class_type"], json!("LoadImage"), "feed {f}");
+        }
+        assert_eq!(g["190"]["class_type"], json!("LoadImage"));
+        let (f, _) = w.fill(&g, &Map::new()).unwrap();
+        assert_eq!(f["20"]["class_type"], json!("SaveImage"));
+        assert!(f["4"]["inputs"]["text"].as_str().unwrap().contains("adult"));
+        for (node, v) in g.as_object().unwrap() {
+            for (_, input) in v["inputs"].as_object().unwrap() {
+                if let Some(link) = input.as_array() {
+                    assert!(g.get(link[0].as_str().unwrap()).is_some(), "node {node} links to a missing node");
+                }
+            }
+        }
     }
 
     #[test]

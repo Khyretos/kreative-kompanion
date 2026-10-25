@@ -1,0 +1,894 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["1", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "masterpiece, best quality, a character"
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "lowres, bad anatomy, bad hands, extra fingers, multiple views, two people, frame, border, text, watermark, blurry"
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": ""
+    }
+  },
+  "7": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["6", 0]
+    }
+  },
+  "180": {
+    "class_type": "EmptyImage",
+    "inputs": {
+      "width": 3200,
+      "height": 1280,
+      "batch_size": 1,
+      "color": 8421504
+    }
+  },
+  "190": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "lines.png"
+    }
+  },
+  "191": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": ["190", 1]
+    }
+  },
+  "101": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "view-front.png"
+    }
+  },
+  "201": {
+    "class_type": "KKFigureCrop",
+    "inputs": {
+      "image": ["101", 0],
+      "width": 640,
+      "height": 1280,
+      "pad": 0.04,
+      "head_frac": 0.22,
+      "head_size": 1024,
+      "tolerance": 30
+    }
+  },
+  "202": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, standing, front view, plain grey background"
+    }
+  },
+  "203": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["202", 0]
+    }
+  },
+  "204": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["201", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "205": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["203", 0],
+      "negative": ["5", 0],
+      "latent_image": ["204", 0],
+      "seed": 300,
+      "steps": 24,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35
+    }
+  },
+  "206": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["205", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "207": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["180", 0],
+      "source": ["206", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "208": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["201", 1],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "209": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head and shoulders, front view, plain grey background"
+    }
+  },
+  "210": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["209", 0]
+    }
+  },
+  "211": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["210", 0],
+      "negative": ["5", 0],
+      "latent_image": ["208", 0],
+      "seed": 500,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.4
+    }
+  },
+  "212": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["211", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "213": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["212", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "214": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["207", 0],
+      "source": ["213", 0],
+      "x": 2560,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "215": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["7", 0],
+      "conditioning_from": ["209", 0]
+    }
+  },
+  "216": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["215", 0],
+      "negative": ["5", 0],
+      "latent_image": ["208", 0],
+      "seed": 510,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "217": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["216", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "218": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["217", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "219": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["214", 0],
+      "source": ["218", 0],
+      "x": 2880,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "102": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "view-right.png"
+    }
+  },
+  "231": {
+    "class_type": "KKFigureCrop",
+    "inputs": {
+      "image": ["102", 0],
+      "width": 640,
+      "height": 1280,
+      "pad": 0.04,
+      "head_frac": 0.22,
+      "head_size": 1024,
+      "tolerance": 30
+    }
+  },
+  "232": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, standing, right side view, profile, plain grey background"
+    }
+  },
+  "233": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["232", 0]
+    }
+  },
+  "234": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["231", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "235": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["233", 0],
+      "negative": ["5", 0],
+      "latent_image": ["234", 0],
+      "seed": 301,
+      "steps": 24,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35
+    }
+  },
+  "236": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["235", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "237": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["219", 0],
+      "source": ["236", 0],
+      "x": 640,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "238": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["231", 1],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "239": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head and shoulders, right side view, profile, plain grey background"
+    }
+  },
+  "240": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["239", 0]
+    }
+  },
+  "241": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["240", 0],
+      "negative": ["5", 0],
+      "latent_image": ["238", 0],
+      "seed": 501,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.4
+    }
+  },
+  "242": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["241", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "243": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["242", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "244": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["237", 0],
+      "source": ["243", 0],
+      "x": 2560,
+      "y": 320,
+      "resize_source": false
+    }
+  },
+  "245": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["7", 0],
+      "conditioning_from": ["239", 0]
+    }
+  },
+  "246": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["245", 0],
+      "negative": ["5", 0],
+      "latent_image": ["238", 0],
+      "seed": 511,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "247": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["246", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "248": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["247", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "249": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["244", 0],
+      "source": ["248", 0],
+      "x": 2880,
+      "y": 320,
+      "resize_source": false
+    }
+  },
+  "103": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "view-back.png"
+    }
+  },
+  "261": {
+    "class_type": "KKFigureCrop",
+    "inputs": {
+      "image": ["103", 0],
+      "width": 640,
+      "height": 1280,
+      "pad": 0.04,
+      "head_frac": 0.22,
+      "head_size": 1024,
+      "tolerance": 30
+    }
+  },
+  "262": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, standing, back view, from behind, plain grey background"
+    }
+  },
+  "263": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["262", 0]
+    }
+  },
+  "264": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["261", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "265": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["263", 0],
+      "negative": ["5", 0],
+      "latent_image": ["264", 0],
+      "seed": 302,
+      "steps": 24,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35
+    }
+  },
+  "266": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["265", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "267": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["249", 0],
+      "source": ["266", 0],
+      "x": 1920,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "268": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["261", 1],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "269": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head and shoulders, back view, from behind, plain grey background"
+    }
+  },
+  "270": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["269", 0]
+    }
+  },
+  "271": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["270", 0],
+      "negative": ["5", 0],
+      "latent_image": ["268", 0],
+      "seed": 502,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.4
+    }
+  },
+  "272": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["271", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "273": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["272", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "274": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["267", 0],
+      "source": ["273", 0],
+      "x": 2560,
+      "y": 960,
+      "resize_source": false
+    }
+  },
+  "275": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["7", 0],
+      "conditioning_from": ["269", 0]
+    }
+  },
+  "276": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["275", 0],
+      "negative": ["5", 0],
+      "latent_image": ["268", 0],
+      "seed": 512,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "277": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["276", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "278": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["277", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "279": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["274", 0],
+      "source": ["278", 0],
+      "x": 2880,
+      "y": 960,
+      "resize_source": false
+    }
+  },
+  "104": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "view-left.png"
+    }
+  },
+  "291": {
+    "class_type": "KKFigureCrop",
+    "inputs": {
+      "image": ["104", 0],
+      "width": 640,
+      "height": 1280,
+      "pad": 0.04,
+      "head_frac": 0.22,
+      "head_size": 1024,
+      "tolerance": 30
+    }
+  },
+  "292": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "full body, standing, left side view, profile, plain grey background"
+    }
+  },
+  "293": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["292", 0]
+    }
+  },
+  "294": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["291", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "295": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["293", 0],
+      "negative": ["5", 0],
+      "latent_image": ["294", 0],
+      "seed": 303,
+      "steps": 24,
+      "cfg": 5.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.35
+    }
+  },
+  "296": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["295", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "297": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["279", 0],
+      "source": ["296", 0],
+      "x": 1280,
+      "y": 0,
+      "resize_source": false
+    }
+  },
+  "298": {
+    "class_type": "VAEEncodeTiled",
+    "inputs": {
+      "pixels": ["291", 1],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "299": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["3", 0],
+      "text": "head and shoulders, left side view, profile, plain grey background"
+    }
+  },
+  "300": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["4", 0],
+      "conditioning_from": ["299", 0]
+    }
+  },
+  "301": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["300", 0],
+      "negative": ["5", 0],
+      "latent_image": ["298", 0],
+      "seed": 503,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.4
+    }
+  },
+  "302": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["301", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "303": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["302", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "304": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["297", 0],
+      "source": ["303", 0],
+      "x": 2560,
+      "y": 640,
+      "resize_source": false
+    }
+  },
+  "305": {
+    "class_type": "ConditioningConcat",
+    "inputs": {
+      "conditioning_to": ["7", 0],
+      "conditioning_from": ["299", 0]
+    }
+  },
+  "306": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["1", 0],
+      "positive": ["305", 0],
+      "negative": ["5", 0],
+      "latent_image": ["298", 0],
+      "seed": 513,
+      "steps": 24,
+      "cfg": 6,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "denoise": 0.7
+    }
+  },
+  "307": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": ["306", 0],
+      "vae": ["1", 2],
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8
+    }
+  },
+  "308": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["307", 0],
+      "upscale_method": "lanczos",
+      "width": 320,
+      "height": 320,
+      "crop": "disabled"
+    }
+  },
+  "309": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["304", 0],
+      "source": ["308", 0],
+      "x": 2880,
+      "y": 640,
+      "resize_source": false
+    }
+  },
+  "192": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["309", 0],
+      "source": ["190", 0],
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "mask": ["191", 0]
+    }
+  },
+  "20": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["192", 0],
+      "filename_prefix": "kompanion/oc-sheet-v3"
+    }
+  }
+}

@@ -1,0 +1,78 @@
+# STU-SHEET3D: OC sheet v3 from one character picture. [pre]: MV-Adapter SD2.1 (Apache-2.0; Kees chose SD2.1 on
+# 2026-10-19: the SDXL adapter filled the card) makes front, right, back and left views on its own ComfyUI app ("mv",
+# port 8192); the main ComfyUI is stopped for that stage. Main graph: each view is cropped to its figure
+# (studio/comfy-nodes/kk_sheet.py), refined with SDXL img2img into a 640x1280 body cell, its head is refined bare and
+# with the helmet prompt, and everything lands on one 3200x1280 sheet with black cell lines (lines.png).
+# Measured 2026-10-25 on soucouyant: MV 13-15 s / 8.2 GB card; main graph about 111 s / 9.1 GB card.
+title = "OC sheet v3 (from a picture)"
+description = "Four real views (front, right, left, back) of the character in a picture and a grid of head close-ups, bare and with a helmet, on one sheet with black cell lines, ready to cut out for a 3D model."
+graph = "graph.json"
+outputs = ["20"]
+machines = ["soucouyant"]
+vram_mb = 10500
+ram_mb = 12000
+
+[pre]
+graph = "mv.json"
+app = "mv"
+port = 8192
+outputs = ["6"]
+feeds = ["101", "102", "103", "104"]
+
+[inputs]
+source = "4"
+
+[images]
+"190" = "lines.png"
+
+[studio]
+label = "OC sheet v3"
+hint = "Real side and back views from your picture"
+sizes = ["wide"]
+order = 9
+refine = true
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "an adult character, full body"
+node = "4"
+input = "text"
+template = "masterpiece, best quality, amazing quality, very aesthetic, {rating}, adult, {value}"
+
+[[param]]
+name = "helmet_look"
+type = "string"
+default = ""
+node = "6"
+input = "text"
+template = "{value}"
+
+[[param]]
+name = "negative"
+type = "string"
+default = ""
+node = "5"
+input = "text"
+template = "worst quality, bad quality, low quality, lowres, blurry, watermark, text, bad anatomy, bad hands, extra fingers, extra limbs, multiple views, two people, frame, border, child, loli, shota, underage, {rating_neg}{value}"
+
+[[param]]
+name = "rating"
+type = "choice"
+default = "general"
+# as in oc-sheet: questionable and explicit need the adult-content right; general keeps nudity out
+choices = ["general", "sensitive", "questionable", "explicit"]
+adult = ["questionable", "explicit"]
+words = { rating_neg = { general = "nsfw, nude, explicit, " } }
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "mvadapter_i2mv_sd21.safetensors"
+licence = "Apache-2.0"
+
+[[model]]
+file = "sd21-base"
+licence = "CreativeML Open RAIL++-M"

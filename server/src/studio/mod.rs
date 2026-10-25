@@ -16,6 +16,7 @@ pub mod remove;
 pub mod negative;
 pub mod helmet;
 pub mod anatomy;
+pub mod pre;
 
 use crate::{
     AppState,
@@ -435,11 +436,26 @@ async fn execute(
                 _ => Ok(()),
             };
             // STU-C1: images shipped with the workflow (the OC sheet's pose and depth sheets).
+            // STU-SHEET3D: a [pre] stage (MV-Adapter) runs first on its own app and feeds the main graph.
+            let (pre_pics, main_pics): (Vec<_>, Vec<_>) = match w.pre_graph() {
+                Ok(Some(pg)) => pre::split_pics(&pg, &pics),
+                _ => (Vec::new(), pics.clone()),
+            };
+            let up = match up {
+                Err(e) => Err(e),
+                Ok(()) => match (&w.pre, w.pre_graph()) {
+                    (Some(p), Ok(Some(pg))) => {
+                        pre::run(&s, p, pg, &machine, &url, &mut graph, &pre_pics, &out_dir, &id).await.map(|_| ())
+                    }
+                    (Some(_), Err(e)) => Err(anyhow::anyhow!(e)),
+                    _ => Ok(()),
+                },
+            };
             let up = match up {
                 Err(e) => Err(e),
                 Ok(()) => async {
                     // STU-R2: and the user's pictures for this run (a refine step's source and mask).
-                    for (node, path) in &pics {
+                    for (node, path) in &main_pics {
                         let bytes = tokio::fs::read(path).await.map_err(|e| anyhow::anyhow!("picture: {e}"))?;
                         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("png");
                         let name = comfy::upload(&s.http, &url, bytes, &format!("{id}-{node}.{ext}")).await?;
