@@ -40,11 +40,8 @@ const STEP_LABEL: Record<string, Key> = {
 
 const BUSY = ["approved", "always", "granting", "running"];
 
-/** CMD-01: whether step cards offer "Explain command" (the user's setting; main.ts keeps it). */
-let explainOn = false;
-export function setExplainOn(on: boolean): void {
-  explainOn = on;
-}
+/** CMD-01: kept for callers; since COMPACT-UI every command card offers Explain (the click is the opt-in). */
+export function setExplainOn(_on: boolean): void {}
 /** Explanations by step id (the server keeps them per command, so a re-open costs nothing), and
  *  the steps whose explanation the user opened; both kept across re-renders. */
 export const explanations = new Map<string, { text?: string; error?: string }>();
@@ -65,6 +62,31 @@ export function elapsedText(since: string, now = Date.now()): string {
 
 /** CMD-01: a step as a card. Header: icon and type, the time, a risk tag and the state; under it
  *  the summary. Open: the command as highlighted code (scrolls), the output, and "Explain command". */
+/** COMPACT-UI: the step's one line of code: a shell command highlighted as bash after a short
+ *  prompt with its folder, a file step's path, or the summary for anything else. */
+function stepLine(a: PcAction): SafeHtml {
+  const tool = a.tool ?? {};
+  const name = String(tool.tool ?? "");
+  const path = typeof tool.path === "string" ? tool.path : "";
+  if (name === "shell") {
+    const cwd = typeof tool.cwd === "string" ? tool.cwd : "";
+    return html`${cwd ? html`<span class="step-cwd" title="${cwd}">${shortPath(cwd)} $</span> ` : ""}${highlightHtml(String(tool.command ?? ""), "bash")}`;
+  }
+  if (path) return html`<span class="step-path" title="${path}">${shortPath(path)}</span>`;
+  const command = commandText(a.tool);
+  return command ? highlightHtml(command, commandLang(a.tool)) : html`${a.summary}`;
+}
+
+/** A long path as its last three parts ("…/runner/src/proc.rs"); the full one is in the title. */
+export function shortPath(p: string): string {
+  if (p.length <= 28) return p;
+  const parts = p.split("/").filter(Boolean);
+  return parts.length > 3 ? `…/${parts.slice(-3).join("/")}` : p;
+}
+
+/** CMD-01 / COMPACT-UI: a step as a card: one header row (icon, type and time on the left; Explain,
+ *  risk and state on the right), then its command as highlighted code, three lines until opened.
+ *  Opened: the whole command, the output and the explanation. */
 function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
   const busy = BUSY.includes(a.state);
   const kind = styleOf(kindOf(a.tool), cardStyle);
@@ -75,30 +97,26 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
   const since = a.startedAt ?? a.createdAt;
   const took = !busy && a.endedAt ? elapsedText(since, Date.parse(a.endedAt)) : "";
   const icn = busy ? "spark" : a.state === "done" ? "terminal" : "close";
+  const explaining = openExplains.has(a.id);
   return html`
-    <details class="step step-card ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) ? "open" : ""}>
-      <summary data-action="step-toggle" data-id="${a.id}">
+    <details class="step step-card ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) || explaining ? "open" : ""}>
+      <summary data-action="step-toggle" data-id="${a.id}" title="${a.summary}">
         <span class="step-head">
-          <span class="step-type">${icon(icn)}<span class="kind-tag" style="--kind:${kind.color}">${spawn ? t(spawn.kind === "task" ? "spawnTask" : "spawnChat") : kind.label}</span></span>
-          <span class="step-time">${a.state === "running" ? html`<span class="elapsed" data-since="${since}">${elapsedText(since)}</span>` : took ? html`<span title="${t("cmdTook", { time: took })}">${took}</span>` : ""}</span>
+          ${icon(icn)}<span class="kind-tag" style="--kind:${kind.color}">${spawn ? t(spawn.kind === "task" ? "spawnTask" : "spawnChat") : kind.label}</span>
+          ${a.state === "running" ? html`<span class="step-time elapsed" data-since="${since}">${elapsedText(since)}</span>` : took ? html`<span class="step-time" title="${t("cmdTook", { time: took })}">${took}</span>` : ""}
           <span class="step-tags">
+            ${command && !spawn ? html`<button class="step-explain-link" type="button" data-action="explain-toggle" data-id="${a.id}" aria-expanded="${explaining ? "true" : "false"}">${t("explainShort")}</button>` : ""}
             ${risk ? html`<span class="risk-tag risk-${risk}" title="${t("riskTip")}">${t(RISK_LABEL[risk])}</span>` : ""}
             <span class="chip ${a.state}">${STEP_LABEL[a.state] ? t(STEP_LABEL[a.state]) : a.state}</span>
             ${a.state === "running" ? html`<button class="btn small danger step-stop" type="button" data-action="step-stop" data-id="${a.id}">${t("cmdStop")}</button>` : ""}
           </span>
         </span>
-        <span class="step-summary">${a.summary}</span>
+        ${spawn ? html`<span class="step-summary">${spawn.title}</span>` : html`<code class="step-line hljs">${stepLine(a)}</code>`}
       </summary>
-      ${command ? html`<div class="step-cmd" role="group" aria-label="${t("cmdCommand")}">
-        <pre class="step-code"><code class="hljs">${highlightHtml(command, commandLang(a.tool))}</code></pre>
-      </div>` : ""}
+      <div class="step-explain-body" data-explain-body="${a.id}" aria-live="polite" ${explaining ? "" : "hidden"}></div>
       ${spawn ? html`<div class="spawn-prompt" role="group" aria-label="${t("spawnPrompt")}">${spawn.prompt}</div>` : ""}
-      ${spawn && a.result ? html`<p class="spawn-result small">${a.result}</p>` : a.result ? renderOutput(fromTool(a.tool, a.result, machines[a.machineId])) : ""}
+      ${spawn && a.result ? html`<p class="spawn-result small">${a.result}</p>` : a.result ? renderOutput({ ...fromTool(a.tool, a.result, machines[a.machineId]), title: undefined, machine: undefined }) : ""}
       ${made ? html`<p class="spawn-open"><button class="btn small" type="button" data-action="${made.kind === "task" ? "open-task" : "open-chat"}" data-id="${made.id}">${t(made.kind === "task" ? "spawnOpenTask" : "spawnOpenChat")}</button></p>` : ""}
-      ${explainOn && command ? html`<details class="step-explain" data-explain="${a.id}" ${openExplains.has(a.id) ? "open" : ""}>
-        <summary data-action="explain-toggle" data-id="${a.id}">${icon("spark")}${t("explainCmd")}</summary>
-        <div class="step-explain-body" data-explain-body="${a.id}" aria-live="polite"></div>
-      </details>` : ""}
     </details>`;
 }
 
@@ -244,6 +262,7 @@ export function renderMessage({ m, tasks, steps, machines, last }: MessageView):
       <header>
         <span class="who">${m.author === "user" ? "You" : assistantName}</span>
         <time datetime="${m.at}">${clock(m.at)}</time>
+        ${editing ? "" : messageActions(m, last)}
       </header>
       ${editing ? html`<form class="msg-edit" data-id="${m.id}">
         <label class="sr-only" for="msg-edit-${m.id}">${t("msgEditLabel")}</label>
@@ -254,7 +273,6 @@ export function renderMessage({ m, tasks, steps, machines, last }: MessageView):
           <button class="btn small primary" type="submit">${t("msgSend")}</button>
         </div>
       </form>` : html`<div class="body"></div>`}
-      ${editing ? "" : messageActions(m, last)}
       ${renderSent(m.chatId, splitFiles(m.text).files)}
       ${renderSteps(steps, machines)}
       ${tasks.length ? html`

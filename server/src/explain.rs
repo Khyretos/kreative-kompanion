@@ -111,10 +111,8 @@ pub async fn explain(State(s): State<AppState>, Extension(u): Extension<User>, P
         .fetch_optional(&s.db)
         .await?;
     let Some((chat_id, tool)) = row else { return Err(ApiError::NotFound) };
+    // COMPACT-UI: the user's click on Explain is the opt-in; Settings only picks the detail and model.
     let p = prefs(&s.db, &u.id).await;
-    if !p.on {
-        return Err(ApiError::BadRequest("Explanations are off: turn on \"Explain running actions\" in Settings.".into()));
-    }
     let role = match (p.provider_id, p.model_id) {
         (Some(provider_id), Some(model_id)) if s.provider(&provider_id).is_some() => {
             RoleAssignment { role: "explain".into(), provider_id, model_id, effort: "low".into() }

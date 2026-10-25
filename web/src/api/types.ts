@@ -225,6 +225,9 @@ export interface Task {
   state: TaskState;
   progress: number; // 0..1
   step: string; // what it is doing right now
+  updatedAt?: string; // when the task last changed
+  activeRun?: boolean; // COMPACT-UI: a Kompanion run of it is going now
+  lastActivity?: string | null; // its newest sign of life (run start/end, a call or step of a running run)
   role: Role;
   model: string; // display name of the model doing it
   runner?: string; // "soucouyant (Linux)"

@@ -172,6 +172,8 @@ const tasks: Task[] = [
   {
     id: "t1", projectId: "p-kk", title: "Add a --vk-validation flag and setting",
     state: "running", progress: 0.62, step: "Building in the container", role: "worker",
+    // COMPACT-UI: a run is going and did something seconds ago (the panel shows it live).
+    activeRun: true, lastActivity: new Date(Date.now() - 5_000).toISOString(),
     model: "Qwen3.5-9B", runner: "soucouyant (Linux)", workspace: "Container · 4 cores · 8 GB",
     events: [
       { kind: "step", at: ago(18), text: "Read the code map: Instance.cpp, Config.cpp, main.cpp" },
@@ -292,6 +294,12 @@ const tasks: Task[] = [
     model: "Qwen3.5-9B", runner: "kireserver", scheduledFor: later(60), events: [],
   },
 ];
+// COMPACT-UI: with __kkDemoBoard set (tests, screenshots), a task "in progress" on the Windshift
+// board that Kompanion never ran, as on kireserver; the panel says so instead of pulsing.
+if ((globalThis as { __kkDemoBoard?: boolean }).__kkDemoBoard) {
+  tasks.push({ id: "t-board", projectId: "p-kk", title: "Backups and monitoring", state: "running", progress: 0, step: "", role: "worker", model: "",
+    updatedAt: new Date(Date.now() - 21 * 86_400_000).toISOString(), activeRun: false, lastActivity: null, events: [] });
+}
 
 const providers: ModelProvider[] = [
   {
@@ -1328,6 +1336,7 @@ export class MockApi implements KompanionApi {
       const task: Task = {
         id: id("t"), projectId: chat.projectId, title: text.length > 60 ? text.slice(0, 57) + "…" : text,
         state: "running", progress: 0.05, step: "Reading the code map", role: "worker", model: "Qwen3.5-9B",
+        activeRun: true, lastActivity: new Date().toISOString(),
         runner: "soucouyant (Linux)", workspace: "Container · 4 cores · 8 GB",
         events: [{ kind: "step", at: new Date().toISOString(), text: "Planned by the orchestrator" }],
       };

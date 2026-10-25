@@ -49,16 +49,15 @@ function explainSection(s: AppState): SafeHtml {
   const picked = e.providerId && e.modelId ? `${e.providerId}::${e.modelId}` : "";
   return html`<section class="explain-settings">
     <h3 class="label">${t("explainHead")}</h3>
-    <label><input type="checkbox" id="explain-on" ${e.on ? "checked" : ""}> ${t("explainHead")}</label>
     <p class="muted small">${t("explainAbout")}</p>
-    <fieldset class="checks explain-detail" ${e.on ? "" : "disabled"}>
+    <fieldset class="checks explain-detail">
       <legend>${t("explainDetail")}</legend>
       <label><input type="radio" name="explain-mode" value="compact" ${e.verbose ? "" : "checked"}> ${t("explainCompact")}</label>
       <label><input type="radio" name="explain-mode" value="verbose" ${e.verbose ? "checked" : ""}> ${t("explainVerbose")}</label>
     </fieldset>
     <div class="field">
       <label for="explain-model">${t("explainModel")}</label>
-      <select id="explain-model" ${e.on ? "" : "disabled"}>
+      <select id="explain-model">
         <option value="" ${picked ? "" : "selected"}>${t("explainChatModel")}</option>
         ${s.providers.filter((p) => !p.error).map((p) => html`<optgroup label="${p.name}">${p.models.map((m) => html`<option value="${p.id}::${m.id}" ${picked === `${p.id}::${m.id}` ? "selected" : ""}>${m.id}</option>`)}</optgroup>`)}
       </select>

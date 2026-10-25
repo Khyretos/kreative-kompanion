@@ -1,0 +1,29 @@
+{
+  "5c59c1e20cdb": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/core/liveness.ts",
+    "title": "Potential Logic Flaw",
+    "verdict": "false_positive",
+    "reason": "An active run with no activity for 10+ minutes is shown as stalled on purpose: that is the point of the stale detection Kees asked for. Within 30 s it is live, before 10 min quiet; tests-node/liveness.test.mts covers each case."
+  },
+  "ab53fe6cd88a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/tasks.rs",
+    "title": "SQL Injection Risk",
+    "verdict": "false_positive",
+    "reason": "COLUMNS is a compile-time constant with no user input; values go through bound parameters. last_activity is the max over finished/started runs, calls and PC actions of running runs, NULL when none; covered by the a_task_says_whether_a_run_is_active test."
+  },
+  "ede24bcd37eb": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/conversation.ts",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "stepLine starts with const tool = a.tool ?? {}, so a missing tool renders an empty line; every field read after it has a ?? or typeof fallback."
+  }
+}

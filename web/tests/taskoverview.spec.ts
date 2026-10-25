@@ -14,13 +14,15 @@ test("the chip counts running and done tasks; the panel numbers the running ones
   await open(page);
   const chip = page.locator("#ov-chip");
   await expect(chip.locator(".tov-run")).toHaveText("1");
-  await expect(chip).toHaveAttribute("aria-label", /^1 running, \d+ of \d+ done/);
+  await expect(chip).toHaveAttribute("aria-label", /^1 running in Kompanion, 0 in progress on the board, \d+ need you/);
+  // The demo's task did something seconds ago: the chip pulses.
+  await expect(chip).toHaveClass(/live/);
   await chip.click();
   const panel = page.locator(".tasks-overview");
-  await expect(panel.locator(".tov-counts")).toContainText("Running");
+  await expect(panel.locator('[data-filter="running"]')).toHaveAttribute("aria-pressed", "true");
   const row = panel.locator(".tov-row").first();
   await expect(row.locator(".tov-num")).toHaveText("1/1");
-  await expect(row.locator(".tov-step")).toHaveText("Building in the container");
+  await expect(row.locator(".tov-step")).toHaveText("now · Building in the container");
   await row.click();
   await expect(page.locator("#ov-back")).toBeFocused();
   await expect(panel.locator(".tov-detail-head h3")).toContainText("1/1 Add a --vk-validation flag and setting");
@@ -38,7 +40,7 @@ test("the chip counts running and done tasks; the panel numbers the running ones
   await page.waitForTimeout(800);
   await expect(call.locator(".trace-body pre").first()).toBeVisible();
   // The running step is a step card with its command.
-  await expect(panel.locator('.tov-trace details.step-card[data-state="running"] .step-code')).toContainText("cmake --build build");
+  await expect(panel.locator('.tov-trace details.step-card[data-state="running"] .step-line')).toContainText("cmake --build build");
   // Escape: back to the list, then closed, focus back on the chip.
   await page.keyboard.press("Escape");
   await expect(panel.locator(".tov-row")).toHaveCount(1);
@@ -62,7 +64,7 @@ test("a task that starts shows up at once, without a reload", async ({ page }) =
 
 test("on a phone, pulling the top bar down opens the panel and pushing it up closes it", async ({ page }) => {
   await open(page, "dark", 390);
-  await page.waitForFunction(() => document.getAnimations().length === 0);
+  await page.waitForFunction(() => document.getAnimations().filter((a) => !(a as CSSAnimation).animationName?.startsWith("tov-pulse")).length === 0);
   const pull = async (selector: string, from: number, to: number) => {
     await page.locator(selector).first().dispatchEvent("touchstart", { touches: [{ identifier: 1, clientX: 200, clientY: from }] });
     await page.locator(selector).first().dispatchEvent("touchmove", { touches: [{ identifier: 1, clientX: 200, clientY: to }] });
@@ -76,6 +78,40 @@ test("on a phone, pulling the top bar down opens the panel and pushing it up clo
   expect(box.width).toBe(390);
   await pull(".tasks-overview .tov-head", 120, 20);
   await expect(page.locator(".tasks-overview")).toHaveCount(0);
+});
+
+test("the chips filter the list, and a task only on the board says so instead of pulsing", async ({ page }) => {
+  await page.addInitScript(() => { (window as unknown as { __kkDemoBoard: boolean }).__kkDemoBoard = true; });
+  await open(page);
+  // Two "running", but only one runs in Kompanion: the chip counts that one.
+  await expect(page.locator("#ov-chip .tov-run")).toHaveText("1");
+  await expect(page.locator("#ov-chip")).toHaveAttribute("aria-label", /1 running in Kompanion, 1 in progress on the board/);
+  await page.click("#ov-chip");
+  const panel = page.locator(".tasks-overview");
+  const rows = panel.locator(".tov-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).locator(".tov-dot.live")).toHaveCount(1);
+  const board = rows.nth(1);
+  await expect(board.locator(".tov-step")).toHaveText("on the board, not run here · 21 d");
+  await expect(board.locator(".tov-dot.board")).toHaveCount(1);
+  // A board task opens in the Tasks pane (it has no trace).
+  await expect(board).toHaveAttribute("data-action", "tasks-overview-task");
+  // Need you: the list changes, the chip is pressed and orange-counted.
+  const needs = panel.locator('[data-filter="needs"]');
+  await needs.click();
+  await expect(needs).toHaveAttribute("aria-pressed", "true");
+  await expect(needs).toHaveClass(/attn/);
+  const n = Number(await needs.locator("strong").textContent());
+  await expect(rows).toHaveCount(n);
+  await expect(panel.locator(".tov-num")).toHaveCount(0);
+  await panel.locator('[data-filter="done"]').click();
+  const d = Number(await panel.locator('[data-filter="done"] strong').textContent());
+  await expect(rows).toHaveCount(Math.min(d, 30));
+  await panel.locator('[data-filter="all"]').click();
+  await expect(rows).toHaveCount(Math.min(Number(await panel.locator('[data-filter="all"] strong').textContent()), 30));
+  // A task opens in the Tasks pane and the panel closes.
+  await rows.first().click();
+  await expect(panel).toHaveCount(0);
 });
 
 for (const scheme of ["light", "dark"] as const) {

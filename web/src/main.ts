@@ -42,6 +42,7 @@ import { renderStudioMake, renderStudioLibrary } from "./views/studio";
 // STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
 let studioPrompt = "";
 let effortKey = ""; // EFF-02: what the effort chip last showed (effortChipKey)
+type AppStateFilter = NonNullable<import("./state").AppState["tasksOverviewFilter"]>;
 let trayKey = ""; // TASK-OVERVIEW: the running tasks the desktop tray last got
 let studioLyrics = ""; // STU-02: music lyrics and the audio length, kept the same way
 let studioSeconds = "";
@@ -378,7 +379,7 @@ function render(s: AppState, prev: AppState): void {
   // TASK-OVERVIEW: the desktop app's tray follows the running tasks (count, badge, menu).
   const tauriCore = (window as { __TAURI__?: { core?: { invoke(cmd: string, args: unknown): Promise<unknown> } } }).__TAURI__?.core;
   if (tauriCore && (firstRender || changed(s, prev, ["tasks", "projects"]))) {
-    const running = taskCounts(s).running.map((x) => ({ id: x.id, title: x.title, step: x.step ?? "" }));
+    const running = taskCounts(s).active.map((x) => ({ id: x.id, title: x.title, step: x.step ?? "" }));
     const key = JSON.stringify(running);
     if (key !== trayKey) {
       trayKey = key;
@@ -386,7 +387,7 @@ function render(s: AppState, prev: AppState): void {
     }
   }
   // TASK-OVERVIEW: the running-tasks panel under the top bar.
-  if (firstRender || changed(s, prev, ["tasksOverviewOpen", "tasksOverviewTaskId", "tasksOverviewTrace", "tasksOverviewTraceError", "tasks", "projects", "pcActions"])) {
+  if (firstRender || changed(s, prev, ["tasksOverviewOpen", "tasksOverviewFilter", "tasksOverviewTaskId", "tasksOverviewTrace", "tasksOverviewTraceError", "tasks", "projects", "pcActions"])) {
     remount($("#tasks-overview-slot"), renderTasksOverview(s));
   }
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer", "projects", "activeProjectId"])) {
@@ -1199,12 +1200,16 @@ function wire(shell: HTMLElement): void {
       if (d) d.open = open;
     },
     // CMD-01: "Explain command" is written on the first open (then kept); a retry asks again.
+    // COMPACT-UI: the Explain link in a step's header: shows (or hides) the explanation under it and
+    // opens the card; the click is the opt-in, the first one writes it, later ones read it back.
     "explain-toggle": (el) => {
       const id = el.dataset.id ?? "";
-      const d = el.closest("details");
-      const open = !(d ? d.open : openExplains.has(id));
+      const open = !openExplains.has(id);
       if (open) openExplains.add(id); else openExplains.delete(id);
-      if (d) d.open = open;
+      el.setAttribute("aria-expanded", open ? "true" : "false");
+      const card = el.closest<HTMLDetailsElement>("details.step-card");
+      if (card && open) { card.open = true; openSteps.add(id); }
+      card?.querySelector<HTMLElement>("[data-explain-body]")?.toggleAttribute("hidden", !open);
       if (open) loadExplain(id);
     },
     "explain-retry": (el) => {
@@ -1256,6 +1261,15 @@ function wire(shell: HTMLElement): void {
       store.set({ tasksOverviewTaskId: id, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined });
       void loadTrace(id);
       requestAnimationFrame(() => document.getElementById("ov-back")?.focus());
+    },
+    // COMPACT-UI: a filter chip picks the list; a task that is not running here opens in the Tasks pane.
+    "tasks-overview-filter": (el) => {
+      store.set({ tasksOverviewFilter: el.dataset.filter as AppStateFilter, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined });
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-action="tasks-overview-filter"][data-filter="${el.dataset.filter}"]`)?.focus());
+    },
+    "tasks-overview-task": (el) => {
+      store.set({ tasksOverviewOpen: false, openTaskId: el.dataset.id, rightTab: "tasks", pane: "right", section: "chat" });
+      $(".shell").dispatchEvent(new CustomEvent("kk-expand", { detail: "right" }));
     },
     "tasks-overview-back": () => {
       const id = store.get().tasksOverviewTaskId;
