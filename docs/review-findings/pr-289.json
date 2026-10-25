@@ -1,0 +1,11 @@
+{
+  "b5ce12c2ae2e": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/pcactions.ts",
+    "title": "Possible XSS Vulnerability",
+    "verdict": "false_positive",
+    "reason": "codeSpans passes every part (inside and outside backticks) as a plain string into html``, which escapes it; only the <code> wrapper is markup. tests-node/codespans.test.mts checks that `<script>` and `a < b` come out escaped."
+  }
+}
