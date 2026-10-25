@@ -15,6 +15,8 @@ import dockerfile from "highlight.js/lib/languages/dockerfile";
 import diff from "highlight.js/lib/languages/diff";
 import DOMPurify from "dompurify";
 import { html, SafeHtml } from "./html";
+import { isLong, lineCount, viewOf } from "./artifact";
+import { t } from "./i18n";
 
 hljs.registerLanguage("rust", rust);
 hljs.registerLanguage("typescript", typescript);
@@ -101,13 +103,18 @@ export function enhanceCodeBlocks(frag: DocumentFragment): void {
     if (pre) {
       const codeblock = document.createElement("div");
       codeblock.className = "codeblock";
+      // ARTIFACTS: the language as written (html, md, svg…) for the pane; long blocks and
+      // previewable ones show a few lines here and open whole in the pane.
+      const written = langClass ? langClass[1] : "text";
+      codeblock.dataset.lang = written;
+      if (isLong(text) || viewOf(written) !== "code") codeblock.classList.add("long");
 
       const head = document.createElement("div");
       head.className = "codeblock-head";
 
       const langSpan = document.createElement("span");
       langSpan.className = "codeblock-lang";
-      langSpan.textContent = lang === "text" ? "text" : lang;
+      langSpan.textContent = written; // as the model wrote it ("html", "ts"), not the highlighter's alias
 
       const wrapBtn = document.createElement("button");
       wrapBtn.type = "button";
@@ -129,7 +136,15 @@ export function enhanceCodeBlocks(frag: DocumentFragment): void {
       downloadBtn.setAttribute("data-ext", extFor(lang));
       downloadBtn.textContent = "Download";
 
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "btn small codeblock-open";
+      openBtn.setAttribute("data-action", "code-open");
+      openBtn.textContent = viewOf(written) === "code" ? t("artOpen") : t("artPreview");
+      openBtn.title = t("artOpenTip", { n: lineCount(text) });
+
       head.appendChild(langSpan);
+      head.appendChild(openBtn);
       head.appendChild(wrapBtn);
       head.appendChild(copyBtn);
       head.appendChild(downloadBtn);

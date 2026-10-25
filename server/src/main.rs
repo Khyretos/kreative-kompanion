@@ -61,6 +61,7 @@ mod oidc;
 mod project_ctx;
 mod projects;
 mod runs;
+mod sandbox;
 mod search;
 mod secrets;
 mod skills;
@@ -475,6 +476,8 @@ async fn main() -> anyhow::Result<()> {
         // The original files for the in-app viewers (signed in only, Range, private cache).
         .route("/asset-file/{id}/near", get(assets::file_near))
         .route("/asset-file/{id}/{name}", get(assets::file))
+        // ARTIFACTS: the HTML preview frame, with its own sandboxing policy (sandbox.rs).
+        .route("/sandbox.html", get(sandbox::page))
         .fallback_service(web)
         // A route may set a stricter policy of its own (the uploaded logo).
         .layer(SetResponseHeaderLayer::if_not_present(

@@ -360,6 +360,38 @@ const replies = [
   "Got it. I made that a task for Qwen with a small, self-contained scope. If it fails review I will write the lesson into the matching skill so the next attempt starts smarter.",
 ];
 
+// ARTIFACTS: a reply with an HTML page and a long code block, for the side pane (prompt: "artifact demo").
+const ARTIFACT_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Medabots</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #1c1329; color: #f4eefc; }
+    main { max-width: 32rem; margin: 3rem auto; padding: 0 1rem; }
+    h1 { color: #cca9ff; }
+    button { font: inherit; padding: 0.5rem 1rem; border-radius: 6px; border: 0; background: #f3941f; color: #0c0917; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Medabots</h1>
+    <p>Two bots, four parts each. The weakest part takes the hit.</p>
+    <button id="fight">Fight a round</button>
+    <p id="log">No rounds yet.</p>
+  </main>
+  <script>
+    let round = 0;
+    document.getElementById("fight").onclick = () => {
+      round += 1;
+      document.getElementById("log").textContent = "Round " + round + ": the left arm takes 3 damage.";
+    };
+  </script>
+</body>
+</html>`;
+const ARTIFACT_TS = `export interface Part { name: string; armor: number; attack: number }\n\nexport interface Bot {\n  name: string;\n  head: Part;\n  leftArm: Part;\n  rightArm: Part;\n  legs: Part;\n}\n\n/** Damage one attack does: attack minus half the armor, never below 1. */\nexport function damage(from: Part, to: Part): number {\n  return Math.max(1, from.attack - Math.floor(to.armor / 2));\n}\n\n/** The part that takes the hit: the weakest one that still works. */\nexport function target(bot: Bot, broken: Set<keyof Bot>): keyof Bot {\n  const parts = ["head", "leftArm", "rightArm", "legs"] as const;\n  const alive = parts.filter((p) => !broken.has(p));\n  return alive.sort((a, b) => bot[a].armor - bot[b].armor)[0] ?? "head";\n}\n\nexport function turn(a: Bot, b: Bot, broken: Set<keyof Bot>): number {\n  const hit = target(b, broken);\n  return damage(a.rightArm, b[hit] as Part);\n}`;
+const ARTIFACT_REPLY = "Here is a first page for the battle rules, and the damage code it will use.\n\n```html\n" + ARTIFACT_HTML + "\n```\n\n```ts\n" + ARTIFACT_TS + "\n```\n\nOpen either one to see it whole; the page runs in a sandbox with no network.";
+
 // PROJECT-SHARING: the members each project's Overview lists (the owner's own projects start with none), and the demo users the add form accepts. ?demo&shared also adds a project mara shared with you as a viewer, with one chat.
 const members: Record<string, import("./types").ProjectMember[]> = {};
 const DEMO_USERS: Record<string, string> = { mara: "u-mara", kees: "u-me" };
@@ -1248,6 +1280,11 @@ export class MockApi implements KompanionApi {
         tool: { tool: "start_work", kind: "chat", title: "Logo ideas for the shop", prompt: "Sketch three logo ideas for the shop: round, with the compass mark, readable at 32 px.\nSay which one you would pick and why." },
         state: "pending", result: null, createdAt: new Date(Date.now() + 50).toISOString() } as PcAction & { chatId: string });
       setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
+    } else if (machineId && /artifact demo/i.test(text)) {
+      // ARTIFACTS: a file the model wrote, with Open on its card.
+      actions.push({ id: id("a"), chatId, machineId, summary: "Write `src/battle.ts`", tool: { tool: "write_file", path: "/home/kees/projects/medabots/src/battle.ts", content: ARTIFACT_TS },
+        state: "done", result: `wrote ${ARTIFACT_TS.length} characters`, createdAt: new Date(Date.now() + 20).toISOString(), startedAt: new Date(Date.now() - 2000).toISOString(), endedAt: new Date(Date.now() - 1500).toISOString() } as PcAction & { chatId: string });
+      setTimeout(() => this.emit({ type: "changed", what: "actions" }), 100);
     } else if (machineId && /every card type/i.test(text)) {
       // Demo of every approval card type (readability checks): one pending card each.
       const tools: [string, Record<string, unknown>][] = [
@@ -1318,7 +1355,7 @@ export class MockApi implements KompanionApi {
     await wait(500);
     this.emit({ type: "message", message: structuredClone(reply) });
 
-    const full = replies[this.replyIndex++ % replies.length];
+    const full = /artifact demo/i.test(text) ? ARTIFACT_REPLY : replies[this.replyIndex++ % replies.length];
     for (const word of full.split(/(?<=\s)/)) {
       await wait(35);
       reply.text += word;
