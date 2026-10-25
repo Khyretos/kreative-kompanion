@@ -5,6 +5,8 @@
 # - KKVaeDecodeTextureCPU: the texture decode on the CPU. On the GPU it returns colours of about +-200 with one half
 #   of the model twice as noisy (the "half noise" colour split); the same latent on the CPU gives 0..1 on both
 #   halves, about 33 s for 1.5 M voxels.
+import gc
+
 import torch
 
 
@@ -87,6 +89,7 @@ class KKVaeDecodeTextureCPU:
         finally:
             mm.get_torch_device = old
             del vae  # free the CPU copy (about 1.8 GB) also when the decode fails
+            gc.collect()  # the CPU copy is about 1.8 GB: free it now, not at the next collection
         return (out[0] if isinstance(out, tuple) else out.result[0],)
 
 
