@@ -8,30 +8,21 @@
   "3": {
     "class_type": "CLIPSetLastLayer",
     "inputs": {
-      "clip": [
-        "1",
-        1
-      ],
+      "clip": ["1", 1],
       "stop_at_clip_layer": -2
     }
   },
   "4": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "clip": [
-        "3",
-        0
-      ],
+      "clip": ["3", 0],
       "text": "scenery"
     }
   },
   "5": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "clip": [
-        "3",
-        0
-      ],
+      "clip": ["3", 0],
       "text": "lowres, blurry, text, watermark, logo, signature, frame, border, worst quality, bad anatomy"
     }
   },
@@ -46,22 +37,10 @@
   "7": {
     "class_type": "KSampler",
     "inputs": {
-      "model": [
-        "1",
-        0
-      ],
-      "positive": [
-        "4",
-        0
-      ],
-      "negative": [
-        "5",
-        0
-      ],
-      "latent_image": [
-        "6",
-        0
-      ],
+      "model": ["1", 0],
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["6", 0],
       "seed": 11,
       "steps": 28,
       "cfg": 5.5,
@@ -73,14 +52,8 @@
   "8": {
     "class_type": "VAEDecodeTiled",
     "inputs": {
-      "samples": [
-        "7",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
+      "samples": ["7", 0],
+      "vae": ["1", 2],
       "tile_size": 512,
       "overlap": 64,
       "temporal_size": 64,
@@ -90,10 +63,7 @@
   "14": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "clip": [
-        "3",
-        0
-      ],
+      "clip": ["3", 0],
       "text": "1girl, solo, full body, simple white background"
     }
   },
@@ -108,22 +78,10 @@
   "17": {
     "class_type": "KSampler",
     "inputs": {
-      "model": [
-        "1",
-        0
-      ],
-      "positive": [
-        "14",
-        0
-      ],
-      "negative": [
-        "5",
-        0
-      ],
-      "latent_image": [
-        "16",
-        0
-      ],
+      "model": ["1", 0],
+      "positive": ["14", 0],
+      "negative": ["5", 0],
+      "latent_image": ["16", 0],
       "seed": 12,
       "steps": 28,
       "cfg": 5.5,
@@ -135,14 +93,8 @@
   "18": {
     "class_type": "VAEDecodeTiled",
     "inputs": {
-      "samples": [
-        "17",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
+      "samples": ["17", 0],
+      "vae": ["1", 2],
       "tile_size": 512,
       "overlap": 64,
       "temporal_size": 64,
@@ -158,23 +110,14 @@
   "91": {
     "class_type": "RemoveBackground",
     "inputs": {
-      "bg_removal_model": [
-        "90",
-        0
-      ],
-      "image": [
-        "18",
-        0
-      ]
+      "bg_removal_model": ["90", 0],
+      "image": ["18", 0]
     }
   },
   "92": {
     "class_type": "InvertMask",
     "inputs": {
-      "mask": [
-        "91",
-        0
-      ]
+      "mask": ["91", 0]
     }
   },
   "60": {
@@ -186,26 +129,11 @@
   "20": {
     "class_type": "KKPromoBanner",
     "inputs": {
-      "background": [
-        "8",
-        0
-      ],
-      "subject": [
-        "18",
-        0
-      ],
-      "subject_mask": [
-        "92",
-        0
-      ],
-      "logo": [
-        "60",
-        0
-      ],
-      "logo_mask": [
-        "60",
-        1
-      ],
+      "background": ["8", 0],
+      "subject": ["18", 0],
+      "subject_mask": ["92", 0],
+      "logo": ["60", 0],
+      "logo_mask": ["60", 1],
       "headline": "kk-engine",
       "tagline": "",
       "size": "repo-banner",
