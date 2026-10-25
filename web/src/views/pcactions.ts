@@ -1,7 +1,7 @@
-import { html, type SafeHtml } from "../core/html";
+import { codeSpans, html, type SafeHtml } from "../core/html";
 import type { PcAction } from "../api/client";
 import { fromTool, renderOutput } from "../core/output";
-import { kindOf, NEED_LABEL, styleOf, type CardStyle } from "../core/cardtypes";
+import { kindOf, styleOf, type CardStyle } from "../core/cardtypes";
 import { spawnOf } from "../core/commandcard";
 import { t } from "../core/i18n";
 
@@ -31,17 +31,18 @@ export function renderPcPicker(
   `;
 }
 
-const stateLabels: Record<string, string> = {
-  pending: "waiting for you",
-  approved: "starting…",
-  always: "starting…",
-  granting: "waiting for the computer to allow it…",
-  running: "running…",
-  denied: "declined",
-  done: "done",
-  failed: "failed",
-  refused: "not allowed on that computer",
-};
+const stateKeys = {
+  pending: "stPending",
+  approved: "stStarting",
+  always: "stStarting",
+  granting: "stGranting",
+  running: "stRunning",
+  denied: "stDenied",
+  done: "stDone",
+  failed: "stFailed",
+  refused: "stRefused",
+} as const;
+const stateLabel = (state: string): string => (state in stateKeys ? t(stateKeys[state as keyof typeof stateKeys]) : state);
 
 export function renderPcActions(actions: PcAction[], machineNames: Record<string, string>, cardStyle?: CardStyle): SafeHtml {
   if (actions.length === 0) {
@@ -53,13 +54,14 @@ export function renderPcActions(actions: PcAction[], machineNames: Record<string
   return html`
     <section class="pc-actions" aria-label="Steps on your computer">
       ${recent.map((a) => {
-        const label = stateLabels[a.state] ?? a.state;
+        const label = stateLabel(a.state);
+        const need = t(a.state === "pending" ? "needApproval" : "needAutomatic");
         const hasResult = !!a.result;
-        const buttons = html`
-          <button class="btn small primary" data-action="pc-decide" data-id="${a.id}" data-decision="approve">Approve</button>
-          <button class="btn small" data-action="pc-decide" data-id="${a.id}" data-decision="always">Always allow (24 h)</button>
-          <button class="btn small danger" data-action="pc-decide" data-id="${a.id}" data-decision="deny">Deny</button>
-        `;
+        const buttons = html`<div class="actions">
+          <button class="btn small primary" data-action="pc-decide" data-id="${a.id}" data-decision="approve">${t("approve")}</button>
+          <button class="btn small" data-action="pc-decide" data-id="${a.id}" data-decision="always">${t("alwaysAllow")}</button>
+          <button class="btn small danger" data-action="pc-decide" data-id="${a.id}" data-decision="deny">${t("deny")}</button>
+        </div>`;
 
         // AGENT-SPAWN: a new chat or task: its prompt, Approve or Deny (no computer, no grant).
         const spawn = spawnOf(a.tool);
@@ -68,27 +70,23 @@ export function renderPcActions(actions: PcAction[], machineNames: Record<string
           <article class="pc-action spawn ${a.state} kind-${kindOf(a.tool)}">
             <header class="card-kind" style="--kind:${styleOf(kindOf(a.tool), cardStyle).color}">
               <span>${t(spawn.kind === "task" ? "spawnTask" : "spawnChat")}</span>
-              <span class="need">${a.state === "pending" ? NEED_LABEL.approval : NEED_LABEL.automatic}</span>
+              <span class="need">${need}</span>
             </header>
-            <strong>${a.summary}</strong>
-            <span class="muted small">${t("spawnBy")}</span>
+            <p class="pc-line"><strong>${codeSpans(a.summary)}</strong> <span class="muted small">${t("spawnBy")}</span>${a.state === "pending" ? "" : html` <span class="chip ${a.state}">${label}</span>`}</p>
             <div class="spawn-prompt" role="group" aria-label="${t("spawnPrompt")}">${spawn.prompt}</div>
-            <span class="chip ${a.state}">${label}</span>
-            ${a.state === "pending" ? html`
+            ${a.state === "pending" ? html`<div class="actions">
               <button class="btn small primary" data-action="pc-decide" data-id="${a.id}" data-decision="approve">${t("approve")}</button>
-              <button class="btn small danger" data-action="pc-decide" data-id="${a.id}" data-decision="deny">${t("deny")}</button>` : null}
+              <button class="btn small danger" data-action="pc-decide" data-id="${a.id}" data-decision="deny">${t("deny")}</button></div>` : null}
           </article>`;
         }
         return html`
           <article class="pc-action ${a.state} kind-${kindOf(a.tool)}">
             <header class="card-kind" style="--kind:${styleOf(kindOf(a.tool), cardStyle).color}">
               <span>${styleOf(kindOf(a.tool), cardStyle).label}</span>
-              <span class="need">${a.state === "pending" ? NEED_LABEL.approval : NEED_LABEL.automatic}</span>
+              <span class="need">${need}</span>
             </header>
-            <strong>${a.summary}</strong>
-            <span class="muted small">on ${machineNames[a.machineId] ?? "a computer"}</span>
-            ${a.needs && a.state === "pending" ? html`<span class="small">Needs: ${a.needs}</span>` : ""}
-            <span class="chip ${a.state}">${label}</span>
+            <p class="pc-line"><strong>${codeSpans(a.summary)}</strong> <span class="muted small">${t("onMachine", { name: machineNames[a.machineId] ?? t("aComputer") })}</span>${a.state === "pending" ? "" : html` <span class="chip ${a.state}">${label}</span>`}</p>
+            ${a.needs && a.state === "pending" ? html`<span class="small">${t("needsWhat", { what: a.needs })}</span>` : ""}
             ${hasResult ? renderOutput(fromTool(a.tool, a.result ?? "", machineNames[a.machineId])) : ""}
             ${a.state === "pending" ? buttons : null}
           </article>

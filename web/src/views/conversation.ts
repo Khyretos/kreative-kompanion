@@ -1,5 +1,5 @@
 // Middle pane: the conversation with the project's orchestrator.
-import { html, type SafeHtml } from "../core/html";
+import { codeSpans, html, type SafeHtml } from "../core/html";
 import { renderMarkdown } from "../core/markdown";
 import { langOfPath, type Artifact } from "../core/artifact";
 import { linkSources, renderSources, splitSources } from "../core/sources";
@@ -75,7 +75,7 @@ function stepLine(a: PcAction): SafeHtml {
   }
   if (path) return html`<span class="step-path" title="${path}">${shortPath(path)}</span>`;
   const command = commandText(a.tool);
-  return command ? highlightHtml(command, commandLang(a.tool)) : html`${a.summary}`;
+  return command ? highlightHtml(command, commandLang(a.tool)) : codeSpans(a.summary);
 }
 
 /** A long path as its last three parts ("…/runner/src/proc.rs"); the full one is in the title. */

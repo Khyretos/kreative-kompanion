@@ -93,11 +93,11 @@ function header(v: OverviewView): SafeHtml {
       <div class="ov-title">
         <h2 class="ov-name">${name}</h2>
         ${isOwner(v) ? html`<button class="icon-btn" type="button" data-action="overview-edit" data-id="${v.project.id}" aria-label="Edit name, description, about and links">${icon("edit")}</button>` : ""}
-      </div>
-      <div class="ov-chips">
-        <span class="chip">${TYPE_LABEL[type] ?? type}</span>
-        ${kind === "windshift" ? html`<span class="chip">Synced with Windshift</span>` : ""}
-        ${archivedAt ? html`<span class="chip archived-chip">Archived</span>` : ""}
+        <span class="ov-chips">
+          <span class="chip">${TYPE_LABEL[type] ?? type}</span>
+          ${kind === "windshift" ? html`<span class="chip">Synced with Windshift</span>` : ""}
+          ${archivedAt ? html`<span class="chip archived-chip">Archived</span>` : ""}
+        </span>
       </div>
       ${description ? html`<p class="ov-desc">${description}</p>` : html`<p class="ov-desc muted">No description yet.</p>`}
     </header>
@@ -118,7 +118,7 @@ function tiles(v: OverviewView): SafeHtml {
   const p = v.o.progress;
   const pct = p.total ? Math.round(p.done * 100 / p.total) : 0;
   const last = v.o.activity && v.o.activity.length > 0
-    ? relTime(v.o.activity[0].at)
+    ? relTime(v.o.activity[0].at).replace(/ ago$/, "") // the label already says "Last activity"
     : "None";
 
   return html`<div class="ov-tiles">
@@ -341,7 +341,7 @@ export function membersRow(v: OverviewView): SafeHtml {
   let form: SafeHtml = html``;
   if (o.role === "owner") {
     form = html`<form class="member-add" data-id="${v.project.id}">
-      <input name="member" placeholder="Add a person by name" aria-label="Name of the person to add" autocomplete="off" required>
+      <input name="member" placeholder="Add a person" aria-label="Name of the person to add" autocomplete="off" required>
       <select name="role" aria-label="Role"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
       <button class="btn small" type="submit">Add</button>
       <span class="member-error error" role="alert">${v.memberError ?? ""}</span>

@@ -140,7 +140,7 @@ test("an empty about invites the owner to add one", async ({ page }) => {
 });
 
 for (const scheme of ["light", "dark"] as const) {
-  test(`phone: the project opens the Tasks pane on its overview, tiles 2x2, no sideways scroll (${scheme})`, async ({ page }) => {
+  test(`phone: the project opens the Tasks pane on its overview, tiles on one row, no sideways scroll (${scheme})`, async ({ page }) => {
     await openDemo(page, 1280, 900, scheme);
     await setUpKk(page);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -151,10 +151,8 @@ for (const scheme of ["light", "dark"] as const) {
     await expect(o).toBeVisible();
     const boxes = await o.locator(".ov-tile").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: Math.round(r.x), y: Math.round(r.y) })));
     expect(boxes).toHaveLength(4);
-    expect(boxes[0].y).toBe(boxes[1].y);
-    expect(boxes[2].y).toBe(boxes[3].y);
-    expect(boxes[2].y).toBeGreaterThan(boxes[0].y);
-    expect(boxes[0].x).toBe(boxes[2].x);
+    // One compact row of four, also on a phone.
+    expect(new Set(boxes.map((b) => b.y)).size).toBe(1);
     // Every section after the About is collapsed on a phone.
     for (const name of ["where", "access", "build", "activity", "ai", "settings"]) {
       await expect(secToggle(page, name)).toHaveAttribute("aria-expanded", "false");
@@ -191,12 +189,14 @@ test("tiles follow the width of the overview, not the window; the progress bar i
   await head(page, "p-kk").click();
   const o = overview(page);
   await expect(o.locator(".ov-tiles .ov-tile")).toHaveCount(4);
-  const columns = async () => (await o.locator(".ov-tiles").evaluate((el) => getComputedStyle(el).gridTemplateColumns)).split(" ").length;
-  // A wide window with a narrow pane gives 2x2, a wide pane gives one row of four.
-  await o.evaluate((el) => (el.style.width = "420px"));
-  await expect.poll(columns).toBe(2);
-  await o.evaluate((el) => (el.style.width = "760px"));
-  await expect.poll(columns).toBe(4);
+  // The width is set in the same step as the read: a live re-render of the overview drops an inline style.
+  const columns = (width: string) => async () => o.evaluate((el, w) => {
+    (el as HTMLElement).style.width = w;
+    return getComputedStyle(el.querySelector(".ov-tiles") as Element).gridTemplateColumns.split(" ").length;
+  }, width);
+  // One row of four down to phone width; only a pane narrower than 18rem falls back to 2x2.
+  await expect.poll(columns("250px")).toBe(2);
+  await expect.poll(columns("340px")).toBe(4);
   // The progress bar uses the primary plum (--brand), not the orange accent.
   await expect(o.locator(".ov-bar > span")).toHaveCSS("background-color", "rgb(92, 57, 142)");
   const brand = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--brand").trim());
