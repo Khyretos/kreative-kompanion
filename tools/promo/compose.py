@@ -126,7 +126,10 @@ def _fit_size(text, size, width, font_path):
 
 
 def _open_image(path, what):
-    """Open an input picture as RGBA, with a clear error when the file is not there."""
+    """Open an input picture as RGBA, with a clear error when the file is not there. A PIL image is taken as it is
+    (the Studio's banner node passes ComfyUI pictures straight in)."""
+    if isinstance(path, Image.Image):
+        return path.convert("RGBA")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"{what} image not found: {path}")
     return Image.open(path).convert("RGBA")

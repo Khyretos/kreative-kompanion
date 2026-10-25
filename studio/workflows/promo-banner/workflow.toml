@@ -1,0 +1,83 @@
+# STU-P3: a banner a designer can edit. SDXL paints a background scene and a subject, BiRefNet cuts the subject out,
+# and the KKPromoBanner node (studio/comfy-nodes/kk_promo.py with tools/promo/compose.py) lays out background,
+# subject, the Kreative Kompas logo (logo.png), headline and tagline, checks the text against WCAG AA (dark scrim
+# behind it when needed) and saves banner.png, banner.ora (layers for Krita and GIMP) and banner.svg (live text).
+# Measured 2026-10-25 on soucouyant (kk-render): background 1344x704 + subject 832x1216 in 24 s, cut-out 3-4 s.
+title = "Banner"
+description = "A banner with your headline: a painted background, a cut-out character and the logo as separate layers, saved as PNG, OpenRaster (.ora, Krita and GIMP) and SVG with editable text."
+graph = "graph.json"
+outputs = ["20"]
+machines = ["soucouyant"]
+vram_mb = 11000
+ram_mb = 12000
+
+[images]
+"60" = "logo.png"
+
+[studio]
+label = "Banner"
+hint = "Background, character and logo as editable layers"
+sizes = ["wide"]
+order = 30
+
+[[param]]
+name = "prompt"
+type = "string"
+default = "wide fantasy valley at dusk, floating islands, glowing purple and orange sky"
+node = "4"
+input = "text"
+template = "masterpiece, best quality, no humans, scenery, {value}, cinematic lighting"
+
+[[param]]
+name = "subject"
+type = "string"
+default = "an adventurer in a purple and orange jacket with a sword, dynamic heroic pose"
+node = "14"
+input = "text"
+template = "masterpiece, best quality, solo, full body, {value}, simple white background"
+
+[[param]]
+name = "headline"
+type = "string"
+default = "kk-engine"
+node = "20"
+input = "headline"
+
+[[param]]
+name = "tagline"
+type = "string"
+default = "An open game engine you can read"
+node = "20"
+input = "tagline"
+
+[[param]]
+name = "format"
+type = "choice"
+default = "repo-banner"
+choices = ["repo-banner", "social", "steam-header", "steam-main", "discord"]
+node = "20"
+input = "size"
+
+[[param]]
+name = "side"
+type = "choice"
+default = "right"
+choices = ["right", "left"]
+node = "20"
+input = "side"
+
+[[param]]
+name = "seed"
+type = "seed"
+default = -1
+node = "7"
+input = "seed"
+also = [{ node = "17", input = "seed", add = 1 }]
+
+[[model]]
+file = "novaAnimeXL_ilV170.safetensors"
+licence = "Fair AI Public License 1.0-SD"
+
+[[model]]
+file = "birefnet.safetensors"
+licence = "MIT"

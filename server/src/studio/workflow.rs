@@ -907,6 +907,28 @@ licence = "CreativeML OpenRAIL-M"
         assert!(w.fill(&g, &given(json!({"prompt": "x", "background": "beach"}))).unwrap_err().contains("background must be one of white, starry"));
     }
 
+    /// STU-P3: the banner workflow feeds the KKPromoBanner node and its params reach it.
+    #[test]
+    fn promo_banner_lays_out_the_layers() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
+        let all = load_all(&dir);
+        let w = all.iter().find(|(n, _)| n == "promo-banner").expect("promo-banner missing").1.as_ref().unwrap();
+        let g = w.graph_for("soucouyant").unwrap();
+        assert_eq!(g["20"]["class_type"], json!("KKPromoBanner"));
+        assert_eq!(w.outputs, vec!["20".to_string()]);
+        assert_eq!(w.images.get("60").map(String::as_str), Some("logo.png"));
+        let mut p = Map::new();
+        p.insert("headline".into(), json!("Kompanion"));
+        p.insert("format".into(), json!("social"));
+        p.insert("side".into(), json!("left"));
+        let (f, _) = w.fill(&g, &p).unwrap();
+        assert_eq!(f["20"]["inputs"]["headline"], json!("Kompanion"));
+        assert_eq!(f["20"]["inputs"]["size"], json!("social"));
+        assert_eq!(f["20"]["inputs"]["side"], json!("left"));
+        assert!(f["4"]["inputs"]["text"].as_str().unwrap().contains("no humans"));
+        assert!(w.fill(&g, &json!({"format": "billboard"}).as_object().unwrap().clone()).is_err());
+    }
+
     #[test]
     fn refine_workflows_take_their_pictures() {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio/workflows");
