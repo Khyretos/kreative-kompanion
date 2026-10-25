@@ -56,9 +56,12 @@ PROFILES = {
     "sdxl": ("comfyui-rocm:local", 0.50, "8.5", "--bf16-vae"),
     # TRELLIS.2: the fp16 and bf16 VAE decodes give NaN on gfx1201, so fp32 (3d-01 notes).
     "trellis": ("comfyui-rocm:local", 0.60, "6.8", "--fp32-vae"),
+    # the production setup: no global VAE flag; studio/comfy-nodes/kk_trellis.py loads the TRELLIS VAEs in fp32 itself
+    "trellis-nodes": ("comfyui-rocm:local", 0.60, "6.8", ""),
     # MV-Adapter SD2.1 (STU-SHEET3D; Kees chose SD21 on 2026-10-19): 4 views at 512 measured 6.9 GB card total.
     "mv": ("comfyui-mv:q19", 0.50, "8.5", "--bf16-vae"),
 }
+KK_NODES = [(f"{HOME}/.local/lib/kk-render/kk_trellis.py", "/app/custom_nodes/kk_trellis.py", "ro")]
 MV_MOUNTS = [
     (f"{M}/mvadapter", "/mvm/mvadapter", "ro"),
     (f"{HOME}/kk-mv/diffusers-cache", "/mvcache", "rw"),
@@ -269,14 +272,14 @@ def start_container(profile, extra=()):
            "-e", "TZ=Europe/Amsterdam", "-e", "HSA_OVERRIDE_GFX_VERSION=12.0.1",
            "-e", f"KK_VRAM_FRACTION={frac}", "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False", "-e", "PYTORCH_HIP_ALLOC_CONF=expandable_segments:False",
            "-v", "kk-render-cache:/home/comfy/.cache"]
-    family = {"trellis": TRELLIS_MOUNTS, "mv": MV_MOUNTS}.get(profile, SDXL_MOUNTS)
+    family = {"trellis": TRELLIS_MOUNTS, "trellis-nodes": TRELLIS_MOUNTS + KK_NODES, "mv": MV_MOUNTS}.get(profile, SDXL_MOUNTS)
     if profile == "mv":
         cmd += MV_ENV
     for src, dst, mode in MOUNTS + family:
         if os.path.exists(src):
             cmd += ["-v", f"{src}:{dst}:{mode}"]
     cmd += [image, "python", "main.py", "--listen", "127.0.0.1", "--port", str(PORT), "--disable-auto-launch",
-            "--output-directory", "/media-out", "--fast-disk", "--disable-pinned-memory", "--reserve-vram", reserve, vae, "--preview-method", "none", *extra]
+            "--output-directory", "/media-out", "--fast-disk", "--disable-pinned-memory", "--reserve-vram", reserve, *([vae] if vae else []), "--preview-method", "none", *extra]
     subprocess.run(cmd, check=True, capture_output=True, timeout=120)
     t0 = time.time()
     while time.time() - t0 < 180:

@@ -1,0 +1,47 @@
+{
+ "1": {
+  "class_type": "KKLoadLatent",
+  "inputs": {
+   "name": "goblin-tex-latent"
+  }
+ },
+ "2": {
+  "class_type": "KKLoadSubdivides",
+  "inputs": {
+   "name": "goblin-subs"
+  }
+ },
+ "3": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "trellis_2_texture_vae_bf16.safetensors"
+  }
+ },
+ "4": {
+  "class_type": "VaeDecodeTextureTrellis",
+  "inputs": {
+   "samples": [
+    "1",
+    0
+   ],
+   "vae": [
+    "3",
+    0
+   ],
+   "shape_subdivides": [
+    "2",
+    0
+   ]
+  }
+ },
+ "5": {
+  "class_type": "KKDumpVoxel",
+  "inputs": {
+   "voxel": [
+    "4",
+    0
+   ],
+   "name": "goblin-voxel-cpu"
+  }
+ }
+}
