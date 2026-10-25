@@ -1,0 +1,486 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+  }
+ },
+ "3": {
+  "class_type": "CLIPSetLastLayer",
+  "inputs": {
+   "clip": [
+    "1",
+    1
+   ],
+   "stop_at_clip_layer": -2
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "lowres, bad anatomy, bad hands, extra fingers, multiple views, two people, frame, border, text, watermark, blurry"
+  }
+ },
+ "70": {
+  "class_type": "UpscaleModelLoader",
+  "inputs": {
+   "model_name": "4x-AnimeSharp.pth"
+  }
+ },
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-goblin-1.png"
+  }
+ },
+ "11": {
+  "class_type": "ImageUpscaleWithModel",
+  "inputs": {
+   "upscale_model": [
+    "70",
+    0
+   ],
+   "image": [
+    "10",
+    0
+   ]
+  }
+ },
+ "12": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "11",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 640,
+   "height": 1280,
+   "crop": "disabled"
+  }
+ },
+ "13": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "12",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "14": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1boy, solo, green-skinned goblin, pointed ears, black leather outfit with silver trim, brown boots, full body, standing, front view, plain grey background"
+  }
+ },
+ "15": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "14",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "13",
+    0
+   ],
+   "seed": 300,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.3
+  }
+ },
+ "16": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "15",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "17": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "16",
+    0
+   ],
+   "filename_prefix": "sheet3d/refined-goblin-1"
+  }
+ },
+ "20": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-goblin-2.png"
+  }
+ },
+ "21": {
+  "class_type": "ImageUpscaleWithModel",
+  "inputs": {
+   "upscale_model": [
+    "70",
+    0
+   ],
+   "image": [
+    "20",
+    0
+   ]
+  }
+ },
+ "22": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "21",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 640,
+   "height": 1280,
+   "crop": "disabled"
+  }
+ },
+ "23": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "22",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "24": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1boy, solo, green-skinned goblin, pointed ears, black leather outfit with silver trim, brown boots, full body, standing, right side view, profile, plain grey background"
+  }
+ },
+ "25": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "24",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "23",
+    0
+   ],
+   "seed": 301,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.3
+  }
+ },
+ "26": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "25",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "27": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "26",
+    0
+   ],
+   "filename_prefix": "sheet3d/refined-goblin-2"
+  }
+ },
+ "30": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-goblin-3.png"
+  }
+ },
+ "31": {
+  "class_type": "ImageUpscaleWithModel",
+  "inputs": {
+   "upscale_model": [
+    "70",
+    0
+   ],
+   "image": [
+    "30",
+    0
+   ]
+  }
+ },
+ "32": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "31",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 640,
+   "height": 1280,
+   "crop": "disabled"
+  }
+ },
+ "33": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "32",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "34": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1boy, solo, green-skinned goblin, pointed ears, black leather outfit with silver trim, brown boots, full body, standing, back view, from behind, plain grey background"
+  }
+ },
+ "35": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "34",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "33",
+    0
+   ],
+   "seed": 302,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.3
+  }
+ },
+ "36": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "35",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "37": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "36",
+    0
+   ],
+   "filename_prefix": "sheet3d/refined-goblin-3"
+  }
+ },
+ "40": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-goblin-4.png"
+  }
+ },
+ "41": {
+  "class_type": "ImageUpscaleWithModel",
+  "inputs": {
+   "upscale_model": [
+    "70",
+    0
+   ],
+   "image": [
+    "40",
+    0
+   ]
+  }
+ },
+ "42": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "41",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 640,
+   "height": 1280,
+   "crop": "disabled"
+  }
+ },
+ "43": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "42",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "44": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1boy, solo, green-skinned goblin, pointed ears, black leather outfit with silver trim, brown boots, full body, standing, left side view, profile, plain grey background"
+  }
+ },
+ "45": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "44",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "43",
+    0
+   ],
+   "seed": 303,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.3
+  }
+ },
+ "46": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "45",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "47": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "46",
+    0
+   ],
+   "filename_prefix": "sheet3d/refined-goblin-4"
+  }
+ }
+}

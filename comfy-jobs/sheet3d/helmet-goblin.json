@@ -1,0 +1,428 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+  }
+ },
+ "3": {
+  "class_type": "CLIPSetLastLayer",
+  "inputs": {
+   "clip": [
+    "1",
+    1
+   ],
+   "stop_at_clip_layer": -2
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "lowres, bad anatomy, frame, border, text, watermark, blurry, bare head, hair visible, face showing through"
+  }
+ },
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/head-goblin-front.png"
+  }
+ },
+ "11": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "10",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 1024,
+   "height": 1024,
+   "crop": "disabled"
+  }
+ },
+ "13": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "11",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "14": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, green goblin, pointed ears, wearing a dented iron skullcap helmet with ear holes, pointed ears sticking out, head and shoulders, front view, plain grey background"
+  }
+ },
+ "15": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "14",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "13",
+    0
+   ],
+   "seed": 500,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.6
+  }
+ },
+ "16": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "15",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "17": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "16",
+    0
+   ],
+   "filename_prefix": "sheet3d/helmet-goblin-front"
+  }
+ },
+ "20": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/head-goblin-right.png"
+  }
+ },
+ "21": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "20",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 1024,
+   "height": 1024,
+   "crop": "disabled"
+  }
+ },
+ "23": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "21",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "24": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, green goblin, pointed ears, wearing a dented iron skullcap helmet with ear holes, pointed ears sticking out, head and shoulders, side view, profile, plain grey background"
+  }
+ },
+ "25": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "24",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "23",
+    0
+   ],
+   "seed": 501,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.6
+  }
+ },
+ "26": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "25",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "27": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "26",
+    0
+   ],
+   "filename_prefix": "sheet3d/helmet-goblin-right"
+  }
+ },
+ "30": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/head-goblin-left.png"
+  }
+ },
+ "31": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "30",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 1024,
+   "height": 1024,
+   "crop": "disabled"
+  }
+ },
+ "33": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "31",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "34": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, green goblin, pointed ears, wearing a dented iron skullcap helmet with ear holes, pointed ears sticking out, head and shoulders, side view, profile, plain grey background"
+  }
+ },
+ "35": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "34",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "33",
+    0
+   ],
+   "seed": 502,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.6
+  }
+ },
+ "36": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "35",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "37": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "36",
+    0
+   ],
+   "filename_prefix": "sheet3d/helmet-goblin-left"
+  }
+ },
+ "40": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/head-goblin-back.png"
+  }
+ },
+ "41": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "40",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 1024,
+   "height": 1024,
+   "crop": "disabled"
+  }
+ },
+ "43": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "41",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "44": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, green goblin, pointed ears, wearing a dented iron skullcap helmet with ear holes, pointed ears sticking out, head and shoulders, back view, back of the helmet, plain grey background"
+  }
+ },
+ "45": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "44",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "43",
+    0
+   ],
+   "seed": 503,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.6
+  }
+ },
+ "46": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "45",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "47": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "46",
+    0
+   ],
+   "filename_prefix": "sheet3d/helmet-goblin-back"
+  }
+ }
+}

@@ -1,0 +1,97 @@
+{
+ "1": {
+  "class_type": "DiffusersMVPipelineLoader",
+  "inputs": {
+   "ckpt_name": "/mvm/mvadapter/sd21-base",
+   "pipeline_name": "MVAdapterI2MVSDPipeline"
+  }
+ },
+ "2": {
+  "class_type": "DiffusersMVSchedulerLoader",
+  "inputs": {
+   "pipeline": [
+    "1",
+    0
+   ],
+   "scheduler_name": "DDPM",
+   "shift_snr": true,
+   "shift_mode": "interpolated",
+   "shift_scale": 8.0
+  }
+ },
+ "3": {
+  "class_type": "DiffusersMVModelMakeup",
+  "inputs": {
+   "pipeline": [
+    "1",
+    0
+   ],
+   "scheduler": [
+    "2",
+    0
+   ],
+   "autoencoder": [
+    "1",
+    1
+   ],
+   "load_mvadapter": true,
+   "adapter_path": "/mvm/mvadapter",
+   "adapter_name": "mvadapter_i2mv_sd21.safetensors",
+   "num_views": 4,
+   "enable_vae_slicing": true,
+   "enable_vae_tiling": true
+  }
+ },
+ "7": {
+  "class_type": "ViewSelector",
+  "inputs": {
+   "front_view": true,
+   "front_right_view": false,
+   "right_view": true,
+   "back_view": true,
+   "left_view": true,
+   "front_left_view": false
+  }
+ },
+ "4": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/ref21-goblin.png"
+  }
+ },
+ "5": {
+  "class_type": "DiffusersMVSampler",
+  "inputs": {
+   "pipeline": [
+    "3",
+    0
+   ],
+   "num_views": 4,
+   "prompt": "masterpiece, best quality, green goblin rogue in a black leather outfit and brown boots, full body, standing",
+   "negative_prompt": "watermark, ugly, deformed, noisy, blurry, low contrast",
+   "width": 512,
+   "height": 512,
+   "steps": 40,
+   "cfg": 3.0,
+   "seed": 21,
+   "reference_image": [
+    "4",
+    0
+   ],
+   "azimuth_degrees": [
+    "7",
+    0
+   ]
+  }
+ },
+ "6": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "5",
+    0
+   ],
+   "filename_prefix": "sheet3d/mv-goblin"
+  }
+ }
+}
