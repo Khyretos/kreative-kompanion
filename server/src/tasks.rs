@@ -49,6 +49,10 @@ struct Row {
     effort: String,
     parent_id: Option<String>,
     kind: String,
+    /// COMPACT-UI: runs of this task still going, and the newest sign of life (a run starting or
+    /// ending, a model call or a step of a running run); none for a task Kompanion never ran.
+    active_runs: i64,
+    last_activity: Option<String>,
 }
 
 fn to_json(r: Row, deps: Vec<String>) -> Value {
@@ -57,10 +61,17 @@ fn to_json(r: Row, deps: Vec<String>) -> Value {
         "state": r.state, "position": r.position, "progress": r.progress, "step": r.step,
         "role": r.role, "model": r.model, "source": r.source, "updatedAt": r.updated_at, "effort": r.effort, "events": [],
         "parentId": r.parent_id, "kind": r.kind, "dependsOn": deps,
+        "activeRun": r.active_runs > 0, "lastActivity": r.last_activity,
     })
 }
 
-const COLUMNS: &str = "id, project_id, title, description, state, position, progress, step, role, model, source, updated_at, effort, parent_id, kind";
+const COLUMNS: &str = "id, project_id, title, description, state, position, progress, step, role, model, source, updated_at, effort, parent_id, kind,
+    (SELECT COUNT(*) FROM runs r WHERE r.task_id = tasks.id AND r.status = 'running') AS active_runs,
+    (SELECT MAX(x) FROM (
+        SELECT MAX(COALESCE(r.ended_at, r.started_at)) AS x FROM runs r WHERE r.task_id = tasks.id
+        UNION ALL SELECT MAX(c.at) FROM calls c JOIN runs r ON r.id = c.run_id WHERE r.task_id = tasks.id AND r.status = 'running'
+        UNION ALL SELECT MAX(COALESCE(p.ended_at, p.decided_at, p.created_at)) FROM pc_actions p JOIN runs r ON r.id = p.run_id
+          WHERE r.task_id = tasks.id AND r.status = 'running')) AS last_activity";
 
 #[derive(Deserialize)]
 pub struct ListQuery {
@@ -485,6 +496,28 @@ pub async fn set_project_kind(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_task_says_whether_a_run_is_active_and_when_it_last_did_something() {
+        let db = db().await;
+        for q in [
+            "INSERT INTO tasks (id, project_id, title, state, position, updated_at, user_id) VALUES ('ta','p1','Imported, never run','running',1,'2026-10-03T16:00:00Z','u1'), ('tb','p1','Running here','running',2,'2026-10-24T10:00:00Z','u1')",
+            "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES ('c1','p1','T','2026','u1')",
+            "INSERT INTO machines (id, user_id, name, token_hash, created_at) VALUES ('m1','u1','pc','h','2026')",
+            "INSERT INTO runs (id, task_id, user_id, chat_id, machine_id, folder, started_at, status) VALUES ('r1','tb','u1','c1','m1','/x','2026-10-24T10:00:00Z','running')",
+            "INSERT INTO calls (id, user_id, chat_id, run_id, role, provider_id, model_id, reason, request, response, ms, at) VALUES ('k1','u1','c1','r1','worker','p','m','r','{}','\"\"',1,'2026-10-24T10:05:00Z')",
+            "INSERT INTO pc_actions (id, chat_id, user_id, machine_id, tool, summary, state, created_at, run_id) VALUES ('a1','c1','u1','m1','{}','ls','running','2026-10-24T10:06:00Z','r1')",
+        ] {
+            sqlx::query(q).execute(&db).await.unwrap();
+        }
+        let a = to_json(one(&db, "ta", "u1").await.unwrap(), vec![]);
+        assert_eq!((a["activeRun"].as_bool(), a["lastActivity"].as_str()), (Some(false), None));
+        let b = to_json(one(&db, "tb", "u1").await.unwrap(), vec![]);
+        assert_eq!((b["activeRun"].as_bool(), b["lastActivity"].as_str()), (Some(true), Some("2026-10-24T10:06:00Z")));
+        sqlx::query("UPDATE runs SET status = 'done', ended_at = '2026-10-24T10:09:00Z'").execute(&db).await.unwrap();
+        let b = to_json(one(&db, "tb", "u1").await.unwrap(), vec![]);
+        assert_eq!((b["activeRun"].as_bool(), b["lastActivity"].as_str()), (Some(false), Some("2026-10-24T10:09:00Z")));
+    }
 
     #[test]
     fn descriptions_need_a_body() {

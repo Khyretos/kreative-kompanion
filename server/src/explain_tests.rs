@@ -55,12 +55,11 @@ fn commands_read_as_typed() {
 }
 
 #[tokio::test]
-async fn off_by_default_then_explained_once_and_cached() {
+async fn explained_on_the_first_click_and_cached_without_any_setting() {
     let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let s = state(db().await, &fake_model("Deletes the **build** folder.", calls.clone()).await);
     assert_eq!(prefs(&s.db, "u1").await, Prefs::default());
-    assert!(matches!(ask(&s, "u1", "a1").await.unwrap_err(), ApiError::BadRequest(_)));
-    set_prefs(&s.db, "u1", Prefs { on: true, ..Prefs::default() }).await.unwrap();
+    // A click is the opt-in: no setting needed (it only picks the detail and the model).
     let Json(first) = ask(&s, "u1", "a1").await.unwrap();
     assert_eq!((first["text"].as_str(), first["cached"].as_bool()), (Some("Deletes the **build** folder."), Some(false)));
     let Json(again) = ask(&s, "u1", "a1").await.unwrap();

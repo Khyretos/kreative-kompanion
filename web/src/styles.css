@@ -488,13 +488,14 @@ li.task.dragging { opacity: 0.5; }
 .conv-title h1 { font-size: 1.05rem; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .messages { flex: 1; overflow-y: auto; padding: 1.5rem 1.25rem; display: flex; flex-direction: column; gap: 1.5rem; }
 .msg { width: min(46rem, 100%); margin-inline: auto; display: grid; gap: 0.35rem; }
-.msg header { display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.8rem; }
+.msg header { display: flex; gap: 0.6rem; align-items: center; font-size: 0.8rem; }
 .msg .who { font-weight: 650; }
 /* MSG-ACT: Copy, Edit and resend, Regenerate under a message: quiet until the message is hovered
    or focused on a desktop, always there on a touch screen. */
-.msg-actions { display: flex; gap: 0.15rem; margin-top: -0.1rem; }
-.msg.user .msg-actions { justify-content: flex-end; }
-.msg-act { width: 1.9rem; height: 1.9rem; color: var(--muted); border-radius: 6px; }
+/* COMPACT-UI: next to the message's time, not a row of their own. */
+.msg-actions { display: inline-flex; align-items: center; gap: 0.1rem; align-self: center; }
+.msg-act { width: 1.6rem; height: 1.6rem; color: var(--muted); border-radius: 6px; }
+.msg-act .icon { width: 0.95rem; height: 0.95rem; }
 .msg-act:hover { color: var(--fg); background: var(--surface-2); }
 .msg-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .msg-act.done { color: var(--good); }
@@ -509,7 +510,8 @@ li.task.dragging { opacity: 0.5; }
 .msg-edit-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .msg-edit p { margin: 0; }
 .msg-edit-buttons { display: flex; justify-content: flex-end; gap: 0.4rem; }
-@media (max-width: 760px) { .msg-act { width: 44px; height: 44px; } .msg-edit-buttons .btn { min-height: 44px; } }
+/* A 44 px touch target that does not make the header row taller. */
+@media (max-width: 760px) { .msg-act { width: 2.5rem; height: 44px; margin-block: -0.7rem; } .msg-edit-buttons .btn { min-height: 44px; } }
 .msg.orchestrator .who { color: var(--link); }
 .msg time { color: var(--muted); font-variant-numeric: tabular-nums; }
 .msg .body { display: grid; gap: 0.6rem; overflow-wrap: anywhere; }
@@ -992,10 +994,11 @@ button[aria-busy="true"]::after {
 .gpu.stale .gpu-bar { opacity: 0.55; }
 
 /* PC agent (F6): the computer picker and the approval cards above the composer. */
-.pc-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); margin: 0 0 0.4rem; }
+/* COMPACT-UI: one row: the label and the picker (the "may act on" note is its tooltip). */
+.pc-pick { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--fg); margin: 0 0 0.4rem; }
 .pc-pick select {
-  font-size: 0.85rem; padding: 0.2rem 0.5rem; border: 1px solid var(--line); border-radius: 6px;
-  background: var(--surface); color: var(--fg); min-width: 10rem;
+  flex: 1; width: auto; min-width: 0; font-size: 0.85rem; padding: 0.2rem 0.5rem; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--fg);
 }
 .pc-actions { display: grid; gap: 0.5rem; margin-bottom: 0.6rem; max-height: 40vh; overflow-y: auto; }
 .pc-action {
@@ -1111,27 +1114,31 @@ button[aria-busy="true"]::after {
 .step .step-stop { margin-left: auto; min-height: 1.8rem; padding: 0.2rem 0.6rem; }
 .chip.stopped { color: var(--attn); }
 
-/* CMD-01: a step is a card. Header: type on the left, the time in the middle, risk and state on
-   the right; the summary under it. Open: the command as code (scrolls), the output, "Explain command". */
-.step-card > summary { display: grid; gap: 0.2rem; padding: 0.4rem 0.6rem; }
-.step-head { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.5rem; }
-.step-type { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; }
-.step-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.8rem; text-align: center; }
-.step-tags { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.35rem; flex-wrap: wrap; }
-.step-card .step-stop { margin-left: 0; }
+/* CMD-01 / COMPACT-UI: a step is a card. One header row: icon, type and time on the left; Explain,
+   risk and state on the right. Under it the command as highlighted code, three lines until opened. */
+.step-card > summary { display: grid; gap: 0.3rem; padding: 0.35rem 0.55rem; }
+.step-head { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.step-head > .icon { flex: none; }
+.step-time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.78rem; }
+.step-tags { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: auto; flex: none; }
+.step-card .step-stop { margin-left: 0; min-height: 1.6rem; padding: 0.1rem 0.5rem; }
 .step-card .step-summary { color: var(--fg); }
-.risk-tag { border: 1px solid currentColor; border-radius: 999px; padding: 0 0.45rem; font-size: 0.72rem; font-weight: 600; line-height: 1.35rem; white-space: nowrap; }
+.step-card .chip { font-size: 0.72rem; padding: 0 0.45rem; line-height: 1.35rem; }
+.risk-tag { border: 1px solid currentColor; border-radius: 999px; padding: 0 0.45rem; font-size: 0.72rem; font-weight: 600; line-height: 1.3rem; white-space: nowrap; }
 .risk-read { color: var(--good); }
 .risk-write { color: var(--attn); }
 .risk-network { color: var(--fg); border-style: dashed; }
 .risk-delete { color: var(--bad); }
-.step-cmd { margin: 0 0.5rem 0.5rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); }
-.step-code { margin: 0; padding: 0.55rem 0.75rem; max-height: 12rem; overflow: auto; font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; color: var(--code-fg); white-space: pre-wrap; overflow-wrap: anywhere; }
-.step-explain { margin: 0 0.5rem 0.5rem; border-top: 1px solid var(--line); padding-top: 0.35rem; }
-.step-explain > summary { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--link); list-style: none; min-height: 1.8rem; }
-.step-explain > summary::-webkit-details-marker { display: none; }
-.step-explain > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-.step-explain-body { font-size: 0.88rem; padding: 0.25rem 0.1rem 0.1rem; }
+.step-line { display: block; padding: 0.35rem 0.55rem; font-family: var(--mono); font-size: 0.8rem; line-height: 1.45; color: var(--code-fg); background: var(--code-bg); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.step-card:not([open]) .step-line { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.step-card[open] .step-line { max-height: 14rem; overflow: auto; }
+.step-cwd { color: var(--muted); }
+.step-path { color: var(--code-fg); }
+.step-explain-link { padding: 0 0.15rem; font-size: 0.75rem; font-weight: 600; color: var(--link); background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.step-explain-link[aria-expanded="true"] { text-decoration: none; }
+.step-explain-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.step-explain-body { margin: 0 0.55rem 0.45rem; padding: 0.4rem 0.6rem; font-size: 0.86rem; background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: 4px; }
+.step-explain-body[hidden] { display: none; }
 .step-explain-body > :first-child { margin-top: 0; }
 .step-explain-body > :last-child { margin-bottom: 0; }
 .danger-text { color: var(--danger-text); }
@@ -1140,10 +1147,7 @@ button[aria-busy="true"]::after {
 .pc-action.spawn .spawn-prompt { margin: 0; }
 .spawn-result, .spawn-open { margin: 0 0.5rem 0.5rem; }
 @media (max-width: 760px) {
-  .step-head { grid-template-columns: minmax(0, 1fr) auto; }
-  .step-time { grid-column: 2; grid-row: 1; }
-  .step-tags { grid-column: 1 / -1; justify-content: flex-start; }
-  .step-explain > summary { min-height: 44px; }
+  .step-explain-link { min-height: 32px; }
 }
 
 /* A task's W2 runs: status, Copy run ID, Export report. */
@@ -1327,8 +1331,13 @@ a.fact-value { color: var(--link); }
 .tov-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tov-chip .tov-sep { color: var(--muted); }
 .tov-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--muted); flex: none; }
-.tov-chip.busy .tov-dot, .tov-now .tov-dot { background: var(--good); }
-@media (prefers-reduced-motion: no-preference) { .tov-chip.busy .tov-dot, .tov-now .tov-dot { animation: tov-pulse 1.6s ease-in-out infinite; } }
+.tov-chip.busy .tov-dot, .tov-chip.live .tov-dot, .tov-now .tov-dot, .tov-dot.live, .tov-dot.quiet { background: var(--good); }
+.tov-dot.stalled { background: var(--attn); }
+.tov-dot.board { background: var(--muted); }
+.tov-when.stalled { color: var(--attn); font-weight: 600; }
+.tov-when.live { color: var(--good); font-weight: 600; }
+/* COMPACT-UI: the dot pulses only when something happened in the last 30 s. */
+@media (prefers-reduced-motion: no-preference) { .tov-chip.live .tov-dot, .tov-dot.live { animation: tov-pulse 1.6s ease-in-out infinite; } }
 @keyframes tov-pulse { 50% { opacity: 0.35; } }
 .tasks-overview-slot { position: relative; height: 0; z-index: 25; }
 .tasks-overview { position: absolute; top: 0.35rem; right: 1rem; width: min(30rem, calc(100% - 2rem)); max-height: min(75vh, 44rem); overflow-y: auto; display: grid; gap: 0.75rem; padding: 0.85rem 1rem 1rem;
@@ -1337,23 +1346,26 @@ a.fact-value { color: var(--link); }
 @keyframes tov-in { from { opacity: 0; transform: translateY(-0.5rem); } }
 .tov-handle { display: none; }
 .tov-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.tov-head h2 { margin: 0; font-size: 1rem; }
-.tov-counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.5rem; margin: 0; }
-.tov-counts div { display: grid; gap: 0.1rem; padding: 0.45rem 0.55rem; background: var(--surface-2); border-radius: var(--radius); }
-.tov-counts dt { font-size: 0.72rem; color: var(--fg); }
-.tov-counts dd { margin: 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.tov-counts .attn { box-shadow: inset 3px 0 0 var(--attn); }
+.tov-filters { display: flex; flex-wrap: wrap; gap: 0.3rem; min-width: 0; }
+.tov-filter { display: inline-flex; align-items: baseline; gap: 0.25rem; padding: 0.15rem 0.55rem; font-size: 0.8rem; color: var(--fg); background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.tov-filter strong { font-variant-numeric: tabular-nums; }
+.tov-filter:hover { border-color: var(--accent); }
+.tov-filter[aria-pressed="true"] { color: var(--fg); border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+.tov-filter.attn strong { color: var(--attn); }
+.tov-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tov-more { margin: 0; }
 .tov-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
-.tov-row { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 0.6rem; padding: 0.55rem 0.65rem; text-align: left; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.tov-row { width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; text-align: left; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
 .tov-row:hover { border-color: var(--accent); }
 .tov-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tov-num { font-family: var(--mono); font-size: 0.8rem; font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; }
-.tov-main { display: grid; min-width: 0; }
+.tov-main { display: grid; min-width: 0; flex: 1; }
 .tov-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tov-step { font-size: 0.8rem; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tov-step { display: flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tov-step > .tov-dot { width: 0.45rem; height: 0.45rem; }
 .tov-meta { display: inline-flex; gap: 0.4rem; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
 .tov-pct { color: var(--fg); font-variant-numeric: tabular-nums; }
-.tov-none, .tov-free { margin: 0; }
+.tov-none { margin: 0; }
 .tov-detail { display: grid; gap: 0.6rem; }
 .tov-detail-head { display: grid; gap: 0.4rem; }
 .tov-detail-head .btn { justify-self: start; display: inline-flex; align-items: center; gap: 0.3rem; }
@@ -1376,8 +1388,7 @@ a.fact-value { color: var(--link); }
   .tasks-overview { position: fixed; top: 0; left: 0; right: 0; width: auto; max-height: 85vh; border-radius: 0 0 14px 14px; padding-top: 0.5rem; }
   @media (prefers-reduced-motion: no-preference) { .tasks-overview { animation: tov-down 0.2s ease-out; } }
   .tov-handle { display: block; justify-self: center; width: 2.5rem; height: 0.3rem; border-radius: 999px; background: var(--line); }
-  .tov-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tov-row { min-height: 44px; grid-template-columns: auto minmax(0, 1fr) auto; }
+  .tov-row { min-height: 44px; }
   .tov-row .tov-meta { display: none; }
   .tov-detail-head .btn, .trace-call > summary, .trace-body > summary { min-height: 44px; }
   .trace-body > summary { display: flex; align-items: center; }

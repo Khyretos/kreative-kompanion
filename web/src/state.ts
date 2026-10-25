@@ -40,6 +40,7 @@ export interface AppState {
   admin?: { settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./api/types").SmtpFromEnv | null }; // loaded when an admin opens settings
   webPush?: "on" | "off" | "denied" | "unsupported"; // NOTIFY: push in this browser
   tasksOverviewOpen?: boolean; // TASK-OVERVIEW: the running-tasks panel
+  tasksOverviewFilter?: "running" | "needs" | "done" | "all"; // COMPACT-UI: which list it shows
   tasksOverviewTaskId?: string; // the task whose live trace the panel shows
   tasksOverviewTrace?: import("./api/types").RunTrace;
   tasksOverviewTraceError?: string;

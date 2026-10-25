@@ -25,8 +25,8 @@ export function renderPcPicker(
   return html`
     <div class="pc-pick">
       <label for="pc-machine">Computer</label>
-      <select id="pc-machine">${options}</select>
-      ${picked ? html`<span class="muted small">Kompanion may act on ${picked.name}; every step asks you first.</span>` : ""}
+      <select id="pc-machine" ${picked ? html`aria-describedby="pc-pick-note" title="Kompanion may act on ${picked.name}; every step asks you first."` : ""}>${options}</select>
+      ${picked ? html`<span class="sr-only" id="pc-pick-note">Kompanion may act on ${picked.name}; every step asks you first.</span>` : ""}
     </div>
   `;
 }
