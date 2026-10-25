@@ -377,6 +377,10 @@ async fn prompts_read_about_after_the_description() {
     let db = db().await;
     let ctx = crate::project_ctx::project_context(&db, "prog", "u1", 8_000).await.unwrap();
     assert!(ctx.contains("Sells plants\n\nWhy the shop exists."), "{ctx}");
+    // Where it lives and how it builds, so a chat works there instead of searching for it.
+    assert!(ctx.contains("\nFolder: /home/k/shop on kireserver. Work there; give shell steps that folder as cwd.\nCommands: build: `cargo build`, test: `cargo test`.\n"), "{ctx}");
+    let other = crate::project_ctx::project_context(&db, "chat", "u1", 8_000).await.unwrap();
+    assert!(!other.contains("Folder:"), "{other}");
 }
 
 #[tokio::test]
