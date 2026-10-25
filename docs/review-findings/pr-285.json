@@ -16,5 +16,14 @@
     "title": "Hardcoded Test Data",
     "verdict": "false_positive",
     "reason": "The registry test asserts the shipped image-to-3d graph on purpose: the node names and the texture VAE file are what soucouyant's ComfyUI must provide, so a changed graph must fail the test."
+  },
+  "4cf9ba0cfbdf": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "939835d",
+    "path": "studio/comfy-nodes/kk_trellis.py",
+    "title": "Potential Resource Leak",
+    "verdict": "bug",
+    "reason": "del alone leaves freeing the 1.8 GB CPU VAE to the next collection; gc.collect() now runs in the finally block right after it."
   }
 }
