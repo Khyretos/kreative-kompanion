@@ -103,7 +103,7 @@ for (const scheme of ["light", "dark"] as const) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
       // The header stays one row at phone width too.
       const done = card(page, "done", 0).locator(".step-head");
-      expect((await done.boundingBox())!.height).toBeLessThan(40);
+      await expect.poll(async () => (await done.boundingBox())?.height ?? 99).toBeLessThan(40); // polled: a live redraw can swap the card
       const ratios = () => page.locator("#messages .risk-tag, #messages .step-time, #messages .step-explain-link, #messages .step-line").evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((el) => {
         const rgb = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number);
         const lum = ([r, g, b]: number[]) => {

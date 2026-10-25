@@ -35,6 +35,12 @@ export function html(strings: TemplateStringsArray, ...values: Value[]): SafeHtm
   return new SafeHtml(out);
 }
 
+/** Plain text where `backticked` parts become <code> (step summaries such as "Read `Cargo.toml`"). */
+export function codeSpans(text: string): SafeHtml {
+  const parts = text.split(/`([^`\n]+)`/);
+  return html`${parts.map((p, i) => (i % 2 ? html`<code>${p}</code>` : p))}`;
+}
+
 // Trusted Types: with the CSP `require-trusted-types-for 'script'`, the
 // browser refuses raw strings in innerHTML. Our templates are escaped by
 // construction, so this policy is the one place that vouches for them.
