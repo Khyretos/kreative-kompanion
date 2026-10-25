@@ -7,6 +7,7 @@
 pub mod ladder;
 pub mod parse;
 pub mod protect;
+pub mod restart;
 
 use axum::{Extension, Json, extract::{Path, State}, http::StatusCode};
 use serde::Deserialize;
@@ -122,7 +123,7 @@ async fn progress_step(s: &AppState, r: &Run, step: &str) {
     s.bus.send(&r.user_id, Event::Changed { what: "tasks", machine_id: None });
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub struct StartBody {
     pub machine_id: String,
     pub folder: String,
@@ -482,7 +483,7 @@ fn step_instruction(task: &str, i: usize, n: usize, step: &parse::PlanStep, plan
 }
 
 fn cut(text: &str, max: usize) -> String {
-    text.chars().take(max).collect()
+    util::cut_marked(text, max)
 }
 
 /// The protected files (tests, the check's own files) the steps in this chat edited or wrote since `since`.

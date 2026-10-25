@@ -2,6 +2,17 @@ use rand::RngCore;
 use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
+/// RELIABILITY: text cut to at most `max` characters, never silently: a cut ends with a line that
+/// says how much was left out, so neither the user nor a model takes a part for the whole.
+pub fn cut_marked(text: &str, max: usize) -> String {
+    let n = text.chars().count();
+    if n <= max {
+        return text.to_string();
+    }
+    let head: String = text.chars().take(max).collect();
+    format!("{head}\n[cut here: {} more characters]", n - max)
+}
+
 pub fn now() -> String {
     OffsetDateTime::now_utc()
         .format(&Rfc3339)
@@ -118,5 +129,18 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         assert_eq!(runs.load(Ordering::SeqCst), 3, "two crashes, then the third run keeps going");
         h.abort();
+    }
+}
+
+#[cfg(test)]
+mod cut_tests {
+    use super::cut_marked;
+
+    #[test]
+    fn a_cut_always_says_how_much_was_left_out() {
+        assert_eq!(cut_marked("short", 10), "short");
+        assert_eq!(cut_marked("abcdef", 6), "abcdef");
+        assert_eq!(cut_marked("abcdefgh", 3), "abc\n[cut here: 5 more characters]");
+        assert_eq!(cut_marked("ééééé", 2), "éé\n[cut here: 3 more characters]");
     }
 }

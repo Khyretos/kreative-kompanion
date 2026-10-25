@@ -304,6 +304,7 @@ async fn main() -> anyhow::Result<()> {
         return studio::audio::cli(&state, &args[2..]).await;
     }
     pcagent::fail_orphaned_steps(&state).await;
+    taskrun::restart::resume_after_restart(&state).await;
     hoststats::HostStats::spawn_live(state.clone());
     notify::spawn_daily(state.db.clone());
     trace::spawn_retention(state.db.clone());
