@@ -63,7 +63,10 @@ pub fn command_text(job: &Value) -> String {
         "service" => format!("systemctl {} {}", s("action"), s("unit")).trim().to_string(),
         "read_file" => format!("read {}", s("path")),
         "list_dir" => format!("ls {}", s("path")),
-        "write_file" => format!("write {} ({} characters)", s("path"), job["content"].as_str().map_or(0, |c| c.chars().count())),
+        "write_file" => {
+            let how = if job["append"] == true { "append to".to_string() } else if let Some(at) = job["offset"].as_u64() { format!("write at byte {at} of") } else { "write".to_string() };
+            format!("{how} {} ({} characters)", s("path"), job["content"].as_str().map_or(0, |c| c.chars().count()))
+        }
         "edit_file" => format!("edit {}", s("path")),
         "system_info" => format!("system_info {}", s("what")).trim().to_string(),
         other => format!("{other} {}", job).trim().to_string(),
@@ -113,7 +116,7 @@ pub async fn explain(State(s): State<AppState>, Extension(u): Extension<User>, P
         return Err(ApiError::BadRequest("Explanations are off: turn on \"Explain running actions\" in Settings.".into()));
     }
     let role = match (p.provider_id, p.model_id) {
-        (Some(provider_id), Some(model_id)) if s.config.provider(&provider_id).is_some() => {
+        (Some(provider_id), Some(model_id)) if s.provider(&provider_id).is_some() => {
             RoleAssignment { role: "explain".into(), provider_id, model_id, effort: "low".into() }
         }
         _ => {
@@ -128,10 +131,10 @@ pub async fn explain(State(s): State<AppState>, Extension(u): Extension<User>, P
     if let Some(text) = sqlx::query_scalar::<_, String>("SELECT text FROM command_explanations WHERE hash = ?").bind(&key).fetch_optional(&s.db).await? {
         return Ok(Json(json!({ "text": text, "cached": true, "model": role.model_id })));
     }
-    let Some(provider) = s.config.provider(&role.provider_id) else {
+    let Some(provider) = s.provider(&role.provider_id) else {
         return Err(ApiError::BadRequest(format!("The provider {} is not configured.", role.provider_id)));
     };
-    let (provider, model) = crate::effort::apply(provider, &role.model_id, crate::effort::Effort::Low);
+    let (provider, model) = crate::effort::apply(&provider, &role.model_id, crate::effort::Effort::Low);
     let convo = vec![
         llm::ChatMessage::text("system", prompt(p.verbose, &lang)),
         llm::ChatMessage::text("user", format!("```sh\n{command}\n```")),

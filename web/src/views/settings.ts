@@ -4,7 +4,6 @@ import { html, type SafeHtml } from "../core/html";
 import type { AppState } from "../state";
 import type { AdminSettings, Effort, Role } from "../api/types";
 import { EFFORT_LABELS } from "./tasks";
-import { icon } from "./icons";
 import { pageHead } from "./pagehead";
 import { renderAdmin } from "./admin";
 import { DEFAULT_STYLE, KINDS, styleOf } from "../core/cardtypes";
@@ -68,6 +67,16 @@ function explainSection(s: AppState): SafeHtml {
   </section>`;
 }
 
+
+/** NOTIFY: push in this browser: drawn on its own so a state that arrives late never redraws the page. */
+export function webPushRow(s: AppState): SafeHtml {
+  return html`<div class="web-push-row">
+          <button type="button" class="btn" id="web-push-toggle" data-action="web-push-toggle" aria-pressed="${s.webPush === "on" ? "true" : "false"}"
+            ${s.webPush === "unsupported" ? "disabled" : ""}>${s.webPush === "on" ? t("wpOff") : t("wpOn")}</button>
+          <span class="small ${s.webPush === "on" ? "good-text" : "muted"}" role="status">${t(s.webPush === "on" ? "wpStateOn" : s.webPush === "denied" ? "wpStateDenied" : s.webPush === "unsupported" ? "wpStateNone" : "wpStateOff")}</span>
+        </div>`;
+}
+
 const DEFAULTS: AdminSettings = {
   appName: "", smtpHost: "", smtpPort: 587, smtpTls: "starttls", smtpUser: "", smtpFrom: "", smtpReplyTo: "",
   colorBrand: "#5c398e", colorLinkDark: "#f3941f", colorLinkLight: "#8f4700", colorAccent: "#f3941f",
@@ -120,7 +129,7 @@ export function renderSettings(s: AppState): SafeHtml {
   return html`
     <div class="settings-page">
       ${pageHead("Settings", "Your account, models and how Kompanion looks.", "settings-h")}
-      ${renderAdmin(s.admin?.settings ?? DEFAULTS, s.admin?.smtpPasswordSet ?? false, s.theme, s.isAdmin && !!s.admin)}
+      ${renderAdmin(s.admin?.settings ?? DEFAULTS, s.admin?.smtpPasswordSet ?? false, s.theme, s.isAdmin && !!s.admin, s.admin?.smtpFromEnv)}
       ${s.notifications ? html`<form class="admin-form" id="notify-form">
         <h3 class="label">Notifications</h3>
         <div class="field">
@@ -128,11 +137,25 @@ export function renderSettings(s: AppState): SafeHtml {
           <input type="email" id="notify-email" name="email" value="${s.notifications.email}" placeholder="you@example.com">
         </div>
         <fieldset class="checks">
-          <legend class="sr-only">When</legend>
+          <legend>${t("ntfWhen")}</legend>
           <label><input type="checkbox" name="onNeedsInput" ${s.notifications.onNeedsInput ? "checked" : ""}> A task needs me</label>
+          <label><input type="checkbox" name="onApproval" ${s.notifications.onApproval !== false ? "checked" : ""}> ${t("ntfApproval")}</label>
           <label><input type="checkbox" name="onFailed" ${s.notifications.onFailed ? "checked" : ""}> A task failed</label>
           <label><input type="checkbox" name="onDone" ${s.notifications.onDone ? "checked" : ""}> A task is done</label>
           <label><input type="checkbox" name="dailySummary" ${s.notifications.dailySummary ? "checked" : ""}> A daily summary (08:00 UTC)</label>
+        </fieldset>
+        <fieldset class="checks">
+          <legend>${t("ntfHow")}</legend>
+          <label><input type="checkbox" name="mailOn" ${s.notifications.mailOn !== false ? "checked" : ""}> ${t("ntfMail")}</label>
+          <label><input type="checkbox" name="pushOn" ${s.notifications.pushOn !== false ? "checked" : ""}> ${t("ntfPush")}</label>
+        </fieldset>
+        <fieldset class="quiet-hours">
+          <legend>${t("ntfQuiet")}</legend>
+          <div class="quiet-row">
+            <label for="quiet-from">${t("ntfFrom")}</label><input type="time" id="quiet-from" name="quietFrom" value="${s.notifications.quietFrom ?? ""}">
+            <label for="quiet-to">${t("ntfTo")}</label><input type="time" id="quiet-to" name="quietTo" value="${s.notifications.quietTo ?? ""}">
+          </div>
+          <small class="muted">${t("ntfQuietHelp")}</small>
         </fieldset>
         <p class="muted small">Mails name the task, its state and in one line what is needed, never its description or chat.</p>
         <p id="notify-msg" class="small" role="status"></p>
@@ -140,6 +163,8 @@ export function renderSettings(s: AppState): SafeHtml {
       </form>` : ""}
       <section class="desk-notify">
         <h3 class="label">On this device</h3>
+        <div id="webpush-slot"></div>
+        <p class="muted small">${t("wpHelp")}</p>
         <label><input type="checkbox" id="desk-notify" ${deskNotifyOn() ? "checked" : ""}> Desktop notifications when a task needs me, failed or is done, while Kompanion is in the background</label>
         <button type="button" class="btn" id="desk-notify-test" data-action="desk-notify-test">Send test notification</button>
         <p id="desk-notify-msg" class="small muted" role="status"></p>
@@ -175,29 +200,6 @@ export function renderSettings(s: AppState): SafeHtml {
       ${overseerSection(s)}
       ${voiceSection(s)}
       ${cardSection(s)}
-      <section>
-        <h3 class="label">Connected models</h3>
-        <ul class="providers">${s.providers.map((p) => html`
-          <li class="provider">
-            <div class="provider-head">
-              <strong>${p.name}</strong>
-              <span class="chip ${p.local ? "good" : ""}">${p.local ? "Local" : "Cloud"}</span>
-            </div>
-            <small class="muted">${p.kind === "anthropic" ? "Anthropic API" : "OpenAI-compatible API"} · ${p.baseUrl}</small>
-            ${p.error ? html`<p class="error small">Can't reach it: ${p.error}</p>` : ""}
-            ${p.models.map((m) => html`
-              <div class="model-row">
-                <code>${m.id}</code>
-                <span class="chips">
-                  ${m.contextTokens ? html`<span class="chip">${Math.round(m.contextTokens / 1024)}k context</span>` : ""}
-                  ${m.tokensPerSecond ? html`<span class="chip">${m.tokensPerSecond} tok/s</span>` : ""}
-                  ${m.toolCalls === undefined ? html`<span class="chip">not tested yet</span>` : html`
-                    <span class="chip ${m.toolCalls ? "good" : "bad"}">tool calls ${m.toolCalls ? "ok" : "no"}</span>
-                    <span class="chip ${m.jsonSchema ? "good" : "bad"}">JSON schema ${m.jsonSchema ? "ok" : "no"}</span>`}
-                </span>
-              </div>`)}
-          </li>`)}</ul>
-        <button class="btn" data-action="add-provider" disabled title="Comes with the server">${icon("plus")} Add a model or API</button>
-      </section>
+      <div id="providers-slot"></div>
     </div>`;
 }

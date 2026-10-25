@@ -74,6 +74,11 @@ export class HttpApi implements KompanionApi {
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) { return this.request<void>("PUT", "/me/prefs", change); }
   setMaxSteps(maxSteps: number) { return this.request<void>("PUT", "/me/prefs", { maxSteps }); }
   setExplainPrefs(explain: import("./types").ExplainPrefs) { return this.request<void>("PUT", "/me/prefs", { explain }); }
+  listCustomProviders() { return this.request<{ providers: import("./types").CustomProvider[]; secretDirs: string[] }>("GET", "/admin/providers"); }
+  addProvider(p: import("./types").ProviderInput) { return this.request<import("./types").CustomProvider>("POST", "/admin/providers", p); }
+  updateProvider(id: string, p: import("./types").ProviderInput) { return this.request<import("./types").CustomProvider>("PUT", `/admin/providers/${encodeURIComponent(id)}`, p); }
+  deleteProvider(id: string) { return this.request<void>("DELETE", `/admin/providers/${encodeURIComponent(id)}`); }
+  createProject(p: { name: string; description?: string; ptype?: import("./types").ProjectType }) { return this.request<{ id: string; name: string }>("POST", "/projects", p); }
   explainStep(id: string, lang: string) { return this.request<{ text: string; cached: boolean; model: string }>("POST", `/actions/${encodeURIComponent(id)}/explain`, { lang }); }
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }) { return this.request<{ projectId: string }>("POST", "/overseer/tasks", b); }
   interject(taskId: string, text: string) { return this.request<void>("POST", `/tasks/${encodeURIComponent(taskId)}/interject`, { text }); }
@@ -97,7 +102,11 @@ export class HttpApi implements KompanionApi {
   updateRunner(id: string) { return this.request<void>("POST", `/machines/${encodeURIComponent(id)}/jobs`, { tool: { tool: "self_update" } }); }
   watchMachines() { return this.request<void>("POST", "/machines/live"); }
   setTheme(theme: ThemeChoice) { return this.request<void>("PUT", "/me/theme", { theme }); }
-  getAdmin() { return this.request<{ settings: AdminSettings; smtpPasswordSet: boolean }>("GET", "/admin/settings"); }
+  getAdmin() { return this.request<{ settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./types").SmtpFromEnv | null }>("GET", "/admin/settings"); }
+  webPushKey() { return this.request<{ key: string }>("GET", "/push/web/key"); }
+  runTrace(runId: string) { return this.request<import("./types").RunTrace>("GET", `/runs/${encodeURIComponent(runId)}/trace`); }
+  webPushSubscribe(sub: { endpoint: string; keys: { p256dh: string; auth: string }; device: string }) { return this.request<void>("POST", "/push/web", sub); }
+  webPushUnsubscribe(endpoint: string) { return this.request<void>("DELETE", "/push/web", { endpoint }); }
   saveAdmin(settings: AdminSettings) { return this.request<AdminSettings>("PUT", "/admin/settings", settings); }
   uploadLogo(file: File) { return this.request<void>("PUT", "/admin/logo", file); }
   removeLogo() { return this.request<void>("DELETE", "/admin/logo"); }

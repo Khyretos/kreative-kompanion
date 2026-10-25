@@ -10,6 +10,7 @@ import { parseLinks } from "./views/overview";
 import { openSearch } from "./views/search";
 import { renderMarkdown } from "./core/markdown";
 import * as deskNotify from "./core/desknotify";
+import * as webPush from "./core/webpush";
 import { saveText, onCodeAction, setCodeTheme, applyCodeTheme } from "./core/codeblocks";
 import { onMediaAction } from "./core/media";
 import { paneProject, store, loadPcChoice, savePcChoice, type AppState } from "./state";
@@ -19,6 +20,7 @@ import { backStep } from "./back";
 import { accept as acceptFiles, release as releaseFiles, renderPending, type Pending } from "./views/attach";
 import type { Attached } from "./core/attachments";
 import { lang, t } from "./core/i18n";
+import { draftOf, PRESETS, providersSection } from "./views/providerform";
 import { autoRunChip, composer, effortChip, effortChipKey, overseerChip, overseerOn, setAssistantName, toolsChip, webChip, elapsedText, fillMessage, flashMessage, groupChoice, messageViews, openSteps, renderEmpty, renderHeader, renderMessage, setCardStyle as setStepCardStyle, setExplainOn, explanations, openExplains, fillExplain, messageText, setEditingMessage, type MessageView } from "./views/conversation";
 import { KeyedList } from "./core/keyed";
 import { paneTabs, renderTasks, setAssetThumbs } from "./views/tasks";
@@ -40,6 +42,7 @@ import { renderStudioMake, renderStudioLibrary } from "./views/studio";
 // STU-01: the Studio prompt lives here, not in the state, so typing doesn't re-render the form.
 let studioPrompt = "";
 let effortKey = ""; // EFF-02: what the effort chip last showed (effortChipKey)
+let trayKey = ""; // TASK-OVERVIEW: the running tasks the desktop tray last got
 let studioLyrics = ""; // STU-02: music lyrics and the audio length, kept the same way
 let studioSeconds = "";
 let studioRating = ""; // STU-01c: the picked rating ("" = the first one offered)
@@ -72,7 +75,8 @@ function markGrant(machineId: string, target: string, pending: "add" | "revoke",
 }
 
 let savePrefs: ReturnType<typeof setTimeout> | undefined;
-import { renderSettings } from "./views/settings";
+import { renderSettings, webPushRow } from "./views/settings";
+import { counts as taskCounts, openTrace, renderTasksOverview } from "./views/taskoverview";
 import { pageHead } from "./views/pagehead";
 import { modal } from "./core/modal";
 import { doneChip as overseerDoneChip, markDone as markOverseerDone } from "./core/overseer";
@@ -143,6 +147,7 @@ async function start(server: Server): Promise<void> {
       <aside class="pane left" id="left" aria-label="Projects and chats"></aside>
       <main class="pane center">
         <header class="conv-head" id="conv-head"></header>
+        <div class="tasks-overview-slot" id="tasks-overview-slot"></div>
         <div class="messages" id="messages">
           <div class="empty-slot" id="empty-slot"></div>
           <div class="msg-list" id="msg-list" role="log" aria-live="polite"></div>
@@ -353,7 +358,7 @@ function render(s: AppState, prev: AppState): void {
 
   if (changed(s, prev, ["chats", "projects", "tasks", "activeChatId", "activeProjectId", "expandedProjects",
     "chatMenuId", "movingChatId", "renamingChatId", "server", "userName", "logoVersion", "section", "allTasksShown", "openTaskId",
-    "projectMenuId", "showArchived"])) {
+    "projectMenuId", "showArchived", "newProjectOpen", "newProjectError"])) {
     remount($("#left"), renderSidebar(s));
     const menu = document.querySelector<HTMLElement>(".chat-row.menu-open .menu, .project.menu-open .menu");
     if (menu) placeMenu(menu);
@@ -364,8 +369,25 @@ function render(s: AppState, prev: AppState): void {
     input?.select();
   }
   // CTX-01: the context meter lives in the header too.
-  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks", "chatContext", "contextOpen", "compacting", "contextSummaryOpen"])) {
+  if (changed(s, prev, ["chats", "projects", "activeChatId", "activeProjectId", "messages", "roles", "tasks", "chatContext", "contextOpen", "compacting", "contextSummaryOpen", "tasksOverviewOpen"])) {
+    // The chip keeps focus when the header is drawn again (it has an id; mount does not keep it).
+    const chipFocused = document.activeElement?.id === "ov-chip";
     mount($("#conv-head"), renderHeader(s));
+    if (chipFocused) document.getElementById("ov-chip")?.focus();
+  }
+  // TASK-OVERVIEW: the desktop app's tray follows the running tasks (count, badge, menu).
+  const tauriCore = (window as { __TAURI__?: { core?: { invoke(cmd: string, args: unknown): Promise<unknown> } } }).__TAURI__?.core;
+  if (tauriCore && (firstRender || changed(s, prev, ["tasks", "projects"]))) {
+    const running = taskCounts(s).running.map((x) => ({ id: x.id, title: x.title, step: x.step ?? "" }));
+    const key = JSON.stringify(running);
+    if (key !== trayKey) {
+      trayKey = key;
+      tauriCore.invoke("running_tasks", { tasks: running }).catch(() => undefined);
+    }
+  }
+  // TASK-OVERVIEW: the running-tasks panel under the top bar.
+  if (firstRender || changed(s, prev, ["tasksOverviewOpen", "tasksOverviewTaskId", "tasksOverviewTrace", "tasksOverviewTraceError", "tasks", "projects", "pcActions"])) {
+    remount($("#tasks-overview-slot"), renderTasksOverview(s));
   }
   if (firstRender || changed(s, prev, ["chats", "activeChatId", "draftOverseer", "overseer", "projects", "activeProjectId"])) {
     // OVR-01: the Overseer chip, and its name on the answers of an Overseer chat (its own switch or its project's).
@@ -489,9 +511,23 @@ function render(s: AppState, prev: AppState): void {
   if (s.section !== prev.section && !firstRender) navHistory(s.section, prev.section);
   const settings = $("#settings");
   if (s.section === "settings" && s.section !== prev.section) settingsDirty = false;
-  if (s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer", "explain"])) {
-    remount(settings, renderSettings(s));
+  // NOTIFY: whether this browser gets push, read on entering Settings.
+  if (s.section === "settings" && prev.section !== "settings" && s.webPush === undefined) {
+    if (api instanceof MockApi) store.set({ webPush: "off" });
+    else void webPush.state().then((w) => store.set({ webPush: w }), () => store.set({ webPush: "unsupported" }));
   }
+  // PROV-UI: an admin's own providers (with where their keys are) load on entering Settings.
+  if (s.section === "settings" && prev.section !== "settings" && s.isAdmin && !s.customProviders) void loadCustomProviders();
+  const settingsRedrawn = s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer", "explain"]);
+  if (settingsRedrawn) remount(settings, renderSettings(s));
+  // PROV-UI: the providers part draws on its own, so its list and form never redraw the rest of the page;
+  // the list arriving late does not redraw an open form someone is typing in (closing it shows the list).
+  const slot = document.getElementById("providers-slot");
+  const listOnly = changed(s, prev, ["customProviders"]) && !changed(s, prev, ["providerForm", "providerFormError"]);
+  if (slot && s.section === "settings" && (settingsRedrawn || changed(s, prev, ["providerForm", "providerFormError"]) || (listOnly && !s.providerForm))) remount(slot, providersSection(s));
+  // NOTIFY: the push row draws on its own (after the page, which may have just been drawn).
+  const pushSlot = document.getElementById("webpush-slot");
+  if (pushSlot && s.section === "settings" && (!pushSlot.firstElementChild || changed(s, prev, ["webPush"]))) remount(pushSlot, webPushRow(s));
   firstRender = false;
   restoreBusy(shell);
 }
@@ -534,6 +570,7 @@ function applyEvent(ev: ServerEvent): void {
     const exists = s.tasks.some((t) => t.id === ev.task.id);
     // Apps 1: a desktop notification when one of my tasks needs me, failed or is done.
     deskNotify.onTaskUpdate(s.tasks.find((t) => t.id === ev.task.id), ev.task, openTaskById);
+    if (ev.task.id === s.tasksOverviewTaskId) traceChanged();
     store.set({ tasks: exists ? s.tasks.map((t) => (t.id === ev.task.id ? ev.task : t)) : [ev.task, ...s.tasks] });
     // Attach new tasks to the message that created them.
     if (!exists) {
@@ -541,7 +578,11 @@ function applyEvent(ev: ServerEvent): void {
       if (last) store.set({ messages: store.get().messages.map((m) => (m.id === last.id ? { ...m, taskIds: [ev.task.id] } : m)) });
     }
   } else if (ev.type === "changed") {
+    if (ev.what === "trace" || ev.what === "actions") traceChanged();
     refetch(ev.what);
+  } else if (ev.type === "notify" && ev.state === "waits for your approval") {
+    // NOTIFY: an approval waiting in another chat (or while away): this device's notification.
+    deskNotify.onApproval(ev.title, ev.url, (hash) => { location.hash = hash; });
   } else if (ev.type === "resync") {
     reload();
   } else if (ev.type === "machines") {
@@ -570,6 +611,81 @@ function loadExplain(id: string): void {
     (r) => explanations.set(id, { text: r.text }),
     (e) => explanations.set(id, { error: e instanceof Error ? e.message : String(e) }),
   ).finally(() => { explainLoading.delete(id); fill(); });
+}
+
+/** TASK-OVERVIEW: the trace of a task's running (else latest) run, for the panel's drill-down. */
+let traceRun: { taskId: string; runId: string } | undefined;
+async function loadTrace(taskId: string): Promise<void> {
+  try {
+    if (traceRun?.taskId !== taskId) {
+      const runs = await api.taskRuns(taskId);
+      const run = runs.find((r) => r.status === "running") ?? runs[0];
+      if (!run) {
+        if (store.get().tasksOverviewTaskId === taskId) store.set({ tasksOverviewTraceError: t("ovEmpty") });
+        return;
+      }
+      traceRun = { taskId, runId: run.id };
+    }
+    const trace = await api.runTrace(traceRun.runId);
+    if (store.get().tasksOverviewTaskId === taskId) store.set({ tasksOverviewTrace: trace, tasksOverviewTraceError: undefined });
+  } catch (e) {
+    if (store.get().tasksOverviewTaskId === taskId) store.set({ tasksOverviewTraceError: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Live: a step, a model call or the task changed while its trace is open: read it again
+ *  (at most every half second). */
+let traceTimer: ReturnType<typeof setTimeout> | undefined;
+function traceChanged(): void {
+  const id = store.get().tasksOverviewTaskId;
+  if (!id || traceTimer) return;
+  traceTimer = setTimeout(() => { traceTimer = undefined; void loadTrace(id); }, 500);
+}
+
+/** Focuses an element once a coming render has drawn it (waits a few frames, focuses it once),
+ *  unless the user has moved on to another field in the meantime. */
+function focusSoon(selector: string): void {
+  const from = document.activeElement;
+  let frames = 0;
+  const tick = () => {
+    const now = document.activeElement;
+    // The same field drawn again (same id) is not a move.
+    const same = now === from || (!!now?.id && now.id === (from as HTMLElement | null)?.id);
+    if (now && !same && now !== document.body && now.matches("input, textarea, select")) return;
+    const el = document.querySelector<HTMLElement>(selector);
+    if (el) el.focus();
+    else if (++frames < 8) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(tick));
+}
+
+/** PROV-UI: the providers added in Settings (admins only; the list is empty for others). */
+async function loadCustomProviders(): Promise<void> {
+  if (!store.get().isAdmin) return;
+  try {
+    store.set({ customProviders: await api.listCustomProviders() });
+  } catch (e) {
+    showError(e);
+  }
+}
+
+/** PROV-UI: after a provider changed: every list of models follows, without a reload. */
+async function refreshProviders(): Promise<void> {
+  const [providers] = await Promise.all([api.listProviders(), loadCustomProviders()]);
+  store.set({ providers });
+}
+
+/** PROV-UI: the provider form's fields, as typed. */
+function readProviderForm(f: HTMLFormElement): import("./api/types").ProviderDraft {
+  const v = (n: string) => (f.elements.namedItem(n) as HTMLInputElement | null)?.value ?? "";
+  const keySource = ((f.querySelector<HTMLInputElement>('input[name="keySource"]:checked')?.value) ?? "none") as "env" | "file" | "none";
+  return {
+    id: store.get().providerForm?.id,
+    name: v("name"), kind: v("kind") === "anthropic" ? "anthropic" : "openai-compatible", baseUrl: v("baseUrl"),
+    local: !!(f.elements.namedItem("local") as HTMLInputElement | null)?.checked, keySource,
+    apiKeyEnv: v("apiKeyEnv") || store.get().providerForm?.apiKeyEnv || "", apiKeyFile: v("apiKeyFile") || store.get().providerForm?.apiKeyFile || "",
+    maxTokens: v("maxTokens"), contextWindow: v("contextWindow"),
+  };
 }
 
 /** MSG-ACT: the messages drawn again (an edit form opened or closed). */
@@ -1129,6 +1245,74 @@ function wire(shell: HTMLElement): void {
       const asked = list.slice(0, i).reverse().find((x) => x.author === "user");
       if (asked) resendMessage(asked.id);
     },
+    // TASK-OVERVIEW: open or close the panel; a running task's live trace; back to the list.
+    "tasks-overview-toggle": () => {
+      const open = !store.get().tasksOverviewOpen;
+      store.set({ tasksOverviewOpen: open, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined });
+      if (!open) requestAnimationFrame(() => document.getElementById("ov-chip")?.focus());
+    },
+    "tasks-overview-open": (el) => {
+      const id = el.dataset.id ?? "";
+      store.set({ tasksOverviewTaskId: id, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined });
+      void loadTrace(id);
+      requestAnimationFrame(() => document.getElementById("ov-back")?.focus());
+    },
+    "tasks-overview-back": () => {
+      const id = store.get().tasksOverviewTaskId;
+      store.set({ tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined });
+      requestAnimationFrame(() => document.getElementById(`ov-row-${id}`)?.focus());
+    },
+    // NOTIFY: push in this browser, on or off (the demo has no service worker: it only flips).
+    "web-push-toggle": async () => {
+      const on = store.get().webPush === "on";
+      try {
+        const next = api instanceof MockApi ? (on ? "off" : "on") : on ? await webPush.turnOff(api) : await webPush.turnOn(api);
+        store.set({ webPush: next });
+      } catch (e) {
+        showError(e);
+      }
+    },
+    // PROV-UI: add, change and remove model providers (admins), in Settings.
+    "add-provider": () => {
+      const preset = PRESETS[0].draft;
+      store.set({ providerForm: { ...preset }, providerFormError: undefined });
+      if (!store.get().customProviders) void loadCustomProviders();
+      focusSoon("#prov-preset");
+    },
+    "provider-edit": (el) => {
+      const p = store.get().customProviders?.providers.find((x) => x.id === el.dataset.id);
+      if (!p) return;
+      store.set({ providerForm: draftOf(p), providerFormError: undefined });
+      focusSoon("#prov-name");
+    },
+    "provider-cancel": () => {
+      const id = store.get().providerForm?.id;
+      store.set({ providerForm: undefined, providerFormError: undefined });
+      focusSoon(id ? `[data-action="provider-edit"][data-id="${CSS.escape(id)}"]` : '[data-action="add-provider"]');
+    },
+    "provider-remove": (el) => {
+      const id = el.dataset.id ?? "";
+      const name = store.get().providers.find((p) => p.id === id)?.name ?? id;
+      if (!confirm(t("provRemoveAsk", { name }))) return;
+      return api.deleteProvider(id).then(refreshProviders, showError);
+    },
+    // PROV-UI: the sidebar's New project form.
+    "new-project": () => {
+      store.set({ newProjectOpen: !store.get().newProjectOpen, newProjectError: undefined });
+      focusSoon("#new-project-name");
+    },
+    "new-project-cancel": () => {
+      store.set({ newProjectOpen: false, newProjectError: undefined });
+      focusSoon('[data-action="new-project"]');
+    },
+    // TASK-OVERVIEW: a call card or its prompt/answer, opened or closed; kept while the trace redraws.
+    "trace-toggle": (el) => {
+      const key = el.dataset.key ?? "";
+      const d = el.closest("details");
+      const open = !(d ? d.open : openTrace.has(key));
+      if (open) openTrace.add(key); else openTrace.delete(key);
+      if (d) d.open = open;
+    },
     "step-toggle": (el) => {
       const id = el.dataset.id ?? "";
       const d = el.closest("details");
@@ -1528,6 +1712,16 @@ function wire(shell: HTMLElement): void {
     if ((ev.target as HTMLElement).closest("#voice-mic")) releaseAt = Date.now();
   });
   shell.addEventListener("change", async (ev) => {
+    // PROV-UI: a preset fills the provider form; the key's place changes which field shows.
+    const picked = ev.target as HTMLInputElement;
+    if (picked.id === "prov-preset" || (picked.name === "keySource" && picked.closest("#provider-form"))) {
+      const form = picked.closest("form") as HTMLFormElement;
+      const draft = readProviderForm(form);
+      const preset = picked.id === "prov-preset" ? PRESETS.find((p) => p.id === picked.value)?.draft : undefined;
+      store.set({ providerForm: preset ? { ...preset } : { ...draft, keySource: picked.value as "env" | "file" | "none" }, providerFormError: undefined });
+      focusSoon(preset ? "#prov-name" : `#provider-form input[name="keySource"][value="${CSS.escape(picked.value)}"]`);
+      return;
+    }
     const fid = (ev.target as HTMLElement).id;
     if (fid === "code-theme") { setCodeTheme((ev.target as HTMLSelectElement).value); return; }
     if (fid === "desk-notify") {
@@ -1740,6 +1934,13 @@ function wire(shell: HTMLElement): void {
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
     const s = store.get();
+    // TASK-OVERVIEW: Escape leaves a task's trace, then closes the panel.
+    if (s.tasksOverviewOpen) {
+      const back = s.tasksOverviewTaskId;
+      store.set(back ? { tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined, tasksOverviewTraceError: undefined } : { tasksOverviewOpen: false });
+      requestAnimationFrame(() => document.getElementById(back ? `ov-row-${back}` : "ov-chip")?.focus());
+      return;
+    }
     if (s.effortMenuOpen) {
       store.set({ effortMenuOpen: false });
       return;
@@ -1757,6 +1958,20 @@ function wire(shell: HTMLElement): void {
     if (s.renamingChatId || s.chatMenuId) store.set({ renamingChatId: undefined, chatMenuId: undefined });
     else if (s.section === "settings" && leaveSettingsOk()) store.set({ section: "chat", pane: "main" });
   });
+  // TASK-OVERVIEW: on a phone, pulling the top bar down opens the panel and pushing it up closes it.
+  let pullY: number | undefined;
+  shell.addEventListener("touchstart", (ev) => {
+    const target = ev.target as HTMLElement;
+    pullY = target.closest("#conv-head, .tasks-overview .tov-head, .tasks-overview .tov-handle") ? ev.touches[0]?.clientY : undefined;
+  }, { passive: true });
+  shell.addEventListener("touchmove", (ev) => {
+    if (pullY === undefined) return;
+    const dy = (ev.touches[0]?.clientY ?? pullY) - pullY;
+    const open = !!store.get().tasksOverviewOpen;
+    if (!open && dy > 48) { pullY = undefined; store.set({ tasksOverviewOpen: true }); }
+    else if (open && dy < -48) { pullY = undefined; store.set({ tasksOverviewOpen: false, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined }); }
+  }, { passive: true });
+  shell.addEventListener("touchend", () => { pullY = undefined; }, { passive: true });
   // A click anywhere outside an open chat menu closes it.
   document.addEventListener("click", (ev) => {
     const t = ev.target as HTMLElement;
@@ -1765,6 +1980,8 @@ function wire(shell: HTMLElement): void {
     if (store.get().effortMenuOpen && t.isConnected && !t.closest(".effort, #effort-slot")) store.set({ effortMenuOpen: false });
     if (store.get().toolsMenuOpen && !t.closest(".tools")) store.set({ toolsMenuOpen: false });
     if (store.get().contextOpen && !t.closest(".ctx-meter")) store.set({ contextOpen: false });
+    // TASK-OVERVIEW: a click outside the panel (and its chip) closes it; a redrawn target is inside.
+    if (store.get().tasksOverviewOpen && t.isConnected && !t.closest(".tasks-overview, .tov-chip, #tasks-overview-slot")) store.set({ tasksOverviewOpen: false, tasksOverviewTaskId: undefined, tasksOverviewTrace: undefined });
     if (store.get().chatMenuId && !t.closest(".menu, .chat-more")) store.set({ chatMenuId: undefined, movingChatId: undefined });
     if (store.get().projectMenuId && !t.closest(".menu, .project-more")) store.set({ projectMenuId: undefined });
   });
@@ -1776,6 +1993,46 @@ function wire(shell: HTMLElement): void {
     const c = store.get().chats.find((x) => x.id === id);
     if (c && title && title !== c.title) changeChat(id, { title });
   };
+  // PROV-UI: the provider form (Settings) and the New project form (sidebar).
+  shell.addEventListener("submit", (ev) => {
+    const f = ev.target as HTMLFormElement;
+    if (f.id === "provider-form") {
+      ev.preventDefault();
+      const d = readProviderForm(f);
+      const num = (x: string) => (x.trim() ? Number(x) : null);
+      const input = {
+        name: d.name, kind: d.kind, baseUrl: d.baseUrl, local: d.local,
+        apiKeyEnv: d.keySource === "env" ? d.apiKeyEnv.trim() || null : null,
+        apiKeyFile: d.keySource === "file" ? d.apiKeyFile.trim() || null : null,
+        maxTokens: num(d.maxTokens), contextWindow: num(d.contextWindow),
+      };
+      const saving = d.id ? api.updateProvider(d.id, input) : api.addProvider(input);
+      saving.then(
+        async (p) => {
+          store.set({ providerForm: undefined, providerFormError: undefined });
+          await refreshProviders();
+          focusSoon(`[data-provider="${CSS.escape(p.id)}"] [data-action="provider-edit"]`);
+        },
+        (e) => store.set({ providerForm: d, providerFormError: e instanceof Error ? e.message : String(e) }),
+      );
+      return;
+    }
+    if (f.id === "new-project-form") {
+      ev.preventDefault();
+      const name = (f.elements.namedItem("name") as HTMLInputElement).value;
+      const ptype = (f.elements.namedItem("ptype") as HTMLSelectElement).value as import("./api/types").ProjectType;
+      api.createProject({ name, ptype }).then(
+        async (p) => {
+          const projects = await api.listProjects();
+          const expanded = new Set(store.get().expandedProjects);
+          expanded.add(p.id);
+          store.set({ projects, newProjectOpen: false, newProjectError: undefined, activeProjectId: p.id, expandedProjects: expanded, taskScope: "project", paneProjectId: p.id, rightTab: "tasks" });
+          focusSoon(`[data-action="project"][data-id="${CSS.escape(p.id)}"]`);
+        },
+        (e) => store.set({ newProjectError: e instanceof Error ? e.message : String(e) }),
+      );
+    }
+  });
   // MSG-ACT: the edit form under a message: Send (or Enter) resends it, Escape cancels, and the
   // draft survives a re-render (an answer streaming in elsewhere in the chat).
   shell.addEventListener("submit", (ev) => {
@@ -1951,7 +2208,10 @@ function wire(shell: HTMLElement): void {
       ev.preventDefault();
       const f = new FormData(nf);
       const p = { email: String(f.get("email") ?? "").trim(), onNeedsInput: f.has("onNeedsInput"), onFailed: f.has("onFailed"),
-        onDone: f.has("onDone"), dailySummary: f.has("dailySummary") };
+        onDone: f.has("onDone"), dailySummary: f.has("dailySummary"),
+        // NOTIFY: approvals, channels and quiet hours; the time zone is this device's.
+        onApproval: f.has("onApproval"), mailOn: f.has("mailOn"), pushOn: f.has("pushOn"),
+        quietFrom: String(f.get("quietFrom") ?? ""), quietTo: String(f.get("quietTo") ?? ""), tzOffset: -new Date().getTimezoneOffset() };
       const msg = nf.querySelector("#notify-msg");
       void busyWhile(nf, api.setNotifications(p).then(() => { if (msg) msg.textContent = "Saved."; },
         (e) => { if (msg) msg.textContent = e instanceof Error ? e.message : String(e); }));

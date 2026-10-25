@@ -1,0 +1,74 @@
+{
+  "a97692d98da7": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/notify.rs",
+    "title": "Possible Logic Error in Quiet Hours",
+    "verdict": "false_positive",
+    "reason": "hour*60+minute is at most 1439; with the offset rem_euclid(1440) gives the local minute of the day, and from>to spans are handled by local >= from || local < to. Tested at 23:30, 06:59, 07:00, with +120 and a daytime span."
+  },
+  "bae46718b0cc": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/trace.rs",
+    "title": "Potential Security Issue in Trace Retention",
+    "verdict": "false_positive",
+    "reason": "'{}' and '\"\"' are both valid JSON for the empty request object and response string; shown() reads either. Bodies are masked when shown and capped when stored."
+  },
+  "bcb6fa6579ac": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/notify.rs",
+    "title": "Potential Data Loss in Daily Summary Query",
+    "verdict": "false_positive",
+    "reason": "last_daily is only ever written with util::now() (RFC 3339 text), so its first 10 characters are the date; this query is unchanged except for mail_on."
+  },
+  "c8e0207ee17c": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/webpush.rs",
+    "title": "Hard-coded Push Service Hosts",
+    "verdict": "false_positive",
+    "reason": "The allowlist is the point: subscriptions may only send to the browsers' push services (no SSRF to internal hosts). The suffix check needs a label before the suffix; the tests try look-alike hosts."
+  },
+  "d21ffb79f257": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/mail.rs",
+    "title": "Hard-coded Secrets Risk",
+    "verdict": "false_positive",
+    "reason": "KOMPANION_SMTP_PASSWORD_FILE is set by whoever runs the server (compose/.env), not by a user; someone who can set the server's environment already controls it. The value is only used as the SMTP password and never shown."
+  },
+  "dc9ddb6b425a": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/notify.rs",
+    "title": "Possible Issue",
+    "verdict": "false_positive",
+    "reason": "See a97692d98da7: the minute-of-day arithmetic with rem_euclid is exact for any offset; the test with tz_offset 120 checks 05:30 and 04:30 UTC around a 07:00 end."
+  },
+  "f19fd0971be4": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "title": "Missing Error Handling for Provider Lookup",
+    "verdict": "false_positive",
+    "reason": "local only picks the result budget; a missing provider is refused right after in run_in with \"The provider ... is not configured.\", so nothing runs on a guessed provider."
+  },
+  "f2280a9df4d0": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/types.ts",
+    "title": "Potential Data Loss on Migration",
+    "verdict": "false_positive",
+    "reason": "The new columns are NOT NULL with defaults (1 for on_approval, mail_on, push_on), so existing rows read true, which is what the app shows for a missing value too."
+  }
+}

@@ -275,7 +275,7 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
     let effort = effort.as_deref().and_then(crate::effort::Effort::parse).unwrap_or_default();
     let auto = auto_run_for(&s, &chat_id).await;
     let max_steps = max_steps_for(&s, &user_id).await;
-    let local = s.config.provider(&role.provider_id).is_some_and(|p| p.local);
+    let local = s.provider(&role.provider_id).is_some_and(|p| p.local);
     let agent = Agent { s: s.clone(), user_id: user_id.clone(), chat_id: chat_id.clone(), machine_id, role, auto, max_steps, effort, folder: None, task_id: None, run_id: None, protect: None };
     let text = match agent.run_in(&mut messages).await {
         Ok(t) => t,
@@ -366,7 +366,7 @@ impl Agent {
     /// Like `run`, and `messages` keeps the whole exchange afterwards (for the next answer).
     pub async fn run_in(&self, messages: &mut Vec<Value>) -> Result<String, String> {
         let s = &self.s;
-        let Some(p) = s.config.provider(&self.role.provider_id) else {
+        let Some(p) = s.provider(&self.role.provider_id) else {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
         let mut tools = tools::schema();
@@ -375,6 +375,7 @@ impl Agent {
             list.push(spawn::spec());
         }
         let mut spawned = 0;
+        let mut sent_upto = 0usize;
         // HIST-01: the user's own past chats (answered here, read-only); FACTS: remember / forget
         // and the chat's step log.
         if let Some(list) = tools.as_array_mut() {
@@ -391,7 +392,7 @@ impl Agent {
             }
             mcp_map = map;
         }
-        let (p, model_id) = crate::effort::apply(p, &self.role.model_id, self.effort);
+        let (p, model_id) = crate::effort::apply(&p, &self.role.model_id, self.effort);
         let budget = result_budget(p.local);
         // Answers in a row that hit the output limit before their tool call was complete.
         let mut cut_offs = 0;
@@ -417,7 +418,10 @@ impl Agent {
                 Ok((m, u)) => (m, u, None),
                 Err(e) => (Value::Null, Value::Null, Some(format!("The model failed: {e:#}"))),
             };
-            let request = json!({ "messages": messages.len(), "last": messages.last() });
+            // TASK-OVERVIEW: what this call got that the one before did not (the whole prompt the first
+            // time), so a run's trace shows each call's input without storing the history again and again.
+            let request = json!({ "messages": messages.len(), "new": &messages[sent_upto.min(messages.len())..] });
+            sent_upto = messages.len();
             crate::api::log_call(s, &self.user_id, &self.chat_id, self.run_id.as_deref(), &self.role.role, &self.role,
                 "A step on a computer.", &request, &msg, &usage, started.elapsed().as_millis(), err.as_deref(), self.effort).await;
             if let Some(e) = err {
@@ -510,6 +514,10 @@ impl Agent {
                     {
                         let path = job["path"].as_str().unwrap_or("");
                                                 refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &format!("{path} is a test file and this task may not change tests. Change the code so the tests pass instead.")).await
+                    }
+                    // WRITE-CHUNKS: an older runner ignores append/offset and would replace the file.
+                    Some(job) if tools::writes_in_parts(&job) && !tools::runner_writes_in_parts(s.host.runner_version(&self.machine_id).as_deref()) => {
+                        "Refused, nothing changed: the runner on this computer is too old to write a file in parts (it would replace the file). Write it whole, or ask the user to update the runner.".to_string()
                     }
                     Some(job) if job["tool"] == "write_file" && job["path"].as_str().is_some_and(|p| missing.contains(p)) => {
                         "Blocked: that file did not exist when you looked. Ask the user before creating a new file.".to_string()
@@ -630,6 +638,10 @@ async fn ask(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job: 
     // A task run waiting for the user: say so in the project thread, with a link to the card's chat.
     if let (false, Some(run)) = (preapproved, run_id) {
         crate::thread::post_run(s, run, &format!("Waiting for your approval: {summary}. [Open it](#chat={chat_id})")).await;
+    }
+    // NOTIFY: tell the user where they are (push, mail) when they want that.
+    if !preapproved {
+        crate::notify::approval_needed(s.db.clone(), user_id.to_string(), chat_id.to_string(), summary.to_string());
     }
 
     let mut state = if preapproved { "covered".to_string() } else { "pending".to_string() };

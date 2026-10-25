@@ -1,0 +1,110 @@
+{
+  "2e87a4d8b6f2": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/api/mock.ts",
+    "title": "Incomplete Validation",
+    "verdict": "false_positive",
+    "reason": "An empty or blank baseUrl fails the demo's check: it must match ^https?://[^/\\s]+ after trimming, the same rule the server applies with a parsed URL and a host."
+  },
+  "6d2179070d82": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/providers_admin.rs",
+    "title": "Missing Validation",
+    "verdict": "false_positive",
+    "reason": "A key file may be added after the provider (a Docker secret mounted on the next start), so a missing file is allowed on purpose; the provider's row says whether the key was found (hasKey), and the path is limited to the secret folders."
+  },
+  "871323b85125": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/tools.rs",
+    "title": "Resource Leak",
+    "verdict": "false_positive",
+    "reason": "The file handle is dropped at the end of the match arm, which closes it (std::fs::File has no close method); write_all's error is checked, so nothing is left open."
+  },
+  "bc7b314940a4": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/mail.rs",
+    "title": "Hard-coded Secret",
+    "verdict": "false_positive",
+    "reason": "No secret: STARTTLS on 587 is only the default when KOMPANION_SMTP_TLS is unset; tls (465) and none are taken from the environment, and the port follows the choice. The test covers both."
+  },
+  "cc6a11a4ff3e": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/notify.rs",
+    "title": "Possible Issue",
+    "verdict": "false_positive",
+    "reason": "rem_euclid is what makes west-of-UTC right: 01:00 UTC at UTC-5 is 20:00 the evening before, which is the user's local time; the quiet-hours test checks offsets and a span over midnight."
+  },
+  "2933ccb5e399": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/providers_admin.rs",
+    "title": "Security Risk",
+    "verdict": "false_positive",
+    "reason": "key_file_ok refuses any path with a .. component (Component::ParentDir), so /run/secrets/../../etc/shadow is rejected; providers_admin_tests.rs checks exactly that path. Only an admin can set it, and the folders are the ones meant for secrets."
+  },
+  "63a965b218e9": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/settings.ts",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive",
+    "reason": "When push is unsupported the status line next to the disabled button says why (wpStateNone: install Kompanion as an app or use another browser), in all three languages."
+  },
+  "6470fd7b6848": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/mail.rs",
+    "title": "Hard-coded Secrets Risk",
+    "verdict": "false_positive",
+    "reason": "The password is never in SmtpSettings: password() returns it straight to lettre's Credentials, and no log line prints the settings or the password. KOMPANION_SMTP_PASSWORD_FILE is server configuration set by the operator, like the env var itself."
+  },
+  "71117667b34f": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/pcagent/mod.rs",
+    "title": "Data Loss / Incorrect Behavior",
+    "verdict": "false_positive",
+    "reason": "sent_upto is set to messages.len() right after every call is logged, so each later call logs only what was added since (tool results, the model's own message); only the first call logs the whole prompt, as intended."
+  },
+  "a4a5aaa086bc": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/providerform.ts",
+    "title": "Possible Issue",
+    "verdict": "false_positive",
+    "reason": "OPENAI_API_KEY, ANTHROPIC_API_KEY and XAI_API_KEY all end in _KEY and are accepted; the presets use them and providers_admin_tests.rs adds XAI_API_KEY."
+  },
+  "d97b0a9a8c0d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "runner/src/tools.rs",
+    "title": "Possible Issue",
+    "verdict": "false_positive",
+    "reason": "With an offset the file is first cut to that many bytes (set_len), so the file afterwards is exactly start + content: the cap check counts the real size. The parts test checks the size each answer reports."
+  },
+  "efd06e817f39": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/migrations/0139_notify_channels.sql",
+    "title": "Database Schema Issue",
+    "verdict": "false_positive",
+    "reason": "Empty strings mean no quiet hours on purpose: put_prefs refuses half a span and bad times, and quiet() returns false unless both parse; the prefs round-trip test covers it."
+  }
+}

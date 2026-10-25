@@ -360,6 +360,7 @@ mod tests {
             base_url: "http://x/v1".into(),
             local: false,
             api_key_env: None,
+            api_key_file: None,
             extra_body: None,
             effort: Default::default(),
             ttl: None,

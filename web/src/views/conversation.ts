@@ -11,6 +11,7 @@ import type { Effort, Message, Task } from "../api/types";
 import type { PcAction } from "../api/client";
 import { icon } from "./icons";
 import { contextChip } from "./contextmeter";
+import { tasksOverviewChip } from "./taskoverview";
 import { t, type Key } from "../core/i18n";
 import { stateLabel } from "./tasks";
 import { fromTool, renderOutput } from "../core/output";
@@ -101,6 +102,11 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
     </details>`;
 }
 
+/** TASK-OVERVIEW: a step as the same card the chat shows, for a run's trace. */
+export function renderStepCard(a: PcAction, machines: Record<string, string>): SafeHtml {
+  return renderStep(a, machines);
+}
+
 /** Fills an opened explanation: the text as sanitised markdown, a note while it is written, or the
  *  error with a retry. */
 export function fillExplain(body: HTMLElement): void {
@@ -143,6 +149,7 @@ export function renderHeader(s: AppState): SafeHtml {
       <h1>${chat?.title ?? "New chat"}</h1>
     </div>
     <span class="chip model" title="Orchestrator model">${orchestrator?.modelId ?? ""}</span>
+    ${tasksOverviewChip(s)}
     ${chat ? html`<span class="head-tools">
       ${contextChip(s.chatContext && s.chatContext.chatId === chat.id ? s.chatContext : undefined, !!s.contextOpen, !!s.compacting, !!s.contextSummaryOpen)}
       <button class="icon-btn facts-btn" type="button" data-action="open-facts" aria-label="Facts for this chat" title="Facts: what Kompanion remembers for this chat and its project">${icon("bookmark")}</button>

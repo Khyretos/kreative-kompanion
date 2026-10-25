@@ -391,6 +391,22 @@ export interface NotificationPrefs {
   onFailed: boolean;
   onDone: boolean;
   dailySummary: boolean;
+  /** NOTIFY: a step waits for approval; channels; quiet hours ("HH:MM", both or neither). */
+  onApproval?: boolean;
+  mailOn?: boolean;
+  pushOn?: boolean;
+  quietFrom?: string;
+  quietTo?: string;
+  tzOffset?: number; // minutes east of UTC, from this device's clock
+}
+
+/** NOTIFY: the mail server the server's environment sets (KOMPANION_SMTP_*); never its password. */
+export interface SmtpFromEnv {
+  host: string;
+  port: number;
+  tls: string;
+  user: string;
+  from: string;
 }
 
 /** TEN-05: one task's cost line (Coder versus Claude tokens), from tools/qwen/summary.py. */
@@ -409,3 +425,69 @@ export interface ExplainPrefs {
   providerId?: string | null;
   modelId?: string | null;
 }
+
+/** TASK-OVERVIEW: one model call of a run, as its trace shows it (masked, shortened). */
+export interface TraceCall {
+  kind: "call";
+  id: string;
+  at: string;
+  role: string;
+  provider: string;
+  model: string;
+  tokensIn: number | null;
+  tokensOut: number | null;
+  ms: number;
+  error: string | null;
+  reason: string;
+  prompt: string;
+  response: string;
+}
+
+/** TASK-OVERVIEW: a run's calls and steps in order, and what it is doing now. */
+export interface RunTrace {
+  run: { id: string; taskId: string; title: string; project: string | null; status: string; startedAt: string; endedAt: string | null };
+  nowDoing: string;
+  items: (TraceCall | (import("./client").PcAction & { kind: "step" }))[];
+}
+/** PROV-UI: a provider an admin added in Settings (never its key; `hasKey` says one was found). */
+export interface CustomProvider {
+  id: string;
+  name: string;
+  kind: "openai-compatible" | "anthropic";
+  baseUrl: string;
+  local: boolean;
+  apiKeyEnv: string | null;
+  apiKeyFile: string | null;
+  maxTokens: number | null;
+  contextWindow: number | null;
+  hasKey: boolean;
+}
+
+/** PROV-UI: the provider form's fields as typed (numbers as text); no id = a new provider. */
+export interface ProviderDraft {
+  id?: string;
+  name: string;
+  kind: "openai-compatible" | "anthropic";
+  baseUrl: string;
+  local: boolean;
+  keySource: "env" | "file" | "none";
+  apiKeyEnv: string;
+  apiKeyFile: string;
+  maxTokens: string;
+  contextWindow: string;
+}
+
+/** PROV-UI: what the provider form sends. */
+export interface ProviderInput {
+  name: string;
+  kind: string;
+  baseUrl: string;
+  local: boolean;
+  apiKeyEnv: string | null;
+  apiKeyFile: string | null;
+  maxTokens: number | null;
+  contextWindow: number | null;
+}
+
+/** PROV-UI: a new project from the sidebar. */
+export type ProjectType = "chat" | "game" | "programming";

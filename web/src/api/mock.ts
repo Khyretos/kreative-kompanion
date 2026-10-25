@@ -311,6 +311,9 @@ const providers: ModelProvider[] = [
 const overseerPrefs = { name: "Loquendo", interject: true };
 let demoMaxSteps = 10; // AUTO-01
 let demoExplain: import("./types").ExplainPrefs = { on: false, verbose: false }; // CMD-01
+const demoNotify: import("./types").NotificationPrefs = { email: "kees@example.com", onNeedsInput: true, onFailed: true, onDone: false, dailySummary: false,
+  onApproval: true, mailOn: true, pushOn: true, quietFrom: "", quietTo: "", tzOffset: 0 }; // NOTIFY
+const demoCustom: import("./types").CustomProvider[] = []; // PROV-UI
 
 let roles: RoleAssignment[] = [
   { role: "orchestrator", providerId: "deepseek", modelId: "deepseek-chat" },
@@ -421,6 +424,52 @@ export class MockApi implements KompanionApi {
   async setGpuPins() {}
   async setMaxSteps(n: number) { demoMaxSteps = n; }
   async setExplainPrefs(p: import("./types").ExplainPrefs) { demoExplain = { ...p }; }
+  // PROV-UI: providers added in Settings (checked like the server) and new projects.
+  async listCustomProviders() { return structuredClone({ providers: demoCustom, secretDirs: ["/run/secrets", "/data/secrets"] }); }
+  private checkProvider(p: import("./types").ProviderInput) {
+    if (!p.name.trim()) throw new Error("Give the provider a name of up to 60 characters.");
+    if (!/^https?:\/\/[^/\s]+/.test(p.baseUrl.trim())) throw new Error("The address starts with https:// (or http:// on your own network).");
+    if (p.apiKeyEnv && !/^[A-Z][A-Z0-9_]*_(KEY|TOKEN)$/.test(p.apiKeyEnv)) throw new Error("The key's environment variable is in capitals and ends in _KEY or _TOKEN, like XAI_API_KEY.");
+    if (p.apiKeyFile && !/^\/(run\/secrets|data\/secrets)\/[^.][^/]*$/.test(p.apiKeyFile)) throw new Error("The key file must be in /run/secrets or /data/secrets.");
+  }
+  private showProvider(c: import("./types").CustomProvider) {
+    const models = /x\.ai/.test(c.baseUrl) ? [{ id: "grok-4" }, { id: "grok-4-fast" }] : [{ id: "default" }];
+    const shown: ModelProvider = { id: c.id, name: c.name, kind: c.kind, baseUrl: c.baseUrl, local: c.local, models };
+    const i = providers.findIndex((p) => p.id === c.id);
+    if (i >= 0) providers[i] = shown; else providers.push(shown);
+  }
+  async addProvider(p: import("./types").ProviderInput) {
+    this.checkProvider(p);
+    let id = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "provider";
+    for (let n = 2; providers.some((x) => x.id === id); n++) id = `${id.replace(/-\d+$/, "")}-${n}`;
+    const c = { id, ...p, kind: p.kind as "openai-compatible" | "anthropic", baseUrl: p.baseUrl.trim().replace(/\/$/, ""), hasKey: !!p.apiKeyEnv };
+    demoCustom.push(c);
+    this.showProvider(c);
+    return structuredClone(c);
+  }
+  async updateProvider(pid: string, p: import("./types").ProviderInput) {
+    this.checkProvider(p);
+    const c = demoCustom.find((x) => x.id === pid);
+    if (!c) throw new Error("That provider is gone.");
+    Object.assign(c, p, { baseUrl: p.baseUrl.trim().replace(/\/$/, ""), hasKey: !!p.apiKeyEnv });
+    this.showProvider(c);
+    return structuredClone(c);
+  }
+  async deleteProvider(pid: string) {
+    const used = roles.filter((r) => r.providerId === pid).map((r) => r.role);
+    if (used.length) throw new Error(`Roles still use it (${used.join(", ")}): pick another model for them first.`);
+    demoCustom.splice(demoCustom.findIndex((x) => x.id === pid), 1);
+    providers.splice(providers.findIndex((x) => x.id === pid), 1);
+  }
+  async createProject(p: { name: string; description?: string; ptype?: import("./types").ProjectType }) {
+    const name = p.name.trim().replace(/\s+/g, " ");
+    if (!name) throw new Error("Name the project (up to 80 characters).");
+    if (projects.some((x) => !x.archivedAt && x.name.toLowerCase() === name.toLowerCase())) throw new Error(`You already have a project called "${name}".`);
+    const proj: Project = { id: id("p"), name, description: p.description ?? "", updatedAt: new Date().toISOString(), type: p.ptype ?? "chat" };
+    projects.unshift(proj);
+    this.emit({ type: "changed", what: "projects" });
+    return { id: proj.id, name };
+  }
   // CMD-01: a canned explanation, after a short wait as if a model wrote it.
   async explainStep(stepId: string, _lang: string) {
     const a = actions.find((x) => x.id === stepId);
@@ -449,8 +498,11 @@ export class MockApi implements KompanionApi {
   }
   async interject() {}
   async setCardStyle() {}
-  async getNotifications() { return { email: "", onNeedsInput: true, onFailed: true, onDone: false, dailySummary: false }; }
-  async setNotifications() {}
+  async getNotifications() { return structuredClone(demoNotify); }
+  async setNotifications(p: import("./types").NotificationPrefs) {
+    if (!!p.quietFrom !== !!p.quietTo) throw new Error("Quiet hours need a start and an end, like 22:00 and 07:00.");
+    Object.assign(demoNotify, p);
+  }
   async watchMachines() {}
   async pairMachine(name: string) { return { id: "demo", name, token: "demo-token" }; }
   async pairCode() { return { code: "DEMO-C0DE", expiresAt: new Date(Date.now() + 900_000).toISOString() }; }
@@ -486,7 +538,14 @@ export class MockApi implements KompanionApi {
     }, 300);
   }
   async accessHistory() { return structuredClone(history); }
-  async getAdmin() { return { settings: structuredClone(adminSettings), smtpPasswordSet: false }; }
+  async getAdmin() {
+    // NOTIFY: the demo's mail server comes from the environment, as on kireserver.
+    return { settings: structuredClone(adminSettings), smtpPasswordSet: true,
+      smtpFromEnv: { host: "mailserver", port: 587, tls: "starttls", user: "info@kreative-kompas.com", from: "Kreative Kompanion <kompanion@kreative-kompas.com>" } };
+  }
+  async webPushKey() { return { key: "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4" }; }
+  async webPushSubscribe() {}
+  async webPushUnsubscribe() {}
   async saveAdmin(s: AdminSettings) { Object.assign(adminSettings, s); return structuredClone(adminSettings); }
   async uploadLogo() {}
   async removeLogo() {}
@@ -1060,7 +1119,27 @@ export class MockApi implements KompanionApi {
   }
   async weeklyCosts() { return { tasks: 5, coderOutput: 53100, claudeOutput: 301600, coderShare: 0.15 }; }
   async taskRuns(taskId: string) {
-    return taskId === "t-kk-1" ? [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found", effort: "high", effortPicked: true }] : [];
+    if (taskId === "t-kk-1") return [{ id: "run-demo-1", startedAt: ago(30), endedAt: ago(29), status: "needs_input", step: "folder not found", effort: "high", effortPicked: true }];
+    // TASK-OVERVIEW: a running task has a running run in the demo.
+    const t = tasks.find((x) => x.id === taskId);
+    return t?.state === "running" ? [{ id: `run-${taskId}`, startedAt: ago(12), endedAt: null, status: "running", step: t.step ?? null, effort: "auto", effortPicked: false }] : [];
+  }
+  // TASK-OVERVIEW: a demo trace: two model calls around a build step that is still running.
+  async runTrace(runId: string): Promise<import("./types").RunTrace> {
+    // Tests call this to act as a live update of the open trace (as a new step would).
+    (globalThis as { __kkDemoTraceTick?: () => void }).__kkDemoTraceTick = () => this.emit({ type: "changed", what: "trace" });
+    const t = tasks.find((x) => `run-${x.id}` === runId);
+    if (!t) throw new Error("That run is gone.");
+    const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const call = (id: string, min: number, tin: number, tout: number, ms: number, prompt: string, response: string): import("./types").TraceCall =>
+      ({ kind: "call", id, at: at(min), role: "worker", provider: "ovms", model: "Qwen3.5-9B", tokensIn: tin, tokensOut: tout, ms, error: null, reason: "A step on a computer.", prompt, response });
+    const items: import("./types").RunTrace["items"] = [
+      call(`${runId}-c1`, 11, 6_200, 310, 4_100, '[\n  {"role": "user", "content": "Add a --vk-validation flag (off in release builds) and an engine.toml setting."}\n]', '{"tool_calls": [{"function": {"name": "read_file", "arguments": "{\\"path\\": \\"/home/kees/projects/kk-engine/src/config.cpp\\"}"}}]}'),
+      { kind: "step", id: `${runId}-s1`, machineId: "soucouyant", summary: "Read /home/kees/projects/kk-engine/src/config.cpp", state: "done", result: "// engine config\nstruct Config { bool validation = false; };", createdAt: at(10), startedAt: at(10), endedAt: at(10), tool: { tool: "read_file", path: "/home/kees/projects/kk-engine/src/config.cpp" } },
+      call(`${runId}-c2`, 9, 7_050, 880, 9_300, '[\n  {"role": "tool", "content": "// engine config\\nstruct Config { bool validation = false; };"}\n]', '{"content": "I will build and run the tests.", "tool_calls": [{"function": {"name": "shell"}}]}'),
+      { kind: "step", id: `${runId}-s2`, machineId: "soucouyant", summary: t.step ?? "Build and test", state: "running", result: null, createdAt: at(8), startedAt: at(8), endedAt: null, tool: { tool: "shell", cwd: "/home/kees/projects/kk-engine", command: "cmake --build build -j && ctest --test-dir build" } },
+    ];
+    return { run: { id: runId, taskId: t.id, title: t.title, project: projects.find((p) => p.id === t.projectId)?.name ?? null, status: "running", startedAt: at(12), endedAt: null }, nowDoing: t.step ?? "", items };
   }
   async stopAction(actionId: string) {
     const a = actions.find((x) => x.id === actionId);

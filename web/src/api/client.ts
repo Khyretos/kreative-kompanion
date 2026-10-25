@@ -68,7 +68,13 @@ export interface KompanionApi {
   /** ACC-01: same target and rights, a new expiry (null: permanent). */
   renewGrant(machineId: string, target: string, expiresHours: number | null): Promise<void>;
   accessHistory(): Promise<import("../views/access").AccessEvent[]>;
-  getAdmin(): Promise<{ settings: AdminSettings; smtpPasswordSet: boolean }>;
+  getAdmin(): Promise<{ settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./types").SmtpFromEnv | null }>;
+  /** NOTIFY: Web Push for this browser (the server's public key, subscribe, unsubscribe). */
+  webPushKey(): Promise<{ key: string }>;
+  /** TASK-OVERVIEW: a run's model calls and steps, masked, with what it is doing now. */
+  runTrace(runId: string): Promise<import("./types").RunTrace>;
+  webPushSubscribe(sub: { endpoint: string; keys: { p256dh: string; auth: string }; device: string }): Promise<void>;
+  webPushUnsubscribe(endpoint: string): Promise<void>;
   saveAdmin(settings: AdminSettings): Promise<AdminSettings>;
   testMail(to: string): Promise<void>;
   uploadLogo(file: File): Promise<void>;
@@ -120,6 +126,12 @@ export interface KompanionApi {
   setMaxSteps(maxSteps: number): Promise<void>;
   /** CMD-01: the "Explain running actions" settings, and a step's explanation (made on first ask). */
   setExplainPrefs(p: import("./types").ExplainPrefs): Promise<void>;
+  /** PROV-UI: providers added in Settings (admins), and a new project. */
+  listCustomProviders(): Promise<{ providers: import("./types").CustomProvider[]; secretDirs: string[] }>;
+  addProvider(p: import("./types").ProviderInput): Promise<import("./types").CustomProvider>;
+  updateProvider(id: string, p: import("./types").ProviderInput): Promise<import("./types").CustomProvider>;
+  deleteProvider(id: string): Promise<void>;
+  createProject(p: { name: string; description?: string; ptype?: import("./types").ProjectType }): Promise<{ id: string; name: string }>;
   explainStep(id: string, lang: string): Promise<{ text: string; cached: boolean; model: string }>;
   /** OVR-01: creates proposed tasks, and their project when it is new. */
   overseerTasks(b: { project: string; projectId: string | null; tasks: { title: string; description: string }[] }): Promise<{ projectId: string }>;
@@ -218,8 +230,8 @@ export type ServerEvent =
   | { type: "context"; usage: ChatContext } // CTX-01
   | { type: "task"; task: Task }
   | { type: "machines"; machines: MachineStats[] }
-  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts"; machineId?: string }
+  | { type: "changed"; what: "tasks" | "projects" | "chats" | "machines" | "access" | "settings" | "actions" | "lessons" | "project-assets" | "gpus" | "studio" | "facts" | "messages" | "trace"; machineId?: string }
   | { type: "assets"; scan?: unknown; previews?: unknown } // Assets section news (api/assets.ts)
-  | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app ignores it
+  | { type: "notify"; title: string; state: string; url: string } // for the phone app; the web app shows approvals (NOTIFY)
   | { type: "resync" };
 

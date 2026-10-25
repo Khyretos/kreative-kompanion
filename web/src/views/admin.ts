@@ -1,10 +1,11 @@
 // Appearance (every user) and the admin menu: app name, mail, colours.
 // Drafted by qwen3:14b on soucouyant, reviewed.
+import { t } from "../core/i18n";
 import { html, type SafeHtml } from "../core/html";
-import type { AdminSettings } from "../api/types";
+import type { SmtpFromEnv, AdminSettings } from "../api/types";
 import { CODE_THEMES, getCodeTheme } from "../core/codeblocks";
 
-export function renderAdmin(a: AdminSettings, smtpPasswordSet: boolean, theme: "system" | "light" | "dark", isAdmin: boolean): SafeHtml {
+export function renderAdmin(a: AdminSettings, smtpPasswordSet: boolean, theme: "system" | "light" | "dark", isAdmin: boolean, smtpFromEnv?: SmtpFromEnv | null): SafeHtml {
   return html`
     <section>
       <h3 class="label">Appearance</h3>
@@ -37,6 +38,9 @@ export function renderAdmin(a: AdminSettings, smtpPasswordSet: boolean, theme: "
           </div>
 
           <h3 class="label">Mail</h3>
+          ${smtpFromEnv ? html`<p class="env-note small" role="note">${t("smtpEnv", { host: smtpFromEnv.host, port: smtpFromEnv.port, tls: smtpFromEnv.tls, from: smtpFromEnv.from, user: smtpFromEnv.user || "-" })}</p>` : ""}
+          <fieldset class="smtp-fields" ${smtpFromEnv ? "hidden" : ""}>
+          <legend class="sr-only">SMTP</legend>
           <div class="field">
             <label for="smtpHost">SMTP host</label>
             <input type="text" id="smtpHost" name="smtpHost" value="${a.smtpHost}">
@@ -65,7 +69,8 @@ export function renderAdmin(a: AdminSettings, smtpPasswordSet: boolean, theme: "
             <label for="smtpReplyTo">Replies go to</label>
             <input type="email" id="smtpReplyTo" name="smtpReplyTo" value="${a.smtpReplyTo}">
           </div>
-          <p class="muted small">${smtpPasswordSet ? "The mail password is set in the server's .env (SMTP_PASSWORD)." : "No mail password set: add SMTP_PASSWORD to the server's .env if your mail server needs one."}</p>
+          </fieldset>
+          <p class="muted small">${smtpPasswordSet ? t("smtpPwSet") : t("smtpPwMissing")}</p>
           <div class="field">
             <label for="test-to">Send a test mail to</label>
             <div class="row">

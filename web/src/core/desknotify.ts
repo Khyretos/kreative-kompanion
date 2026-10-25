@@ -171,3 +171,27 @@ export function onTaskUpdate(
     // Notifications must never break the app
   }
 }
+
+/** NOTIFY: a step waits for approval (the server's live "notify" event): shown like a task
+ *  notification when this device has them on and Kompanion is in the background. */
+export function onApproval(summary: string, url: string, open: (hash: string) => void): void {
+  try {
+    if (!enabled() || document.hasFocus()) return;
+    const title = "Kompanion: a step waits for your approval";
+    const body = summary.slice(0, 120);
+    const hash = url.includes("#") ? url.slice(url.indexOf("#") + 1) : "";
+    if ((window as any).__TAURI__?.notification) {
+      void (window as any).__TAURI__.notification.sendNotification({ title, body }).catch((e: unknown) => console.error("Kompanion notification failed", e));
+      return;
+    }
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const n = new Notification(title, { body, tag: "kk-approval-" + hash, icon: "/api/mail-logo.png" });
+    n.onclick = () => {
+      window.focus();
+      if (hash) open(hash);
+      n.close();
+    };
+  } catch {
+    // Notifications must never break the app
+  }
+}

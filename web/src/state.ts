@@ -14,6 +14,11 @@ export interface AppState {
   draftAutoRun?: boolean; // AUTO-01: automatic mode picked before a new chat exists
   maxSteps: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100), saved per user
   explain: import("./api/types").ExplainPrefs; // CMD-01: "Explain running actions", saved per user
+  customProviders?: { providers: import("./api/types").CustomProvider[]; secretDirs: string[] }; // PROV-UI: admins only
+  providerForm?: import("./api/types").ProviderDraft; // PROV-UI: the provider being added or changed
+  providerFormError?: string;
+  newProjectOpen?: boolean; // PROV-UI: the sidebar's New project form
+  newProjectError?: string;
   overseer: import("./api/types").OverseerPrefs; // OVR-01
   toolsMenuOpen?: boolean;
   machineName?: string; // HOST-01: the server's own computer, for "This server's computer" in Pair
@@ -32,7 +37,12 @@ export interface AppState {
   pcActions: import("./api/client").PcAction[]; // approval cards of the open chat
   lessons: import("./api/client").Lesson[]; // lessons proposed in the open chat (the project thread)
   pairing?: { code: string; expiresAt: string; name: string }; // the one-line install command, until done
-  admin?: { settings: AdminSettings; smtpPasswordSet: boolean }; // loaded when an admin opens settings
+  admin?: { settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./api/types").SmtpFromEnv | null }; // loaded when an admin opens settings
+  webPush?: "on" | "off" | "denied" | "unsupported"; // NOTIFY: push in this browser
+  tasksOverviewOpen?: boolean; // TASK-OVERVIEW: the running-tasks panel
+  tasksOverviewTaskId?: string; // the task whose live trace the panel shows
+  tasksOverviewTrace?: import("./api/types").RunTrace;
+  tasksOverviewTraceError?: string;
   projects: Project[];
   chats: Chat[];
   activeChatId?: string;
