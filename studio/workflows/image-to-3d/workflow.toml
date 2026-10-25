@@ -1,12 +1,15 @@
 # 3D-01: a .glb (vertex colours) and a preview render from a character picture, with TRELLIS.2 on ComfyUI's native nodes:
 # structure, shape, upsample and texture stages; UDF remesh at 512 (768 filled 12 GB of RAM), decimate to 200k faces, paint.
-# soucouyant's ComfyUI must run with --fp32-vae: the fp16 VAE decode gives NaN vertices on the RX 9070 XT (3D-01 notes).
+# On the RX 9070 XT the fp16/bf16 shape decode gives NaN vertices and the texture decode gives +-200 colours with one
+# half of the model noisy, so the graph uses studio/comfy-nodes/kk_trellis.py (mounted into soucouyant's ComfyUI
+# custom_nodes): the shape VAE in fp32 on the GPU, the texture decode on the CPU (~33 s). No global --fp32-vae.
 title = "3D model"
 description = "Makes a 3D model (.glb, coloured from the picture) of the character in a picture, for Blender and the 3D viewer."
 graph = "graph.json"
 outputs = ["20", "22"]
 machines = ["soucouyant"]
-# Measured 2026-10-18 (queue 18): upsample 1024 peaks at 14.0-14.1 GB card total incl. ~1.4 GB desktop, 57-90 s;
+# Measured 2026-10-25 (queue 24, kk-render, torch cap 0.60, --lowvram): 107-168 s, 11.7 GB card peak, 0 NaN on five
+# characters (comfy-jobs/3d01 on khyretos/pe3-renders). Earlier, 2026-10-18 (queue 18): upsample 1024 peaks at 14.0-14.1 GB card total incl. ~1.4 GB desktop, 57-90 s;
 # 1536 filled the 16 GB card. drop_small_components 0 keeps hands and legs (0.01 dropped them).
 vram_mb = 12500
 ram_mb = 10000

@@ -781,6 +781,12 @@ licence = "CreativeML OpenRAIL-M"
                 }
             }
         }
+        // 3D-01 colour split (2026-10-25): the texture decode runs on the CPU and the shape VAE loads in fp32, through
+        // studio/comfy-nodes/kk_trellis.py, so ComfyUI needs no global --fp32-vae.
+        assert_eq!(g["93"]["class_type"], json!("KKVaeDecodeTextureCPU"));
+        assert_eq!(g["93"]["inputs"]["vae_name"], json!("trellis_2_texture_vae_bf16.safetensors"));
+        assert_eq!(g["117"]["class_type"], json!("KKVAELoaderFP32"));
+        assert!(g.as_object().unwrap().values().all(|n| n["class_type"] != json!("VaeDecodeTextureTrellis")));
         let lic = |f: &str| w.models.iter().find(|m| m.file == f).map(|m| m.licence.clone()).unwrap_or_default();
         for f in ["trellis_2_shape_vae_bf16.safetensors", "trellis_2_texture_vae_bf16.safetensors", "birefnet.safetensors"] {
             assert_eq!(lic(f), "MIT", "{f}");
