@@ -54,6 +54,8 @@ M = os.path.join(HOME, "comfy-models-local")
 PROFILES = {
     # name: (image, torch VRAM fraction, --reserve-vram GB so ComfyUI plans inside the cap, VAE flag)
     "sdxl": ("comfyui-rocm:local", 0.50, "8.5", "--bf16-vae"),
+    # SDXL graphs that also run BiRefNet at 1024 (about 9.3 GB on its own): the sheet v3 graph. The 12 GB card kill stays.
+    "sdxl-cut": ("comfyui-rocm:local", 0.62, "6.0", "--bf16-vae"),
     # TRELLIS.2: the fp16 and bf16 VAE decodes give NaN on gfx1201, so fp32 (3d-01 notes).
     "trellis": ("comfyui-rocm:local", 0.60, "6.8", "--fp32-vae"),
     # the production setup: no global VAE flag; studio/comfy-nodes/kk_trellis.py loads the TRELLIS VAEs in fp32 itself
@@ -61,7 +63,8 @@ PROFILES = {
     # MV-Adapter SD2.1 (STU-SHEET3D; Kees chose SD21 on 2026-10-19): 4 views at 512 measured 6.9 GB card total.
     "mv": ("comfyui-mv:q19", 0.50, "8.5", "--bf16-vae"),
 }
-KK_NODES = [(f"{HOME}/.local/lib/kk-render/kk_trellis.py", "/app/custom_nodes/kk_trellis.py", "ro")]
+KK_NODES = [(f"{HOME}/.local/lib/kk-render/kk_trellis.py", "/app/custom_nodes/kk_trellis.py", "ro"),
+            (f"{HOME}/.local/lib/kk-render/kk_sheet.py", "/app/custom_nodes/kk_sheet.py", "ro")]
 MV_MOUNTS = [
     (f"{M}/mvadapter", "/mvm/mvadapter", "ro"),
     (f"{HOME}/kk-mv/diffusers-cache", "/mvcache", "rw"),
@@ -272,7 +275,7 @@ def start_container(profile, extra=()):
            "-e", "TZ=Europe/Amsterdam", "-e", "HSA_OVERRIDE_GFX_VERSION=12.0.1",
            "-e", f"KK_VRAM_FRACTION={frac}", "-e", "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:False", "-e", "PYTORCH_HIP_ALLOC_CONF=expandable_segments:False",
            "-v", "kk-render-cache:/home/comfy/.cache"]
-    family = {"trellis": TRELLIS_MOUNTS, "trellis-nodes": TRELLIS_MOUNTS + KK_NODES, "mv": MV_MOUNTS}.get(profile, SDXL_MOUNTS)
+    family = {"trellis": TRELLIS_MOUNTS, "trellis-nodes": TRELLIS_MOUNTS + KK_NODES, "mv": MV_MOUNTS}.get(profile, SDXL_MOUNTS + KK_NODES)
     if profile == "mv":
         cmd += MV_ENV
     for src, dst, mode in MOUNTS + family:

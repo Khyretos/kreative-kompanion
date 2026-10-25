@@ -1,0 +1,1246 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+  }
+ },
+ "3": {
+  "class_type": "CLIPSetLastLayer",
+  "inputs": {
+   "clip": [
+    "1",
+    1
+   ],
+   "stop_at_clip_layer": -2
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "lowres, bad anatomy, bad hands, extra fingers, multiple views, two people, frame, border, text, watermark, blurry"
+  }
+ },
+ "180": {
+  "class_type": "EmptyImage",
+  "inputs": {
+   "width": 3200,
+   "height": 1280,
+   "batch_size": 1,
+   "color": 8421504
+  }
+ },
+ "190": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/lines.png"
+  }
+ },
+ "191": {
+  "class_type": "InvertMask",
+  "inputs": {
+   "mask": [
+    "190",
+    1
+   ]
+  }
+ },
+ "101": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-front.png"
+  }
+ },
+ "201": {
+  "class_type": "KKFigureCrop",
+  "inputs": {
+   "image": [
+    "101",
+    0
+   ],
+   "width": 640,
+   "height": 1280,
+   "pad": 0.04,
+   "head_frac": 0.22,
+   "head_size": 1024,
+   "tolerance": 30
+  }
+ },
+ "203": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "201",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "204": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, full body, standing, front view, plain grey background"
+  }
+ },
+ "205": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "204",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "203",
+    0
+   ],
+   "seed": 300,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.35
+  }
+ },
+ "206": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "205",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "207": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "180",
+    0
+   ],
+   "source": [
+    "206",
+    0
+   ],
+   "x": 0,
+   "y": 0,
+   "resize_source": false
+  }
+ },
+ "210": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "201",
+    1
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "211": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, head and shoulders, front view, plain grey background"
+  }
+ },
+ "212": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "211",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "210",
+    0
+   ],
+   "seed": 500,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.4
+  }
+ },
+ "213": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "212",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "214": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "213",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "900": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "207",
+    0
+   ],
+   "source": [
+    "214",
+    0
+   ],
+   "x": 2560,
+   "y": 0,
+   "resize_source": false
+  }
+ },
+ "215": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, wearing a full plate knight helmet with a closed visor, blue and black metal, head and shoulders, front view, plain grey background"
+  }
+ },
+ "216": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "215",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "210",
+    0
+   ],
+   "seed": 510,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.7
+  }
+ },
+ "217": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "216",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "218": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "217",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "901": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "900",
+    0
+   ],
+   "source": [
+    "218",
+    0
+   ],
+   "x": 2880,
+   "y": 0,
+   "resize_source": false
+  }
+ },
+ "102": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-right.png"
+  }
+ },
+ "221": {
+  "class_type": "KKFigureCrop",
+  "inputs": {
+   "image": [
+    "102",
+    0
+   ],
+   "width": 640,
+   "height": 1280,
+   "pad": 0.04,
+   "head_frac": 0.22,
+   "head_size": 1024,
+   "tolerance": 30
+  }
+ },
+ "223": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "221",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "224": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, full body, standing, right side view, profile, plain grey background"
+  }
+ },
+ "225": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "224",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "223",
+    0
+   ],
+   "seed": 301,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.35
+  }
+ },
+ "226": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "225",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "227": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "901",
+    0
+   ],
+   "source": [
+    "226",
+    0
+   ],
+   "x": 640,
+   "y": 0,
+   "resize_source": false
+  }
+ },
+ "230": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "221",
+    1
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "231": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, head and shoulders, right side view, profile, plain grey background"
+  }
+ },
+ "232": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "231",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "230",
+    0
+   ],
+   "seed": 501,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.4
+  }
+ },
+ "233": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "232",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "234": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "233",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "910": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "227",
+    0
+   ],
+   "source": [
+    "234",
+    0
+   ],
+   "x": 2560,
+   "y": 320,
+   "resize_source": false
+  }
+ },
+ "235": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, wearing a full plate knight helmet with a closed visor, blue and black metal, head and shoulders, right side view, profile, plain grey background"
+  }
+ },
+ "236": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "235",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "230",
+    0
+   ],
+   "seed": 511,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.7
+  }
+ },
+ "237": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "236",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "238": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "237",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "911": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "910",
+    0
+   ],
+   "source": [
+    "238",
+    0
+   ],
+   "x": 2880,
+   "y": 320,
+   "resize_source": false
+  }
+ },
+ "103": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-back.png"
+  }
+ },
+ "241": {
+  "class_type": "KKFigureCrop",
+  "inputs": {
+   "image": [
+    "103",
+    0
+   ],
+   "width": 640,
+   "height": 1280,
+   "pad": 0.04,
+   "head_frac": 0.22,
+   "head_size": 1024,
+   "tolerance": 30
+  }
+ },
+ "243": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "241",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "244": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, full body, standing, back view, from behind, plain grey background"
+  }
+ },
+ "245": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "244",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "243",
+    0
+   ],
+   "seed": 302,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.35
+  }
+ },
+ "246": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "245",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "247": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "911",
+    0
+   ],
+   "source": [
+    "246",
+    0
+   ],
+   "x": 1920,
+   "y": 0,
+   "resize_source": false
+  }
+ },
+ "250": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "241",
+    1
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "251": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, head and shoulders, back view, from behind, plain grey background"
+  }
+ },
+ "252": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "251",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "250",
+    0
+   ],
+   "seed": 502,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.4
+  }
+ },
+ "253": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "252",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "254": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "253",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "920": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "247",
+    0
+   ],
+   "source": [
+    "254",
+    0
+   ],
+   "x": 2560,
+   "y": 960,
+   "resize_source": false
+  }
+ },
+ "255": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, wearing a full plate knight helmet with a closed visor, blue and black metal, head and shoulders, back view, from behind, plain grey background"
+  }
+ },
+ "256": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "255",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "250",
+    0
+   ],
+   "seed": 512,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.7
+  }
+ },
+ "257": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "256",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "258": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "257",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "921": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "920",
+    0
+   ],
+   "source": [
+    "258",
+    0
+   ],
+   "x": 2880,
+   "y": 960,
+   "resize_source": false
+  }
+ },
+ "104": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sheet3d/view-left.png"
+  }
+ },
+ "261": {
+  "class_type": "KKFigureCrop",
+  "inputs": {
+   "image": [
+    "104",
+    0
+   ],
+   "width": 640,
+   "height": 1280,
+   "pad": 0.04,
+   "head_frac": 0.22,
+   "head_size": 1024,
+   "tolerance": 30
+  }
+ },
+ "263": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "261",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "264": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, full body, standing, left side view, profile, plain grey background"
+  }
+ },
+ "265": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "264",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "263",
+    0
+   ],
+   "seed": 303,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.35
+  }
+ },
+ "266": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "265",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "267": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "921",
+    0
+   ],
+   "source": [
+    "266",
+    0
+   ],
+   "x": 1280,
+   "y": 0,
+   "resize_source": false
+  }
+ },
+ "270": {
+  "class_type": "VAEEncodeTiled",
+  "inputs": {
+   "pixels": [
+    "261",
+    1
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "271": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, head and shoulders, left side view, profile, plain grey background"
+  }
+ },
+ "272": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "271",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "270",
+    0
+   ],
+   "seed": 503,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.4
+  }
+ },
+ "273": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "272",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "274": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "273",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "930": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "267",
+    0
+   ],
+   "source": [
+    "274",
+    0
+   ],
+   "x": 2560,
+   "y": 640,
+   "resize_source": false
+  }
+ },
+ "275": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1girl, solo, silver hair, blue and black plate armour, black trousers, armoured boots, wearing a full plate knight helmet with a closed visor, blue and black metal, head and shoulders, left side view, profile, plain grey background"
+  }
+ },
+ "276": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "275",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "latent_image": [
+    "270",
+    0
+   ],
+   "seed": 513,
+   "steps": 24,
+   "cfg": 6,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 0.7
+  }
+ },
+ "277": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "276",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "278": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "277",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": 320,
+   "height": 320,
+   "crop": "disabled"
+  }
+ },
+ "931": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "930",
+    0
+   ],
+   "source": [
+    "278",
+    0
+   ],
+   "x": 2880,
+   "y": 640,
+   "resize_source": false
+  }
+ },
+ "192": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "931",
+    0
+   ],
+   "source": [
+    "190",
+    0
+   ],
+   "x": 0,
+   "y": 0,
+   "resize_source": false,
+   "mask": [
+    "191",
+    0
+   ]
+  }
+ },
+ "199": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "192",
+    0
+   ],
+   "filename_prefix": "sheet3d/v3-sheet"
+  }
+ }
+}
