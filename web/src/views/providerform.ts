@@ -13,13 +13,15 @@ export const PRESETS: { id: string; draft: ProviderDraft }[] = [
   { id: "openai", draft: { name: "OpenAI", kind: "openai-compatible", baseUrl: "https://api.openai.com/v1", local: false, keySource: "env", apiKeyEnv: "OPENAI_API_KEY", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
   { id: "anthropic", draft: { name: "Claude (Anthropic API)", kind: "anthropic", baseUrl: "https://api.anthropic.com", local: false, keySource: "env", apiKeyEnv: "ANTHROPIC_API_KEY", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
   { id: "deepseek", draft: { name: "DeepSeek", kind: "openai-compatible", baseUrl: "https://api.deepseek.com", local: false, keySource: "env", apiKeyEnv: "DEEPSEEK_API_KEY", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
+  { id: "gemini", draft: { name: "Google Gemini", kind: "openai-compatible", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", local: false, keySource: "env", apiKeyEnv: "GEMINI_API_KEY", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
+  { id: "mistral", draft: { name: "Mistral", kind: "openai-compatible", baseUrl: "https://api.mistral.ai/v1", local: false, keySource: "env", apiKeyEnv: "MISTRAL_API_KEY", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
   { id: "openrouter", draft: { name: "OpenRouter", kind: "openai-compatible", baseUrl: "https://openrouter.ai/api/v1", local: false, keySource: "env", apiKeyEnv: "OPENROUTER_API_KEY", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
   { id: "ollama", draft: { name: "Ollama", kind: "openai-compatible", baseUrl: "http://ollama:11434/v1", local: true, keySource: "none", apiKeyEnv: "", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
   { id: "other", draft: { name: "", kind: "openai-compatible", baseUrl: "https://", local: false, keySource: "env", apiKeyEnv: "", apiKeyFile: "", maxTokens: "", contextWindow: "" } },
 ];
 
 const PRESET_LABEL: Record<string, string> = {
-  xai: "xAI Grok", openai: "OpenAI", anthropic: "Anthropic (Claude)", deepseek: "DeepSeek", openrouter: "OpenRouter", ollama: "Ollama (local)",
+  xai: "xAI Grok", openai: "OpenAI", anthropic: "Anthropic (Claude)", deepseek: "DeepSeek", gemini: "Google Gemini", mistral: "Mistral", openrouter: "OpenRouter", ollama: "Ollama (local)",
 };
 
 /** The form's draft for a provider that exists. */

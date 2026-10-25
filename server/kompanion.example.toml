@@ -60,7 +60,7 @@ local = true
 # to 32000 tokens (thinking included); max_tokens changes that, for every kind of provider.
 # max_tokens = 32000
 # How many tokens the model takes in (prompt plus answer), for the context meter in the chat and for
-# when older messages are summarised. Known cloud models (Claude, GPT, DeepSeek, Grok, Gemini) need no
+# when older messages are summarised. Known cloud models (Claude, GPT, DeepSeek, Grok, Gemini, Mistral) need no
 # setting; set it for a local model, e.g. context_window = 32768 (any kind of provider).
 # context_window = 200000
 # Effort for Opus/Sonnet 5.5 (default medium on Opus): [provider.effort.high] extra_body = { output_config = { effort = "high" } }
