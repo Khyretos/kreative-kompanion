@@ -15,6 +15,9 @@ fn windows_come_from_the_provider_or_known_models() {
     assert_eq!(known_window("grok-4-fast"), Some(256_000));
     assert_eq!(known_window("x-ai/grok-3-mini"), Some(131_072));
     assert_eq!(known_window("o4-mini"), Some(200_000));
+    assert_eq!(known_window("gemini-2.5-pro"), Some(1_048_576));
+    assert_eq!(known_window("mistral-large-latest"), Some(128_000));
+    assert_eq!(known_window("codestral-latest"), Some(256_000));
     assert_eq!(known_window("Qwen3.5-9B-int8-ov"), None, "a local model's window is unknown unless set");
     let p: ProviderConfig = toml::from_str("id = \"o\"\nname = \"O\"\nkind = \"openai-compatible\"\nbase_url = \"http://x\"\ncontext_window = 32768").unwrap();
     assert_eq!(window(Some(&p), "Qwen3.5-9B-int8-ov"), Some(32_768));

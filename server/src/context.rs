@@ -53,6 +53,10 @@ pub fn known_window(model: &str) -> Option<i64> {
         131_072
     } else if m.contains("gemini") {
         1_048_576
+    } else if m.contains("codestral") || m.contains("devstral") {
+        256_000
+    } else if m.contains("mistral") || m.contains("magistral") {
+        128_000
     } else {
         return None;
     };
