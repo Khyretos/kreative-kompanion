@@ -61,6 +61,25 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
 
+  # STU-M2 (optional): text to motion for the Studio's "Motion from text" (MoMask, MIT; weights trained on HumanML3D,
+  # a research dataset). CPU only, about 5 s per clip, models load once (13 s). Start with --profile motion, put the
+  # MoMask checkpoints (checkpoints/t2m/...) and CLIP ViT-B-32.pt in KOMPANION_MOTION_MODELS (checkpoints/, clip/),
+  # and give Kreative Studio MOTION_URL=http://motion:8000.
+  motion:
+    profiles: [motion]
+    build: tools/motion
+    image: kk-motion:local
+    restart: unless-stopped
+    volumes:
+      - ${KOMPANION_MOTION_MODELS:-./motion-models}/checkpoints:/momask/checkpoints:ro
+      - ${KOMPANION_MOTION_MODELS:-./motion-models}/clip:/home/motion/.cache/clip:ro
+    mem_limit: 6g
+    cpus: 6
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
 volumes:
   kompanion-data:
   kompanion-generated:
