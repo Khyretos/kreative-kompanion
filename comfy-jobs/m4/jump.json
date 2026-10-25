@@ -1,0 +1,822 @@
+{
+ "1": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "novaAnimeXL_ilV170.safetensors"
+  }
+ },
+ "3": {
+  "class_type": "CLIPSetLastLayer",
+  "inputs": {
+   "clip": [
+    "1",
+    1
+   ],
+   "stop_at_clip_layer": -2
+  }
+ },
+ "4": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "masterpiece, best quality, 1boy, solo, green-skinned goblin with pointed ears, black leather outfit with silver trim, brown boots, full body, plain light grey background, dynamic jump"
+  }
+ },
+ "5": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "3",
+    0
+   ],
+   "text": "lowres, bad anatomy, bad hands, extra limbs, multiple views, two people, text, watermark, blurry"
+  }
+ },
+ "901": {
+  "class_type": "ControlNetLoader",
+  "inputs": {
+   "control_net_name": "xinsir-union-sdxl-promax.safetensors"
+  }
+ },
+ "902": {
+  "class_type": "SetUnionControlNetType",
+  "inputs": {
+   "control_net": [
+    "901",
+    0
+   ],
+   "type": "openpose"
+  }
+ },
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-0.png"
+  }
+ },
+ "11": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "10",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "12": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "13": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "11",
+    0
+   ],
+   "negative": [
+    "11",
+    1
+   ],
+   "latent_image": [
+    "12",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "14": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "13",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "15": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "14",
+    0
+   ],
+   "filename_prefix": "m4/jump-0"
+  }
+ },
+ "20": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-1.png"
+  }
+ },
+ "21": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "20",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "22": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "23": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "21",
+    0
+   ],
+   "negative": [
+    "21",
+    1
+   ],
+   "latent_image": [
+    "22",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "24": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "23",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "25": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "24",
+    0
+   ],
+   "filename_prefix": "m4/jump-1"
+  }
+ },
+ "30": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-2.png"
+  }
+ },
+ "31": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "30",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "32": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "33": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "31",
+    0
+   ],
+   "negative": [
+    "31",
+    1
+   ],
+   "latent_image": [
+    "32",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "34": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "33",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "35": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "34",
+    0
+   ],
+   "filename_prefix": "m4/jump-2"
+  }
+ },
+ "40": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-3.png"
+  }
+ },
+ "41": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "40",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "42": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "43": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "41",
+    0
+   ],
+   "negative": [
+    "41",
+    1
+   ],
+   "latent_image": [
+    "42",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "44": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "43",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "45": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "44",
+    0
+   ],
+   "filename_prefix": "m4/jump-3"
+  }
+ },
+ "50": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-4.png"
+  }
+ },
+ "51": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "50",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "52": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "53": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "51",
+    0
+   ],
+   "negative": [
+    "51",
+    1
+   ],
+   "latent_image": [
+    "52",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "54": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "53",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "55": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "54",
+    0
+   ],
+   "filename_prefix": "m4/jump-4"
+  }
+ },
+ "60": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-5.png"
+  }
+ },
+ "61": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "60",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "62": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "63": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "61",
+    0
+   ],
+   "negative": [
+    "61",
+    1
+   ],
+   "latent_image": [
+    "62",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "64": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "63",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "65": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "64",
+    0
+   ],
+   "filename_prefix": "m4/jump-5"
+  }
+ },
+ "70": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-6.png"
+  }
+ },
+ "71": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "70",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "72": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "73": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "71",
+    0
+   ],
+   "negative": [
+    "71",
+    1
+   ],
+   "latent_image": [
+    "72",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "74": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "73",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "75": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "74",
+    0
+   ],
+   "filename_prefix": "m4/jump-6"
+  }
+ },
+ "80": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "m4/m4-7.png"
+  }
+ },
+ "81": {
+  "class_type": "ControlNetApplyAdvanced",
+  "inputs": {
+   "positive": [
+    "4",
+    0
+   ],
+   "negative": [
+    "5",
+    0
+   ],
+   "control_net": [
+    "902",
+    0
+   ],
+   "image": [
+    "80",
+    0
+   ],
+   "strength": 1.0,
+   "start_percent": 0.0,
+   "end_percent": 0.9,
+   "vae": [
+    "1",
+    2
+   ]
+  }
+ },
+ "82": {
+  "class_type": "EmptyLatentImage",
+  "inputs": {
+   "width": 576,
+   "height": 832,
+   "batch_size": 1
+  }
+ },
+ "83": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "positive": [
+    "81",
+    0
+   ],
+   "negative": [
+    "81",
+    1
+   ],
+   "latent_image": [
+    "82",
+    0
+   ],
+   "seed": 777,
+   "steps": 24,
+   "cfg": 5.5,
+   "sampler_name": "euler_ancestral",
+   "scheduler": "normal",
+   "denoise": 1
+  }
+ },
+ "84": {
+  "class_type": "VAEDecodeTiled",
+  "inputs": {
+   "samples": [
+    "83",
+    0
+   ],
+   "vae": [
+    "1",
+    2
+   ],
+   "tile_size": 512,
+   "overlap": 64,
+   "temporal_size": 64,
+   "temporal_overlap": 8
+  }
+ },
+ "85": {
+  "class_type": "SaveImage",
+  "inputs": {
+   "images": [
+    "84",
+    0
+   ],
+   "filename_prefix": "m4/jump-7"
+  }
+ }
+}
