@@ -78,7 +78,9 @@ test.describe("PC Agent approval cards", () => {
     await expect(step).toHaveAttribute("open", "");
     const out = step.locator("figure.output.terminal");
     await expect(out).toBeVisible();
-    await expect(out.locator(".output-title")).toContainText("paru install htop");
+    // COMPACT-UI: the command is the card's own line; the output does not repeat it.
+    await expect(step.locator(".step-line")).toContainText("paru install htop");
+    await expect(out.locator(".output-title")).toHaveCount(0);
     await expect(out.locator(".chip.exit.ok")).toContainText("exit 0");
     await page.screenshot({ path: "test-results/output-terminal.png" });
   });

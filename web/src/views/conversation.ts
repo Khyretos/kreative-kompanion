@@ -115,7 +115,7 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
       </summary>
       <div class="step-explain-body" data-explain-body="${a.id}" aria-live="polite" ${explaining ? "" : "hidden"}></div>
       ${spawn ? html`<div class="spawn-prompt" role="group" aria-label="${t("spawnPrompt")}">${spawn.prompt}</div>` : ""}
-      ${spawn && a.result ? html`<p class="spawn-result small">${a.result}</p>` : a.result ? renderOutput(fromTool(a.tool, a.result, machines[a.machineId])) : ""}
+      ${spawn && a.result ? html`<p class="spawn-result small">${a.result}</p>` : a.result ? renderOutput({ ...fromTool(a.tool, a.result, machines[a.machineId]), title: undefined, machine: undefined }) : ""}
       ${made ? html`<p class="spawn-open"><button class="btn small" type="button" data-action="${made.kind === "task" ? "open-task" : "open-chat"}" data-id="${made.id}">${t(made.kind === "task" ? "spawnOpenTask" : "spawnOpenChat")}</button></p>` : ""}
     </details>`;
 }

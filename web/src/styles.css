@@ -510,6 +510,8 @@ li.task.dragging { opacity: 0.5; }
 .msg-edit-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .msg-edit p { margin: 0; }
 .msg-edit-buttons { display: flex; justify-content: flex-end; gap: 0.4rem; }
+/* COMPACT-UI: on a phone the top bar keeps room for the chat's title: Export is a desktop thing. */
+@media (max-width: 760px) { .conv-head .export-btn { display: none; } }
 /* A 44 px touch target that does not make the header row taller. */
 @media (max-width: 760px) { .msg-act { width: 2.5rem; height: 44px; margin-block: -0.7rem; } .msg-edit-buttons .btn { min-height: 44px; } }
 .msg.orchestrator .who { color: var(--link); }
