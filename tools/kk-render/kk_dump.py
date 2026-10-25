@@ -96,30 +96,33 @@ class KKLoadSubdivides:
 
 
 class KKVaeDecodeTextureCPU:
-    """VaeDecodeTextureTrellis with the texture VAE on the CPU in fp32. On the RX 9070 XT (gfx1201) the GPU decode
-    returns colours of about +-200 with one half of the model twice as noisy (the 3D-01 colour split); the same
-    latent decoded on the CPU gives 0..1 on both halves (2026-10-24, about 33 s for 1.5 M voxels)."""
+    """VaeDecodeTextureTrellis with the texture VAE loaded on the CPU in fp32. On the RX 9070 XT (gfx1201) the GPU
+    decode returns colours of about +-200 with one half of the model twice as noisy (the 3D-01 colour split); the
+    same latent decoded on the CPU gives 0..1 on both halves (2026-10-24, about 33 s for 1.5 M voxels)."""
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"samples": ("LATENT",), "vae": ("VAE",), "shape_subdivides": ("SHAPE_SUBDIVIDES",)}}
+        import folder_paths
+        return {"required": {"samples": ("LATENT",), "shape_subdivides": ("SHAPE_SUBDIVIDES",),
+                             "vae_name": (folder_paths.get_filename_list("vae"),)}}
     RETURN_TYPES = ("VOXEL",)
     FUNCTION = "run"
     CATEGORY = "kk"
 
-    def run(self, samples, vae, shape_subdivides):
+    def run(self, samples, shape_subdivides, vae_name):
         import comfy.model_management as mm
+        import comfy.sd
+        import comfy.utils
+        import folder_paths
         from comfy_extras.nodes_trellis2 import VaeDecodeTextureTrellis
         cpu = torch.device("cpu")
-        model = vae.first_stage_model
-        old = (mm.get_torch_device, vae.device, vae.vae_dtype, next(model.parameters()).device, next(model.parameters()).dtype)
+        vae = comfy.sd.VAE(sd=comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae", vae_name)), device=cpu, dtype=torch.float32)
+        subs = [type(s)(feats=s.feats.to(cpu, torch.float32), coords=s.coords.to(cpu), shape=s.shape, scale=s._scale) for s in shape_subdivides]
+        old = mm.get_torch_device
         mm.get_torch_device = lambda: cpu
-        vae.device, vae.vae_dtype = cpu, torch.float32
-        model.to(cpu, torch.float32)
         try:
-            out = VaeDecodeTextureTrellis.execute(samples, vae, shape_subdivides)
+            out = VaeDecodeTextureTrellis.execute(samples, vae, subs)
         finally:
-            mm.get_torch_device, vae.device, vae.vae_dtype = old[0], old[1], old[2]
-            model.to(old[3], old[4])
+            mm.get_torch_device = old
         voxel = out[0] if isinstance(out, tuple) else out.result[0]
         return (voxel,)
 

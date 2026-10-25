@@ -122,11 +122,27 @@ def running_containers():
     return [n for n in out.split() if n]
 
 
+def gpu_free_ci(name):
+    """Kees 2026-10-25 ("Allow"): a Forgejo CI job container that has no GPU device may run next to a render.
+    Anything else (tests, other ComfyUIs, CI with /dev/kfd or /dev/dri) still stops it."""
+    if not name.startswith("FORGEJO-ACTIONS-TASK-"):
+        return False
+    r = subprocess.run(["docker", "inspect", "-f", "{{json .HostConfig.Devices}} {{json .HostConfig.Binds}}", name],
+                       capture_output=True, text=True, timeout=20)
+    if r.returncode != 0:
+        return True  # gone already
+    return "/dev/kfd" not in r.stdout and "/dev/dri" not in r.stdout
+
+
+def blocking_containers(skip):
+    return [n for n in running_containers() if n not in skip and not gpu_free_ci(n)]
+
+
 def preflight(gpu=True):
     """Return a list of reasons to refuse; empty means the GPU is free for one job.
     gpu=False skips the VRAM/busy/heat checks (used while the Studio ComfyUI still holds the card)."""
     why = []
-    others = [n for n in running_containers() if n not in (NAME, STUDIO)]
+    others = blocking_containers((NAME, STUDIO))
     if others:
         why.append("other containers running (CI or tests): " + ", ".join(others))
     games = []
@@ -189,7 +205,7 @@ class Watchdog(threading.Thread):
         while not self.stop_ev.is_set():
             n += 1
             if n % 20 == 0:  # every ~5 s: a CI job or test container that starts mid-render ends the render
-                others = [c for c in running_containers() if c != NAME]
+                others = blocking_containers((NAME,))
                 if others:
                     self.trip("another container started: " + ", ".join(others))
             s = sample()
