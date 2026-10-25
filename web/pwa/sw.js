@@ -20,7 +20,9 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   // The network only: other hosts, the API (live data, event stream) and downloads.
+  // The artifact preview frame too: its navigation must never be cached as the app's index.html.
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/download/")
+    || url.pathname === "/sandbox.html"
     || (req.headers.get("Accept") || "").includes("text/event-stream")) return;
   // Pages: the network first, a cached copy of the app when offline.
   // Everything else (scripts, styles, icons): the network first, the cache when offline.

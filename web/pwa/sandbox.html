@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- ARTIFACTS: the preview frame. The server sends the real policy as a header (sandbox.rs);
+     this copy keeps the dev server just as strict: inline scripts and styles, no network. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preview</title>
+</head>
+<body>
+<script>
+  // The app (our parent, which framed us with sandbox="allow-scripts") sends one HTML document;
+  // it replaces this page. Only the first message from the parent counts.
+  let shown = false;
+  addEventListener("message", (e) => {
+    if (shown || e.source !== parent || !e.data || typeof e.data.kkArtifact !== "string") return;
+    shown = true;
+    document.open();
+    document.write(e.data.kkArtifact);
+    document.close();
+  });
+  parent.postMessage({ kkSandboxReady: true }, "*");
+</script>
+</body>
+</html>

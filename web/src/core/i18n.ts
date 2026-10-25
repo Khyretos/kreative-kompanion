@@ -64,6 +64,17 @@ const STRINGS = {
   stRefused: { en: "not allowed", es: "no permitido", nl: "niet toegestaan" },
   stStopped: { en: "stopped by you", es: "parado por ti", nl: "door jou gestopt" },
   stPending: { en: "waiting for you", es: "esperándote", nl: "wacht op jou" },
+  // ARTIFACTS: the side pane for files and long code.
+  artOpen: { en: "Open", es: "Abrir", nl: "Openen" },
+  artOpenTip: { en: "Open all {n} lines in the side pane", es: "Abrir las {n} líneas en el panel lateral", nl: "Alle {n} regels openen in het zijpaneel" },
+  artPreview: { en: "Preview", es: "Vista previa", nl: "Voorbeeld" },
+  artCode: { en: "Code", es: "Código", nl: "Code" },
+  artView: { en: "Show as", es: "Mostrar como", nl: "Tonen als" },
+  artCopy: { en: "Copy", es: "Copiar", nl: "Kopiëren" },
+  artDownload: { en: "Download", es: "Descargar", nl: "Downloaden" },
+  artClose: { en: "Close the pane", es: "Cerrar el panel", nl: "Paneel sluiten" },
+  artLines: { en: "{n} lines", es: "{n} líneas", nl: "{n} regels" },
+  artFileOpen: { en: "Open the file", es: "Abrir el archivo", nl: "Bestand openen" },
   // Approval cards: one header row, the step on one line, the buttons on one row.
   needApproval: { en: "needs your approval", es: "necesita tu aprobación", nl: "wacht op je akkoord" },
   needAutomatic: { en: "automatic", es: "automático", nl: "automatisch" },

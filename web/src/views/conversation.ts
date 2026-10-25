@@ -1,6 +1,7 @@
 // Middle pane: the conversation with the project's orchestrator.
 import { codeSpans, html, type SafeHtml } from "../core/html";
 import { renderMarkdown } from "../core/markdown";
+import { langOfPath, type Artifact } from "../core/artifact";
 import { linkSources, renderSources, splitSources } from "../core/sources";
 import { renderOverseer, splitOverseer } from "../core/overseer";
 import { splitFiles } from "../core/attachments";
@@ -84,6 +85,21 @@ export function shortPath(p: string): string {
   return parts.length > 3 ? `…/${parts.slice(-3).join("/")}` : p;
 }
 
+/** ARTIFACTS: the file a step wrote or read, for its Open link (kept while the chat shows it). */
+const stepFiles = new Map<string, Artifact>();
+export const stepArtifact = (id: string): Artifact | undefined => stepFiles.get(id);
+
+function fileOf(a: PcAction): Artifact | undefined {
+  const tool = a.tool ?? {};
+  const path = typeof tool.path === "string" ? tool.path : "";
+  if (!path) return undefined;
+  if (tool.tool === "write_file" && typeof tool.content === "string" && tool.append !== true && typeof tool.offset !== "number") {
+    return { title: path, lang: langOfPath(path), text: tool.content };
+  }
+  if (tool.tool === "read_file" && a.state === "done" && a.result) return { title: path, lang: langOfPath(path), text: a.result };
+  return undefined;
+}
+
 /** CMD-01 / COMPACT-UI: a step as a card: one header row (icon, type and time on the left; Explain,
  *  risk and state on the right), then its command as highlighted code, three lines until opened.
  *  Opened: the whole command, the output and the explanation. */
@@ -98,6 +114,8 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
   const took = !busy && a.endedAt ? elapsedText(since, Date.parse(a.endedAt)) : "";
   const icn = busy ? "spark" : a.state === "done" ? "terminal" : "close";
   const explaining = openExplains.has(a.id);
+  const file = fileOf(a);
+  if (file) stepFiles.set(a.id, file); else stepFiles.delete(a.id);
   return html`
     <details class="step step-card ${a.state}" data-step="${a.id}" data-state="${a.state}" ${busy || openSteps.has(a.id) || explaining ? "open" : ""}>
       <summary data-action="step-toggle" data-id="${a.id}" title="${a.summary}">
@@ -105,6 +123,7 @@ function renderStep(a: PcAction, machines: Record<string, string>): SafeHtml {
           ${icon(icn)}<span class="kind-tag" style="--kind:${kind.color}">${spawn ? t(spawn.kind === "task" ? "spawnTask" : "spawnChat") : kind.label}</span>
           ${a.state === "running" ? html`<span class="step-time elapsed" data-since="${since}">${elapsedText(since)}</span>` : took ? html`<span class="step-time" title="${t("cmdTook", { time: took })}">${took}</span>` : ""}
           <span class="step-tags">
+            ${file ? html`<button class="step-explain-link step-open-link" type="button" data-action="artifact-step" data-id="${a.id}" title="${t("artFileOpen")}">${t("artOpen")}</button>` : ""}
             ${command && !spawn ? html`<button class="step-explain-link" type="button" data-action="explain-toggle" data-id="${a.id}" aria-expanded="${explaining ? "true" : "false"}">${t("explainShort")}</button>` : ""}
             ${risk ? html`<span class="risk-tag risk-${risk}" title="${t("riskTip")}">${t(RISK_LABEL[risk])}</span>` : ""}
             <span class="chip ${a.state}">${STEP_LABEL[a.state] ? t(STEP_LABEL[a.state]) : a.state}</span>
