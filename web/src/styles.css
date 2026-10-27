@@ -120,7 +120,8 @@
   --hl-meta: #1f4fbf;
 }
 
-* { box-sizing: border-box; }
+/* UI-POLISH: themed thin scrollbars everywhere (the WebKit ones are at the end of this file). */
+* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--brand) 70%, var(--line)) transparent; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -1419,7 +1420,6 @@ a.fact-value { color: var(--link); }
 }
 
 /* UI-POLISH (Kees 10-27): themed scrollbars and dropdowns everywhere, never the system grey ones. */
-* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--brand) 70%, var(--line)) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {

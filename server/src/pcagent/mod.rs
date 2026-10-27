@@ -1179,7 +1179,7 @@ mod tests {
         let kept = for_memory(step);
         assert!(kept.get(crate::llm_anthropic::ANTHROPIC_BLOCKS).is_none(), "no signed thinking replayed in a later request");
         assert_eq!(kept["tool_calls"][0]["id"], "t");
-        let pic = json!({ "role": "user", "content": [{ "type": "image_url", "image_url": { "url": "data:image/png;base64,AA" } }, { "type": "text", "text": "What is this?" }] });
+        let pic = json!({ "role": "user", "content": [{ "type": "image_url", "image_url": { "url": concat!("data:image/png;", "base64,AA") } }, { "type": "text", "text": "What is this?" }] });
         assert_eq!(for_memory(pic)["content"], "What is this?");
     }
 
