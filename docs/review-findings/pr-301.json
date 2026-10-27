@@ -1,0 +1,29 @@
+{
+  "378bc312b0b3": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/core/voice.ts",
+    "reason": "The system default stays selectable: Settings always lists \"System default\" (value \"\"), and Recorder.start(\"\") asks for {audio: true}, which is the default device. \"default\" and \"communications\" are Chrome's alias entries for a real device that is listed too; leaving them out avoids showing one microphone two or three times.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "7ca5cd225cde": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/conversation.ts",
+    "reason": "renderSent (web/src/views/attach.ts) builds the markup with the html tagged template from core/html.ts, which escapes every interpolated value (& < > \" ') before it reaches an attribute or text; the file name is also limited to 200 characters by the server. The page's Trusted Types CSP refuses any unescaped innerHTML.",
+    "title": "Potential XSS Vector",
+    "verdict": "false_positive"
+  },
+  "bc8f56f5bc4d": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/main.ts",
+    "reason": "stopRecording catches every error and passes it to showError, and the finally block sets recording back to idle, so the button never stays stuck. The message text for a non-Error value is String(e), which is what showError shows anyway.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  }
+}

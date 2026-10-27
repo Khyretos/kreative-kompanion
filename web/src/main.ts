@@ -54,7 +54,9 @@ let studioNegative = ""; // STU-N1: the Leave out words, kept like the prompt
 let studioHelmet = ""; // STU-C3: the helmet description (empty: no helmet pair)
 const studioSides: Record<string, "on" | "off"> = {}; // STU-C3: which side each helmet pair shows
 import { ALL_FEATURES } from "./api/types";
-import { Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
+import { openLightbox } from "./core/lightbox";
+import { matchSlash, renderSlash, typingSlash, type SlashCommand } from "./core/slash";
+import { listMics, Reader, Recorder, saveVoicePrefs, type VoicePrefs } from "./core/voice";
 
 // NAV-01: a page (Studio, Assets, Capabilities, Settings) puts one entry in the browser history, so
 // back (browser, phone gesture, Android app) returns to the chat. navEntry: that entry is there;
@@ -528,7 +530,9 @@ function render(s: AppState, prev: AppState): void {
   }
   // PROV-UI: an admin's own providers (with where their keys are) load on entering Settings.
   if (s.section === "settings" && prev.section !== "settings" && s.isAdmin && !s.customProviders) void loadCustomProviders();
-  const settingsRedrawn = s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "cardStyle", "overseer", "explain"]);
+  const settingsRedrawn = s.section === "settings" && changed(s, prev, ["section", "providers", "roles", "admin", "theme", "isAdmin", "notifications", "windshift", "logoVersion", "voice", "voicePrefs", "micDevices", "cardStyle", "overseer", "explain"]);
+  // VOICE-02: the microphone list, when the browser already lets us read their names.
+  if (s.section === "settings" && prev.section !== "settings") void listMics(false).then((micDevices) => { if (micDevices.some((d) => !/^Microphone \d+$/.test(d.label))) store.set({ micDevices }); }, () => undefined);
   if (settingsRedrawn) remount(settings, renderSettings(s));
   // PROV-UI: the providers part draws on its own, so its list and form never redraw the rest of the page;
   // the list arriving late does not redraw an open form someone is typing in (closing it shows the list).
@@ -795,7 +799,7 @@ async function startRecording(): Promise<void> {
   reader.stop(); // don't record our own voice
   store.set({ recording: "recording" });
   try {
-    starting = recorder.start();
+    starting = recorder.start(store.get().voicePrefs.mic);
     await starting;
   } catch (e) {
     store.set({ recording: "idle" });
@@ -809,12 +813,15 @@ async function stopRecording(): Promise<void> {
   try {
     await starting?.catch(() => undefined);
     const audio = await recorder.stop();
-    const text = audio.size ? await api.transcribe(audio, store.get().voicePrefs.lang) : "";
+    const text = audio.size ? (await api.transcribe(audio, store.get().voicePrefs.lang)).trim() : "";
+    // VOICE-02: silence (a wrong or muted microphone) used to do nothing at all.
+    if (!text) throw new Error("Nothing was heard. Check the microphone under Settings, Voice.");
     const box = document.getElementById("prompt") as HTMLTextAreaElement | null;
-    if (box && text) {
+    if (box) {
       box.value = box.value.trim() ? `${box.value.trimEnd()} ${text}` : text;
       box.dispatchEvent(new Event("input", { bubbles: true })); // grow the box
       box.focus();
+      if (store.get().voicePrefs.autoSend) box.form?.requestSubmit();
     }
   } catch (e) {
     showError(e);
@@ -1026,6 +1033,11 @@ function wire(shell: HTMLElement): void {
   settingsPage.addEventListener("input", (ev) => { if ((ev.target as Element).closest("form")) settingsDirty = true; });
   settingsPage.addEventListener("submit", () => { settingsDirty = false; });
   // Leaving Settings by the sidebar or a link: ask first when a form has unsaved edits.
+  // IMG-VIEW: a picture in an answer opens large too.
+  shell.addEventListener("click", (ev) => {
+    const img = (ev.target as HTMLElement).closest<HTMLImageElement>(".msg .body figure.media img");
+    if (img) openLightbox(img.src, img.alt || "picture");
+  });
   shell.addEventListener("click", (ev) => {
     const t = (ev.target as HTMLElement).closest<HTMLElement>("[data-action], a[href]");
     if (!t || store.get().section !== "settings" || t.closest("#settings") || t.dataset.action === "pane" || t.dataset.action === "search") return;
@@ -1639,6 +1651,8 @@ function wire(shell: HTMLElement): void {
         showError(e);
       });
     },
+    "mic-list": () => listMics(true).then((micDevices) => store.set({ micDevices }), (e) => showError(new Error(`The microphone is not available: ${e instanceof Error ? e.message : String(e)}`))),
+    "img-open": (el) => openLightbox(el.dataset.src ?? "", el.dataset.name ?? ""),
     "voice-mic": () => {
       if (startedByPress) {
         startedByPress = false;
@@ -1826,10 +1840,11 @@ function wire(shell: HTMLElement): void {
       setCards(style);
       return;
     }
-    if (fid === "voice-input" || fid === "voice-read") {
-      setVoicePrefs({ [fid === "voice-input" ? "input" : "readAloud"]: (ev.target as HTMLInputElement).checked });
+    if (fid === "voice-input" || fid === "voice-read" || fid === "voice-autosend") {
+      setVoicePrefs({ [fid === "voice-input" ? "input" : fid === "voice-read" ? "readAloud" : "autoSend"]: (ev.target as HTMLInputElement).checked });
       return;
     }
+    if (fid === "voice-mic-device") { setVoicePrefs({ mic: (ev.target as HTMLSelectElement).value }); return; }
     if (fid === "voice-voice" || fid === "voice-lang") {
       const v = (ev.target as HTMLSelectElement).value;
       setVoicePrefs(fid === "voice-voice" ? { voice: v } : { lang: v as VoicePrefs["lang"] });
@@ -2463,12 +2478,103 @@ function wire(shell: HTMLElement): void {
   const syncMirror = attachLiveMarkdown(prompt);
   form.addEventListener("submit", (ev) => { ev.preventDefault(); submit(); });
   prompt.addEventListener("input", autosize);
+  // SLASH: the command menu over the message box.
+  const slashMenu = $("#slash-menu");
+  let slashList: SlashCommand[] = [];
+  let slashActive = 0;
+  const slashDraw = () => {
+    const open = typingSlash(prompt.value);
+    slashMenu.hidden = !open;
+    if (!open) return;
+    slashList = matchSlash(slashCommands(), prompt.value);
+    slashActive = Math.min(slashActive, Math.max(0, slashList.length - 1));
+    mount(slashMenu, renderSlash(slashList, slashActive));
+    slashMenu.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  };
+  const slashPick = (c: SlashCommand | undefined) => {
+    if (!c) return;
+    slashMenu.hidden = true;
+    if (c.fill !== undefined) {
+      prompt.value = c.fill;
+      prompt.dispatchEvent(new Event("input", { bubbles: true }));
+      prompt.focus();
+      return;
+    }
+    prompt.value = "";
+    prompt.dispatchEvent(new Event("input", { bubbles: true }));
+    c.run?.();
+  };
+  prompt.addEventListener("input", () => { slashActive = 0; slashDraw(); });
+  slashMenu.addEventListener("mousedown", (ev) => ev.preventDefault()); // keep the caret in the box
+  slashMenu.addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>(".slash-item");
+    if (b) slashPick(slashList[Number(b.dataset.idx)]);
+  });
+  prompt.addEventListener("blur", () => { slashMenu.hidden = true; });
   prompt.addEventListener("keydown", (ev) => {
+    if (!slashMenu.hidden && slashList.length) {
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        slashActive = (slashActive + (ev.key === "ArrowDown" ? 1 : slashList.length - 1)) % slashList.length;
+        slashDraw();
+        return;
+      }
+      if ((ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) || ev.key === "Tab") {
+        ev.preventDefault();
+        slashPick(slashList[slashActive]);
+        return;
+      }
+    }
+    if (!slashMenu.hidden && ev.key === "Escape") { ev.preventDefault(); slashMenu.hidden = true; return; }
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); submit(); }
   });
   // CHAT-08: the paperclip, pasted files and files dropped on the composer.
   const input = $("#attach-input") as HTMLInputElement;
-  $("#composer").querySelector('[data-action="attach-pick"]')?.addEventListener("click", () => input.click());
+  // ATTACH-MENU: files, a photo (phone camera), a screenshot or the clipboard.
+  const camera = $("#attach-camera") as HTMLInputElement;
+  const attachBtn = $("#attach-btn");
+  const attachMenu = $("#attach-menu");
+  if (!navigator.mediaDevices?.getDisplayMedia) attachMenu.querySelector<HTMLElement>('[data-attach="screenshot"]')!.hidden = true;
+  if (!navigator.clipboard?.read) attachMenu.querySelector<HTMLElement>('[data-attach="clipboard"]')!.hidden = true;
+  const menuOpen = (open: boolean) => {
+    attachMenu.hidden = !open;
+    attachBtn.setAttribute("aria-expanded", String(open));
+    if (open) attachMenu.querySelector<HTMLElement>("button:not([hidden])")?.focus();
+  };
+  attachBtn.addEventListener("click", () => menuOpen(attachMenu.hidden));
+  document.addEventListener("click", (ev) => { if (!attachMenu.hidden && !(ev.target as HTMLElement).closest(".attach-wrap")) menuOpen(false); });
+  attachMenu.addEventListener("keydown", (ev) => {
+    const items = [...attachMenu.querySelectorAll<HTMLElement>("button:not([hidden])")];
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (ev.key === "Escape") { menuOpen(false); attachBtn.focus(); }
+    else if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault(); items[(i + (ev.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus(); }
+  });
+  attachMenu.addEventListener("click", (ev) => {
+    const kind = (ev.target as HTMLElement).closest<HTMLElement>("[data-attach]")?.dataset.attach;
+    if (!kind) return;
+    menuOpen(false);
+    if (kind === "files") input.click();
+    else if (kind === "camera") camera.click();
+    else if (kind === "screenshot") void screenshot().then((f) => { if (f) addPicked([f]); }, (e) => { if ((e as Error).name !== "NotAllowedError") showError(e); });
+    else if (kind === "clipboard") void fromClipboard().then(({ files, text }) => {
+      if (files.length) addPicked(files);
+      if (text) addText(text);
+      if (!files.length && !text) showError(new Error("The clipboard is empty, or holds nothing that can be attached."));
+    }, () => showError(new Error("The browser did not allow reading the clipboard. Paste with Ctrl+V instead.")));
+    prompt.focus();
+  });
+  camera.addEventListener("change", () => { addPicked([...(camera.files ?? [])]); camera.value = ""; });
+  // PASTE-LOG: long pasted text (logs, tracebacks) becomes an attached text file, as in Claude's apps,
+  // so the message stays short and the text reaches the model exactly as it was.
+  const addText = (text: string) => {
+    if (text.length < LONG_PASTE && text.split("\n").length < LONG_PASTE_LINES) {
+      prompt.setRangeText(text, prompt.selectionStart, prompt.selectionEnd, "end");
+      prompt.dispatchEvent(new Event("input", { bubbles: true }));
+      return;
+    }
+    const n = pending.filter((p) => p.file.name.startsWith("pasted-text")).length + 1;
+    addPicked([new File([text], `pasted-text-${n}.txt`, { type: "text/plain" })]);
+  };
   input.addEventListener("change", () => { addPicked([...(input.files ?? [])]); input.value = ""; });
   $("#attach-row").addEventListener("click", (ev) => {
     const x = (ev.target as HTMLElement).closest<HTMLElement>('[data-action="attach-remove"]');
@@ -2480,7 +2586,13 @@ function wire(shell: HTMLElement): void {
   });
   prompt.addEventListener("paste", (ev) => {
     const files = [...(ev.clipboardData?.files ?? [])];
-    if (files.length === 0) return; // plain text pastes as usual
+    if (files.length === 0) {
+      const text = ev.clipboardData?.getData("text/plain") ?? "";
+      if (text.length < LONG_PASTE && text.split("\n").length < LONG_PASTE_LINES) return; // short text pastes as usual
+      ev.preventDefault();
+      addText(text);
+      return;
+    }
     ev.preventDefault();
     addPicked(files);
   });
@@ -2858,4 +2970,93 @@ function showError(e: unknown): void {
   toast.textContent = message;
   document.body.append(toast);
   setTimeout(() => toast.remove(), 6000);
+}
+
+/** PASTE-LOG: a paste this long (characters or lines) goes in as a text file. */
+const LONG_PASTE = 2500;
+const LONG_PASTE_LINES = 40;
+
+/** ATTACH-MENU: one frame of a window or screen the user picks, as a PNG. */
+async function screenshot(): Promise<File | undefined> {
+  const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+  try {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.srcObject = stream;
+    await video.play();
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    return blob ? new File([blob], `screenshot-${stamp}.png`, { type: "image/png" }) : undefined;
+  } finally {
+    stream.getTracks().forEach((t) => t.stop());
+  }
+}
+
+/** ATTACH-MENU: pictures and text on the clipboard (the browser asks for permission once). */
+async function fromClipboard(): Promise<{ files: File[]; text: string }> {
+  const files: File[] = [];
+  let text = "";
+  for (const item of await navigator.clipboard.read()) {
+    const pic = item.types.find((t) => /^image\/(png|jpeg|webp)$/.test(t));
+    if (pic) {
+      const blob = await item.getType(pic);
+      files.push(new File([blob], `clipboard-${files.length + 1}.${pic === "image/jpeg" ? "jpg" : pic.slice(6)}`, { type: pic }));
+    } else if (item.types.includes("text/plain")) {
+      text += await (await item.getType("text/plain")).text();
+    }
+  }
+  return { files, text };
+}
+
+/** SLASH: runs an existing button's action, as if it was clicked (same code, same checks). */
+function act(action: string, data: Record<string, string> = {}): void {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.hidden = true;
+  b.dataset.action = action;
+  Object.assign(b.dataset, data);
+  $(".shell").append(b);
+  b.click();
+  b.remove();
+}
+
+/** SLASH: the commands, built for this moment (the computers paired now, this chat's switches). */
+function slashCommands(): SlashCommand[] {
+  const s = store.get();
+  const chat = s.chats.find((c) => c.id === s.activeChatId);
+  const pick = (id: string) => {
+    const sel = document.getElementById("pc-machine") as HTMLSelectElement | null;
+    if (!sel) return;
+    sel.value = id;
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  const on = (v: boolean | undefined) => (v ? "on, switch it off" : "off, switch it on");
+  const list: SlashCommand[] = [
+    { name: "new", hint: "Start a new chat", run: () => act("new-chat", s.activeProjectId ? { project: s.activeProjectId } : {}) },
+    ...s.machines.filter((m) => m.id !== "server").map((m) => ({ name: `computer ${m.name.toLowerCase()}`, hint: `Work on ${m.name}${m.online ? "" : " (offline)"}`, run: () => pick(m.id) })),
+    { name: "computer none", hint: "Just chat, no computer", run: () => pick("") },
+    ...(["auto", "low", "medium", "high"] as const).map((e) => ({ name: `effort ${e}`, hint: `How hard the models work: ${e}`, run: () => act("effort-set", { effort: e }) })),
+    { name: "auto", hint: `Automatic mode (steps run without asking) is ${on(chat ? chat.autoRun : s.draftAutoRun)}`, run: () => act("autorun-toggle") },
+    { name: "overseer", hint: `The Overseer in this chat is ${on(chat ? chat.overseer : s.draftOverseer)}`, run: () => act("overseer-toggle") },
+    ...(s.mcpServers.includes("Web") ? [{ name: "web", hint: `Web search is ${on(((chat ? chat.mcp : s.draftMcp) ?? []).includes("Web"))}`, run: () => act("mcp-toggle", { name: "Web" }) }] : []),
+    { name: "attach", hint: "Add files or pictures", run: () => (document.getElementById("attach-input") as HTMLInputElement | null)?.click() },
+    { name: "screenshot", hint: "Attach a screenshot of a window or screen", run: () => document.querySelector<HTMLElement>('#attach-menu [data-attach="screenshot"]')?.click() },
+    { name: "voice", hint: "Start recording (click the microphone to stop)", run: () => document.getElementById("voice-mic")?.click() },
+    { name: "compact", hint: "Summarise the chat so far to free context", run: () => act("context-compact") },
+    { name: "facts", hint: "Open the facts this chat remembers", run: () => act("open-facts") },
+    { name: "tasks", hint: "Open the Tasks pane", run: () => act("tab", { tab: "tasks" }) },
+    { name: "access", hint: "Open what Kompanion may do on your computers", run: () => act("tab", { tab: "access" }) },
+    { name: "stop", hint: "Stop the reply being written", run: () => act("stop-chat") },
+    { name: "plan", hint: "Ask for a step-by-step plan first", fill: "Make a step-by-step plan first, wait for my OK, then do it: " },
+    { name: "fix", hint: "Find and fix a bug", fill: "Find the cause of this and fix it, then check the fix works: " },
+    { name: "review", hint: "Review code or a change", fill: "Review this for bugs, security and simplifications; list the findings first: " },
+    { name: "explain", hint: "Explain something simply", fill: "Explain simply, with an example: " },
+    { name: "summarize", hint: "Summarise the chat so far in a few lines", fill: "Summarise this chat so far in a few lines: what was decided and what is still open." },
+  ];
+  return list;
 }

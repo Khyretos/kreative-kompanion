@@ -42,10 +42,14 @@ export function renderPending(list: Pending[]): SafeHtml {
       <button type="button" class="attach-x" data-action="attach-remove" data-idx="${i}" aria-label="Remove ${p.file.name}">${icon("close")}</button></span>`)}`;
 }
 
-/** The chips under a sent message: a click opens or saves the file. */
+/** What is under a sent message: pictures as previews that open large on a click (IMG-VIEW),
+ * other files as chips that open or save the file. */
 export function renderSent(chatId: string, files: Attached[]): SafeHtml {
   if (!files.length) return html``;
-  return html`<div class="attach-sent">${files.map((f) => html`
-    <a class="chip attach-chip" href="api/chats/${encodeURIComponent(chatId)}/files/${encodeURIComponent(f.file)}" target="_blank" rel="noopener" download="${f.kind === "text" ? f.name.replace(/\.[^.]+$/, "") + ".txt" : f.name}"
-      title="${f.name}">${icon(f.kind === "image" ? "image" : "file")}<span class="attach-name">${f.name}</span></a>`)}</div>`;
+  const url = (f: Attached) => `api/chats/${encodeURIComponent(chatId)}/files/${encodeURIComponent(f.file)}`;
+  return html`<div class="attach-sent">${files.map((f) => f.kind === "image" ? html`
+    <button type="button" class="attach-img" data-action="img-open" data-src="${url(f)}" data-name="${f.name}" title="${f.name}" aria-label="Open ${f.name}">
+      <img src="${url(f)}" alt="${f.name}" loading="lazy"><span class="attach-zoom" aria-hidden="true">${icon("search")}</span></button>` : html`
+    <a class="chip attach-chip" href="${url(f)}" target="_blank" rel="noopener" download="${f.name.replace(/\.[^.]+$/, "") + ".txt"}"
+      title="${f.name}">${icon("file")}<span class="attach-name">${f.name}</span></a>`)}</div>`;
 }

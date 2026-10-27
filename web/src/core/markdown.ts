@@ -8,6 +8,13 @@ import { enhanceCodeBlocks } from "./codeblocks";
 import { enhanceMedia, FILE_HREF } from "./media";
 
 const md = new Marked({ gfm: true, breaks: true, async: false });
+// PASTE-LOG (Kees 10-27): chat text follows Discord here. Indented lines are not code (a pasted
+// traceback indents every other line), and "~~~" does not open a code block (Python marks the
+// failing spot with ~~~^^^ lines). Code blocks are ``` fences only.
+md.use({ tokenizer: {
+  code: () => undefined,
+  fences(src: string) { return src.startsWith("~") ? undefined : false; },
+} as never });
 
 DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
   // Keep only "language-xyz" classes on code elements (for highlighting).
@@ -48,9 +55,21 @@ const config = {
   RETURN_DOM_FRAGMENT: true as const,
 };
 
+/** PASTE-LOG: leading spaces of plain lines stay (a traceback's indentation), as in Discord.
+ * List items and lines inside ``` fences are left alone. */
+export function keepIndent(src: string): string {
+  let fenced = false;
+  return src.split("\n").map((line) => {
+    if (/^\s*```/.test(line)) { fenced = !fenced; return line; }
+    if (fenced) return line;
+    const m = /^( +)(?![-*+] |\d+[.)] )(\S.*)$/.exec(line);
+    return m ? "\u00a0".repeat(m[1].length) + m[2] : line;
+  }).join("\n");
+}
+
 /** Untrusted markdown in, safe DOM fragment out. */
 export function renderMarkdown(src: string): DocumentFragment {
-  const raw = md.parse(src) as string;
+  const raw = md.parse(keepIndent(src)) as string;
   const frag = DOMPurify.sanitize(raw, config);
   enhanceCodeBlocks(frag);
   enhanceMedia(frag);

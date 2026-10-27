@@ -539,7 +539,7 @@ li.task.dragging { opacity: 0.5; }
 .state-dot.s-failed { background: var(--bad); }
 .empty { margin: auto; text-align: center; display: grid; gap: 0.5rem; max-width: 30rem; }
 .empty h2 { font-size: 1.4rem; }
-.composer-wrap { padding: 0.75rem 1.25rem 1rem; }
+.composer-wrap { position: relative; padding: 0.75rem 1.25rem 1rem; }
 .composer {
   width: min(46rem, 100%); margin-inline: auto; display: flex; align-items: flex-end; gap: 0.5rem;
   background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 0.5rem;
@@ -1441,3 +1441,37 @@ select:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0
 select:disabled { opacity: 0.55; cursor: not-allowed; }
 select option, select optgroup { background: var(--surface); color: var(--fg); }
 select option:checked { background: var(--brand); color: var(--on-brand); }
+
+/* IMG-VIEW: pictures sent in a chat show as previews; a click opens them large. */
+.attach-img { position: relative; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); cursor: zoom-in; overflow: hidden; line-height: 0; }
+.attach-img img { display: block; max-width: min(18rem, 100%); max-height: 14rem; object-fit: cover; }
+.attach-img:hover, .attach-img:focus-visible { border-color: var(--accent); outline: none; }
+.attach-zoom { position: absolute; right: 0.4rem; bottom: 0.4rem; display: grid; place-items: center; width: 1.9rem; height: 1.9rem; border-radius: 999px; background: var(--scrim); color: var(--fg-strong); opacity: 0; transition: opacity 120ms ease; }
+.attach-zoom .icon { width: 1rem; height: 1rem; }
+.attach-img:hover .attach-zoom, .attach-img:focus-visible .attach-zoom { opacity: 1; }
+@media (hover: none) { .attach-zoom { opacity: 1; } }
+.msg .body figure.media img { cursor: zoom-in; }
+dialog.lightbox { width: min(96vw, 1400px); height: min(92vh, 1000px); max-width: none; max-height: none; padding: 0.5rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg); display: flex; flex-direction: column; gap: 0.5rem; }
+dialog.lightbox:not([open]) { display: none; }
+dialog.lightbox::backdrop { background: rgb(0 0 0 / 0.75); }
+.lightbox-bar { display: flex; align-items: center; gap: 0.5rem; }
+.lightbox-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-strong); font-weight: 600; }
+.lightbox-view { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+
+/* ATTACH-MENU: the paperclip opens a short menu above the composer. */
+.attach-wrap { position: relative; display: inline-flex; }
+.attach-menu { position: absolute; bottom: calc(100% + 0.4rem); left: 0; z-index: 30; display: grid; min-width: 15rem; padding: 0.3rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
+.attach-menu[hidden] { display: none; }
+.attach-menu button { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border: 0; border-radius: 6px; background: none; color: var(--fg); text-align: left; cursor: pointer; font-size: 0.9rem; }
+.attach-menu button[hidden] { display: none; }
+.attach-menu button .icon { width: 1.05rem; height: 1.05rem; color: var(--accent); flex: none; }
+.attach-menu button:hover, .attach-menu button:focus-visible { background: var(--accent-soft); outline: none; }
+
+/* SLASH: the command menu sits over the message box (.composer-wrap is position: relative). */
+.slash-menu { position: absolute; left: 50%; transform: translateX(-50%); width: min(46rem, calc(100% - 2.5rem)); bottom: calc(100% - 0.5rem); z-index: 30; max-height: 18rem; overflow-y: auto; display: grid; padding: 0.3rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
+.slash-menu[hidden] { display: none; }
+.slash-item { display: flex; align-items: baseline; gap: 0.75rem; padding: 0.4rem 0.55rem; border: 0; border-radius: 6px; background: none; color: var(--fg); text-align: left; cursor: pointer; }
+.slash-item code { color: var(--accent-strong); font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+.slash-hint { color: var(--muted); font-size: 0.85rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slash-item[aria-selected="true"], .slash-item:hover { background: var(--accent-soft); }
+.slash-empty { padding: 0.4rem 0.55rem; margin: 0; }

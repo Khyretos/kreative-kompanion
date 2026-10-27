@@ -30,7 +30,14 @@ test.describe("Attach files in chat (CHAT-08)", () => {
     await page.fill("#prompt", "What do these say?");
     await page.press("#prompt", "Enter");
     const sent = page.locator("article.msg.user").last();
-    await expect(sent.locator(".attach-sent .attach-chip")).toHaveCount(2);
+    // IMG-VIEW: the picture shows as a preview that opens large; the document stays a chip.
+    await expect(sent.locator(".attach-sent .attach-chip")).toHaveCount(1);
+    await expect(sent.locator(".attach-sent .attach-img img")).toHaveCount(1);
+    await sent.locator(".attach-sent .attach-img").click();
+    await expect(page.locator("dialog.lightbox")).toBeVisible();
+    await expect(page.locator("dialog.lightbox .lightbox-name")).toHaveText("cat.png");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("dialog.lightbox")).toHaveCount(0);
     await expect(sent.locator(".attach-sent")).toContainText("notes.md");
     await expect(sent.locator(".body")).toHaveText("What do these say?");
     await expect(page.locator("#attach-row .attach-chip")).toHaveCount(0);
@@ -64,5 +71,40 @@ test.describe("Attach files in chat (CHAT-08)", () => {
     await page.setInputFiles("#attach-input", [{ name: "a.txt", mimeType: "text/plain", buffer: Buffer.from("hi") }]);
     await page.press("#prompt", "Enter");
     await expect(page.locator("article.msg.user .attach-sent .attach-chip")).toHaveCount(1);
+  });
+
+  test("ATTACH-MENU: the paperclip opens a menu; Files or pictures opens the file picker", async ({ page }) => {
+    await openChat(page);
+    await page.click("#attach-btn");
+    const menu = page.locator("#attach-menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('[data-attach="files"]')).toBeFocused();
+    const chooser = page.waitForEvent("filechooser");
+    await menu.locator('[data-attach="files"]').click();
+    await (await chooser).setFiles([{ name: "a.txt", mimeType: "text/plain", buffer: Buffer.from("hi") }]);
+    await expect(menu).toBeHidden();
+    await expect(page.locator("#attach-row .attach-chip")).toHaveCount(1);
+  });
+
+  test("PASTE-LOG: a long pasted log becomes a text file, a short paste stays text", async ({ page }) => {
+    await openChat(page);
+    const paste = (text: string) => page.evaluate((t) => {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", t);
+      document.querySelector("#prompt")!.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, text);
+    const log = Array.from({ length: 60 }, (_, i) => `  File "/app/server.py", line ${i}, in do_GET\n    ~~~~~~^^^^`).join("\n");
+    await paste(log);
+    await expect(page.locator("#attach-row .attach-chip")).toContainText("pasted-text-1.txt");
+    await expect(page.locator("#prompt")).toHaveValue("");
+  });
+
+  test("PASTE-LOG: a traceback typed in a message is not cut into code blocks", async ({ page }) => {
+    await openChat(page);
+    await page.fill("#prompt", 'File "/app/server.py", line 162\n    self._send_json(200, result)\n    ~~~~~~~~~~~~~~~^^^^^^\nBrokenPipeError: [Errno 32] Broken pipe');
+    await page.press("#prompt", "Enter");
+    const sent = page.locator("article.msg.user").last();
+    await expect(sent.locator(".body")).toContainText("BrokenPipeError");
+    await expect(sent.locator(".body pre")).toHaveCount(0);
   });
 });
