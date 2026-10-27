@@ -30,6 +30,11 @@ export function kindOf(name: string): AttachedKind {
   return "file";
 }
 
+/** The name a sent file is saved under: its own, except a PDF or web page, which is kept as the text that was read from it. */
+export function downloadName(f: Attached): string {
+  return f.kind === "text" && /\.(pdf|html?)$/i.test(f.name) ? f.name.replace(/\.[^.]+$/, "") + ".txt" : f.name;
+}
+
 /** Returns a human-readable size label. */
 export function sizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

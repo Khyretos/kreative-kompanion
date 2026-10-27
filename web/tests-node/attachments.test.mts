@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { splitFiles, kindOf, sizeLabel } from "../src/core/attachments.ts";
+import { splitFiles, kindOf, sizeLabel, downloadName } from "../src/core/attachments.ts";
 
 test("a message without a files block is returned as it is", () => {
   assert.deepEqual(splitFiles("hello"), { text: "hello", files: [] });
@@ -44,4 +44,12 @@ test("sizeLabel", () => {
   assert.equal(sizeLabel(4300), "4.2 KB");
   assert.equal(sizeLabel(1_363_149), "1.3 MB");
   assert.equal(sizeLabel(0), "0 B");
+});
+
+test("a sent file is saved under its own name; a PDF or web page as the text read from it", () => {
+  assert.equal(downloadName({ name: "scene.blend", file: "a.bin", kind: "file" }), "scene.blend");
+  assert.equal(downloadName({ name: "main.lua", file: "a.txt", kind: "text" }), "main.lua");
+  assert.equal(downloadName({ name: "report.PDF", file: "a.txt", kind: "text" }), "report.txt");
+  assert.equal(downloadName({ name: "page.html", file: "a.txt", kind: "text" }), "page.txt");
+  assert.equal(downloadName({ name: "cat.png", file: "a.png", kind: "image" }), "cat.png");
 });

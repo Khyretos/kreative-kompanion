@@ -138,6 +138,10 @@ pub const KNOWLEDGE: &str = "Knowledge";
 pub const HISTORY: &str = "History";
 /// FACTS: the built-in remember / forget tools (facts are read into every prompt anyway).
 pub const MEMORY: &str = "Memory";
+/// CHAT-09: the tools that read the files attached in the chat in parts.
+pub const ATTACH: &str = crate::attach_read::SERVER;
+/// Tool rounds of an answer that may read attached files (the reading itself is capped by the model's window).
+const ATTACH_ROUNDS: usize = 6;
 
 /// CHAT-03b: the query's embedding for the knowledge search; None when the Embedder is not there.
 async fn knowledge_vector(s: &AppState, q: &str) -> Option<Vec<f32>> {
@@ -173,6 +177,7 @@ pub async fn run(
     history: Option<(&str, &str)>,
     memory: Option<&str>,
     files: Option<(&std::path::Path, &str)>,
+    docs: bool,
     on_use: &(dyn Fn(&ToolUse) + Send + Sync),
 ) -> Vec<ToolUse> {
     let mut tools = Vec::new();
@@ -203,6 +208,13 @@ pub async fn run(
         tools.push((MEMORY.to_string(), crate::facts::tools()));
     }
 
+    // CHAT-09: attached files other than pictures are read in parts; one answer reads about a message's budget and a half.
+    let attach = docs.then(|| crate::attach_read::Budget::new(crate::context::window(Some(p), model), true));
+    let mut attach_left = attach.map_or(0, |b| b.inline + b.inline / 2);
+    if docs && files.is_some() {
+        tools.push((ATTACH.to_string(), crate::attach_read::tools()));
+    }
+
     if tools.is_empty() {
         return Vec::new();
     }
@@ -212,7 +224,7 @@ pub async fn run(
     let mut uses = Vec::new();
     let mut next_n = 1usize;
     
-    for _ in 0..MAX_ROUNDS {
+    for _ in 0..if attach.is_some() { ATTACH_ROUNDS } else { MAX_ROUNDS } {
         let Ok(ans) = llm::chat_with_tools(&s.http, p, model, &msgs, &specs).await else { break };
         
         let calls = ans["tool_calls"].as_array().cloned().unwrap_or_default();
@@ -252,6 +264,15 @@ pub async fn run(
                     Some((uid, chat)) => crate::chat_history::call(&s.db, uid, chat, &tool, &args, MAX_RESULT - 500).await,
                     None => "error: past chats are not turned on".to_string(),
                 },
+                Some((srv, tool)) if srv == ATTACH => match (files, attach) {
+                    (Some((_, chat)), Some(b)) if attach_left >= 600 => {
+                        let r = crate::attach_read::call(s, chat, &tool, &args, attach_left, b).await;
+                        attach_left = attach_left.saturating_sub(r.chars().count());
+                        r
+                    }
+                    (Some(_), Some(_)) => "You have read as much as fits in one answer. Answer from what you have read, and say which line the user can ask you to go on from (read_attachment from_line).".to_string(),
+                    _ => "error: attached files are not available".to_string(),
+                },
                 Some((srv, tool)) if srv == MEMORY => match memory {
                     Some(chat) => crate::facts::call(s, chat, &tool, &args).await,
                     None => "error: memory is not turned on".to_string(),
@@ -282,7 +303,9 @@ pub async fn run(
                 },
             };
             
-            let result: String = result.chars().take(MAX_RESULT).collect();
+            // An attachment read is sized to the model's window already; anything else keeps the fixed cap.
+            let is_attach = map.get(&name).is_some_and(|(srv, _)| srv == ATTACH);
+            let result: String = result.chars().take(if is_attach { attach.map_or(MAX_RESULT, |b| b.read.max(MAX_RESULT) + 600) } else { MAX_RESULT }).collect();
             next_n += sources.len().max(1);
             msgs.push(json!({"role": "tool", "tool_call_id": call["id"], "content": result}));
             

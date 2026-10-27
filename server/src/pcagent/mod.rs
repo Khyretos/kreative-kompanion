@@ -227,14 +227,17 @@ async fn remembered(s: &AppState, chat_id: &str, role: &RoleAssignment) -> Optio
     if !newer.iter().any(|(a, _)| a == "user") {
         return None;
     }
-    messages.extend(chat_lines(s, chat_id, &role.model_id, newer).await);
+    messages.extend(chat_lines(s, chat_id, role, newer).await);
     Some(messages)
 }
 
 /// CHAT-08: chat lines as the model reads them: attached documents as text and, for the newest
-/// user line that has pictures, the pictures themselves when the model can see them.
-async fn chat_lines(s: &AppState, chat_id: &str, model: &str, lines: Vec<(String, String)>) -> Vec<Value> {
-    let dir = crate::chat_files::dir_for(&s.config.database);
+/// user line that has pictures, the pictures themselves when the model can see them. The newest
+/// messages take their files first from one budget that follows the model's context window; the
+/// rest of a long file is read with the attachment tools (CHAT-09).
+async fn chat_lines(s: &AppState, chat_id: &str, role: &RoleAssignment, lines: Vec<(String, String)>) -> Vec<Value> {
+    let (model, dir) = (role.model_id.as_str(), crate::chat_files::dir_for(&s.config.database));
+    let mut plan = crate::attach_read::Plan::new(crate::context::window(s.provider(&role.provider_id).as_ref(), model), true);
     let mut pictures_left = true;
     let mut out = Vec::new();
     for (author, text) in lines.into_iter().rev() {
@@ -242,7 +245,7 @@ async fn chat_lines(s: &AppState, chat_id: &str, model: &str, lines: Vec<(String
         let (text, files) = crate::chat_attach::split(&text);
         let text = text.split("\n\n:::sources\n").next().unwrap_or("").to_string();
         let (note, images) = if user && !files.is_empty() {
-            let r = crate::chat_attach_web::for_model(&dir, chat_id, &files, model, pictures_left).await;
+            let r = crate::chat_attach_web::for_model(&dir, chat_id, &files, model, pictures_left, &mut plan).await;
             if !r.1.is_empty() {
                 pictures_left = false;
             }
@@ -303,7 +306,7 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
         }
         let history = crate::context::after_summary(&s.db, &chat_id, summary.as_ref(), 20).await.unwrap_or_default();
         let lines = history.into_iter().map(|(_, author, text, _)| (author, text)).collect();
-        messages.extend(chat_lines(&s, &chat_id, &role.model_id, lines).await);
+        messages.extend(chat_lines(&s, &chat_id, &role, lines).await);
         if let Some(d) = steplog::digest(&s.db, &user_id, &chat_id).await {
             messages.push(json!({ "role": "system", "content": d }));
         }
@@ -422,6 +425,10 @@ impl Agent {
             list.extend(crate::facts::specs());
             list.push(steplog::spec());
         }
+        // CHAT-09: the files attached in this chat are read in parts with these (only when there are any).
+        if crate::attach_read::has_docs(&s.db, &crate::chat_files::dir_for(&s.config.database), &self.chat_id).await && let Some(list) = tools.as_array_mut() {
+            list.extend(crate::attach_read::specs());
+        }
         // KG-05: a task's worker also gets the tools of the MCP servers the user granted (and is denied the rest).
         let mut mcp_map = std::collections::HashMap::new();
         if self.task_id.is_some() {
@@ -433,6 +440,7 @@ impl Agent {
         }
         let (p, model_id) = crate::effort::apply(&p, &self.role.model_id, self.effort);
         let budget = result_budget(p.local);
+        let attach = crate::attach_read::Budget::new(crate::context::window(Some(&p), &model_id), true);
         // Answers in a row that hit the output limit before their tool call was complete.
         let mut cut_offs = 0;
         // DOGFOOD: an answer that only announced its next step ("Now I'll find the folder.") gets one nudge.
@@ -546,6 +554,7 @@ impl Agent {
                         }
                     }
                     None if crate::chat_history::is_tool(name) => crate::chat_history::call(&s.db, &self.user_id, &self.chat_id, name, &args, budget).await,
+                    None if crate::attach_read::is_tool(name) => crate::attach_read::call(s, &self.chat_id, name, &args, budget, attach).await,
                     None if crate::facts::is_tool(name) => crate::facts::call(s, &self.chat_id, name, &args).await,
                     None if name == steplog::READ => steplog::read(&s.db, &self.user_id, &self.chat_id, &args, budget).await,
                     None => "Unknown tool or wrong arguments.".to_string(),

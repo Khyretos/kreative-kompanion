@@ -44,7 +44,7 @@ pub const SNIFF: usize = 8192;
 /// Whether the start of a file is UTF-8 text without NUL bytes (an unknown extension such as .lua or .tscn that holds text).
 /// `cut` is true when `head` is only the start: a character cut in half at its end is then not a sign of binary data.
 pub fn looks_like_text(head: &[u8], cut: bool) -> bool {
-    if head.iter().any(|b| *b == 0) { return false }
+    if head.contains(&0) { return false }
     match std::str::from_utf8(head) {
         Ok(_) => true,
         Err(e) => cut && e.error_len().is_none(),

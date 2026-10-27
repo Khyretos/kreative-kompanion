@@ -503,13 +503,15 @@ pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: 
     // messages first, within a budget; the pictures only of the newest message that has any.
     let files_dir = crate::chat_files::dir_for(&s.config.database);
     let mut pictures_left = true;
+    // CHAT-09: one budget for the files of the whole prompt, sized to the model's window (an unknown one counts as small).
+    let mut plan = crate::attach_read::Plan::new(crate::context::window(s.provider(&role.provider_id).as_ref(), &role.model_id), tools);
     let mut turns: Vec<ChatMessage> = Vec::new();
     for (author, text) in history.into_iter().rev() {
         let (text, files) = crate::chat_attach::split(&text);
         let text = text.split("\n\n:::sources\n").next().unwrap_or("").to_string();
         let user = author == "user";
         let (note, images) = if user && !files.is_empty() {
-            let r = crate::chat_attach_web::for_model(&files_dir, &chat_id, &files, &role.model_id, pictures_left).await;
+            let r = crate::chat_attach_web::for_model(&files_dir, &chat_id, &files, &role.model_id, pictures_left, &mut plan).await;
             if !r.1.is_empty() { pictures_left = false }
             r
         } else {
@@ -553,13 +555,16 @@ pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: 
     convo[0].content.push_str(&format!("\n\n{}", crate::chat_tools::when_where(time::OffsetDateTime::now_utc(), s.config.machine_name.as_deref(), s.config.location.as_deref(), web.is_some())));
     let mut used_lines = String::new();
     let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
-    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none() && memory.is_none(), s.provider(&role.provider_id)) {
+    // CHAT-09: when some attached file was not shown in full, the model reads the rest in parts with tools (the owner's
+    // answers only). Without that, the tool round is skipped: it costs a model call.
+    let docs = tools && plan.cut;
+    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none() && memory.is_none() && !docs, s.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| m.wire(false)).collect();
         let (bus, uid, rid, cid) = (s.bus.clone(), to.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send_many(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let uses = crate::chat_tools::run(&s, &p, &role.model_id, &msgs, &servers, web, knowledge, history, memory, Some((files_dir.as_path(), chat_id.as_str())), &show).await;
+        let uses = crate::chat_tools::run(&s, &p, &role.model_id, &msgs, &servers, web, knowledge, history, memory, Some((files_dir.as_path(), chat_id.as_str())), docs, &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));
             used_lines.push_str("\n\n");

@@ -9,7 +9,7 @@ mod games;
 mod scenes;
 mod preview;
 mod scan;
-mod zipindex;
+pub(crate) mod zipindex;
 
 pub use preview::serve as preview_file;
 pub use files::{near as file_near, serve as file};

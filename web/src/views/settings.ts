@@ -51,7 +51,7 @@ function uploadSection(s: AppState): SafeHtml {
       <label for="max-upload-mb">Largest attachment (MB)</label>
       <input id="max-upload-mb" type="number" min="0" step="1" value="${s.maxUploadMb}">
     </div>
-    <p class="muted small">The largest file you can attach to a message, in MB. 0 means no limit. A file is saved to disk as it arrives, so a big one does not fill memory. Only the start of a long text file is kept for me to read.</p>
+    <p class="muted small">The largest file you can attach to a message, in MB. 0 means no limit. A file is saved to disk as it arrives, so a big one does not fill memory. I read a long file in parts that fit the model's context window, so a small model can work through a large file too.</p>
   </section>`;
 }
 

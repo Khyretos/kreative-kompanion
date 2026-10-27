@@ -1,7 +1,7 @@
 // CHAT-08: files attached to a chat message. The composer keeps the chosen files in memory
 // until Send (a new chat has no id to upload to yet); a sent message shows its files as chips.
 import { html, SafeHtml } from "../core/html";
-import { Attached, AttachedKind, kindOf, sizeLabel } from "../core/attachments";
+import { Attached, AttachedKind, downloadName, kindOf, sizeLabel } from "../core/attachments";
 import { icon } from "./icons";
 
 export const MAX_FILES = 8;
@@ -42,11 +42,11 @@ export function renderPending(list: Pending[]): SafeHtml {
 }
 
 /** What is under a sent message: pictures as previews that open large on a click (IMG-VIEW),
- * other files as chips that save the file under the name it had (a document is saved as the text the model read). */
+ * other files as chips that save the file under the name it had (a PDF or web page as the text the model read). */
 export function renderSent(chatId: string, files: Attached[]): SafeHtml {
   if (!files.length) return html``;
   const url = (f: Attached) => `api/chats/${encodeURIComponent(chatId)}/files/${encodeURIComponent(f.file)}`;
-  const saveAs = (f: Attached) => f.kind === "file" ? f.name : f.name.replace(/\.[^.]+$/, "") + ".txt";
+  const saveAs = downloadName;
   return html`<div class="attach-sent">${files.map((f) => f.kind === "image" ? html`
     <button type="button" class="attach-img" data-action="img-open" data-src="${url(f)}" data-name="${f.name}" title="${f.name}" aria-label="Open ${f.name}">
       <img src="${url(f)}" alt="${f.name}" loading="lazy"><span class="attach-zoom" aria-hidden="true">${icon("search")}</span></button>` : html`
