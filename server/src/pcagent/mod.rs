@@ -575,7 +575,7 @@ impl Agent {
                         "Not run: this model can't look at pictures. Tell the user to pick a model that can (for example Claude or a vision model), or find another way to check the file.".to_string()
                     }
                     Some(job) if matches!(job["tool"].as_str(), Some("read_image" | "send_image")) && !tools::runner_reads_images(s.host.runner_version(&self.machine_id).as_deref()) => {
-                        "Refused, nothing changed: the runner on this computer is too old to read a picture (it needs 0.6.5). Ask the user to update the runner.".to_string()
+                        "Refused, nothing changed: the runner on this computer is older than 0.6.5 or has not reported its version, so it may not know the picture tools. Ask the user to update the runner (it reports its version once it runs).".to_string()
                     }
                     // WRITE-CHUNKS: an older runner ignores append/offset and would replace the file.
                     Some(job) if tools::writes_in_parts(&job) && !tools::runner_writes_in_parts(s.host.runner_version(&self.machine_id).as_deref()) => {

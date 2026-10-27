@@ -271,7 +271,8 @@ pub fn image_mime(b: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// Standard base64 with padding.
+/// Standard base64 (RFC 4648, section 4) with `=` padding. The table holds the 64 alphabet symbols only;
+/// `=` is padding, written by the last two lines of the loop, and is not part of the alphabet.
 pub fn base64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);

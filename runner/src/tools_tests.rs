@@ -52,6 +52,12 @@ fn image_type_comes_from_the_bytes_and_base64_matches_the_standard_vectors() {
     assert_eq!(base64(b"fo"), "Zm8=");
     assert_eq!(base64(b"foo"), "Zm9v");
     assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    // The last two symbols of the standard alphabet ('+' and '/'), and every symbol once: bytes 0..=47 are 64 sextets.
+    assert_eq!(base64(&[0xfb, 0xff, 0xbf]), "+/+/");
+    let all: Vec<u8> = (0..48).collect();
+    let enc = base64(&all);
+    assert_eq!(enc, "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4v");
+    assert!(enc.len() % 4 == 0 && enc.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'+' || c == b'/'));
 }
 
 #[test]
