@@ -9,9 +9,11 @@ export interface VoicePrefs {
   readAloud: boolean; // read replies aloud when they finish
   voice: string; // a Kokoro voice id
   lang: "" | "en" | "es" | "nl"; // "" lets Whisper detect the language
+  mic: string; // VOICE-02: the microphone's device id ("" = the system default)
+  autoSend: boolean; // VOICE-02: send the message as soon as the recording is written out
 }
 
-export const VOICE_DEFAULTS: VoicePrefs = { input: false, readAloud: false, voice: "af_heart", lang: "" };
+export const VOICE_DEFAULTS: VoicePrefs = { input: true, readAloud: false, voice: "af_heart", lang: "", mic: "", autoSend: false };
 
 const KEY = "kk-voice";
 
@@ -23,6 +25,8 @@ export function loadVoicePrefs(): VoicePrefs {
       readAloud: typeof parsed.readAloud === "boolean" ? parsed.readAloud : VOICE_DEFAULTS.readAloud,
       voice: typeof parsed.voice === "string" && parsed.voice ? parsed.voice : VOICE_DEFAULTS.voice,
       lang: parsed.lang === "en" || parsed.lang === "es" || parsed.lang === "nl" ? parsed.lang : "",
+      mic: typeof parsed.mic === "string" ? parsed.mic : "",
+      autoSend: parsed.autoSend === true,
     };
   } catch {
     return { ...VOICE_DEFAULTS }; // storage blocked or not JSON
@@ -86,8 +90,11 @@ export class Recorder {
     return this.rec?.state === "recording";
   }
 
-  async start(): Promise<void> {
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  async start(deviceId = ""): Promise<void> {
+    // A picked microphone that is gone (unplugged) falls back to the default one.
+    this.stream = deviceId
+      ? await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId } } }).catch(() => navigator.mediaDevices.getUserMedia({ audio: true }))
+      : await navigator.mediaDevices.getUserMedia({ audio: true });
     const mimeType = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t));
     this.chunks = [];
     this.rec = new MediaRecorder(this.stream, mimeType ? { mimeType } : undefined);
@@ -179,4 +186,19 @@ export class Reader {
       if (g === this.gen) this.stop();
     }
   }
+}
+
+export interface MicDevice { id: string; label: string }
+
+/** VOICE-02: the microphones of this device. Names only show once the browser was allowed the
+ * microphone, so `ask` asks first (a short open and close). */
+export async function listMics(ask: boolean): Promise<MicDevice[]> {
+  if (!navigator.mediaDevices?.enumerateDevices) return [];
+  if (ask) {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach((t) => t.stop());
+  }
+  const all = await navigator.mediaDevices.enumerateDevices();
+  return all.filter((d) => d.kind === "audioinput" && d.deviceId && d.deviceId !== "default" && d.deviceId !== "communications")
+    .map((d, i) => ({ id: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
 }

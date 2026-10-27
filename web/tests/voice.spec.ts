@@ -27,10 +27,27 @@ test.describe("Voice (W4)", () => {
     expect(loads).toBe(1); // nothing needed a refresh
   });
 
-  test("the microphone button is off until switched on, then shows at once", async ({ page }) => {
-    await expect(page.locator("#voice-mic")).toBeHidden();
-    await setting(page, "voice-input");
+  test("VOICE-02: the microphone button shows by default and hides at once when switched off", async ({ page }) => {
     await expect(page.locator("#voice-mic")).toBeVisible();
+    await page.click('[data-action="settings"]');
+    await page.locator("#voice-input").uncheck();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#voice-mic")).toBeHidden();
+  });
+
+  test("VOICE-02: a microphone can be picked, and a voice note sends itself when switched on", async ({ page }) => {
+    await page.click('[data-action="settings"]');
+    await page.click('[data-action="mic-list"]');
+    await expect(page.locator("#voice-mic-device option")).not.toHaveCount(1);
+    await page.locator("#voice-autosend").check();
+    await page.keyboard.press("Escape");
+    const before = await page.locator(".msg").count();
+    const mic = page.locator("#voice-mic");
+    await mic.click();
+    await page.waitForTimeout(600);
+    await mic.click();
+    await expect(page.locator(".msg.user").last()).toContainText("install htop");
+    expect(await page.locator(".msg").count()).toBeGreaterThan(before);
   });
 
   test("a click records, a second click writes it into the message box without sending", async ({ page }) => {

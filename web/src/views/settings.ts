@@ -111,9 +111,17 @@ function voiceSection(s: AppState): SafeHtml {
     ${!s.voice.enabled ? html`<p class="muted small">Voice is off on this server.</p>` : html`
       <fieldset class="checks">
         <legend class="sr-only">Voice on this device</legend>
-        <label><input type="checkbox" id="voice-input" ${p.input ? "checked" : ""}> Talk with the microphone button</label>
+        <label><input type="checkbox" id="voice-input" ${p.input ? "checked" : ""}> Show the microphone button</label>
         <label><input type="checkbox" id="voice-read" ${p.readAloud ? "checked" : ""}> Read replies aloud</label>
+        <label><input type="checkbox" id="voice-autosend" ${p.autoSend ? "checked" : ""}> Send a recording as soon as it is written out (a voice note)</label>
       </fieldset>
+      <div class="field"><label for="voice-mic-device">Microphone</label>
+        <div class="row"><select id="voice-mic-device">
+          <option value="" ${p.mic ? "" : "selected"}>System default</option>
+          ${s.micDevices.map((d) => html`<option value="${d.id}" ${d.id === p.mic ? "selected" : ""}>${d.label}</option>`)}
+          ${p.mic && !s.micDevices.some((d) => d.id === p.mic) ? html`<option value="${p.mic}" selected>The microphone picked before</option>` : ""}
+        </select>
+        <button class="btn small" type="button" data-action="mic-list">Find microphones</button></div></div>
       <div class="field"><label for="voice-lang">I speak</label>
         <select id="voice-lang">${LANGS.map(([v, l]) => html`<option value="${v}" ${v === p.lang ? "selected" : ""}>${l}</option>`)}</select></div>
       <div class="field"><label for="voice-voice">Reading voice</label>

@@ -76,6 +76,7 @@ export interface AppState {
   voice?: { enabled: boolean; voices: { id: string; label: string }[] }; // what the server offers (W4)
   voicePrefs: import("./core/voice").VoicePrefs; // per device
   recording: "idle" | "recording" | "transcribing"; // the microphone button
+  micDevices: import("./core/voice").MicDevice[]; // VOICE-02: microphones to pick from in Settings
   speaking: boolean; // a reply is being read aloud
   runCheck?: { taskId: string; machine: string; path: string; busy: boolean; result?: { state: "ok" | "nogrant" | "missing" | "notfolder" | "noanswer"; path: string; folders?: string[]; files?: number; message?: string } }; // the Run form's folder check
   taskRuns?: { taskId: string; runs: { id: string; startedAt: string; endedAt: string | null; status: string; step: string | null; effort?: string | null; effortPicked?: boolean }[] }; // the open task's W2 runs (report, run id)
@@ -147,6 +148,7 @@ export const store = new Store<AppState>({
   collapsedGroups: (() => { try { return new Set<string>(JSON.parse(localStorage.getItem("kk-task-groups") ?? "[]")); } catch { return new Set<string>(); } })(),
   voicePrefs: loadVoicePrefs(),
   recording: "idle",
+  micDevices: [],
   speaking: false,
   projectAssets: {},
   devSettings: {},

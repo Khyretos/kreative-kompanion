@@ -469,9 +469,19 @@ export function toolsChip(s: AppState): SafeHtml {
 export function composer(): SafeHtml {
   return html`
     <div class="attach-row" id="attach-row" aria-live="polite"></div>
+    <div class="slash-menu" id="slash-menu" role="listbox" aria-label="Commands" hidden></div>
     <form class="composer" id="composer">
       <input type="file" id="attach-input" multiple hidden accept="image/png,image/jpeg,image/webp,.pdf,.txt,.md,.markdown,.csv,.json,.toml,.yaml,.yml,.xml,.html,.htm,.log,.ini,.cfg,.sql,.sh,.css,.rs,.py,.ts,.tsx,.js,.jsx,.gd,.c,.h,.cpp,.hpp,.java,.go,.rb,.kt,.cs">
-      <button class="btn attach" type="button" data-action="attach-pick" aria-label="Attach files">${icon("paperclip")}</button>
+      <input type="file" id="attach-camera" hidden accept="image/*" capture="environment">
+      <span class="attach-wrap">
+        <button class="btn attach" type="button" id="attach-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="attach-menu" aria-label="Add to the message">${icon("paperclip")}</button>
+        <span class="attach-menu" id="attach-menu" role="menu" hidden>
+          <button type="button" role="menuitem" data-attach="files">${icon("file")}<span>Files or pictures</span></button>
+          <button type="button" role="menuitem" data-attach="camera">${icon("camera")}<span>Take a photo</span></button>
+          <button type="button" role="menuitem" data-attach="screenshot">${icon("screen")}<span>Screenshot of a window or screen</span></button>
+          <button type="button" role="menuitem" data-attach="clipboard">${icon("clipboard")}<span>Paste from the clipboard</span></button>
+        </span>
+      </span>
       <label class="sr-only" for="prompt">Message</label>
       <div class="prompt-box"><textarea id="prompt" rows="1" placeholder="Ask, plan, or hand over a task…"></textarea></div>
       <button class="btn mic" type="button" id="voice-mic" data-action="voice-mic" aria-label="Speak" aria-pressed="false" hidden>${icon("mic")}</button>
