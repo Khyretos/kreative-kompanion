@@ -11,10 +11,13 @@ async function demo(page: Page, width = 1280, scheme: "light" | "dark" = "dark")
   await page.fill("#prompt", "artifact demo");
   await page.press("#prompt", "Enter");
   // The reply streams in: wait for its last block, then for the end of the stream.
-  await expect(page.locator('#msg-list .codeblock[data-lang="ts"]')).toHaveCount(1, { timeout: 20_000 });
-  await expect(page.locator("#msg-list .caret")).toHaveCount(0, { timeout: 20_000 });
+  // The demo reply takes about 15 s on its own; on a loaded CI runner far longer.
+  await expect(page.locator('#msg-list .codeblock[data-lang="ts"]')).toHaveCount(1, { timeout: 45_000 });
+  await expect(page.locator("#msg-list .caret")).toHaveCount(0, { timeout: 45_000 });
 }
 const pane = (page: Page) => page.locator("#artifact-pane");
+// Every test here waits for that long reply first.
+test.describe.configure({ timeout: 90_000 });
 
 test("an HTML block shows a few lines and previews in a sandbox that runs its script offline", async ({ page }) => {
   await demo(page);
