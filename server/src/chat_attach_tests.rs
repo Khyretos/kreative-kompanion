@@ -44,10 +44,14 @@ fn kinds_follow_the_extension() {
 
 #[test]
 fn text_is_told_from_binary_by_content() {
-    assert!(looks_like_text("print('héllo')\n".as_bytes()));
-    assert!(looks_like_text(b""));
-    assert!(!looks_like_text(&[0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]));
-    assert!(!looks_like_text(&[0xff, 0xfe, 0x41]), "not UTF-8");
+    assert!(looks_like_text("print('héllo')\n".as_bytes(), false));
+    assert!(looks_like_text(b"", false));
+    assert!(!looks_like_text(&[0x50, 0x4b, 0x03, 0x04, 0x00, 0x00], false));
+    assert!(!looks_like_text(&[0xff, 0xfe, 0x41], false), "not UTF-8");
+    let cut_in_half = &"héllo".as_bytes()[..2];
+    assert!(!looks_like_text(cut_in_half, false), "the whole file ends in half a character");
+    assert!(looks_like_text(cut_in_half, true), "only the start of a bigger file");
+    assert!(!looks_like_text(&[0xff, 0xfe, 0x41], true), "an invalid byte in the middle is still binary");
 }
 
 #[test]

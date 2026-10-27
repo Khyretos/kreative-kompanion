@@ -363,7 +363,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/chats/{id}/context", get(context::get))
         .route("/chats/{id}/compact", post(context::compact_now))
         .route("/chats/{id}/files/{name}", get(chat_files::file))
-        .route("/chats/{id}/attachments", post(chat_attach_web::upload).layer(axum::extract::DefaultBodyLimit::max(25 * 1024 * 1024)))
+        .route("/chats/{id}/attachments", post(chat_attach_web::upload).layer(axum::extract::DefaultBodyLimit::disable()))
         .route("/providers", get(api::providers))
         .route("/roles", get(api::roles).put(api::set_role))
         .route("/calls", get(api::calls))

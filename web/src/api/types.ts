@@ -353,6 +353,7 @@ export interface ServerStatus {
   mcp?: string[]; // CHAT-01: [[mcp]] tool servers a chat can turn on
   mcpInfo?: Record<string, string>; // UI-02: their one-line descriptions
   overseer?: OverseerPrefs | null; // OVR-01: the Overseer's name and whether it may add context to running tasks
+  maxUploadMb?: number; // CHAT-09: the largest attachment in MB (0 = no limit)
   maxSteps?: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100)
   explain?: ExplainPrefs | null; // CMD-01: "Explain running actions" on step cards
   machineName?: string | null; // HOST-01: the server's own computer ([machine_name] in kompanion.toml)

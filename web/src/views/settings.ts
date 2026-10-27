@@ -43,6 +43,18 @@ function stepsSection(s: AppState): SafeHtml {
   </section>`;
 }
 
+/** CHAT-09: the largest file one attachment may be. */
+function uploadSection(s: AppState): SafeHtml {
+  return html`<section class="upload-settings">
+    <h3 class="label">Attachments</h3>
+    <div class="field">
+      <label for="max-upload-mb">Largest attachment (MB)</label>
+      <input id="max-upload-mb" type="number" min="0" step="1" value="${s.maxUploadMb}">
+    </div>
+    <p class="muted small">The largest file you can attach to a message, in MB. 0 means no limit. A file is saved to disk as it arrives, so a big one does not fill memory. Only the start of a long text file is kept for me to read.</p>
+  </section>`;
+}
+
 /** CMD-01: "Explain running actions": on or off, compact or verbose, and the model that explains. */
 function explainSection(s: AppState): SafeHtml {
   const e = s.explain;
@@ -203,6 +215,7 @@ export function renderSettings(s: AppState): SafeHtml {
         })}</div>
       </section>
       ${stepsSection(s)}
+      ${uploadSection(s)}
       ${explainSection(s)}
       ${overseerSection(s)}
       ${voiceSection(s)}

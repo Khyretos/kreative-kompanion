@@ -5,7 +5,8 @@ use base64::Engine;
 use crate::{AppState, auth::User, error::{ApiError, ApiResult}};
 
 pub const MAX_BYTES: usize = 8 * 1024 * 1024;
-/// Largest file of any type attached to a message (matches the upload route's body limit).
+/// Largest file `save_bytes` takes for an attachment kept as it is (its bytes are already in memory, as with a tool's file).
+/// An upload is streamed to disk instead and is limited by the user's setting only (0 = no limit).
 pub const MAX_ATTACHMENT: usize = 25 * 1024 * 1024;
 
 /// <database folder>/chat-files
@@ -63,6 +64,16 @@ pub async fn save(dir: &Path, chat_id: &str, mime: &str, data_b64: &str) -> anyh
     };
     let bytes = base64::engine::general_purpose::STANDARD.decode(data_b64.trim())?;
     save_bytes(dir, chat_id, ext, &bytes).await
+}
+
+/// A new file name <uuid v4>.<ext> under the chat and its path (the chat's folder is made, the file is not).
+pub async fn new_file(dir: &Path, chat_id: &str, ext: &str) -> anyhow::Result<(String, PathBuf)> {
+    if !safe_id(chat_id) { anyhow::bail!("bad chat id") }
+    let folder = dir.join(chat_id);
+    tokio::fs::create_dir_all(&folder).await?;
+    let name = format!("{}.{ext}", uuid::Uuid::new_v4());
+    let path = folder.join(&name);
+    Ok((name, path))
 }
 
 /// Writes bytes under the chat as <uuid v4>.<ext>; returns the file name.

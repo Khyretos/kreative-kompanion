@@ -44,7 +44,7 @@ test.describe("Attach files in chat (CHAT-08)", () => {
     expect(errors).toEqual([]);
   });
 
-  test("a dropped file and a pasted picture are added; other types are refused", async ({ page }) => {
+  test("a dropped file and a pasted picture are added; any other type too", async ({ page }) => {
     await openChat(page);
     await page.evaluate(() => {
       const dt = new DataTransfer();
@@ -62,8 +62,8 @@ test.describe("Attach files in chat (CHAT-08)", () => {
     }, png.toString("base64"));
     await expect(page.locator("#attach-row .attach-chip")).toHaveCount(2);
     await page.setInputFiles("#attach-input", [{ name: "tool.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ") }]);
-    await expect(page.locator("#attach-row .attach-chip")).toHaveCount(2);
-    await expect(page.locator("body")).toContainText("tool.exe");
+    await expect(page.locator("#attach-row .attach-chip")).toHaveCount(3);
+    await expect(page.locator("#attach-row")).toContainText("tool.exe");
   });
 
   test("files alone can be sent", async ({ page }) => {

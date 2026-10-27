@@ -73,6 +73,7 @@ export class HttpApi implements KompanionApi {
   setGpuPins(pins: string[]) { return this.request<void>("PUT", "/me/prefs", { gpuPins: pins }); }
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) { return this.request<void>("PUT", "/me/prefs", change); }
   setMaxSteps(maxSteps: number) { return this.request<void>("PUT", "/me/prefs", { maxSteps }); }
+  setMaxUploadMb(maxUploadMb: number) { return this.request<void>("PUT", "/me/prefs", { maxUploadMb }); }
   setExplainPrefs(explain: import("./types").ExplainPrefs) { return this.request<void>("PUT", "/me/prefs", { explain }); }
   listCustomProviders() { return this.request<{ providers: import("./types").CustomProvider[]; secretDirs: string[] }>("GET", "/admin/providers"); }
   addProvider(p: import("./types").ProviderInput) { return this.request<import("./types").CustomProvider>("POST", "/admin/providers", p); }

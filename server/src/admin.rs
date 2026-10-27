@@ -308,6 +308,8 @@ pub struct Prefs {
     max_steps: Option<i64>,
     /// CMD-01: "Explain running actions" on step cards.
     explain: Option<crate::explain::Prefs>,
+    /// CHAT-09: the largest attachment in MB (0 = no limit).
+    max_upload_mb: Option<i64>,
 }
 
 /// A valid card style: an object whose keys are action kinds, each {label: 1-30 chars, color: "#rrggbb"}.
@@ -369,6 +371,12 @@ pub async fn set_prefs(
             return Err(ApiError::BadRequest("Steps per request is a number from 1 to 100, or 0 for no limit.".into()));
         }
         sqlx::query("UPDATE users SET max_steps = ? WHERE id = ?").bind(n).bind(&u.id).execute(&s.db).await?;
+    }
+    if let Some(n) = b.max_upload_mb {
+        if !(0..=1_048_576).contains(&n) {
+            return Err(ApiError::BadRequest("The largest attachment is a number of MB from 1 to 1048576, or 0 for no limit.".into()));
+        }
+        sqlx::query("UPDATE users SET max_upload_mb = ? WHERE id = ?").bind(n).bind(&u.id).execute(&s.db).await?;
     }
     if let Some(p) = b.explain {
         let p = p.normalised();

@@ -172,7 +172,7 @@ async function start(server: Server): Promise<void> {
   ]);
   store.set({
     server: { ...server, name: status.name || server.name }, projects, chats, tasks, providers, roles, machines, today,
-    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system", overseer: status.overseer ?? { name: "Overseer", interject: false }, maxSteps: status.maxSteps ?? 10, explain: status.explain ?? { on: false, verbose: false },
+    userName: status.user ?? undefined, isAdmin: !!status.admin, isAdult: !!status.adult, machineName: status.machineName ?? undefined, mcpServers: status.mcp ?? [], mcpInfo: status.mcpInfo ?? {}, theme: status.theme ?? "system", overseer: status.overseer ?? { name: "Overseer", interject: false }, maxSteps: status.maxSteps ?? 10, maxUploadMb: status.maxUploadMb ?? 0, explain: status.explain ?? { on: false, verbose: false },
     machinesRefresh: status.machinesRefresh ?? 5, gpuPins: status.gpuPins ?? [], cardStyle: status.cardStyle ?? {}, windshift: status.windshift, windshiftWarning: status.windshiftWarning, features: { ...ALL_FEATURES, ...(status.features ?? {}) }, logoVersion: status.logoVersion,
   });
   setStepCardStyle(status.cardStyle ?? {});
@@ -1919,6 +1919,15 @@ function wire(shell: HTMLElement): void {
       api.setMaxSteps(n).then(() => store.set({ maxSteps: n }), showError);
       return;
     }
+    if (fid === "max-upload-mb") {
+      // 0 means no limit; an empty or bad value means no limit too.
+      const input = ev.target as HTMLInputElement;
+      const raw = Number(input.value);
+      const n = Number.isFinite(raw) && input.value.trim() !== "" ? Math.min(1_048_576, Math.max(0, Math.round(raw))) : 0;
+      input.value = String(n);
+      api.setMaxUploadMb(n).then(() => store.set({ maxUploadMb: n }), showError);
+      return;
+    }
     // OVR-01: the Overseer's name and permission (Settings).
     if (fid === "overseer-name" || fid === "overseer-interject") {
       const input = ev.target as HTMLInputElement;
@@ -2420,7 +2429,7 @@ function wire(shell: HTMLElement): void {
   let pending: Pending[] = [];
   const drawPending = () => mount($("#attach-row"), renderPending(pending));
   const addPicked = (files: File[]) => {
-    const { added, refused } = acceptFiles(pending, files);
+    const { added, refused } = acceptFiles(pending, files, store.get().maxUploadMb);
     pending = [...pending, ...added];
     drawPending();
     if (refused.length) showError(new Error(refused.join("\n")));

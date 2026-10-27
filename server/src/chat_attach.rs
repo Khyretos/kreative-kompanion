@@ -38,9 +38,17 @@ pub fn kind_for(name: &str) -> &'static str {
     }
 }
 
-/// Whether the bytes are UTF-8 text without NUL bytes (an unknown extension such as .lua or .tscn that holds text).
-pub fn looks_like_text(bytes: &[u8]) -> bool {
-    !bytes.iter().take(8192).any(|b| *b == 0) && std::str::from_utf8(bytes).is_ok()
+/// Bytes of the start of a file that tell text from binary.
+pub const SNIFF: usize = 8192;
+
+/// Whether the start of a file is UTF-8 text without NUL bytes (an unknown extension such as .lua or .tscn that holds text).
+/// `cut` is true when `head` is only the start: a character cut in half at its end is then not a sign of binary data.
+pub fn looks_like_text(head: &[u8], cut: bool) -> bool {
+    if head.iter().any(|b| *b == 0) { return false }
+    match std::str::from_utf8(head) {
+        Ok(_) => true,
+        Err(e) => cut && e.error_len().is_none(),
+    }
 }
 
 pub fn sees_pictures(model: &str) -> bool {

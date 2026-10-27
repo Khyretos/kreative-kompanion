@@ -319,6 +319,7 @@ const providers: ModelProvider[] = [
 
 const overseerPrefs = { name: "Loquendo", interject: true };
 let demoMaxSteps = 10; // AUTO-01
+let demoMaxUploadMb = 0; // CHAT-09
 let demoExplain: import("./types").ExplainPrefs = { on: false, verbose: false }; // CMD-01
 const demoNotify: import("./types").NotificationPrefs = { email: "kees@example.com", onNeedsInput: true, onFailed: true, onDone: false, dailySummary: false,
   onApproval: true, mailOn: true, pushOn: true, quietFrom: "", quietTo: "", tzOffset: 0 }; // NOTIFY
@@ -455,7 +456,7 @@ export class MockApi implements KompanionApi {
   }
   async status() {
     const off = (globalThis as { __kkDemoFeatures?: Partial<import("./types").Features> }).__kkDemoFeatures ?? {};
-    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs", "History", "Memory"], overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, explain: { ...demoExplain }, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
+    return { name: "Kreative Kompanion (demo)", machineName: "kireserver", mcp: ["Web", "Stack Overflow", "Developer docs", "History", "Memory"], maxUploadMb: demoMaxUploadMb, overseer: { ...overseerPrefs }, maxSteps: demoMaxSteps, explain: { ...demoExplain }, mcpInfo: { "Stack Overflow": "3.5 million answered programming questions", "Developer docs": "Indexed developer documentation" }, version: "0.1.0", setupNeeded: false, user: "Kees", admin: true, adult: !!(globalThis as { __kkDemoAdult?: boolean }).__kkDemoAdult, theme: "system" as const,
       features: { assets: true, gpus: true, voice: true, windshift: true, ...off } };
   }
   async setup() {}
@@ -464,6 +465,7 @@ export class MockApi implements KompanionApi {
   async setMachinesRefresh() {}
   async setGpuPins() {}
   async setMaxSteps(n: number) { demoMaxSteps = n; }
+  async setMaxUploadMb(n: number) { demoMaxUploadMb = n; }
   async setExplainPrefs(p: import("./types").ExplainPrefs) { demoExplain = { ...p }; }
   // PROV-UI: providers added in Settings (checked like the server) and new projects.
   async listCustomProviders() { return structuredClone({ providers: demoCustom, secretDirs: ["/run/secrets", "/data/secrets"] }); }

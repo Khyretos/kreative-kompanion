@@ -79,3 +79,55 @@ fn pictures_go_out_as_each_provider_wants_them() {
     let a = m.wire(true);
     assert_eq!(a["content"][0]["source"], serde_json::json!({"type": "base64", "media_type": "image/png", "data": "AAAA"}));
 }
+
+fn chunks(parts: Vec<Vec<u8>>) -> Body {
+    Body::from_stream(futures::stream::iter(parts.into_iter().map(|p| Ok::<_, std::io::Error>(axum::body::Bytes::from(p)))))
+}
+
+#[tokio::test]
+async fn an_upload_is_streamed_to_disk_and_only_the_users_setting_limits_it() {
+    let d = tmp();
+    let big = vec![b'a'; 3 * 1024 * 1024];
+    let got = receive(&d, "c1", chunks(big.chunks(100_000).map(|c| c.to_vec()).collect()), None).await.unwrap();
+    assert_eq!(got.size, big.len() as u64);
+    assert_eq!(got.head.len(), SNIFF);
+    assert_eq!(std::fs::metadata(&got.path).unwrap().len(), big.len() as u64);
+    assert!(chat_files::path_for(&d, "c1", got.path.file_name().unwrap().to_str().unwrap()).is_none(), "a part file is never served");
+    let err = receive(&d, "c1", chunks(vec![vec![1u8; 600_000], vec![1u8; 600_000]]), Some(1024 * 1024)).await.err().unwrap();
+    assert!(err.to_string().contains("1 MB"), "{err}");
+    assert_eq!(std::fs::read_dir(d.join("c1")).unwrap().count(), 1, "the refused upload leaves nothing behind");
+    std::fs::remove_dir_all(&d).ok();
+}
+
+#[tokio::test]
+async fn a_big_text_file_is_kept_cut_and_any_other_file_is_renamed() {
+    let d = tmp();
+    let text = "line of text\n".repeat(400_000);
+    let got = receive(&d, "c1", Body::from(text), None).await.unwrap();
+    let name = keep(&d, "c1", "big.log", "text", &got).await.unwrap();
+    let kept = std::fs::read_to_string(chat_files::path_for(&d, "c1", &name).unwrap()).unwrap();
+    assert!(kept.starts_with("line of text\n") && kept.contains("[cut here: ") && kept.ends_with(" more bytes not kept]"), "{}", &kept[kept.len() - 60..]);
+    assert!(kept.len() < chat_files::MAX_BYTES / 4 + 100);
+
+    let got = receive(&d, "c1", Body::from(vec![0u8, 1, 2]), None).await.unwrap();
+    let name = keep(&d, "c1", "a.zip", "file", &got).await.unwrap();
+    assert!(name.ends_with(".bin") && !got.path.exists());
+    assert_eq!(std::fs::read(chat_files::path_for(&d, "c1", &name).unwrap()).unwrap(), vec![0u8, 1, 2]);
+
+    let got = receive(&d, "c1", Body::from(vec![0u8, 1, 2]), None).await.unwrap();
+    assert!(keep(&d, "c1", "x.log", "text", &got).await.is_err(), "binary data is not text");
+    std::fs::remove_dir_all(&d).ok();
+}
+
+#[tokio::test]
+async fn a_picture_too_big_for_the_model_is_named_not_sent() {
+    let d = tmp();
+    let (stored, path) = chat_files::new_file(&d, "c1", "png").await.unwrap();
+    let f = std::fs::File::create(&path).unwrap();
+    f.set_len(MAX_MODEL_PICTURE + 1).unwrap();
+    let files = vec![Attached { name: "huge.png".into(), file: stored, kind: "image".into() }];
+    let (note, images) = for_model(&d, "c1", &files, "qwen3.5:9b", true).await;
+    assert!(note.contains("[Attached picture: huge.png (20.0 MB)") && note.contains("too large to show you"), "{note}");
+    assert!(images.is_empty());
+    std::fs::remove_dir_all(&d).ok();
+}

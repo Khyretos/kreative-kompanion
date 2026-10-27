@@ -12,6 +12,7 @@ export interface AppState {
   draftMcp?: string[]; // CHAT-01: tools picked before a new chat exists
   draftOverseer?: boolean; // OVR-01: Overseer picked before a new chat exists
   draftAutoRun?: boolean; // AUTO-01: automatic mode picked before a new chat exists
+  maxUploadMb: number; // CHAT-09: the largest attachment in MB (0 = no limit), saved per user
   maxSteps: number; // AUTO-01: tool steps one request may take (0 = no limit, else 1-100), saved per user
   explain: import("./api/types").ExplainPrefs; // CMD-01: "Explain running actions", saved per user
   customProviders?: { providers: import("./api/types").CustomProvider[]; secretDirs: string[] }; // PROV-UI: admins only
@@ -135,6 +136,7 @@ export const store = new Store<AppState>({
   mcpServers: [],
   overseer: { name: "Overseer", interject: false },
   maxSteps: 10,
+  maxUploadMb: 0,
   explain: { on: false, verbose: false },
   pane: "main",
   section: "chat",

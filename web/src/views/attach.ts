@@ -5,19 +5,19 @@ import { Attached, AttachedKind, kindOf, sizeLabel } from "../core/attachments";
 import { icon } from "./icons";
 
 export const MAX_FILES = 8;
-const MAX_IMAGE = 8 * 1024 * 1024;
-const MAX_OTHER = 25 * 1024 * 1024;
 
 export interface Pending { file: File; kind: AttachedKind; thumb?: string }
 
-/** The files that may be added (a message takes up to 8) and what was refused, with the reason. */
-export function accept(have: Pending[], files: File[]): { added: Pending[]; refused: string[] } {
+/** The files that may be added (a message takes up to 8) and what was refused, with the reason.
+ * `maxMb` is the user's largest attachment from Settings; 0 means no limit. */
+export function accept(have: Pending[], files: File[], maxMb = 0): { added: Pending[]; refused: string[] } {
+  const max = maxMb * 1024 * 1024;
   const added: Pending[] = [];
   const refused: string[] = [];
   for (const file of files) {
     const kind = kindOf(file.name);
     if (file.size === 0) refused.push(`${file.name}: the file is empty`);
-    else if (file.size > (kind === "image" ? MAX_IMAGE : MAX_OTHER)) refused.push(`${file.name}: larger than ${sizeLabel(kind === "image" ? MAX_IMAGE : MAX_OTHER)}`);
+    else if (max > 0 && file.size > max) refused.push(`${file.name}: larger than the ${sizeLabel(max)} set in Settings (Largest attachment)`);
     else if (have.length + added.length >= MAX_FILES) refused.push(`${file.name}: a message takes up to ${MAX_FILES} files`);
     else if (have.some((p) => p.file.name === file.name && p.file.size === file.size)) continue;
     else added.push({ file, kind, thumb: kind === "image" ? URL.createObjectURL(file) : undefined });

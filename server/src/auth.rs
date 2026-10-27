@@ -166,6 +166,11 @@ pub async fn status(
         Some(u) => sqlx::query_scalar::<_, i64>("SELECT max_steps FROM users WHERE id = ?").bind(&u.id).fetch_optional(&state.db).await?.unwrap_or(10),
         None => 10,
     };
+    // CHAT-09: the largest attachment in MB (0 = no limit).
+    let max_upload_mb = match &user {
+        Some(u) => sqlx::query_scalar::<_, i64>("SELECT max_upload_mb FROM users WHERE id = ?").bind(&u.id).fetch_optional(&state.db).await?.unwrap_or(0),
+        None => 0,
+    };
     Ok(Json(json!({
         "name": settings.app_name,
         "admin": admin,
@@ -173,6 +178,7 @@ pub async fn status(
         "theme": theme,
         "machinesRefresh": refresh,
         "maxSteps": max_steps,
+        "maxUploadMb": max_upload_mb,
         "gpuPins": serde_json::from_str::<serde_json::Value>(&pins).unwrap_or(serde_json::json!([])),
         "cardStyle": serde_json::from_str::<serde_json::Value>(&cards).unwrap_or(serde_json::json!({})),
         // CMD-01: "Explain running actions" (off, compact, the chat's model unless one is picked).

@@ -124,6 +124,7 @@ export interface KompanionApi {
   /** OVR-01: the Overseer's name ("" = default) and whether it may add context to running tasks. */
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;
   setMaxSteps(maxSteps: number): Promise<void>;
+  setMaxUploadMb(maxUploadMb: number): Promise<void>;
   /** CMD-01: the "Explain running actions" settings, and a step's explanation (made on first ask). */
   setExplainPrefs(p: import("./types").ExplainPrefs): Promise<void>;
   /** PROV-UI: providers added in Settings (admins), and a new project. */
