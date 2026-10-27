@@ -226,14 +226,52 @@ async fn remembered(s: &AppState, chat_id: &str, role: &RoleAssignment) -> Optio
     if !newer.iter().any(|(a, _)| a == "user") {
         return None;
     }
-    for (author, text) in newer {
-        messages.push(json!({ "role": if author == "user" { "user" } else { "assistant" }, "content": text }));
-    }
+    messages.extend(chat_lines(s, chat_id, &role.model_id, newer).await);
     Some(messages)
+}
+
+/// CHAT-08: chat lines as the model reads them: attached documents as text and, for the newest
+/// user line that has pictures, the pictures themselves when the model can see them.
+async fn chat_lines(s: &AppState, chat_id: &str, model: &str, lines: Vec<(String, String)>) -> Vec<Value> {
+    let dir = crate::chat_files::dir_for(&s.config.database);
+    let mut pictures_left = true;
+    let mut out = Vec::new();
+    for (author, text) in lines.into_iter().rev() {
+        let user = author == "user";
+        let (text, files) = crate::chat_attach::split(&text);
+        let text = text.split("\n\n:::sources\n").next().unwrap_or("").to_string();
+        let (note, images) = if user && !files.is_empty() {
+            let r = crate::chat_attach_web::for_model(&dir, chat_id, &files, model, pictures_left).await;
+            if !r.1.is_empty() {
+                pictures_left = false;
+            }
+            r
+        } else {
+            (String::new(), Vec::new())
+        };
+        let m = llm::ChatMessage { role: if user { "user".into() } else { "assistant".into() }, content: format!("{text}{note}"), images };
+        out.push(m.wire(false));
+    }
+    out.reverse();
+    out
+}
+
+/// One message as the next answer keeps it: without Anthropic's thinking blocks, whose signature
+/// is bound to the request that made them (the next one rebuilds the system prompt, so Anthropic
+/// refuses them as "bound to a different conversation"), and without pictures (too big to carry;
+/// the note naming them stays).
+fn for_memory(m: Value) -> Value {
+    let mut m = crate::llm_anthropic::strip_blocks(std::slice::from_ref(&m)).remove(0);
+    if let Some(parts) = m["content"].as_array() {
+        let text: Vec<&str> = parts.iter().filter(|p| p["type"] == "text").filter_map(|p| p["text"].as_str()).collect();
+        m["content"] = json!(text.join("\n\n"));
+    }
+    m
 }
 
 async fn remember(s: &AppState, chat_id: &str, role: &RoleAssignment, mut messages: Vec<Value>, answer: &str, local: bool) {
     messages.remove(0); // the system prompt is rebuilt every time
+    let mut messages: Vec<Value> = messages.into_iter().map(for_memory).collect();
     messages.push(json!({ "role": "assistant", "content": answer }));
     trim_memory(&mut messages, memory_budget(local));
     let until: Option<String> = sqlx::query_scalar("SELECT MAX(at) FROM messages WHERE chat_id = ?").bind(chat_id).fetch_one(&s.db).await.ok().flatten();
@@ -263,10 +301,8 @@ pub async fn run(s: AppState, user_id: String, chat_id: String, machine_id: Stri
             messages[0]["content"] = json!(format!("{}{}", messages[0]["content"].as_str().unwrap_or(""), crate::context::prompt_block(x)));
         }
         let history = crate::context::after_summary(&s.db, &chat_id, summary.as_ref(), 20).await.unwrap_or_default();
-        for (_, author, text, _) in history {
-            let role = if author == "user" { "user" } else { "assistant" };
-            messages.push(json!({ "role": role, "content": text }));
-        }
+        let lines = history.into_iter().map(|(_, author, text, _)| (author, text)).collect();
+        messages.extend(chat_lines(&s, &chat_id, &role.model_id, lines).await);
         if let Some(d) = steplog::digest(&s.db, &user_id, &chat_id).await {
             messages.push(json!({ "role": "system", "content": d }));
         }
@@ -1134,6 +1170,17 @@ mod tests {
         let mut small = vec![json!({ "role": "user", "content": "Hi" })];
         trim_memory(&mut small, 10_000);
         assert_eq!(small.len(), 1);
+    }
+
+    #[test]
+    fn memory_drops_thinking_and_pictures() {
+        let step = json!({ "role": "assistant", "content": "Looking.", "tool_calls": [{ "id": "t" }],
+            crate::llm_anthropic::ANTHROPIC_BLOCKS: [{ "type": "thinking", "thinking": "", "signature": "sig" }] });
+        let kept = for_memory(step);
+        assert!(kept.get(crate::llm_anthropic::ANTHROPIC_BLOCKS).is_none(), "no signed thinking replayed in a later request");
+        assert_eq!(kept["tool_calls"][0]["id"], "t");
+        let pic = json!({ "role": "user", "content": [{ "type": "image_url", "image_url": { "url": "data:image/png;base64,AA" } }, { "type": "text", "text": "What is this?" }] });
+        assert_eq!(for_memory(pic)["content"], "What is this?");
     }
 
     #[test]
