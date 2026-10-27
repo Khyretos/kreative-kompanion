@@ -138,7 +138,8 @@ pub async fn results(
         let new_state = if b.refused { "refused" } else if b.ok { "done" } else { "failed" };
         sqlx::query("UPDATE machine_jobs SET state = ?, result = ?, done_at = ? WHERE id = ?")
             .bind(new_state)
-            .bind(crate::util::cut_marked(&b.output, 64 * 1024))
+            // IMAGE-01: a picture is base64 text of up to about 4 MiB; the agent takes it out again before anything shows it.
+            .bind(crate::util::cut_marked(&b.output, if tool.contains(r#""tool":"read_image""#) { 6 * 1024 * 1024 } else { 64 * 1024 }))
             .bind(util::now())
             .bind(&b.job_id)
             .execute(&s.db)

@@ -9,6 +9,8 @@ use crate::grants::{Grants, Right};
 pub enum Tool {
     /// `offset`/`length` (bytes) read one slice of a big file; without them the whole file is read.
     ReadFile { path: String, #[serde(default)] offset: Option<u64>, #[serde(default)] length: Option<u64> },
+    /// IMAGE-01: a PNG, JPEG, GIF or WebP as a data URL (`data:image/png;base64,...`) for a model that can see.
+    ReadImage { path: String },
     /// WRITE-CHUNKS: a big file is written in parts: `append` adds to the end (making the file if
     /// needed); `offset` cuts the file to that many bytes first, so a part sent again lands in the
     /// same place. Neither: create or replace.
@@ -89,6 +91,33 @@ pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
                 Outcome { ok: true, output: content }
             } else {
                 Outcome { ok: false, output: format!("not a file: {}", canonical_path.display()) }
+            }
+        },
+        Tool::ReadImage { path } => {
+            let path = Path::new(path);
+            let canonical_path = match canonicalize(path) {
+                Ok(p) => p,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Outcome { ok: false, output: format!("no such file or folder: {}", path.display()) },
+                Err(_) => return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Read, path.display()) },
+            };
+            if !grants.allows(&canonical_path, &Right::Read, now) {
+                return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Read, canonical_path.display()) };
+            }
+            let size = match fs::metadata(&canonical_path) {
+                Ok(m) if m.is_file() => m.len(),
+                Ok(_) => return Outcome { ok: false, output: format!("not a file: {}", canonical_path.display()) },
+                Err(_) => return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Read, canonical_path.display()) },
+            };
+            if size > IMAGE_CAP {
+                return Outcome { ok: false, output: format!("picture too big ({size} bytes, limit {IMAGE_CAP}): make a smaller copy first, then read that: {}", canonical_path.display()) };
+            }
+            let bytes = match fs::read(&canonical_path) {
+                Ok(b) => b,
+                Err(_) => return Outcome { ok: false, output: format!("not granted: {:?} on {}", Right::Read, canonical_path.display()) },
+            };
+            match image_mime(&bytes) {
+                Some(mime) => Outcome { ok: true, output: format!("data:{mime};base64,{}", base64(&bytes)) },
+                None => Outcome { ok: false, output: format!("not a PNG, JPEG, GIF or WebP picture: {}", canonical_path.display()) },
             }
         },
         Tool::WriteFile { path, content, append, offset } => {
@@ -222,6 +251,38 @@ pub fn run(grants: &Grants, tool: &Tool, now: &str) -> Outcome {
         Tool::SystemInfo => crate::sysinfo::system_info(),
         Tool::GpuApps { action, app } => crate::gpuapps::gpu_apps(grants, crate::gpuapps::apps(), action, app.as_deref(), now),
     }
+}
+
+/// IMAGE-01: the biggest picture `read_image` sends (about 4 MiB as base64; the server takes 6 MiB).
+const IMAGE_CAP: u64 = 3 * 1024 * 1024;
+
+/// The picture type by its first bytes (never by the file name), None for anything else.
+pub fn image_mime(b: &[u8]) -> Option<&'static str> {
+    if b.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
+        Some("image/png")
+    } else if b.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("image/jpeg")
+    } else if b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if b.len() >= 12 && &b[..4] == b"RIFF" && &b[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else {
+        None
+    }
+}
+
+/// Standard base64 with padding.
+pub fn base64(data: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for c in data.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        out.push(T[(n >> 18) as usize & 63] as char);
+        out.push(T[(n >> 12) as usize & 63] as char);
+        out.push(if c.len() > 1 { T[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if c.len() > 2 { T[n as usize & 63] as char } else { '=' });
+    }
+    out
 }
 
 #[cfg(test)]

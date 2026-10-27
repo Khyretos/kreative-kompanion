@@ -22,6 +22,20 @@ pub fn schema() -> Value {
         {
             "type": "function",
             "function": {
+                "name": "read_image",
+                "description": "Look at a picture (PNG, JPEG, GIF or WebP, up to 3 MiB): it arrives in the next message and you can see it. Only for a model that can see pictures. For text files use read_file.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string" }
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "list_dir",
                 "description": "List the contents of a directory.",
                 "parameters": {
@@ -186,6 +200,7 @@ pub fn whole_lines(content: &str, old: &str) -> Result<(), String> {
 pub fn to_job(name: &str, args: &Value) -> Option<Value> {
     let known = match name {
         "read_file" => vec!["path", "offset", "length"],
+        "read_image" => vec!["path"],
         "list_dir" => vec!["path"],
         "write_file" => vec!["path", "content", "append", "offset"],
         "edit_file" => vec!["path", "old", "new"],
@@ -260,6 +275,7 @@ pub fn summary(job: &Value) -> String {
     let s = |k: &str| job[k].as_str().unwrap_or("").to_string();
     let line = match job["tool"].as_str().unwrap_or("") {
         "read_file" => format!("Read {}", s("path")),
+        "read_image" => format!("View picture {}", s("path")),
         "list_dir" => format!("List {}", s("path")),
         "write_file" if job["append"] == true => format!("Append to {}", s("path")),
         "write_file" if job["offset"].is_u64() => format!("Write {} from byte {}", s("path"), job["offset"]),
@@ -289,16 +305,25 @@ pub fn writes_in_parts(job: &Value) -> bool {
 
 /// Runners from 0.6.4 on write in parts; an older one (or one that has not said) would replace the file.
 pub fn runner_writes_in_parts(version: Option<&str>) -> bool {
+    runner_at_least(version, (0, 6, 4))
+}
+
+/// IMAGE-01: runners from 0.6.5 on can read a picture (read_image); an older one does not know the tool.
+pub fn runner_reads_images(version: Option<&str>) -> bool {
+    runner_at_least(version, (0, 6, 5))
+}
+
+fn runner_at_least(version: Option<&str>, min: (u64, u64, u64)) -> bool {
     let Some(v) = version else { return false };
     let n: Vec<u64> = v.trim_start_matches('v').split(['.', '-', '+']).take(3).map(|x| x.parse().unwrap_or(0)).collect();
-    (n.first().copied().unwrap_or(0), n.get(1).copied().unwrap_or(0), n.get(2).copied().unwrap_or(0)) >= (0, 6, 4)
+    (n.first().copied().unwrap_or(0), n.get(1).copied().unwrap_or(0), n.get(2).copied().unwrap_or(0)) >= min
 }
 
 /// The grant "Always allow" creates for this job: (target, rights).
 pub fn grant_for(job: &Value) -> Option<(String, Vec<&'static str>)> {
     let path = || job["path"].as_str().filter(|p| safe(p)).map(str::to_string);
     match job["tool"].as_str()? {
-        "read_file" => Some((parent(&path()?), vec!["read"])),
+        "read_file" | "read_image" => Some((parent(&path()?), vec!["read"])),
         "list_dir" => Some((path()?, vec!["read"])),
         "write_file" | "edit_file" => Some((parent(&path()?), vec!["write"])),
         "shell" => Some((job["cwd"].as_str().filter(|p| safe(p))?.to_string(), vec!["shell"])),
@@ -345,10 +370,10 @@ mod tests {
     }
 
     #[test]
-    fn test_schema_has_10_tools() {
+    fn test_schema_has_11_tools() {
         let schema = schema();
         let tools = schema.as_array().unwrap();
-        assert_eq!(tools.len(), 10);
+        assert_eq!(tools.len(), 11);
     }
 
     #[test]
@@ -367,6 +392,19 @@ mod tests {
         assert!(obj.contains_key("old"));
         assert!(obj.contains_key("new"));
         assert!(!obj.contains_key("extra"));
+    }
+
+    #[test]
+    fn read_image_is_a_read_of_the_folder_and_takes_only_a_path() {
+        let job = to_job("read_image", &json!({"path": "/media/pics/a.png", "length": "5"})).unwrap();
+        assert_eq!(job, json!({"tool": "read_image", "path": "/media/pics/a.png"}));
+        assert!(to_job("read_image", &json!({"path": 5})).is_none());
+        assert_eq!(grant_for(&job), Some(("/media/pics".to_string(), vec!["read"])));
+        assert_eq!(summary(&job), "View picture /media/pics/a.png");
+        assert!(schema().as_array().unwrap().iter().any(|t| t["function"]["name"] == "read_image"));
+        assert!(!runner_reads_images(None) && !runner_reads_images(Some("0.6.4")));
+        assert!(runner_reads_images(Some("0.6.5")) && runner_reads_images(Some("v0.7.0")));
+        assert!(runner_writes_in_parts(Some("0.6.4")) && !runner_writes_in_parts(Some("0.6.3")));
     }
 
     #[test]

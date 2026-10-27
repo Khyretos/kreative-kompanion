@@ -500,6 +500,8 @@ impl Agent {
                 say(s, &self.user_id, &self.chat_id, text).await;
             }
             messages.push(msg.clone());
+            // IMAGE-01: pictures read in this round; tool results are text, so they follow as one user message.
+            let mut pictures: Vec<(String, String)> = Vec::new();
             for call in &calls {
                 // Stop pressed while the model was answering (or during an earlier call of this
                 // answer): don't start another step.
@@ -567,6 +569,13 @@ impl Agent {
                         let path = self.shell_writes_tests(&job).unwrap_or_default();
                         refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &tests_refused(&path)).await
                     }
+                    // IMAGE-01: only a model that can see pictures, and a runner that knows the tool.
+                    Some(job) if job["tool"] == "read_image" && !crate::chat_attach::sees_pictures(&model_id) => {
+                        "Not run: this model can't look at pictures. Tell the user to pick a model that can (for example Claude or a vision model), or find another way to check the file.".to_string()
+                    }
+                    Some(job) if job["tool"] == "read_image" && !tools::runner_reads_images(s.host.runner_version(&self.machine_id).as_deref()) => {
+                        "Refused, nothing changed: the runner on this computer is too old to read a picture (it needs 0.6.5). Ask the user to update the runner.".to_string()
+                    }
                     // WRITE-CHUNKS: an older runner ignores append/offset and would replace the file.
                     Some(job) if tools::writes_in_parts(&job) && !tools::runner_writes_in_parts(s.host.runner_version(&self.machine_id).as_deref()) => {
                         "Refused, nothing changed: the runner on this computer is too old to write a file in parts (it would replace the file). Write it whole, or ask the user to update the runner.".to_string()
@@ -584,11 +593,19 @@ impl Agent {
                         r
                     }
                 };
+                let (result, picture) = if name == "read_image" { split_picture(&result) } else { (result, None) };
+                if let Some(url) = picture {
+                    pictures.push((args["path"].as_str().unwrap_or("").to_string(), url));
+                }
                 let was_stopped = result.starts_with(STEP_STOPPED);
                 messages.push(json!({ "role": "tool", "tool_call_id": call["id"], "content": result }));
                 if was_stopped {
                     return Err("stopped by you".into());
                 }
+            }
+            for (path, url) in pictures {
+                let m = llm::ChatMessage { role: "user".into(), content: format!("The picture from read_image {path}:"), images: vec![url] };
+                messages.push(m.wire(false));
             }
         }
         Err(format!("{STEP_LIMIT} {} steps. Tell me how to go on.", self.max_steps))
@@ -774,11 +791,13 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
     let _ = sqlx::query("UPDATE pc_actions SET grant_note = ? WHERE id = ?").bind(grant_note).bind(&id).execute(&s.db).await;
     set_action(s, &id, "running", "").await;
     changed(s, user_id);
-    let (mut state, result) = match access::queue_job(&s.db, machine_id, user_id, job, None).await {
+    let mut job_row: Option<String> = None;
+    let (mut state, mut result) = match access::queue_job(&s.db, machine_id, user_id, job, None).await {
         Ok(job_id) => {
             RUNNING_JOBS.lock().unwrap().insert(id.clone(), (machine_id.to_string(), job_id.clone()));
             let r = wait_job(s, &job_id).await;
             RUNNING_JOBS.lock().unwrap().remove(&id);
+            job_row = Some(job_id);
             r
         }
         Err(e) => ("failed".to_string(), e.to_string()),
@@ -804,9 +823,37 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
         }
         log_access(s, machine_id, user_id, "revoked", target, "one step done").await;
     }
+    // IMAGE-01: the picture goes to the model as an image; the card and the stored result keep only a note.
+    let mut picture = None;
+    if state == "done" && result.starts_with("data:image/") {
+        let url = std::mem::take(&mut result);
+        result = format!("picture, {} KB", url.len() * 3 / 4 / 1024);
+        if let Some(job_id) = &job_row {
+            let _ = sqlx::query("UPDATE machine_jobs SET result = ? WHERE id = ?").bind(&result).bind(job_id).execute(&s.db).await;
+        }
+        picture = Some(url);
+    }
     set_action(s, &id, &state, &result).await;
     changed(s, user_id);
-    model_result(&state, &result, budget)
+    match picture {
+        Some(url) => with_picture("The step ran. State: done.\nOutput:\nThe picture follows in the next message.", &url),
+        None => model_result(&state, &result, budget),
+    }
+}
+
+/// IMAGE-01: separates the text for the model from the picture (a data URL) in a step's answer.
+const PICTURE_MARK: &str = "\n\u{1}picture\u{1}";
+
+fn with_picture(text: &str, url: &str) -> String {
+    format!("{text}{PICTURE_MARK}{url}")
+}
+
+/// (text for the model, picture). Only a `data:image/` url counts as a picture.
+fn split_picture(answer: &str) -> (String, Option<String>) {
+    match answer.split_once(PICTURE_MARK) {
+        Some((text, url)) if url.starts_with("data:image/") => (text.to_string(), Some(url.to_string())),
+        _ => (answer.to_string(), None),
+    }
 }
 
 /// Refuse a job because it violates a rule (e.g., editing a test file).
@@ -1069,6 +1116,15 @@ fn needs_text(job: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_travels_with_a_step_answer_and_only_as_a_data_url() {
+        let a = with_picture("done", "data:image/png;base64,AAAA");
+        assert_eq!(split_picture(&a), ("done".to_string(), Some("data:image/png;base64,AAAA".to_string())));
+        assert_eq!(split_picture("plain text"), ("plain text".to_string(), None));
+        let forged = format!("x{PICTURE_MARK}http://evil/x.png");
+        assert_eq!(split_picture(&forged), (forged.clone(), None));
+    }
 
     #[test]
     fn steps_per_request_are_clamped_and_zero_means_no_limit() {

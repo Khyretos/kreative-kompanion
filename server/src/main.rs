@@ -420,7 +420,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/lessons/{id}", post(lessons::decide))
         .route("/actions/{id}/decide", post(pcagent::decide))
         .route("/machines/{id}", axum::routing::delete(hoststats::delete))
-        .route("/machines/{id}/results", post(access::results).layer(axum::extract::DefaultBodyLimit::max(128 * 1024)))
+        .route("/machines/{id}/results", post(access::results).layer(axum::extract::DefaultBodyLimit::max(6 * 1024 * 1024 + 128 * 1024)))
         .route("/machines/{id}/grants", get(access::list_grants).post(access::add_grant))
         .route("/machines/{id}/grants/revoke", post(access::revoke_grant))
         .route("/machines/{id}/grants/renew", post(access::renew_grant))

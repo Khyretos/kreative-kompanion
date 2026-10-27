@@ -28,6 +28,33 @@ fn p(base: &std::path::Path, rel: &str) -> String {
 }
 
 #[test]
+fn read_image_needs_the_read_grant_and_a_real_picture() {
+    let (b, g) = setup(91, r#""read""#);
+    let png = [0x89u8, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3];
+    std::fs::write(b.join("inside/pic.png"), png).unwrap();
+    std::fs::write(b.join("outside/pic.png"), png).unwrap();
+    let ok = run(&g, &Tool::ReadImage { path: p(&b, "inside/pic.png") }, NOW);
+    assert!(ok.ok && ok.output == format!("data:image/png;base64,{}", base64(&png)), "{}", ok.output);
+    assert!(!run(&g, &Tool::ReadImage { path: p(&b, "outside/pic.png") }, NOW).ok, "no read grant there");
+    let text = run(&g, &Tool::ReadImage { path: p(&b, "inside/a.txt") }, NOW);
+    assert!(!text.ok && text.output.contains("not a PNG"), "{}", text.output);
+    let _ = std::fs::remove_dir_all(&b);
+}
+
+#[test]
+fn image_type_comes_from_the_bytes_and_base64_matches_the_standard_vectors() {
+    assert_eq!(image_mime(&[0xff, 0xd8, 0xff, 0xe0]), Some("image/jpeg"));
+    assert_eq!(image_mime(b"GIF89a.."), Some("image/gif"));
+    assert_eq!(image_mime(b"RIFF\x00\x00\x00\x00WEBPVP8 "), Some("image/webp"));
+    assert_eq!(image_mime(b"hello"), None);
+    assert_eq!(base64(b""), "");
+    assert_eq!(base64(b"f"), "Zg==");
+    assert_eq!(base64(b"fo"), "Zm8=");
+    assert_eq!(base64(b"foo"), "Zm9v");
+    assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+}
+
+#[test]
 fn read_inside_outside_and_escape() {
     let (b, g) = setup(1, r#""read""#);
     let ok = run(&g, &Tool::ReadFile { path: p(&b, "inside/a.txt"), offset: None, length: None }, NOW);
