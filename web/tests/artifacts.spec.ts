@@ -82,7 +82,8 @@ for (const scheme of ["light", "dark"] as const) {
       const head = page.locator('#msg-list .codeblock[data-lang="html"] .codeblock-head');
       await expect(head.locator(".codeblock-lang")).toHaveText("html");
       expect((await head.boundingBox())!.height).toBeLessThan(48);
-      await page.locator('#msg-list .codeblock[data-lang="ts"]').scrollIntoViewIfNeeded();
+      // A late live update can draw the answer again: find the block afresh until it holds still.
+      await expect(async () => { await page.locator('#msg-list .codeblock[data-lang="ts"]').scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass({ timeout: 10_000 });
       await page.screenshot({ path: `shots-tmp/art-chat-${width < 768 ? "phone" : "desktop"}-${scheme}.png` });
       await page.locator('#msg-list .codeblock[data-lang="html"] [data-action="code-open"]').click();
       await expect(page.frameLocator("#artifact-pane iframe.art-frame").locator("h1")).toHaveText("Medabots");
