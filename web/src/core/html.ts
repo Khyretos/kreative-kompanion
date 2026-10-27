@@ -165,3 +165,81 @@ export function busyWhile<T>(form: HTMLFormElement, work: Promise<T>): Promise<T
   work.then(done, done);
   return work;
 }
+
+/**
+ * Update an element's content to a template in place: nodes that stay the same are kept, so a
+ * live re-render no longer replays entry animations, reloads pictures or closes what is open
+ * (the "flashing" sidebar and project panel). Fields keep what the user changed: a value or a
+ * tick is only set when the template's own value for it changed.
+ */
+export function morph(el: Element, content: SafeHtml): void {
+  const t = document.createElement("template");
+  mount(t, content);
+  morphChildren(el, t.content);
+}
+
+function sameKind(a: Node, b: Node): boolean {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) return false;
+  if (a instanceof Element && b instanceof Element) {
+    // A different id or item key is a different thing: replace it rather than reshape it.
+    if (a.id !== b.id || a.getAttribute("data-id") !== b.getAttribute("data-id")) return false;
+    if (a.nodeName === "INPUT" && (a as HTMLInputElement).type !== (b as HTMLInputElement).type) return false;
+  }
+  return true;
+}
+
+function morphChildren(from: Node, to: Node): void {
+  let a = from.firstChild;
+  let b = to.firstChild;
+  while (b) {
+    const nextB = b.nextSibling;
+    if (a && sameKind(a, b)) {
+      morphNode(a, b);
+      a = a.nextSibling;
+    } else if (a) {
+      const keep = a.nextSibling;
+      from.replaceChild(b, a);
+      a = keep;
+    } else {
+      from.appendChild(b);
+    }
+    b = nextB;
+  }
+  while (a) {
+    const next = a.nextSibling;
+    from.removeChild(a);
+    a = next;
+  }
+}
+
+// The pick each kept select last had in its template.
+const picks = new WeakMap<HTMLSelectElement, number>();
+
+function morphNode(a: Node, b: Node): void {
+  if (!(a instanceof Element) || !(b instanceof Element)) {
+    if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue;
+    return;
+  }
+  for (const { name, value } of [...b.attributes]) {
+    if (a.getAttribute(name) === value) continue;
+    a.setAttribute(name, value);
+    if (a instanceof HTMLInputElement && name === "value") a.value = value;
+    if (a instanceof HTMLInputElement && name === "checked") a.checked = true;
+  }
+  for (const { name } of [...a.attributes]) {
+    if (b.hasAttribute(name)) continue;
+    a.removeAttribute(name);
+    if (a instanceof HTMLInputElement && name === "checked") a.checked = false;
+    if (a instanceof HTMLDetailsElement && name === "open") a.open = false;
+  }
+  if (a instanceof HTMLTextAreaElement) {
+    if (a.defaultValue !== (b as HTMLTextAreaElement).defaultValue) a.value = a.defaultValue = (b as HTMLTextAreaElement).defaultValue;
+    return;
+  }
+  morphChildren(a, b);
+  // A select's pick follows the template only when the template's pick changed.
+  if (a instanceof HTMLSelectElement) {
+    const want = [...(b as HTMLSelectElement).options].findIndex((o) => o.defaultSelected);
+    if (picks.get(a) !== want) { picks.set(a, want); if (want >= 0) a.selectedIndex = want; }
+  }
+}

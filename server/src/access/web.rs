@@ -194,7 +194,15 @@ pub async fn renew_grant(State(s): State<AppState>, Extension(u): Extension<User
         .await?;
     let Some((rights, old_expires)) = row else { return Err(ApiError::NotFound) };
     let old = old_expires.filter(|e| !e.is_empty());
-    let rights: Vec<String> = serde_json::from_str(&rights).unwrap_or_default();
+    let old_rights: Vec<String> = serde_json::from_str(&rights).unwrap_or_default();
+    let mut rights = old_rights.clone();
+    // A renew may change the rights too (a right forgotten when it was first granted).
+    if let Some(new_rights) = b.rights.filter(|r| !r.is_empty()) {
+        if !valid_grant(&b.target, &new_rights) {
+            return Err(ApiError::BadRequest("Those rights don't fit this grant: a folder takes read, write or shell; \"system\" takes packages, services, desktop, root or gpu.".to_string()));
+        }
+        rights = new_rights;
+    }
 
     let new = match b.expires_hours {
         Some(h) if !(1..=720).contains(&h) => return Err(ApiError::BadRequest("Expiry must be between 1 hour and 30 days.".to_string())),
@@ -202,7 +210,10 @@ pub async fn renew_grant(State(s): State<AppState>, Extension(u): Extension<User
         None => None,
     };
 
-    if needs_revoke(old.as_deref(), new.as_deref()) {
+    // The runner merges a grant into the one it has (more rights, the later end), so a shorter
+    // time or a right taken away needs a revoke first.
+    let dropped = old_rights.iter().any(|r| !rights.contains(r));
+    if dropped || needs_revoke(old.as_deref(), new.as_deref()) {
         super::runner::queue_job(&s.db, &id, &u.id, &json!({"tool": "revoke_grant", "target": b.target}), None).await?;
     }
 
@@ -228,6 +239,9 @@ pub struct RenewBody {
     pub target: String,
     #[serde(default)]
     pub expires_hours: Option<i64>,
+    /// The rights from now on (left out: the same as before).
+    #[serde(default)]
+    pub rights: Option<Vec<String>>,
 }
 
 pub async fn history(

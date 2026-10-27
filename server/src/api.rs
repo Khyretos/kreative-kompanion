@@ -88,6 +88,9 @@ pub struct Chat {
     /// AUTO-RUN: the computer runs its steps in this chat without asking first.
     #[sqlx(default)]
     pub auto_run: bool,
+    /// PC-SYNC: the computer picked for this chat ("" = none), the same on every device.
+    #[sqlx(default)]
+    pub machine_id: String,
 }
 
 fn json_list<S: serde::Serializer>(v: &str, s: S) -> Result<S::Ok, S::Error> {
@@ -157,7 +160,7 @@ pub async fn chats(
     Extension(u): Extension<User>,
 ) -> ApiResult<Json<Vec<Chat>>> {
     let rows = sqlx::query_as(
-        "SELECT id, title, project_id, updated_at, CASE WHEN user_id = ?1 THEN pinned ELSE 0 END AS pinned, thread, effort, mcp, overseer, auto_run FROM chats\n         WHERE (user_id = ?1 OR project_id IN (SELECT project_id FROM project_members WHERE user_id = ?1)) AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
+        "SELECT id, title, project_id, updated_at, CASE WHEN user_id = ?1 THEN pinned ELSE 0 END AS pinned, thread, effort, mcp, overseer, auto_run, machine_id FROM chats\n         WHERE (user_id = ?1 OR project_id IN (SELECT project_id FROM project_members WHERE user_id = ?1)) AND archived = 0 ORDER BY pinned DESC, thread DESC, updated_at DESC",
     )
     .bind(&u.id)
     .fetch_all(&s.db)
@@ -197,6 +200,7 @@ pub async fn create_chat(
         mcp: "[]".into(),
         overseer: false,
         auto_run: false,
+        machine_id: String::new(),
     };
     sqlx::query(
         "INSERT INTO chats (id, project_id, title, updated_at, user_id) VALUES (?, ?, ?, ?, ?)",
@@ -328,6 +332,8 @@ async fn start_answer(s: &AppState, u: &User, owner_id: &str, chat_id: &str, to:
             .fetch_optional(&s.db)
             .await?;
         let Some((machine_name,)) = machine else { return Err(ApiError::NotFound) };
+        // PC-SYNC: the chat remembers the computer it was last used with.
+        sqlx::query("UPDATE chats SET machine_id = ? WHERE id = ?").bind(&machine_id).bind(chat_id).execute(&s.db).await?;
         tokio::spawn(crate::pcagent::run(s.clone(), u.id.clone(), chat_id.to_string(), machine_id, machine_name, role));
         return Ok(());
     }
@@ -926,6 +932,9 @@ pub struct ChatChange {
     /// AUTO-RUN: run steps in this chat without asking first.
     #[serde(rename = "autoRun")]
     auto_run: Option<bool>,
+    /// PC-SYNC: the computer picked for this chat ("" for none).
+    #[serde(rename = "machineId")]
+    machine_id: Option<String>,
 }
 
 /// Rename, pin or archive a chat (the chat menu).
@@ -953,6 +962,12 @@ pub async fn update_chat(
     }
     if let Some(on) = b.auto_run {
         sqlx::query("UPDATE chats SET auto_run = ? WHERE id = ?").bind(on).bind(&id).execute(&s.db).await?;
+    }
+    if let Some(m) = b.machine_id {
+        if !m.is_empty() && !owns_machine(&s, &m, &u).await? {
+            return Err(ApiError::NotFound);
+        }
+        sqlx::query("UPDATE chats SET machine_id = ? WHERE id = ?").bind(&m).bind(&id).execute(&s.db).await?;
     }
     if let Some(list) = b.mcp {
         // CHAT-01: only names from [[mcp]] in kompanion.toml.
@@ -1020,6 +1035,12 @@ pub async fn delete_chat(
     // BLD-01: its pictures (Blender renders) go with it.
     let _ = tokio::fs::remove_dir_all(crate::chat_files::dir_for(&s.config.database).join(&id)).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// PC-SYNC: whether this computer is one of the user's own.
+async fn owns_machine(s: &AppState, machine_id: &str, u: &User) -> ApiResult<bool> {
+    let row: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM machines WHERE id = ? AND user_id = ?").bind(machine_id).bind(&u.id).fetch_optional(&s.db).await?;
+    Ok(row.is_some())
 }
 
 pub(crate) async fn owns(s: &AppState, table: &str, id: &str, u: &User) -> ApiResult<bool> {

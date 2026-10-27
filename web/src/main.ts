@@ -1,6 +1,6 @@
 import { showSignIn } from "./views/signin";
 import { HttpApi } from "./api/http";
-import { $, html, html as h, mount, onAction, restoreBusy, busyWhile, swUrl } from "./core/html";
+import { $, html, html as h, morph, mount, onAction, restoreBusy, busyWhile, swUrl } from "./core/html";
 import { attachLiveMarkdown } from "./core/livemd";
 import { initResize } from "./core/resize";
 import { MockApi } from "./api/mock";
@@ -282,10 +282,18 @@ function openTaskById(id: string): void {
   $(".shell").dispatchEvent(new CustomEvent("kk-expand", { detail: "right" }));
 }
 
+/** PC-SYNC: the chat's computer as the server keeps it (the same on every device), else this browser's last pick. */
+function chatPc(chatId: string | undefined): string | undefined {
+  const s = store.get();
+  const saved = chatId ? s.chats.find((c) => c.id === chatId)?.machineId : undefined;
+  if (saved !== undefined && (saved === "" || !s.machines.length || s.machines.some((m) => m.id === saved))) return saved || undefined;
+  return loadPcChoice(chatId);
+}
+
 async function openChat(chatId?: string): Promise<void> {
   const messages = chatId ? await api.listMessages(chatId) : [];
   // The computer picked for this chat comes back; a new chat starts from the last pick.
-  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined, pcMachineId: loadPcChoice(chatId), chatContext: undefined, contextOpen: false });
+  store.set({ activeChatId: chatId, messages, openTaskId: undefined, pane: "main", section: "chat", paneProjectId: undefined, pcMachineId: chatPc(chatId), chatContext: undefined, contextOpen: false });
   if (chatId) void api.chatContext(chatId).then((c) => { if (store.get().activeChatId === chatId) store.set({ chatContext: c }); }).catch(() => undefined);
   const prompt = document.getElementById("prompt") as HTMLTextAreaElement | null;
   if (prompt && window.matchMedia("(pointer: fine)").matches) prompt.focus();
@@ -322,7 +330,7 @@ function remount(el: HTMLElement, content: ReturnType<typeof renderSidebar>): vo
   // Typing in a field that re-renders (the asset picker) must not move the caret.
   const caret = focused && typeof focused.selectionStart === "number" ? [focused.selectionStart, focused.selectionEnd ?? focused.selectionStart] : null;
   const edited = editedFields(el);
-  mount(el, content);
+  morph(el, content);
   // Put back what the user typed (it is not in the state the template renders from).
   for (const f of el.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("form input[name], form textarea[name], form select[name]")) {
     const v = edited.get(`${f.form?.className}|${f.form?.dataset.id ?? ""}|${f.name}`);
@@ -750,6 +758,7 @@ function setCards(style: import("./core/cardtypes").CardStyle): void {
 // The Run form checks the folder on the chosen computer (exists? which folders?) when the
 // computer or folder changes, when browsing, and once more before Start.
 let checkGen = 0;
+let folderTyping = 0;
 async function folderCheck(taskId: string, machine: string, path: string) {
   const gen = ++checkGen;
   const clean = path.trim().replace(/\/+$/, "") || "/";
@@ -947,7 +956,14 @@ function refetch(what: string): void {
     try {
       if (what === "tasks") store.set({ tasks: await api.listTasks() });
       else if (what === "projects") store.set({ projects: await api.listProjects(), tasks: await api.listTasks() });
-      else if (what === "chats") store.set({ chats: await api.listChats() });
+      else if (what === "chats") {
+        const chats = await api.listChats();
+        store.set({ chats });
+        // PC-SYNC: another device picked a different computer for the open chat.
+        const id = store.get().activeChatId;
+        const saved = id ? chats.find((c) => c.id === id)?.machineId : undefined;
+        if (saved !== undefined && (saved || undefined) !== store.get().pcMachineId) store.set({ pcMachineId: chatPc(id) });
+      }
       // MSG-ACT: a message was edited or answers were removed (another tab, or someone in a shared chat).
       else if (what === "messages" && s.activeChatId) {
         const chatId = s.activeChatId;
@@ -959,7 +975,12 @@ function refetch(what: string): void {
       else if (what === "machines") store.set({ machines: await api.listMachines() });
       else if (what === "lessons" && s.activeChatId) store.set({ lessons: await api.listLessons(s.activeChatId) });
       else if (what === "facts" && s.factsKey) await loadFacts(s.factsKey, true);
-      else if (what === "access") await loadAccess();
+      else if (what === "access") {
+        await loadAccess();
+        // The project panels count and list this computer's grants too.
+        overviewFailed.clear();
+        for (const id of Object.keys(store.get().overviews)) void loadOverview(id);
+      }
       if ((what === "access" || what === "machines" || what === "gpus") && store.get().section === "capabilities") loadCapabilities();
       if (what === "studio") store.set({ studioRuns: await api.studioMine() });
       if (what === "projects") {
@@ -1893,7 +1914,12 @@ function wire(shell: HTMLElement): void {
     if ((ev.target as HTMLElement).id === "pc-machine") {
       const picked = (ev.target as HTMLSelectElement).value || undefined;
       store.set({ pcMachineId: picked });
-      savePcChoice(store.get().activeChatId, picked);
+      const chatId = store.get().activeChatId;
+      savePcChoice(chatId, picked);
+      if (chatId) {
+        store.set({ chats: store.get().chats.map((c) => (c.id === chatId ? { ...c, machineId: picked ?? "" } : c)) });
+        api.updateChat(chatId, { machineId: picked ?? "" }).catch(showError);
+      }
       return;
     }
     const radio = ev.target as HTMLInputElement;
@@ -2183,6 +2209,22 @@ function wire(shell: HTMLElement): void {
         (e) => { store.set({ projects: before }); showError(e); });
       return;
     }
+    // ACC-02: renew or grant again, with the rights and time as picked in the form.
+    const renewForm = (ev.target as HTMLElement).closest("form.grant-renew-form") as HTMLFormElement | null;
+    if (renewForm) {
+      ev.preventDefault();
+      const { rights, expiresHours } = grantFromForm(renewForm);
+      const machineId = renewForm.dataset.machine ?? "";
+      const target = renewForm.dataset.target ?? "";
+      if (!rights.length) { showError(new Error("Pick at least one right, or revoke the grant.")); return; }
+      void (async () => {
+        if (expiresHours === undefined && !(await confirmPermanent())) return;
+        renewForm.closest("details")?.removeAttribute("open");
+        markGrant(machineId, target, "add", { rights });
+        api.renewGrant(machineId, target, expiresHours ?? null, rights).catch((e) => { showError(e); void loadAccess(); });
+      })();
+      return;
+    }
     const grantForm = (ev.target as HTMLElement).closest("form.grant-add") as HTMLFormElement | null;
     if (grantForm) {
       ev.preventDefault();
@@ -2328,6 +2370,14 @@ function wire(shell: HTMLElement): void {
   }, true);
   shell.addEventListener("input", (ev) => {
     const el = ev.target as HTMLInputElement;
+    // The Run form checks a typed folder after a short pause too, not only when the field is left.
+    const runForm = el.name === "folder" ? el.closest<HTMLFormElement>("form.task-run") : null;
+    if (runForm) {
+      const id = runForm.dataset.id ?? "";
+      window.clearTimeout(folderTyping);
+      folderTyping = window.setTimeout(() => { const { machine, folder } = runFields(id); if (folder.trim()) void folderCheck(id, machine, folder); }, 400);
+      return;
+    }
     if (el.id === "task-filter") { store.set({ taskFilter: el.value }); return; }
     if (el.id === "facts-q") { store.set({ factsQuery: el.value }); return; }
     if (el.id === "dep-search") { filterDeps(el.closest(".dep-picker") as HTMLElement, el.value); return; }
@@ -2387,6 +2437,8 @@ function wire(shell: HTMLElement): void {
       store.set({ chats: [{ ...chat, effort, mcp, overseer, autoRun }, ...store.get().chats], activeChatId: chat.id, draftEffort: undefined, draftMcp: undefined, draftOverseer: undefined, draftAutoRun: undefined });
       chatId = chat.id;
       savePcChoice(chatId, store.get().pcMachineId);
+      const pc = store.get().pcMachineId;
+      if (pc) await api.updateChat(chat.id, { machineId: pc }).catch(showError);
     }
     let attached: Attached[] = [];
     try {

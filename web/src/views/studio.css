@@ -66,7 +66,7 @@
 .studio-face p { flex-basis: 100%; margin: 0; }
 .studio-face input[type="range"] { accent-color: var(--accent); }
 .studio-rating { display: inline-flex; gap: 0.35rem; align-items: center; }
-.studio-rating select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.25rem 0.4rem; }
+.studio-rating select { font: inherit; color: var(--fg); background-color: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.25rem 0.4rem; }
 /* STU-02b: Send to Assets under a finished result. */
 .studio-sent { align-self: flex-start; font-size: 0.75rem; }
 .studio-send summary { cursor: pointer; font-size: 0.8rem; color: var(--link); width: fit-content; }
