@@ -36,6 +36,21 @@ pub fn schema() -> Value {
         {
             "type": "function",
             "function": {
+                "name": "send_image",
+                "description": "Show a picture from the computer to the user in the chat (PNG, JPEG or WebP, up to 3 MiB), with an optional short caption. The user sees it at once; you do not (use read_image to look at it yourself). Use it for screenshots, renders and other results the user asked to see.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": { "type": "string" },
+                        "caption": { "type": "string", "description": "A short line shown with the picture (optional)." }
+                    },
+                    "required": ["path"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "list_dir",
                 "description": "List the contents of a directory.",
                 "parameters": {
@@ -201,6 +216,7 @@ pub fn to_job(name: &str, args: &Value) -> Option<Value> {
     let known = match name {
         "read_file" => vec!["path", "offset", "length"],
         "read_image" => vec!["path"],
+        "send_image" => vec!["path", "caption"],
         "list_dir" => vec!["path"],
         "write_file" => vec!["path", "content", "append", "offset"],
         "edit_file" => vec!["path", "old", "new"],
@@ -276,6 +292,7 @@ pub fn summary(job: &Value) -> String {
     let line = match job["tool"].as_str().unwrap_or("") {
         "read_file" => format!("Read {}", s("path")),
         "read_image" => format!("View picture {}", s("path")),
+        "send_image" => format!("Send picture {} to the chat", s("path")),
         "list_dir" => format!("List {}", s("path")),
         "write_file" if job["append"] == true => format!("Append to {}", s("path")),
         "write_file" if job["offset"].is_u64() => format!("Write {} from byte {}", s("path"), job["offset"]),
@@ -313,6 +330,16 @@ pub fn runner_reads_images(version: Option<&str>) -> bool {
     runner_at_least(version, (0, 6, 5))
 }
 
+/// IMAGE-02: the job the computer runs. `send_image` is a `read_image` there: the picture is read
+/// on the computer, and the server puts it in the chat.
+pub fn runner_job(job: &Value) -> Value {
+    if job["tool"] == "send_image" {
+        json!({ "tool": "read_image", "path": job["path"] })
+    } else {
+        job.clone()
+    }
+}
+
 fn runner_at_least(version: Option<&str>, min: (u64, u64, u64)) -> bool {
     let Some(v) = version else { return false };
     let n: Vec<u64> = v.trim_start_matches('v').split(['.', '-', '+']).take(3).map(|x| x.parse().unwrap_or(0)).collect();
@@ -323,7 +350,7 @@ fn runner_at_least(version: Option<&str>, min: (u64, u64, u64)) -> bool {
 pub fn grant_for(job: &Value) -> Option<(String, Vec<&'static str>)> {
     let path = || job["path"].as_str().filter(|p| safe(p)).map(str::to_string);
     match job["tool"].as_str()? {
-        "read_file" | "read_image" => Some((parent(&path()?), vec!["read"])),
+        "read_file" | "read_image" | "send_image" => Some((parent(&path()?), vec!["read"])),
         "list_dir" => Some((path()?, vec!["read"])),
         "write_file" | "edit_file" => Some((parent(&path()?), vec!["write"])),
         "shell" => Some((job["cwd"].as_str().filter(|p| safe(p))?.to_string(), vec!["shell"])),
@@ -370,10 +397,10 @@ mod tests {
     }
 
     #[test]
-    fn test_schema_has_11_tools() {
+    fn test_schema_has_12_tools() {
         let schema = schema();
         let tools = schema.as_array().unwrap();
-        assert_eq!(tools.len(), 11);
+        assert_eq!(tools.len(), 12);
     }
 
     #[test]
@@ -401,6 +428,13 @@ mod tests {
         assert!(to_job("read_image", &json!({"path": 5})).is_none());
         assert_eq!(grant_for(&job), Some(("/media/pics".to_string(), vec!["read"])));
         assert_eq!(summary(&job), "View picture /media/pics/a.png");
+        let send = to_job("send_image", &json!({"path": "/media/pics/a.png", "caption": "front view", "x": 1})).unwrap();
+        assert_eq!(send, json!({"tool": "send_image", "path": "/media/pics/a.png", "caption": "front view"}));
+        assert_eq!(grant_for(&send), Some(("/media/pics".to_string(), vec!["read"])));
+        assert_eq!(summary(&send), "Send picture /media/pics/a.png to the chat");
+        assert_eq!(runner_job(&send), json!({"tool": "read_image", "path": "/media/pics/a.png"}));
+        assert_eq!(runner_job(&job), job);
+        assert!(to_job("send_image", &json!({"path": "/a.png", "caption": 5})).is_none());
         assert!(schema().as_array().unwrap().iter().any(|t| t["function"]["name"] == "read_image"));
         assert!(!runner_reads_images(None) && !runner_reads_images(Some("0.6.4")));
         assert!(runner_reads_images(Some("0.6.5")) && runner_reads_images(Some("v0.7.0")));

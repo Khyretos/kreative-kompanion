@@ -3,6 +3,7 @@
 //! approval card (Approve, Always allow for 24 h, Deny); approved calls run as
 //! runner jobs, which still check the computer's grants.
 //! (The model drafted this twice; Claude rewrote it from the same spec.)
+pub mod picture;
 pub mod spawn;
 pub mod steplog;
 pub mod tools;
@@ -573,7 +574,7 @@ impl Agent {
                     Some(job) if job["tool"] == "read_image" && !crate::chat_attach::sees_pictures(&model_id) => {
                         "Not run: this model can't look at pictures. Tell the user to pick a model that can (for example Claude or a vision model), or find another way to check the file.".to_string()
                     }
-                    Some(job) if job["tool"] == "read_image" && !tools::runner_reads_images(s.host.runner_version(&self.machine_id).as_deref()) => {
+                    Some(job) if matches!(job["tool"].as_str(), Some("read_image" | "send_image")) && !tools::runner_reads_images(s.host.runner_version(&self.machine_id).as_deref()) => {
                         "Refused, nothing changed: the runner on this computer is too old to read a picture (it needs 0.6.5). Ask the user to update the runner.".to_string()
                     }
                     // WRITE-CHUNKS: an older runner ignores append/offset and would replace the file.
@@ -593,10 +594,17 @@ impl Agent {
                         r
                     }
                 };
-                let (result, picture) = if name == "read_image" { split_picture(&result) } else { (result, None) };
-                if let Some(url) = picture {
-                    pictures.push((args["path"].as_str().unwrap_or("").to_string(), url));
-                }
+                let (result, picture) = if matches!(name, "read_image" | "send_image") { split_picture(&result) } else { (result, None) };
+                let path = args["path"].as_str().unwrap_or("").to_string();
+                let result = match (name, picture) {
+                    // IMAGE-02: into the chat for the user, not to the model.
+                    ("send_image", Some(url)) => picture::send(s, &self.user_id, &self.chat_id, &path, args["caption"].as_str().unwrap_or(""), &url).await,
+                    (_, Some(url)) => {
+                        pictures.push((path, url));
+                        result
+                    }
+                    (_, None) => result,
+                };
                 let was_stopped = result.starts_with(STEP_STOPPED);
                 messages.push(json!({ "role": "tool", "tool_call_id": call["id"], "content": result }));
                 if was_stopped {
@@ -792,7 +800,7 @@ async fn step(s: &AppState, user_id: &str, chat_id: &str, machine_id: &str, job:
     set_action(s, &id, "running", "").await;
     changed(s, user_id);
     let mut job_row: Option<String> = None;
-    let (mut state, mut result) = match access::queue_job(&s.db, machine_id, user_id, job, None).await {
+    let (mut state, mut result) = match access::queue_job(&s.db, machine_id, user_id, &tools::runner_job(job), None).await {
         Ok(job_id) => {
             RUNNING_JOBS.lock().unwrap().insert(id.clone(), (machine_id.to_string(), job_id.clone()));
             let r = wait_job(s, &job_id).await;

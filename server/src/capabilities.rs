@@ -18,7 +18,7 @@ fn skills_dir() -> PathBuf {
 /// Maps a tool name to its capability description.
 fn needs(tool: &str) -> &'static str {
     match tool {
-        "read_file" | "read_image" | "list_dir" => "read on the folder",
+        "read_file" | "read_image" | "send_image" | "list_dir" => "read on the folder",
         "write_file" | "edit_file" => "write on the folder",
         "shell" => "shell in the folder",
         "service" => "system: services",
