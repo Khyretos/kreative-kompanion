@@ -1,0 +1,20 @@
+{
+  "0ed4a91a6910": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/api.rs",
+    "reason": "update_chat first checks the chat is the user's (owns chats), then owns_machine checks the machine is the user's before machine_id is stored; start_answer stores it only after the same machines.user_id check. PR-Agent itself found no issue.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "706d183906ae": {
+    "by": "claude",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/access.ts",
+    "reason": "The form only sends the request; renew_grant (server/src/access/web.rs) starts with owned(&s, &id, &u), which refuses a machine that is not the user's, then checks the new rights with valid_grant and the time with the 1-720 h range before any job is queued.",
+    "title": "Missing Validation",
+    "verdict": "false_positive"
+  }
+}
