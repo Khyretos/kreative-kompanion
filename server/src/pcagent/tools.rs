@@ -370,6 +370,14 @@ fn parent(path: &str) -> String {
     std::path::Path::new(path).parent().map(|p| p.to_string_lossy().into_owned()).filter(|p| !p.is_empty()).unwrap_or_else(|| "/".into())
 }
 
+/// IMAGE-02: the path of a picture to read or send: a full path (Unix `/...` or Windows `C:\...`), not empty
+/// and without `..` components. Whether the file exists, is a picture and is granted is the computer's answer.
+pub fn picture_path_ok(path: &str) -> bool {
+    let b = path.as_bytes();
+    let windows = b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/');
+    (path.starts_with('/') || windows) && !path.split(['/', '\\']).any(|c| c == "..") && !path.contains('\0')
+}
+
 /// Absolute and without `..` components.
 fn safe(path: &str) -> bool {
     path.starts_with('/') && !path.split('/').any(|c| c == "..")
@@ -419,6 +427,14 @@ mod tests {
         assert!(obj.contains_key("old"));
         assert!(obj.contains_key("new"));
         assert!(!obj.contains_key("extra"));
+    }
+
+    #[test]
+    fn a_picture_path_is_a_full_path_without_dots() {
+        assert!(picture_path_ok("/media/shots/a.png") && picture_path_ok("C:\\kk\\shots\\a.png") && picture_path_ok("D:/x/a.png"));
+        assert!(!picture_path_ok("") && !picture_path_ok("a.png") && !picture_path_ok("shots/a.png"));
+        assert!(!picture_path_ok("/media/../etc/a.png") && !picture_path_ok("C:\\kk\\..\\a.png"));
+        assert!(!picture_path_ok("C:") && !picture_path_ok("/a\0b.png"));
     }
 
     #[test]

@@ -570,6 +570,10 @@ impl Agent {
                         let path = self.shell_writes_tests(&job).unwrap_or_default();
                         refuse(s, &self.user_id, &self.chat_id, &self.machine_id, &job, self.run_id.as_deref(), &tests_refused(&path)).await
                     }
+                    // IMAGE-02: a picture needs a full path; the clear answer comes before anything is asked of the user.
+                    Some(job) if matches!(job["tool"].as_str(), Some("read_image" | "send_image")) && !tools::picture_path_ok(job["path"].as_str().unwrap_or("")) => {
+                        "Not run: give the picture's full path (starting with / or a drive letter, no `..`). Use list_dir to find it.".to_string()
+                    }
                     // IMAGE-01: only a model that can see pictures, and a runner that knows the tool.
                     Some(job) if job["tool"] == "read_image" && !crate::chat_attach::sees_pictures(&model_id) => {
                         "Not run: this model can't look at pictures. Tell the user to pick a model that can (for example Claude or a vision model), or find another way to check the file.".to_string()
