@@ -11,10 +11,13 @@ async function demo(page: Page, width = 1280, scheme: "light" | "dark" = "dark")
   await page.fill("#prompt", "artifact demo");
   await page.press("#prompt", "Enter");
   // The reply streams in: wait for its last block, then for the end of the stream.
-  await expect(page.locator('#msg-list .codeblock[data-lang="ts"]')).toHaveCount(1, { timeout: 20_000 });
-  await expect(page.locator("#msg-list .caret")).toHaveCount(0, { timeout: 20_000 });
+  // The demo reply takes about 15 s on its own; on a loaded CI runner far longer.
+  await expect(page.locator('#msg-list .codeblock[data-lang="ts"]')).toHaveCount(1, { timeout: 45_000 });
+  await expect(page.locator("#msg-list .caret")).toHaveCount(0, { timeout: 45_000 });
 }
 const pane = (page: Page) => page.locator("#artifact-pane");
+// Every test here waits for that long reply first.
+test.describe.configure({ timeout: 90_000 });
 
 test("an HTML block shows a few lines and previews in a sandbox that runs its script offline", async ({ page }) => {
   await demo(page);
@@ -82,7 +85,8 @@ for (const scheme of ["light", "dark"] as const) {
       const head = page.locator('#msg-list .codeblock[data-lang="html"] .codeblock-head');
       await expect(head.locator(".codeblock-lang")).toHaveText("html");
       expect((await head.boundingBox())!.height).toBeLessThan(48);
-      await page.locator('#msg-list .codeblock[data-lang="ts"]').scrollIntoViewIfNeeded();
+      // A late live update can draw the answer again: find the block afresh until it holds still.
+      await expect(async () => { await page.locator('#msg-list .codeblock[data-lang="ts"]').scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass({ timeout: 10_000 });
       await page.screenshot({ path: `shots-tmp/art-chat-${width < 768 ? "phone" : "desktop"}-${scheme}.png` });
       await page.locator('#msg-list .codeblock[data-lang="html"] [data-action="code-open"]').click();
       await expect(page.frameLocator("#artifact-pane iframe.art-frame").locator("h1")).toHaveText("Medabots");
