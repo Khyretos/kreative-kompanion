@@ -1,7 +1,7 @@
 /* Assets section (views/assets.ts). Takes the middle and right columns of the shell.
    Kreative Kompas palette through the app's tokens: plum surfaces, violet for
    selection, orange for focus, active chips and icons. Cards never touch. */
-.shell .assets-pane { display: none; background: var(--bg); } /* beats .pane { display: flex } */
+.shell .assets-pane { display: none; background-color: var(--bg); } /* beats .pane { display: flex } */
 .shell[data-section="assets"] .center,
 .shell[data-section="assets"] .right,
 .shell[data-section="assets"] .resize-handle[data-side="right"],
@@ -23,7 +23,7 @@
 .assets-filters input[type="search"] { flex: 1 1 16rem; min-width: 0; }
 .assets-filters select { flex: 0 1 18rem; min-width: 0; }
 .assets-filters input[type="search"], .assets-filters select {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.7rem; color: var(--fg);
+  background-color: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem 0.7rem; color: var(--fg);
 }
 .assets-filters input:focus, .assets-filters select:focus { outline: none; border-color: var(--accent); }
 .asset-check { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; white-space: nowrap; }
@@ -260,7 +260,7 @@
 .asset-ai-mode { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--fg); white-space: nowrap; }
 .asset-ai-mode select { width: auto; flex: none; }
 .asset-ai-mode select, .asset-cat-select {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 0.15rem 0.4rem; color: var(--fg); font: inherit;
+  background-color: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 0.15rem 0.4rem; color: var(--fg); font: inherit;
 }
 .asset-cat-select { margin-top: 0.3rem; display: block; font-size: 0.8rem; }
 .asset-active { display: flex; gap: 0.4rem; flex-wrap: wrap; padding: 0 1rem 0.5rem; }
@@ -413,7 +413,7 @@
 .need-add select {
   flex: 1;
   min-width: 0;
-  background: var(--surface-2);
+  background-color: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 0.4rem 0.6rem;
@@ -796,7 +796,7 @@ p.small {
 .font-tools select,
 .font-tools input[type="range"],
 .font-tools input[type="text"] {
-  background: var(--surface-2);
+  background-color: var(--surface-2);
   color: var(--fg);
   border: 1px solid var(--line);
   border-radius: 6px;

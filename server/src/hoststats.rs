@@ -38,8 +38,10 @@ pub fn host_of(names: &[&str], machine_name: Option<&str>) -> Option<usize> {
 const SAMPLES: usize = 60;
 /// Never sample (or accept runner reports) faster than this.
 const MIN_INTERVAL: Duration = Duration::from_secs(1);
-/// How often a runner reports when nobody has the Machines tab open.
-const IDLE_INTERVAL: u32 = 60;
+/// How often a runner reports when nobody has the Machines tab open. A report also collects the
+/// queued jobs, so this is how long a new grant waits before the computer applies it (60 s felt
+/// like the grant never came; restarting the app was quicker).
+const IDLE_INTERVAL: u32 = 5;
 const SERVER_ID: &str = "server";
 
 #[derive(Default)]

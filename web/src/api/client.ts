@@ -66,7 +66,7 @@ export interface KompanionApi {
   addGrant(machineId: string, target: string, rights: string[], expiresHours?: number): Promise<void>;
   revokeGrant(machineId: string, target: string): Promise<void>;
   /** ACC-01: same target and rights, a new expiry (null: permanent). */
-  renewGrant(machineId: string, target: string, expiresHours: number | null): Promise<void>;
+  renewGrant(machineId: string, target: string, expiresHours: number | null, rights?: string[]): Promise<void>;
   accessHistory(): Promise<import("../views/access").AccessEvent[]>;
   getAdmin(): Promise<{ settings: AdminSettings; smtpPasswordSet: boolean; smtpFromEnv?: import("./types").SmtpFromEnv | null }>;
   /** NOTIFY: Web Push for this browser (the server's public key, subscribe, unsubscribe). */
@@ -119,7 +119,7 @@ export interface KompanionApi {
   createChat(title: string, projectId?: string): Promise<Chat>;
   /** The project's thread chat (created on first use); returns its chat id. */
   openThread(projectId: string): Promise<string>;
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean }): Promise<void>;
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean; machineId?: string }): Promise<void>;
   deleteChat(chatId: string): Promise<void>;
   /** OVR-01: the Overseer's name ("" = default) and whether it may add context to running tasks. */
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;

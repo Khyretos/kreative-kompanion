@@ -22,7 +22,21 @@ document.addEventListener("toggle", (e) => {
 }, true);
 // MACHINES-CARDS: Windows computers get a Windows folder example.
 const isWindows = (os?: string) => /^windows/i.test(os ?? "");
-const RENEW: [string, string][] = [["1", "1 hour"], ["24", "1 day"], ["168", "1 week"], ["", "Permanent…"]];
+const FOLDER_RIGHTS: [string, string][] = [["read", "read"], ["write", "write"], ["shell", "shell"]];
+const SYSTEM_RIGHTS: [string, string][] = [["packages", "packages"], ["services", "user services"], ["desktop", "desktop reload"], ["gpu", "GPU apps"], ["root", "root"]];
+const expiresSelect = (pick: string) => html`<select name="expires" aria-label="Expires">${[["1", "1 hour"], ["24", "1 day"], ["168", "1 week"], ["", "permanent"]].map(([v, l]) => html`<option value="${v}" ${v === pick ? "selected" : ""}>${l}</option>`)}</select>`;
+
+/** ACC-02: renew (or grant again) with the rights and time adjustable, for a right forgotten or a click made too fast. */
+function renewForm(machineId: string, g: GrantView, label: string): SafeHtml {
+  const key = `renew|${machineId}|${g.target}`;
+  const rights = g.target === "system" ? SYSTEM_RIGHTS : FOLDER_RIGHTS;
+  return html`<details class="grant-renew" data-keep="${key}" ${openKeys.has(key) ? "open" : ""}><summary>${label}</summary>
+    <form class="grant-renew-form" data-machine="${machineId}" data-target="${g.target}" aria-label="${label} ${g.target}">
+      <span class="grant-rights">${rights.map(([v, l]) => html`<label><input type="checkbox" name="rights" value="${v}" ${g.rights.includes(v) ? "checked" : ""}> ${l}</label>`)}</span>
+      ${expiresSelect(g.expires === null ? "" : "24")}
+      <button class="btn small primary" type="submit">${label}</button>
+    </form></details>`;
+}
 const chips = (g: GrantView) => html`<span class="grant-rights">${g.rights.map((r) => html`<span class="chip ${r === "root" ? "root" : ""}">${r}</span>`)}</span>`;
 
 function grantRow(machineId: string, g: GrantView, now: number): SafeHtml {
@@ -31,13 +45,13 @@ function grantRow(machineId: string, g: GrantView, now: number): SafeHtml {
       <code>${g.target}</code>
       ${chips(g)}
       ${g.pending ? html`<span class="muted small" role="status">${g.pending === "add" ? "waiting for the computer to apply it…" : "revoking, waiting for the computer…"}</span>` : html`<span class="muted small grant-when">by ${g.grantedBy}, ${when(g.grantedAt)} · ${g.expires ? `expires in ${left(g.expires, now)} (${when(g.expires)})` : html`<span class="chip permanent">permanent</span>`}</span>`}
-      <details class="grant-renew" data-keep="renew|${machineId}|${g.target}" ${openKeys.has(`renew|${machineId}|${g.target}`) ? "open" : ""}><summary>Renew</summary><div class="grant-renew-list">${RENEW.map(([h, label]) => html`<button type="button" class="btn small" data-action="grant-renew" data-machine="${machineId}" data-target="${g.target}" data-hours="${h}">${label}</button>`)}</div></details>
+      ${renewForm(machineId, g, "Renew or change")}
       <button class="btn small danger" data-action="grant-revoke" data-machine="${machineId}" data-target="${g.target}" ${g.pending ? "disabled" : ""}>Revoke</button>
     </li>`;
 }
 
 function expiredRow(machineId: string, g: GrantView): SafeHtml {
-  return html`<li class="grant-row expired"><code>${g.target}</code>${chips(g)}<span class="muted small grant-when">ended ${when(g.expires ?? "")}</span><button type="button" class="btn small" data-action="grant-renew" data-machine="${machineId}" data-target="${g.target}" data-hours="24">Grant again</button></li>`;
+  return html`<li class="grant-row expired"><code>${g.target}</code>${chips(g)}<span class="muted small grant-when">ended ${when(g.expires ?? "")}</span>${renewForm(machineId, g, "Grant again")}</li>`;
 }
 
 export function grantFromForm(form: HTMLFormElement): { target: string; rights: string[]; expiresHours?: number } {
@@ -72,12 +86,7 @@ function machineCard(m: { id: string; name: string; os?: string }, list: GrantVi
             <label><input type="checkbox" name="rights" value="write"> write</label>
             <label><input type="checkbox" name="rights" value="shell"> shell</label>
           </span>
-          <select name="expires" aria-label="Expires">
-            <option value="1">1 hour</option>
-            <option value="24" selected>1 day</option>
-            <option value="168">1 week</option>
-            <option value="">permanent</option>
-          </select>
+          ${expiresSelect("24")}
           <button class="btn small" type="submit">Grant folder access</button>
         </form>
         <form class="grant-add grant-block" data-machine="${m.id}" data-id="${m.id}|system" aria-label="System access on ${m.name}">
@@ -91,12 +100,7 @@ function machineCard(m: { id: string; name: string; os?: string }, list: GrantVi
             <label><input type="checkbox" name="rights" value="gpu"> GPU apps (start or stop the studio apps, unload Ollama)</label>
             <label><input type="checkbox" name="rights" value="root"> root (pkexec prompt on the PC)</label>
           </span>
-          <select name="expires" aria-label="Expires">
-            <option value="1">1 hour</option>
-            <option value="24" selected>1 day</option>
-            <option value="168">1 week</option>
-            <option value="">permanent</option>
-          </select>
+          ${expiresSelect("24")}
           <button class="btn small" type="submit">Grant system access</button>
         </form>
       </div>

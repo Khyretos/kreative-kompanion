@@ -566,11 +566,12 @@ export class MockApi implements KompanionApi {
       this.emit({ type: "changed", what: "access", machineId });
     }, 400);
   }
-  async renewGrant(machineId: string, target: string, expiresHours: number | null) {
+  async renewGrant(machineId: string, target: string, expiresHours: number | null, rights?: string[]) {
     setTimeout(() => {
       const g = (grants[machineId] ?? []).find((x) => x.target === target);
       if (!g) return;
       const was = g.expires;
+      if (rights?.length) g.rights = rights;
       g.expires = expiresHours ? new Date(Date.now() + expiresHours * 3_600_000).toISOString() : null;
       g.grantedAt = new Date().toISOString();
       history.unshift({ at: g.grantedAt, kind: "renewed", target, detail: `${was ?? "permanent"} -> ${g.expires ?? "permanent"}`, machine: machineId });
@@ -837,11 +838,11 @@ export class MockApi implements KompanionApi {
     return structuredClone(chat);
   }
 
-  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean }) {
+  async updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean; machineId?: string }) {
     const i = chats.findIndex((c) => c.id === chatId);
     if (i < 0) return;
     if (change.archived) chats.splice(i, 1);
-    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer, autoRun: change.autoRun ?? chats[i].autoRun });
+    else Object.assign(chats[i], { title: change.title ?? chats[i].title, pinned: change.pinned ?? chats[i].pinned, effort: change.effort ?? chats[i].effort, mcp: change.mcp ?? chats[i].mcp, overseer: change.overseer ?? chats[i].overseer, autoRun: change.autoRun ?? chats[i].autoRun, machineId: change.machineId ?? chats[i].machineId });
   }
 
   async createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {

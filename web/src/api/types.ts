@@ -144,6 +144,7 @@ export interface Chat {
   mcp?: string[]; // CHAT-01: the tool servers this chat may use
   overseer?: boolean; // OVR-01: the Overseer answers in this chat
   autoRun?: boolean; // this chat runs its steps without asking
+  machineId?: string; // PC-SYNC: the computer picked for this chat ("" = none), the same on every device
 }
 
 /** FACTS: one remembered fact, per project or per chat. `kind` is only a label. */

@@ -92,8 +92,8 @@ export class HttpApi implements KompanionApi {
   revokeGrant(machineId: string, target: string) {
     return this.request<void>("POST", `/machines/${encodeURIComponent(machineId)}/grants/revoke`, { target });
   }
-  renewGrant(machineId: string, target: string, expiresHours: number | null) {
-    return this.request<void>("POST", `/machines/${encodeURIComponent(machineId)}/grants/renew`, { target, expires_hours: expiresHours });
+  renewGrant(machineId: string, target: string, expiresHours: number | null, rights?: string[]) {
+    return this.request<void>("POST", `/machines/${encodeURIComponent(machineId)}/grants/renew`, { target, expires_hours: expiresHours, rights: rights ?? null });
   }
 
   accessHistory() { return this.request<import("../views/access").AccessEvent[]>("GET", "/access"); }
@@ -166,7 +166,7 @@ export class HttpApi implements KompanionApi {
 
   createChat(title: string, projectId?: string) { return this.request<Chat>("POST", "/chats", { title, projectId }); }
   openThread(projectId: string) { return this.request<{ chatId: string }>("POST", `/projects/${encodeURIComponent(projectId)}/thread`).then((r) => r.chatId); }
-  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean }) {
+  updateChat(chatId: string, change: { title?: string; pinned?: boolean; archived?: boolean; projectId?: string; effort?: import("./types").Effort; mcp?: string[]; overseer?: boolean; autoRun?: boolean; machineId?: string }) {
     return this.request<void>("PATCH", `/chats/${encodeURIComponent(chatId)}`, change);
   }
   createTask(t: { projectId: string; title: string; description: string; state?: TaskState; chatId?: string; effort?: import("./types").Effort } & import("./types").TaskTreeChange) {

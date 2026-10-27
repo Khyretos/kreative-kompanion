@@ -97,7 +97,7 @@
 }
 
 .search-item[aria-selected="true"] {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 

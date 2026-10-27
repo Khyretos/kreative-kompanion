@@ -18,11 +18,11 @@ test("grants show date and time, sorted by expiry, expired ones folded away", as
   await expect(rows.nth(1).locator(".grant-when .chip.permanent")).toHaveText("permanent");
   await expect(rows.first().locator(".chip.root")).toHaveText("root");
   const expired = souc(page).locator("details.grants-expired");
-  await expect(expired.locator("summary")).toHaveText("Expired (1)");
+  await expect(expired.locator(":scope > summary")).toHaveText("Expired (1)");
   await expect(expired).not.toHaveAttribute("open", "");
-  await expired.locator("summary").click();
+  await expired.locator(":scope > summary").click();
   await expect(expired.locator(".grant-row code")).toHaveText("/home/kees/old-notes");
-  await expect(expired.locator('[data-action="grant-renew"][data-hours="24"]')).toHaveText("Grant again");
+  await expect(expired.locator("details.grant-renew summary")).toHaveText("Grant again");
 });
 
 test("the summary counts active, permanent and root grants per computer", async ({ page }) => {
@@ -37,16 +37,32 @@ test("renew for a day keeps the rights and moves the expiry", async ({ page }) =
   await openAccess(page);
   const sys = souc(page).locator("ul.grants > .grant-row", { has: page.locator("code", { hasText: "system" }) });
   await sys.locator("details.grant-renew summary").click();
-  await sys.locator('[data-action="grant-renew"][data-hours="24"]').click();
+  await expect(sys.locator('form.grant-renew-form select[name="expires"]')).toHaveValue("24");
+  await sys.locator('form.grant-renew-form button[type="submit"]').click();
   await expect(sys.locator(".grant-when")).toContainText(/expires in (23|24) h/);
   await expect(sys.locator(".grant-rights .chip")).toHaveText(["packages", "root"]);
+});
+
+test("ACC-02: a renew can add a right that was forgotten", async ({ page }) => {
+  await openAccess(page);
+  const sys = souc(page).locator("ul.grants > .grant-row", { has: page.locator("code", { hasText: "system" }) });
+  await sys.locator("details.grant-renew summary").click();
+  const form = sys.locator("form.grant-renew-form");
+  await expect(form.locator('input[value="packages"]')).toBeChecked();
+  await form.locator('input[value="services"]').check();
+  // A live re-render must not undo the tick before it is sent.
+  await page.waitForTimeout(6000);
+  await expect(form.locator('input[value="services"]')).toBeChecked();
+  await form.locator('button[type="submit"]').click();
+  await expect(sys.locator(".grant-rights .chip")).toHaveText(["packages", "services", "root"]);
 });
 
 test("permanent needs the I-understand tick; cancel changes nothing", async ({ page }) => {
   await openAccess(page);
   const sys = souc(page).locator("ul.grants > .grant-row", { has: page.locator("code", { hasText: "system" }) });
   await sys.locator("details.grant-renew summary").click();
-  await sys.locator('[data-action="grant-renew"][data-hours=""]').click();
+  await sys.locator('form.grant-renew-form select[name="expires"]').selectOption("");
+  await sys.locator('form.grant-renew-form button[type="submit"]').click();
   const dlg = page.locator("dialog.perm-dialog");
   await expect(dlg).toBeVisible();
   await expect(dlg).toContainText("You are responsible for managing it");
@@ -55,9 +71,9 @@ test("permanent needs the I-understand tick; cancel changes nothing", async ({ p
   await dlg.locator('button[value="cancel"]').click();
   await expect(dlg).toHaveCount(0);
   await expect(sys.locator(".grant-when")).toContainText("expires in");
-  // Again, with the tick.
-  await sys.locator("details.grant-renew summary").click();
-  await sys.locator('[data-action="grant-renew"][data-hours=""]').click();
+  // Again, with the tick (the form stays open after a cancel).
+  await sys.locator('form.grant-renew-form select[name="expires"]').selectOption("");
+  await sys.locator('form.grant-renew-form button[type="submit"]').click();
   await page.locator('dialog.perm-dialog input[name="understand"]').check();
   await page.locator('dialog.perm-dialog button[value="confirm"]').click();
   await expect(sys.locator(".grant-when .chip.permanent")).toHaveText("permanent");
@@ -90,7 +106,7 @@ test("an open Renew menu and the Expired list stay open while the page refreshes
   await openAccess(page);
   const sys = souc(page).locator("ul.grants > .grant-row", { has: page.locator("code", { hasText: "system" }) });
   await sys.locator("details.grant-renew summary").click();
-  await souc(page).locator("details.grants-expired summary").click();
+  await souc(page).locator("details.grants-expired > summary").click();
   // The machines list refreshes every few seconds and re-renders this tab.
   await page.waitForTimeout(7000);
   await expect(sys.locator("details.grant-renew")).toHaveAttribute("open", "");
