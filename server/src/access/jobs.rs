@@ -34,7 +34,7 @@ pub async fn create_job(
     })?;
 
     match tool_name {
-        "read_file" | "write_file" | "list_dir" | "shell" | "edit_file" | "service" | "package" | "reload" | "system_info" | "self_update" => (),
+        "read_file" | "read_image" | "write_file" | "list_dir" | "shell" | "edit_file" | "service" | "package" | "reload" | "system_info" | "self_update" => (),
         _ => return Err(ApiError::BadRequest("Unknown tool.".into())),
     }
 

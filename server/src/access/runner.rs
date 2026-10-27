@@ -136,14 +136,16 @@ pub async fn results(
         && state == "sent"
     {
         let new_state = if b.refused { "refused" } else if b.ok { "done" } else { "failed" };
+        let tool: Value = serde_json::from_str(&tool).unwrap_or(Value::Null);
+        // IMAGE-01: a picture is base64 text of up to about 4 MiB; the agent takes it out again before anything shows it.
+        let keep = if tool["tool"].as_str() == Some("read_image") { 6 * 1024 * 1024 } else { 64 * 1024 };
         sqlx::query("UPDATE machine_jobs SET state = ?, result = ?, done_at = ? WHERE id = ?")
             .bind(new_state)
-            .bind(crate::util::cut_marked(&b.output, 64 * 1024))
+            .bind(crate::util::cut_marked(&b.output, keep))
             .bind(util::now())
             .bind(&b.job_id)
             .execute(&s.db)
             .await?;
-        let tool: Value = serde_json::from_str(&tool).unwrap_or(Value::Null);
         let target = tool["path"].as_str().or(tool["cwd"].as_str()).or(tool["target"].as_str());
         // Grant changes are logged where they are decided ("granted"/"revoked" with
         // the reason); the runner applying them is not a separate "used" entry.
