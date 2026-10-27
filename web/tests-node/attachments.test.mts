@@ -26,9 +26,17 @@ test("kindOf follows the extension", () => {
   assert.equal(kindOf("report.pdf"), "text");
   assert.equal(kindOf("main.rs"), "text");
   assert.equal(kindOf("notes.md"), "text");
-  assert.equal(kindOf("a.gif"), null);
-  assert.equal(kindOf("tool.exe"), null);
-  assert.equal(kindOf("noextension"), null);
+  assert.equal(kindOf("a.gif"), "file");
+  assert.equal(kindOf("tool.exe"), "file");
+  assert.equal(kindOf("backup.tar.gz"), "file");
+  assert.equal(kindOf("noextension"), "file");
+});
+
+test("a file of any other type is an attachment too", () => {
+  const files = [{ name: "scene.blend", file: "e.bin", kind: "file" }];
+  const r = splitFiles("Here\n\n:::files\n" + JSON.stringify(files));
+  assert.equal(r.text, "Here");
+  assert.deepEqual(r.files, files);
 });
 
 test("sizeLabel", () => {

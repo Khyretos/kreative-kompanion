@@ -27,13 +27,20 @@ pub fn split(text: &str) -> (String, Vec<Attached>) {
     (text.to_string(), vec![])
 }
 
-pub fn kind_for(name: &str) -> Option<&'static str> {
+/// What a file is kept as, by its extension: "image", "text" (read by the model) or "file" (anything else, only stored and
+/// downloaded; upload turns an unknown extension into "text" when the content reads as text).
+pub fn kind_for(name: &str) -> &'static str {
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_lowercase());
-    match ext.as_deref()? {
-        "png" | "jpg" | "jpeg" | "webp" => Some("image"),
-        "pdf" | "md" | "markdown" | "txt" | "text" | "rst" | "csv" | "json" | "toml" | "yaml" | "yml" | "xml" | "html" | "htm" | "log" | "ini" | "cfg" | "sql" | "sh" | "css" | "rs" | "py" | "ts" | "tsx" | "js" | "jsx" | "gd" | "c" | "h" | "cpp" | "hpp" | "java" | "go" | "rb" | "kt" | "cs" => Some("text"),
-        _ => None,
+    match ext.as_deref() {
+        Some("png" | "jpg" | "jpeg" | "webp") => "image",
+        Some("pdf" | "md" | "markdown" | "txt" | "text" | "rst" | "csv" | "json" | "toml" | "yaml" | "yml" | "xml" | "html" | "htm" | "log" | "ini" | "cfg" | "sql" | "sh" | "css" | "rs" | "py" | "ts" | "tsx" | "js" | "jsx" | "gd" | "c" | "h" | "cpp" | "hpp" | "java" | "go" | "rb" | "kt" | "cs") => "text",
+        _ => "file",
     }
+}
+
+/// Whether the bytes are UTF-8 text without NUL bytes (an unknown extension such as .lua or .tscn that holds text).
+pub fn looks_like_text(bytes: &[u8]) -> bool {
+    !bytes.iter().take(8192).any(|b| *b == 0) && std::str::from_utf8(bytes).is_ok()
 }
 
 pub fn sees_pictures(model: &str) -> bool {

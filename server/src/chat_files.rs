@@ -1,10 +1,12 @@
 //! BLD-01: pictures from chat tools (e.g. Blender renders), stored per chat next to the database.
 use std::path::{Path, PathBuf};
-use axum::{Extension, body::Body, extract::{Path as UrlPath, State}, http::header, response::Response};
+use axum::{Extension, body::Body, extract::{Path as UrlPath, Query, State}, http::header, response::Response};
 use base64::Engine;
 use crate::{AppState, auth::User, error::{ApiError, ApiResult}};
 
 pub const MAX_BYTES: usize = 8 * 1024 * 1024;
+/// Largest file of any type attached to a message (matches the upload route's body limit).
+pub const MAX_ATTACHMENT: usize = 25 * 1024 * 1024;
 
 /// <database folder>/chat-files
 pub fn dir_for(database: &Path) -> PathBuf {
@@ -47,7 +49,8 @@ fn file_ext(mime: &str) -> Option<&'static str> {
     })
 }
 
-const FILE_EXTS: [&str; 8] = ["blend", "glb", "zip", "pdf", "txt", "md", "json", "csv"];
+/// "bin" is a file the user attached that is neither a picture nor text; it is only stored and downloaded.
+const FILE_EXTS: [&str; 9] = ["blend", "glb", "zip", "pdf", "txt", "md", "json", "csv", "bin"];
 
 /// Decodes and writes one picture or file; returns its file name (<uuid v4>.<ext>).
 pub async fn save(dir: &Path, chat_id: &str, mime: &str, data_b64: &str) -> anyhow::Result<String> {
@@ -65,7 +68,11 @@ pub async fn save(dir: &Path, chat_id: &str, mime: &str, data_b64: &str) -> anyh
 /// Writes bytes under the chat as <uuid v4>.<ext>; returns the file name.
 pub async fn save_bytes(dir: &Path, chat_id: &str, ext: &str, bytes: &[u8]) -> anyhow::Result<String> {
     if !safe_id(chat_id) { anyhow::bail!("bad chat id") }
-    if bytes.len() > MAX_BYTES { anyhow::bail!("picture too large") }
+    if ext == "bin" {
+        if bytes.len() > MAX_ATTACHMENT { anyhow::bail!("file too large (the limit is {} MB)", MAX_ATTACHMENT / 1024 / 1024) }
+    } else if bytes.len() > MAX_BYTES {
+        anyhow::bail!("picture too large")
+    }
     let folder = dir.join(chat_id);
     tokio::fs::create_dir_all(&folder).await?;
     let name = format!("{}.{ext}", uuid::Uuid::new_v4());
@@ -83,8 +90,25 @@ pub fn path_for(dir: &Path, chat_id: &str, name: &str) -> Option<PathBuf> {
     p.is_file().then_some(p)
 }
 
-/// GET /api/chats/{id}/files/{name}: a picture of the user's own chat.
-pub async fn file(State(s): State<AppState>, Extension(u): Extension<User>, UrlPath((id, name)): UrlPath<(String, String)>) -> ApiResult<Response> {
+#[derive(serde::Deserialize, Default)]
+pub struct Download { name: Option<String> }
+
+/// The Content-Disposition value for a download: the name the user gave the file (when sent as ?name=), else the stored one.
+/// A plain ASCII `filename` plus the UTF-8 `filename*` (RFC 5987) so any name survives.
+fn disposition(wanted: Option<&str>, stored: &str) -> String {
+    let clean: String = wanted.unwrap_or("").rsplit(['/', '\\']).next().unwrap_or("").chars()
+        .filter(|c| !c.is_control() && !matches!(c, '"' | ';' | '%')).take(200).collect();
+    let name = if clean.trim().is_empty() { stored.to_string() } else { clean };
+    let ascii: String = name.chars().map(|c| if c.is_ascii() { c } else { '_' }).collect();
+    let mut encoded = String::new();
+    for b in name.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { encoded.push(b as char) } else { encoded.push_str(&format!("%{b:02X}")) }
+    }
+    format!("attachment; filename=\"{ascii}\"; filename*=UTF-8''{encoded}")
+}
+
+/// GET /api/chats/{id}/files/{name}[?name=]: a picture or file of the user's own chat.
+pub async fn file(State(s): State<AppState>, Extension(u): Extension<User>, UrlPath((id, name)): UrlPath<(String, String)>, Query(q): Query<Download>) -> ApiResult<Response> {
     if !crate::api::owns(&s, "chats", &id, &u).await? { return Err(ApiError::NotFound) }
     let path = path_for(&dir_for(&s.config.database), &id, &name).ok_or(ApiError::NotFound)?;
     let bytes = tokio::fs::read(&path).await.map_err(|_| ApiError::NotFound)?;
@@ -95,7 +119,7 @@ pub async fn file(State(s): State<AppState>, Extension(u): Extension<User>, UrlP
         .header("X-Content-Type-Options", "nosniff");
     // CHAT-05: anything that is not a picture is saved, never opened in the page.
     if !ctype.starts_with("image/") {
-        res = res.header(header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\""));
+        res = res.header(header::CONTENT_DISPOSITION, disposition(q.name.as_deref(), &name));
     }
     res
         .body(Body::from(bytes))

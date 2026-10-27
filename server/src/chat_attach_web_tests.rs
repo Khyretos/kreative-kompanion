@@ -38,6 +38,21 @@ async fn long_text_is_cut_and_says_so() {
 }
 
 #[tokio::test]
+async fn other_files_are_kept_as_they_are_and_the_model_gets_their_name_and_size() {
+    let d = tmp();
+    let data = vec![0u8, 1, 2, 3, 250, 251];
+    let stored = chat_files::save_bytes(&d, "c1", "bin", &data).await.unwrap();
+    assert!(stored.ends_with(".bin"), "{stored}");
+    let files = vec![Attached { name: "scene.blend1".into(), file: stored.clone(), kind: "file".into() }];
+    assert!(valid(&d, "c1", &files));
+    assert_eq!(std::fs::read(chat_files::path_for(&d, "c1", &stored).unwrap()).unwrap(), data);
+    let (note, images) = for_model(&d, "c1", &files, "Coder", true).await;
+    assert!(note.contains("[Attached file: scene.blend1 (6 B)"), "{note}");
+    assert!(note.contains("not a text document") && images.is_empty(), "{note}");
+    std::fs::remove_dir_all(&d).ok();
+}
+
+#[tokio::test]
 async fn binary_data_is_not_text() {
     assert!(text_of("a.bin.txt", &[0, 1, 2]).await.is_err());
     assert_eq!(text_of("a.rs", b"fn main() {}").await.unwrap(), "fn main() {}");

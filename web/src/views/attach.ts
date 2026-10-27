@@ -1,14 +1,14 @@
 // CHAT-08: files attached to a chat message. The composer keeps the chosen files in memory
 // until Send (a new chat has no id to upload to yet); a sent message shows its files as chips.
 import { html, SafeHtml } from "../core/html";
-import { Attached, kindOf, sizeLabel } from "../core/attachments";
+import { Attached, AttachedKind, kindOf, sizeLabel } from "../core/attachments";
 import { icon } from "./icons";
 
 export const MAX_FILES = 8;
 const MAX_IMAGE = 8 * 1024 * 1024;
-const MAX_TEXT = 25 * 1024 * 1024;
+const MAX_OTHER = 25 * 1024 * 1024;
 
-export interface Pending { file: File; kind: "image" | "text"; thumb?: string }
+export interface Pending { file: File; kind: AttachedKind; thumb?: string }
 
 /** The files that may be added (a message takes up to 8) and what was refused, with the reason. */
 export function accept(have: Pending[], files: File[]): { added: Pending[]; refused: string[] } {
@@ -16,9 +16,8 @@ export function accept(have: Pending[], files: File[]): { added: Pending[]; refu
   const refused: string[] = [];
   for (const file of files) {
     const kind = kindOf(file.name);
-    if (!kind) refused.push(`${file.name}: pictures (PNG, JPG, WebP), PDFs, text and code files only`);
-    else if (file.size === 0) refused.push(`${file.name}: the file is empty`);
-    else if (file.size > (kind === "image" ? MAX_IMAGE : MAX_TEXT)) refused.push(`${file.name}: larger than ${sizeLabel(kind === "image" ? MAX_IMAGE : MAX_TEXT)}`);
+    if (file.size === 0) refused.push(`${file.name}: the file is empty`);
+    else if (file.size > (kind === "image" ? MAX_IMAGE : MAX_OTHER)) refused.push(`${file.name}: larger than ${sizeLabel(kind === "image" ? MAX_IMAGE : MAX_OTHER)}`);
     else if (have.length + added.length >= MAX_FILES) refused.push(`${file.name}: a message takes up to ${MAX_FILES} files`);
     else if (have.some((p) => p.file.name === file.name && p.file.size === file.size)) continue;
     else added.push({ file, kind, thumb: kind === "image" ? URL.createObjectURL(file) : undefined });
@@ -43,13 +42,14 @@ export function renderPending(list: Pending[]): SafeHtml {
 }
 
 /** What is under a sent message: pictures as previews that open large on a click (IMG-VIEW),
- * other files as chips that open or save the file. */
+ * other files as chips that save the file under the name it had (a document is saved as the text the model read). */
 export function renderSent(chatId: string, files: Attached[]): SafeHtml {
   if (!files.length) return html``;
   const url = (f: Attached) => `api/chats/${encodeURIComponent(chatId)}/files/${encodeURIComponent(f.file)}`;
+  const saveAs = (f: Attached) => f.kind === "file" ? f.name : f.name.replace(/\.[^.]+$/, "") + ".txt";
   return html`<div class="attach-sent">${files.map((f) => f.kind === "image" ? html`
     <button type="button" class="attach-img" data-action="img-open" data-src="${url(f)}" data-name="${f.name}" title="${f.name}" aria-label="Open ${f.name}">
       <img src="${url(f)}" alt="${f.name}" loading="lazy"><span class="attach-zoom" aria-hidden="true">${icon("search")}</span></button>` : html`
-    <a class="chip attach-chip" href="${url(f)}" target="_blank" rel="noopener" download="${f.name.replace(/\.[^.]+$/, "") + ".txt"}"
+    <a class="chip attach-chip" href="${url(f)}?name=${encodeURIComponent(saveAs(f))}" target="_blank" rel="noopener" download="${saveAs(f)}"
       title="${f.name}">${icon("file")}<span class="attach-name">${f.name}</span></a>`)}</div>`;
 }

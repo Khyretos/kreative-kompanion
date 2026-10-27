@@ -471,7 +471,7 @@ export function composer(): SafeHtml {
     <div class="attach-row" id="attach-row" aria-live="polite"></div>
     <div class="slash-menu" id="slash-menu" role="listbox" aria-label="Commands" hidden></div>
     <form class="composer" id="composer">
-      <input type="file" id="attach-input" multiple hidden accept="image/png,image/jpeg,image/webp,.pdf,.txt,.md,.markdown,.csv,.json,.toml,.yaml,.yml,.xml,.html,.htm,.log,.ini,.cfg,.sql,.sh,.css,.rs,.py,.ts,.tsx,.js,.jsx,.gd,.c,.h,.cpp,.hpp,.java,.go,.rb,.kt,.cs">
+      <input type="file" id="attach-input" multiple hidden>
       <input type="file" id="attach-camera" hidden accept="image/*" capture="environment">
       <span class="attach-wrap">
         <button class="btn attach" type="button" id="attach-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="attach-menu" aria-label="Add to the message">${icon("paperclip")}</button>

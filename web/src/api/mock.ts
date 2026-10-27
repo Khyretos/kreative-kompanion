@@ -4,6 +4,7 @@ import { AUDIO_TYPES } from "./http";
 import type { AccessEvent, GrantView } from "../views/access";
 import type { KompanionApi, Lesson, ServerEvent } from "./client";
 import type { PcAction } from "./client";
+import { kindOf } from "../core/attachments";
 import type { DevSettings, TaskState, AdminSettings, DaySummary, MachineStats, Chat, Fact, FactKind, FactsView, Message, ModelProvider, Project, RoleAssignment, SearchResult, Server, Task, ChatContext } from "./types";
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
@@ -1243,8 +1244,8 @@ export class MockApi implements KompanionApi {
     step("done", "resolving dependencies...\ninstalling htop...\nexit: 0", 600);
   }
   async attach(_chatId: string, file: File) {
-    const kind = /\.(png|jpe?g|webp)$/i.test(file.name) ? "image" : "text";
-    return { name: file.name, file: `${id("f")}.${kind === "image" ? "png" : "txt"}`, kind } as import("../core/attachments").Attached;
+    const kind = kindOf(file.name);
+    return { name: file.name, file: `${id("f")}.${kind === "image" ? "png" : kind === "file" ? "bin" : "txt"}`, kind } as import("../core/attachments").Attached;
   }
   async send(chatId: string, text: string, machineId?: string, _effort?: unknown, attachments: import("../core/attachments").Attached[] = []) {
     if (attachments.length) text += "\n\n:::files\n" + JSON.stringify(attachments);

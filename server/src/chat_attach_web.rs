@@ -1,10 +1,11 @@
 //! CHAT-08: files attached to a chat message. A picture is kept as it is; a PDF, text or code file is kept as its
-//! extracted text. Both sit in the chat's folder (chat_files) and are named in the message by a `:::files` block.
+//! extracted text; any other file is kept as it is and only offered for download (the model is told its name and size).
+//! All sit in the chat's folder (chat_files) and are named in the message by a `:::files` block.
 
 use axum::{Extension, Json, body::Bytes, extract::{Path, Query, State}, http::StatusCode};
 use base64::Engine;
 use serde::Deserialize;
-use crate::{AppState, auth::User, chat_attach::{Attached, kind_for, sees_pictures}, chat_files, error::{ApiError, ApiResult}, knowledge};
+use crate::{AppState, auth::User, chat_attach::{Attached, kind_for, looks_like_text, sees_pictures}, chat_files, error::{ApiError, ApiResult}, knowledge};
 
 pub const MAX_FILES: usize = 8;
 /// Characters of one file / of one message's files that go to the model.
@@ -24,19 +25,24 @@ async fn text_of(name: &str, bytes: &[u8]) -> anyhow::Result<String> {
     Ok(String::from_utf8_lossy(bytes).into_owned())
 }
 
+fn size_label(bytes: u64) -> String {
+    if bytes < 1024 { format!("{bytes} B") } else if bytes < 1024 * 1024 { format!("{:.1} KB", bytes as f64 / 1024.0) } else { format!("{:.1} MB", bytes as f64 / 1024.0 / 1024.0) }
+}
+
 /// POST /api/chats/{id}/attachments?name=: stores one file for the next message and says how it was kept.
 pub async fn upload(State(s): State<AppState>, Extension(u): Extension<User>, Path(chat_id): Path<String>, Query(q): Query<Upload>, body: Bytes) -> ApiResult<(StatusCode, Json<Attached>)> {
     if !crate::api::owns(&s, "chats", &chat_id, &u).await? { return Err(ApiError::NotFound) }
     let name: String = q.name.trim().rsplit(['/', '\\']).next().unwrap_or("").chars().take(200).collect();
     if name.is_empty() || body.is_empty() { return Err(ApiError::BadRequest("The file needs a name and content.".into())) }
-    let Some(kind) = kind_for(&name) else {
-        return Err(ApiError::BadRequest(format!("{name}: only pictures (PNG, JPG, WebP), PDFs, text and code files can be attached.")));
-    };
+    // An unknown extension (.lua, .tscn, .svg ...) that holds text is read like a text file; anything else is kept as it is.
+    let kind = match kind_for(&name) { "file" if looks_like_text(&body) => "text", k => k };
     let dir = chat_files::dir_for(&s.config.database);
     let bad = |e: anyhow::Error| ApiError::BadRequest(format!("{name}: {e}"));
     let file = if kind == "image" {
         let ext = match name.rsplit_once('.').map(|(_, e)| e.to_lowercase()).as_deref() { Some("png") => "png", Some("webp") => "webp", _ => "jpg" };
         chat_files::save_bytes(&dir, &chat_id, ext, &body).await.map_err(bad)?
+    } else if kind == "file" {
+        chat_files::save_bytes(&dir, &chat_id, "bin", &body).await.map_err(bad)?
     } else {
         let text = text_of(&name, &body).await.map_err(bad)?;
         if text.trim().is_empty() { return Err(ApiError::BadRequest(format!("{name}: no text found in the file."))) }
@@ -49,7 +55,7 @@ pub async fn upload(State(s): State<AppState>, Extension(u): Extension<User>, Pa
 /// Whether a message may carry these files: few, of known kinds, each stored under this chat.
 pub fn valid(dir: &std::path::Path, chat_id: &str, files: &[Attached]) -> bool {
     files.len() <= MAX_FILES && files.iter().all(|f| {
-        (f.kind == "image" || f.kind == "text") && !f.name.is_empty() && f.name.len() <= 200 && chat_files::path_for(dir, chat_id, &f.file).is_some()
+        ["image", "text", "file"].contains(&f.kind.as_str()) && !f.name.is_empty() && f.name.len() <= 200 && chat_files::path_for(dir, chat_id, &f.file).is_some()
     })
 }
 
@@ -60,6 +66,11 @@ pub async fn for_model(dir: &std::path::Path, chat_id: &str, files: &[Attached],
     let sees = with_pictures && sees_pictures(model);
     for f in files {
         let Some(path) = chat_files::path_for(dir, chat_id, &f.file) else { continue };
+        if f.kind == "file" {
+            let Ok(meta) = tokio::fs::metadata(&path).await else { continue };
+            note.push_str(&format!("\n\n[Attached file: {} ({}). It is not a text document, so its content is not shown to you; say so if it matters.]", f.name, size_label(meta.len())));
+            continue;
+        }
         let Ok(bytes) = tokio::fs::read(&path).await else { continue };
         if f.kind == "image" {
             if sees {

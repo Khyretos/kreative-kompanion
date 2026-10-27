@@ -48,6 +48,27 @@ async fn refuses_other_types_bad_data_and_odd_names() {
 }
 
 #[tokio::test]
+async fn keeps_any_attached_file_up_to_the_larger_limit() {
+    let d = tmp();
+    let name = save_bytes(&d, "chat-1", "bin", &vec![7u8; MAX_BYTES + 1]).await.unwrap();
+    assert!(name.ends_with(".bin") && path_for(&d, "chat-1", &name).is_some());
+    assert_eq!(content_type(&name), "application/octet-stream");
+    assert!(save_bytes(&d, "chat-1", "bin", &vec![7u8; MAX_ATTACHMENT + 1]).await.is_err());
+    assert!(save_bytes(&d, "chat-1", "png", &vec![7u8; MAX_BYTES + 1]).await.is_err(), "pictures keep the smaller limit");
+    std::fs::remove_dir_all(&d).ok();
+}
+
+#[test]
+fn a_download_is_named_as_the_user_named_it() {
+    let stored = "0b1f2c3d-0000-4000-8000-000000000001.bin";
+    assert_eq!(disposition(None, stored), format!("attachment; filename=\"{stored}\"; filename*=UTF-8''{stored}"));
+    assert_eq!(disposition(Some("model v2.blend"), stored), "attachment; filename=\"model v2.blend\"; filename*=UTF-8''model%20v2.blend");
+    assert_eq!(disposition(Some("../../etc/pass\"wd;.zip"), stored), "attachment; filename=\"passwd.zip\"; filename*=UTF-8''passwd.zip");
+    assert_eq!(disposition(Some("café.zip"), stored), "attachment; filename=\"caf_.zip\"; filename*=UTF-8''caf%C3%A9.zip");
+    assert_eq!(disposition(Some("  "), stored), disposition(None, stored));
+}
+
+#[tokio::test]
 async fn saves_a_blend_file_that_is_only_downloaded() {
     let d = tmp();
     let name = save(&d, "chat-1", "application/x-blender", "QkxFTkQ=").await.unwrap();

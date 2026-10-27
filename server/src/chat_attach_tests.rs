@@ -28,16 +28,26 @@ fn split_leaves_plain_and_broken_text_alone() {
 
 #[test]
 fn kinds_follow_the_extension() {
-    assert_eq!(kind_for("Cat.PNG"), Some("image"));
-    assert_eq!(kind_for("a.jpeg"), Some("image"));
-    assert_eq!(kind_for("a.webp"), Some("image"));
-    assert_eq!(kind_for("report.pdf"), Some("text"));
-    assert_eq!(kind_for("main.rs"), Some("text"));
-    assert_eq!(kind_for("notes.md"), Some("text"));
-    assert_eq!(kind_for("data.csv"), Some("text"));
-    assert_eq!(kind_for("a.gif"), None);
-    assert_eq!(kind_for("tool.exe"), None);
-    assert_eq!(kind_for("noextension"), None);
+    assert_eq!(kind_for("Cat.PNG"), "image");
+    assert_eq!(kind_for("a.jpeg"), "image");
+    assert_eq!(kind_for("a.webp"), "image");
+    assert_eq!(kind_for("report.pdf"), "text");
+    assert_eq!(kind_for("main.rs"), "text");
+    assert_eq!(kind_for("notes.md"), "text");
+    assert_eq!(kind_for("data.csv"), "text");
+    // Any other file can be attached too; it is only stored.
+    assert_eq!(kind_for("a.gif"), "file");
+    assert_eq!(kind_for("tool.exe"), "file");
+    assert_eq!(kind_for("backup.tar.gz"), "file");
+    assert_eq!(kind_for("noextension"), "file");
+}
+
+#[test]
+fn text_is_told_from_binary_by_content() {
+    assert!(looks_like_text("print('héllo')\n".as_bytes()));
+    assert!(looks_like_text(b""));
+    assert!(!looks_like_text(&[0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]));
+    assert!(!looks_like_text(&[0xff, 0xfe, 0x41]), "not UTF-8");
 }
 
 #[test]
