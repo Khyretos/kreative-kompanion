@@ -56,6 +56,21 @@ fn a_long_line_is_split_so_line_numbers_always_work() {
 }
 
 #[test]
+fn a_newline_at_a_chunk_boundary_is_not_a_blank_line_and_only_newline_ends_a_line() {
+    // 65,536 bytes is one reading chunk: the newline then arrives alone in the next chunk. It ends that line.
+    let exact = format!("{}\nnext\n\nlast", "x".repeat(65_536));
+    let v = lines_of(&exact);
+    let long: Vec<_> = v.iter().filter(|(_, l)| l.starts_with('x')).collect();
+    assert_eq!(long.len(), 66, "65 pieces of 1000 characters and one of 536");
+    let next = v.iter().find(|(_, l)| l == "next").unwrap().0;
+    assert_eq!(next, 67, "no phantom blank line between the long line and the next");
+    assert_eq!(v.last().unwrap(), &(69, "last".to_string()), "a real blank line still counts");
+    // The same with CRLF, and with the other Unicode line separators inside a line (they are not line ends here).
+    assert_eq!(lines_of(&format!("{}\r\nnext", "y".repeat(65_535))).iter().find(|(_, l)| l == "next").unwrap().0, 67);
+    assert_eq!(lines_of("a\u{2029}b\u{2028}c\nd"), vec![(1, "a\u{2029}b\u{2028}c".into()), (2, "d".into())]);
+}
+
+#[test]
 fn a_page_is_cut_by_size_and_says_where_to_go_on() {
     let text = numbered(100);
     let p = read_page(Cursor::new(text.clone().into_bytes()), 1, 200).unwrap();

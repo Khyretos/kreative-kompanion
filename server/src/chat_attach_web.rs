@@ -84,7 +84,11 @@ async fn keep(dir: &std::path::Path, chat_id: &str, name: &str, kind: &str, got:
         let (stored, to) = chat_files::new_file(dir, chat_id, "bin").await?;
         tokio::fs::rename(&got.path, &to).await?;
         let view = attach_docs::view(name, &to, got.size, &got.head).await;
-        tokio::fs::write(to.with_extension("txt"), view.text).await?;
+        if let Err(e) = tokio::fs::write(to.with_extension("txt"), view.text).await {
+            // No view, no attachment: do not leave the renamed file behind.
+            tokio::fs::remove_file(&to).await.ok();
+            return Err(e.into());
+        }
         return Ok(stored);
     }
     if ext == "pdf" || ext == "html" || ext == "htm" {

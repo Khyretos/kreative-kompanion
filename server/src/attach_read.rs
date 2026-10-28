@@ -150,6 +150,8 @@ pub fn scan<R: BufRead>(mut r: R, mut f: impl FnMut(usize, &str) -> bool) -> std
         }
         true
     };
+    // True while the line being read began in an earlier chunk: its newline then ends that line, it is not a blank one.
+    let mut continued = false;
     loop {
         buf.clear();
         let got = (&mut r).take(CHUNK).read_until(b'\n', &mut buf)?;
@@ -164,7 +166,9 @@ pub fn scan<R: BufRead>(mut r: R, mut f: impl FnMut(usize, &str) -> bool) -> std
             // The line goes on in the next chunk: keep a character cut in half for it.
             if e.error_len().is_none() { carry = data.split_off(e.valid_up_to()); }
         }
-        if !emit(&String::from_utf8_lossy(&data), &mut n, ended) { return Ok(n) }
+        let blank_ok = ended && !(data.is_empty() && continued);
+        continued = !ended;
+        if !emit(&String::from_utf8_lossy(&data), &mut n, blank_ok) { return Ok(n) }
     }
     if !carry.is_empty() { emit(&String::from_utf8_lossy(&carry), &mut n, false); }
     Ok(n)
