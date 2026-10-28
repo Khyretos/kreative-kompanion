@@ -44,6 +44,24 @@
     "title": "Potential Resource Leak",
     "verdict": "false_positive"
   },
+  "b60a9f178b47": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/chat_attach_web.rs",
+    "reason": "tokio::fs::write opens the file, writes it and closes it before it returns, on success and on failure, so no handle is left open. The remove_file after a failed write is the cleanup: the attachment is reported as failed to the client (who can send the file again), so the renamed .bin must not stay behind. The finding's second point, that the content is lost, is exactly that intended outcome.",
+    "title": "Possible Resource Leak",
+    "verdict": "false_positive"
+  },
+  "ca68bdc3d179": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/attach_read.rs",
+    "reason": "When the callback returns false, emit returns false and scan returns Ok(n) at once; the carry logic after the loop is not reached, so n is the number of lines handed to the callback, which is what the doc says (\\\"Returns the lines seen\\\"). The callers that need a total (overview, the line count of a file, the missing-line check) pass a callback that always returns true, so they scan to the end; the callers that stop early (read_page, split_parts, lines_in) use the line numbers they were given, not the return value.",
+    "title": "Potential Logic Error in Line Counting",
+    "verdict": "false_positive"
+  },
   "d8811a7fb3ed": {
     "by": "kompanion",
     "checked": true,
