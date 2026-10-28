@@ -51,6 +51,7 @@ mod repomem;
 mod chat_tools;
 mod chat_history;
 mod chat_files;
+mod attach_digest;
 mod attach_docs;
 mod attach_read;
 mod chat_attach;

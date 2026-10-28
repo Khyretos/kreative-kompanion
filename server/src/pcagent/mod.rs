@@ -411,6 +411,8 @@ impl Agent {
         let Some(p) = s.provider(&self.role.provider_id) else {
             return Err(format!("The provider {} is not configured.", self.role.provider_id));
         };
+        // CHAT-09b: digests of attached files are made with the answering model (before the effort changes it).
+        let digester = crate::attach_digest::Digester::new(&p, &self.role, &self.user_id);
         let mut tools = tools::schema();
         // AGENT-SPAWN: a chat's agent may hand work on to a new chat or task (a task's may not).
         if self.task_id.is_none() && let Some(list) = tools.as_array_mut() {
@@ -563,7 +565,7 @@ impl Agent {
                         }
                     }
                     None if crate::chat_history::is_tool(name) => crate::chat_history::call(&s.db, &self.user_id, &self.chat_id, name, &args, budget).await,
-                    None if crate::attach_read::is_tool(name) => crate::attach_read::call(s, &self.chat_id, name, &args, budget, attach).await,
+                    None if crate::attach_read::is_tool(name) => crate::attach_read::call(s, &self.chat_id, name, &args, budget, attach, Some(&digester)).await,
                     None if crate::facts::is_tool(name) => crate::facts::call(s, &self.chat_id, name, &args).await,
                     None if name == steplog::READ => steplog::read(&s.db, &self.user_id, &self.chat_id, &args, budget).await,
                     None => "Unknown tool or wrong arguments.".to_string(),

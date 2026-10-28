@@ -6,7 +6,7 @@
 use std::{collections::HashSet, io::{BufRead, BufReader, Cursor, Read}, path::{Path, PathBuf}, sync::LazyLock};
 use regex::Regex;
 use serde_json::{Value, json};
-use crate::{AppState, chat_attach::Attached, chat_files};
+use crate::{AppState, attach_digest::{Digester, SUMMARIZE}, chat_attach::Attached, chat_files};
 
 pub const READ: &str = "read_attachment";
 pub const SEARCH: &str = "search_attachment";
@@ -14,7 +14,7 @@ pub const SEARCH: &str = "search_attachment";
 pub const SERVER: &str = "Attachments";
 
 pub fn is_tool(name: &str) -> bool {
-    name == READ || name == SEARCH
+    name == READ || name == SEARCH || name == SUMMARIZE
 }
 
 /// Characters of text per token, set low on purpose so a budget never overshoots a window.
@@ -35,6 +35,8 @@ pub struct Budget {
     pub window: i64,
     pub inline: usize,
     pub read: usize,
+    /// Characters of one part a digest call reads (a bit over half the window, the rest is the prompt and the answer).
+    pub part: usize,
     pub tools: bool,
 }
 
@@ -43,7 +45,7 @@ impl Budget {
         let window = window.filter(|w| *w >= 1_000).unwrap_or(DEFAULT_WINDOW);
         let chars = (window as usize).saturating_mul(CHARS_PER_TOKEN);
         // A quarter of the window for the files of a message; an eighth for one read, since a few reads follow each other.
-        Budget { window, inline: (chars / 4).clamp(1_500, 100_000), read: (chars / 8).clamp(1_200, 48_000), tools }
+        Budget { window, inline: (chars / 4).clamp(1_500, 100_000), read: (chars / 8).clamp(1_200, 48_000), part: (chars * 55 / 100).clamp(3_000, 60_000), tools }
     }
 }
 
@@ -114,7 +116,7 @@ fn listing(docs: &[Doc]) -> String {
     }).collect::<Vec<_>>().join("\n")
 }
 
-fn pick<'a>(docs: &'a [Doc], name: Option<&str>) -> Result<&'a Doc, String> {
+pub(crate) fn pick<'a>(docs: &'a [Doc], name: Option<&str>) -> Result<&'a Doc, String> {
     let readable: Vec<&Doc> = docs.iter().filter(|d| d.text.is_some()).collect();
     let Some(name) = name else {
         return match readable.as_slice() {
@@ -387,12 +389,26 @@ fn search_params() -> Value {
 
 const READ_DESC: &str = "Read a file the user attached, a part at a time: text, PDF, Word, Excel, PowerPoint, OpenDocument, ePub, archives, media details. The answer ends with the line to continue from.";
 const SEARCH_DESC: &str = "Find lines with given words in the files the user attached, with their line numbers. Use it first on a big file, then read_attachment from a line near a match.";
+const SUMMARIZE_DESC: &str = "Digest a long attached file part by part (a model call per part, at most 8 a use), for a question about the whole file. The answer says which lines it covered and how to go on. For one detail use search_attachment.";
+
+fn summarize_params() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "name": { "type": "string", "description": "The file's name as attached. Leave out when there is one file." },
+            "from_line": { "type": "integer", "description": "Where to go on from, as the last digest said. Leave out for the start." },
+            "focus": { "type": "string", "description": "What the reader cares about, so the digest keeps it (a few words)." }
+        },
+        "required": []
+    })
+}
 
 /// The tools as an MCP server lists them (for chat tool rounds).
 pub fn tools() -> Vec<Value> {
     vec![
         json!({ "name": READ, "description": READ_DESC, "inputSchema": read_params() }),
         json!({ "name": SEARCH, "description": SEARCH_DESC, "inputSchema": search_params() }),
+        json!({ "name": SUMMARIZE, "description": SUMMARIZE_DESC, "inputSchema": summarize_params() }),
     ]
 }
 
@@ -401,15 +417,22 @@ pub fn specs() -> Vec<Value> {
     vec![
         json!({ "type": "function", "function": { "name": READ, "description": READ_DESC, "parameters": read_params() } }),
         json!({ "type": "function", "function": { "name": SEARCH, "description": SEARCH_DESC, "parameters": search_params() } }),
+        json!({ "type": "function", "function": { "name": SUMMARIZE, "description": SUMMARIZE_DESC, "parameters": summarize_params() } }),
     ]
 }
 
 /// Runs one of the tools for the files of `chat_id`. `cap` is the most characters the caller lets a result hold.
-pub async fn call(s: &AppState, chat_id: &str, tool: &str, args: &Value, cap: usize, budget: Budget) -> String {
+pub async fn call(s: &AppState, chat_id: &str, tool: &str, args: &Value, cap: usize, budget: Budget, who: Option<&Digester>) -> String {
     let dir = chat_files::dir_for(&s.config.database);
     let docs = chat_docs(&s.db, &dir, chat_id).await;
     if !docs.iter().any(|d| d.kind != "image") { return "There are no attached files in this chat to read.".into() }
     let room = budget.read.min(cap).max(1_200);
+    if tool == SUMMARIZE {
+        return match who {
+            Some(d) => crate::attach_digest::run(s, d, chat_id, &docs, args, room, budget).await.unwrap_or_else(|e| e),
+            None => "error: a digest needs the answering model, which is not available here".into(),
+        };
+    }
     let name = args["name"].as_str().map(str::trim).filter(|n| !n.is_empty()).map(String::from);
     let (args, tool) = (args.clone(), tool.to_string());
     let job = move || -> String {

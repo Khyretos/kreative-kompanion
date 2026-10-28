@@ -558,14 +558,15 @@ pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: 
     let mut all_uses: Vec<crate::chat_tools::ToolUse> = Vec::new();
     // CHAT-09: when some attached file was not shown in full, the model reads the rest in parts with tools (the owner's
     // answers only). Without that, the tool round is skipped: it costs a model call.
-    let docs = tools && plan.cut;
-    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none() && memory.is_none() && !docs, s.provider(&role.provider_id)) {
+    let docs_on = tools && plan.cut;
+    if let (false, Some(p)) = (servers.is_empty() && web.is_none() && knowledge.is_none() && history.is_none() && memory.is_none() && !docs_on, s.provider(&role.provider_id)) {
         let msgs: Vec<Value> = convo.iter().map(|m| m.wire(false)).collect();
+        let who = docs_on.then(|| crate::attach_digest::Digester::new(&p, &role, &user_id));
         let (bus, uid, rid, cid) = (s.bus.clone(), to.clone(), reply_id.clone(), chat_id.clone());
         let show = move |u: &crate::chat_tools::ToolUse| {
             bus.send_many(&uid, Event::MessageDelta { message_id: rid.clone(), chat_id: cid.clone(), text: format!("{}\n\n", crate::chat_tools::use_line(u)), done: false });
         };
-        let uses = crate::chat_tools::run(&s, &p, &role.model_id, &msgs, &servers, web, knowledge, history, memory, Some((files_dir.as_path(), chat_id.as_str())), docs, &show).await;
+        let uses = crate::chat_tools::run(&s, &p, &role.model_id, &msgs, &servers, web, knowledge, history, memory, Some((files_dir.as_path(), chat_id.as_str())), who.as_ref(), &show).await;
         for u in &uses {
             used_lines.push_str(&crate::chat_tools::use_line(u));
             used_lines.push_str("\n\n");
@@ -921,7 +922,7 @@ pub async fn log_call(
     .execute(&s.db)
     .await;
     // CTX-01: the meter follows every step of the chat (a summary is not the chat's context).
-    if !chat_id.is_empty() && reason != crate::context::SUMMARY_REASON && usage["prompt_tokens"].as_i64().is_some() {
+    if !chat_id.is_empty() && reason != crate::context::SUMMARY_REASON && reason != crate::attach_digest::DIGEST_REASON && usage["prompt_tokens"].as_i64().is_some() {
         crate::context::announce(s, chat_id).await;
     }
     // TASK-OVERVIEW: an open run trace shows the call at once.

@@ -177,7 +177,7 @@ pub async fn run(
     history: Option<(&str, &str)>,
     memory: Option<&str>,
     files: Option<(&std::path::Path, &str)>,
-    docs: bool,
+    docs: Option<&crate::attach_digest::Digester>,
     on_use: &(dyn Fn(&ToolUse) + Send + Sync),
 ) -> Vec<ToolUse> {
     let mut tools = Vec::new();
@@ -209,9 +209,9 @@ pub async fn run(
     }
 
     // CHAT-09: attached files other than pictures are read in parts; one answer reads about a message's budget and a half.
-    let attach = docs.then(|| crate::attach_read::Budget::new(crate::context_windows::window_for(s, &p.id, model), true));
+    let attach = docs.map(|_| crate::attach_read::Budget::new(crate::context_windows::window_for(s, &p.id, model), true));
     let mut attach_left = attach.map_or(0, |b| b.inline + b.inline / 2);
-    if docs && files.is_some() {
+    if docs.is_some() && files.is_some() {
         tools.push((ATTACH.to_string(), crate::attach_read::tools()));
     }
 
@@ -266,7 +266,7 @@ pub async fn run(
                 },
                 Some((srv, tool)) if srv == ATTACH => match (files, attach) {
                     (Some((_, chat)), Some(b)) if attach_left >= 600 => {
-                        let r = crate::attach_read::call(s, chat, &tool, &args, attach_left, b).await;
+                        let r = crate::attach_read::call(s, chat, &tool, &args, attach_left, b, docs).await;
                         attach_left = attach_left.saturating_sub(r.chars().count());
                         r
                     }

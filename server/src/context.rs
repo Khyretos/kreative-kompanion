@@ -89,10 +89,11 @@ pub struct SummaryInfo {
 pub async fn usage(s: &AppState, chat_id: &str) -> sqlx::Result<Usage> {
     let row: Option<(String, String, Option<i64>, Option<i64>, Option<i64>, Option<i64>)> = sqlx::query_as(
         "SELECT provider_id, model_id, tokens_in, tokens_out, cache_write, cache_read FROM calls
-         WHERE chat_id = ? AND tokens_in IS NOT NULL AND reason <> ? ORDER BY at DESC, rowid DESC LIMIT 1",
+         WHERE chat_id = ? AND tokens_in IS NOT NULL AND reason <> ? AND reason <> ? ORDER BY at DESC, rowid DESC LIMIT 1",
     )
     .bind(chat_id)
     .bind(SUMMARY_REASON)
+    .bind(crate::attach_digest::DIGEST_REASON)
     .fetch_optional(&s.db)
     .await?;
     let summary = summary(&s.db, chat_id).await?.map(|x| SummaryInfo { messages: x.messages, at: x.at, text: x.text });

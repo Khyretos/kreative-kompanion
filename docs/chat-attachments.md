@@ -29,6 +29,12 @@ models, else **8192 tokens**: an unknown model counts as a small one).
   line to continue from. `member` reads a text file inside a zip or tar archive.
 * **`search_attachment`** (query, name, context): lines containing the words, with line numbers and context; then
   `read_attachment from_line` near a match. This is the fast way into a big file for a small model.
+* **`summarize_attachment`** (name, from_line, focus): a digest of a long file for a question about the whole of it. The text is
+  split into parts of a bit over half the window, one short model call digests each part (at low effort), and the digests are
+  returned with their line ranges, or merged in groups first when they are too long to return. At most 8 parts a use; the
+  answer says which lines it covered and the `from_line` to go on from, and a part that fails keeps the digests before it. It
+  costs a model call per part (about 13 s each for Coder), so `search_attachment` is the way to find one thing. The calls are
+  in the call log as "Digested a part of an attached file." and the context meter does not count them.
 * A line longer than 1000 characters counts as several lines, so line numbers work for minified files and one-line logs.
 * A plain chat answer reads about a message's budget and a half per answer (then it says which line to go on from); the PC
   agent's older tool output is trimmed by its existing memory budget. The plain chat only runs the tool round when some
@@ -36,6 +42,7 @@ models, else **8192 tokens**: an unknown model counts as a small one).
 
 ## Known limits
 
+* `summarize_attachment` digests the file's text view (not a member of an archive), and its result is not kept: asking again digests again.
 * No OCR for pictures or scanned PDFs (a scan has no text layer), and no speech-to-text for audio: they are described, not read.
 * 7z and RAR archives and the old binary Office formats (`.doc`, `.xls`, `.ppt`) are only given as their readable strings.
 * Encrypted archives and documents are listed but not opened.

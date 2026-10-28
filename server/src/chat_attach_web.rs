@@ -183,7 +183,7 @@ pub async fn for_model(dir: &std::path::Path, chat_id: &str, files: &[Attached],
         let Some(page) = page else {
             plan.cut = true;
             note.push_str(&if plan.budget.tools {
-                format!("\n\n[Attached file: {} ({}). Its text is not shown here: read it with {} name=\"{}\", or find words with {}.]", f.name, human(d.size), attach_read::READ, f.name, attach_read::SEARCH)
+                format!("\n\n[Attached file: {} ({}). Its text is not shown here: read it with {} name=\"{}\", find words with {}, or get a digest of the whole with {}.]", f.name, human(d.size), attach_read::READ, f.name, attach_read::SEARCH, crate::attach_digest::SUMMARIZE)
             } else {
                 format!("\n\n[Attached file: {} ({}). Its text does not fit in what is shown to you.]", f.name, human(d.size))
             });
@@ -194,7 +194,7 @@ pub async fn for_model(dir: &std::path::Path, chat_id: &str, files: &[Attached],
         let end = if !page.more {
             format!("[End of {}]", f.name)
         } else if plan.budget.tools {
-            format!("[Lines 1-{} of {} shown. The file goes on: read the rest with {} name=\"{}\" from_line={}, or find words with {}.]", page.last, f.name, attach_read::READ, f.name, page.last + 1, attach_read::SEARCH)
+            format!("[Lines 1-{} of {} shown. The file goes on: read the rest with {} name=\"{}\" from_line={}, find words with {}, or get a digest of the whole with {}.]", page.last, f.name, attach_read::READ, f.name, page.last + 1, attach_read::SEARCH, crate::attach_digest::SUMMARIZE)
         } else {
             format!("[cut here: the rest of {} ({}) is not shown]", f.name, human(d.size))
         };

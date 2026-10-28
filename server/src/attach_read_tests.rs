@@ -216,8 +216,8 @@ fn a_text_file_inside_an_archive_can_be_read() {
 
 #[test]
 fn the_tools_are_listed_under_both_formats() {
-    assert!(is_tool("read_attachment") && is_tool("search_attachment") && !is_tool("read_file"));
-    assert_eq!(tools().len(), 2);
+    assert!(is_tool("read_attachment") && is_tool("search_attachment") && is_tool("summarize_attachment") && !is_tool("read_file"));
+    assert_eq!(tools().len(), 3);
     assert_eq!(specs()[1]["function"]["parameters"]["required"], json!(["query"]));
     for d in tools().iter().map(|t| t["description"].as_str().unwrap().len()).chain(specs().iter().map(|t| t["function"]["description"].as_str().unwrap().len())) {
         assert!(d <= 300, "the chat tool list keeps 300 characters of a description: {d}");
