@@ -1,0 +1,83 @@
+{
+  "0475acd2bdbb": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "6dc3ebcbbaa8d21419e94a6e79111bb3dc87db29",
+    "path": "server/src/chat_files.rs",
+    "reason": "Not exploitable: every caller passes a fixed extension (png, jpg, webp, txt, bin, part), never a client value, and path_for only serves a whitelist of extensions with a UUID name. But save_bytes and new_file trusted their callers; both now refuse any extension outside that list (test: the_extension_of_a_stored_file_is_one_of_the_known_ones).",
+    "title": "Missing Error Handling",
+    "verdict": "bug"
+  },
+  "21ce75d12825": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/conversation.ts",
+    "reason": "Dropping the accept attribute adds no XSS path: renderSent builds its markup with the html`` tag, whose esc() turns & < > \" and ' into entities for every interpolated value (core/html.ts), so a name like <script>x</script>.txt is shown as text in the title, aria-label and download attributes. The CSP also requires Trusted Types.",
+    "title": "Potential XSS Vector",
+    "verdict": "false_positive"
+  },
+  "8c5481c15c19": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/chat_attach_web.rs",
+    "reason": "The cited lines are text_of, which is only called for kind text. A file of kind file is deliberately not read as text: it is renamed to <uuid>.bin and gets its own text view (attach_docs::view), which describes a binary instead of failing. Whether an unknown extension is text is decided once, from its first 8 KB, in kind_of_upload (test an_upload_is_kept_by_its_extension_and_content).",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "93dc40392420": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/chat_attach_web.rs",
+    "reason": "receive wraps the whole write loop in one async block and removes the .part file on any error from it: a body stream error, a write error, flush or the size limit. Test an_upload_is_streamed_to_disk_and_only_the_users_setting_limits_it checks that a refused upload leaves nothing in the chat folder. A .part file is also never served (path_for refuses the extension).",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
+  "94335c36be5d": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/attach_read.rs",
+    "reason": "std::fs::File closes when it is dropped, including on the error path, so there is no leak. Source::open returns the BufReader or the io error and holds nothing else.",
+    "title": "Potential Resource Leak",
+    "verdict": "false_positive"
+  },
+  "d91c6a68fe34": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "6dc3ebcbbaa8d21419e94a6e79111bb3dc87db29",
+    "path": "server/src/chat_attach_web.rs",
+    "reason": "True for a PDF or web page, which is read whole to extract its text (pdftotext takes the bytes), so with no size limit a multi-GB PDF would cost that much memory. Plain text is never read whole: it is renamed and read in parts. A PDF or web page over 256 MB is now kept as a file instead (kind_of_upload, test an_upload_is_kept_by_its_extension_and_content).",
+    "title": "Missing Error Handling",
+    "verdict": "bug"
+  },
+  "e469f93d034e": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "web/src/views/attach.ts",
+    "reason": "The client-side name is never used as a path. The server keeps only the last path component of ?name= (rsplit on / and \\) for display, stores the bytes under a generated <uuid>.<ext>, and serves them through path_for, which requires a UUID name and a known extension. A download name goes through disposition(), which drops path parts, control characters and quotes.",
+    "title": "Potential Security Issue",
+    "verdict": "false_positive"
+  },
+  "f0d7788c5dfe": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/chat_attach.rs",
+    "reason": "Text is defined here as UTF-8 without NUL bytes in the first 8 KB, which is what a text reader can show; the model gets what it can read and nothing breaks if a file is oddly written. Known binary formats never take this path: a name with a reader (docx, zip, ...) stays a file, and a file with NUL bytes is binary. Test text_is_told_from_binary_by_content.",
+    "title": "Possible Issue",
+    "verdict": "false_positive"
+  },
+  "fe6620fc3b84": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/chat_files.rs",
+    "reason": "The filename in Content-Disposition is never a filesystem path on the server: the file is read from the generated UUID path. disposition() keeps only the last component after / and \\, drops control characters, quotes, ; and %, so a double-encoded %2e%2e cannot appear, and the UTF-8 form is percent-encoded. Test a_download_is_named_as_the_user_named_it covers ../../etc/pass\"wd;.zip. A name of dots only now falls back to the stored name as well.",
+    "title": "Possible Security Issue",
+    "verdict": "false_positive"
+  }
+}
