@@ -121,3 +121,29 @@ for (const scheme of ["light", "dark"] as const) {
     });
   }
 }
+
+// CTX-02: a model's context size is shown with where it came from; an admin sets it by hand or asks the server again.
+test("CTX-02: a context size by hand wins, clearing it goes back to what the server said, and a bad value is refused", async ({ page }) => {
+  await settings(page);
+  const row = page.locator('.provider[data-provider="ovms"] .model-row').first();
+  await expect(row).toContainText("32,768 tokens of context · detected: the server's model list");
+  const input = row.locator(".ctx-input");
+  await input.fill("60000");
+  await input.blur();
+  await expect(row).toContainText("60,000 tokens of context · set by you");
+  await input.fill("");
+  await input.blur();
+  await expect(row).toContainText("32,768 tokens of context · detected");
+  await row.locator('[data-action="ctx-detect"]').click();
+  await expect(row).toContainText("32,768 tokens of context · detected");
+  // Too small: refused, and the field goes back to what it was.
+  await input.fill("12");
+  await input.blur();
+  await expect(page.locator("body")).toContainText("a number of tokens from 1,000 to 10,000,000");
+  await expect(input).toHaveValue("");
+  // A cloud model whose size is known by name; a server that cannot say tells so.
+  const cloud = page.locator('.provider[data-provider="anthropic"] .model-row').first();
+  await expect(cloud).toContainText("200,000 tokens of context · known for this model");
+  await cloud.locator('[data-action="ctx-detect"]').click();
+  await expect(page.locator("body")).toContainText("the server did not say its context size");
+});

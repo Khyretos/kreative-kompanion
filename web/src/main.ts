@@ -689,6 +689,12 @@ async function refreshProviders(): Promise<void> {
   store.set({ providers });
 }
 
+/** CTX-02: a model's new size fields, into the providers list without a reload. */
+function applyContext(providerId: string, info: import("./api/types").ContextInfo): void {
+  const providers = store.get().providers.map((p) => p.id !== providerId ? p : { ...p, models: p.models.map((m) => m.id === info.id ? { ...m, ...info } : m) });
+  store.set({ providers });
+}
+
 /** PROV-UI: the provider form's fields, as typed. */
 function readProviderForm(f: HTMLFormElement): import("./api/types").ProviderDraft {
   const v = (n: string) => (f.elements.namedItem(n) as HTMLInputElement | null)?.value ?? "";
@@ -1349,6 +1355,14 @@ function wire(shell: HTMLElement): void {
       store.set({ providerForm: undefined, providerFormError: undefined });
       focusSoon(id ? `[data-action="provider-edit"][data-id="${CSS.escape(id)}"]` : '[data-action="add-provider"]');
     },
+    // CTX-02: ask a model's server for its context size now.
+    "ctx-detect": (el) => {
+      const [providerId, modelId] = [el.dataset.provider ?? "", el.dataset.model ?? ""];
+      return api.detectContextSize(providerId, modelId).then((r) => {
+        applyContext(providerId, r);
+        if (!r.found) showError(t("mctxNoneFound", { model: modelId }));
+      }, showError);
+    },
     "provider-remove": (el) => {
       const id = el.dataset.id ?? "";
       const name = store.get().providers.find((p) => p.id === id)?.name ?? id;
@@ -1917,6 +1931,21 @@ function wire(shell: HTMLElement): void {
       const n = Number.isFinite(raw) && String((ev.target as HTMLInputElement).value).trim() !== "" ? Math.min(100, Math.max(0, Math.round(raw))) : 10;
       (ev.target as HTMLInputElement).value = String(n);
       api.setMaxSteps(n).then(() => store.set({ maxSteps: n }), showError);
+      return;
+    }
+    // CTX-02: a model's context size typed in Settings (empty: automatic).
+    if ((ev.target as HTMLElement).classList.contains("ctx-input")) {
+      const input = ev.target as HTMLInputElement;
+      const [providerId, modelId] = [input.dataset.provider ?? "", input.dataset.model ?? ""];
+      const was = store.get().providers.find((p) => p.id === providerId)?.models.find((m) => m.id === modelId)?.contextManual ?? null;
+      const raw = Number(input.value);
+      const tokens = input.value.trim() === "" ? null : Math.round(raw);
+      if (tokens !== null && (!Number.isFinite(raw) || tokens < 1_000 || tokens > 10_000_000)) {
+        input.value = was === null ? "" : String(was);
+        showError(t("mctxBad"));
+        return;
+      }
+      api.setContextSize(providerId, modelId, tokens).then((r) => applyContext(providerId, r), showError);
       return;
     }
     if (fid === "max-upload-mb") {

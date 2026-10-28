@@ -15,12 +15,20 @@ export interface ModelProvider {
 
 export interface ModelInfo {
   id: string; // "qwen3.5-9b"
-  // Measured by the setup check; undefined until tested.
-  contextTokens?: number;
+  // CTX-02: the context size in use and where it came from (null: not known, 8,192 is assumed).
+  contextTokens?: number | null;
+  contextSource?: "manual" | "learned" | "provider" | "detected" | "known" | null;
+  contextManual?: number | null; // set by an admin in Settings
+  contextDetected?: number | null; // what the server said
+  contextFrom?: string | null; // and which of its answers
+  contextLearned?: number | null; // the limit a server named when it refused a prompt
   tokensPerSecond?: number;
   toolCalls?: boolean;
   jsonSchema?: boolean;
 }
+
+/** CTX-02: the size fields of one model, as the server answers a change. */
+export type ContextInfo = Pick<ModelInfo, "id" | "contextTokens" | "contextSource" | "contextManual" | "contextDetected" | "contextFrom" | "contextLearned">;
 
 export interface RoleAssignment {
   role: Role;

@@ -377,7 +377,15 @@ async fn ask_model(s: &AppState, r: &Run, role: &RoleAssignment, reason: &str, s
     let answer = llm::chat_with_tools_full(&s.http, &p, &model_id, &messages, &json!([])).await;
     let (msg, usage, err) = match answer {
         Ok((m, u)) => (m, u, None),
-        Err(e) => (Value::Null, Value::Null, Some(format!("{e:#}"))),
+        Err(e) => {
+            let mut text = format!("{e:#}");
+            // CTX-02: a server that refused the prompt as too long names its limit: keep it for this model.
+            let chars: usize = messages.iter().map(|m| m.to_string().chars().count()).sum();
+            if let Some(note) = crate::context_windows::learn(s, &p.id, &model_id, &text, chars).await {
+                text = format!("{text}\n\n{note}");
+            }
+            (Value::Null, Value::Null, Some(text))
+        }
     };
     api::log_call(s, &r.user_id, &r.chat_id, Some(&r.run_id), &role.role, role, reason, &json!({ "messages": messages }), &msg, &usage,
         started.elapsed().as_millis(), err.as_deref(), r.effort_for(role)).await;

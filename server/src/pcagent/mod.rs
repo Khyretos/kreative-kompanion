@@ -237,7 +237,7 @@ async fn remembered(s: &AppState, chat_id: &str, role: &RoleAssignment) -> Optio
 /// rest of a long file is read with the attachment tools (CHAT-09).
 async fn chat_lines(s: &AppState, chat_id: &str, role: &RoleAssignment, lines: Vec<(String, String)>) -> Vec<Value> {
     let (model, dir) = (role.model_id.as_str(), crate::chat_files::dir_for(&s.config.database));
-    let mut plan = crate::attach_read::Plan::new(crate::context::window(s.provider(&role.provider_id).as_ref(), model), true);
+    let mut plan = crate::attach_read::Plan::new(crate::context_windows::window_for(s, &role.provider_id, model), true);
     let mut pictures_left = true;
     let mut out = Vec::new();
     for (author, text) in lines.into_iter().rev() {
@@ -439,8 +439,9 @@ impl Agent {
             mcp_map = map;
         }
         let (p, model_id) = crate::effort::apply(&p, &self.role.model_id, self.effort);
+        crate::context_windows::ensure(s, &p.id, &model_id).await;
         let budget = result_budget(p.local);
-        let attach = crate::attach_read::Budget::new(crate::context::window(Some(&p), &model_id), true);
+        let attach = crate::attach_read::Budget::new(crate::context_windows::window_for(s, &p.id, &model_id), true);
         // Answers in a row that hit the output limit before their tool call was complete.
         let mut cut_offs = 0;
         // DOGFOOD: an answer that only announced its next step ("Now I'll find the folder.") gets one nudge.
@@ -465,7 +466,15 @@ impl Agent {
             let answer = llm::chat_with_tools_full(&s.http, &p, &model_id, &messages, &tools).await;
             let (msg, usage, err) = match answer {
                 Ok((m, u)) => (m, u, None),
-                Err(e) => (Value::Null, Value::Null, Some(format!("The model failed: {e:#}"))),
+                Err(e) => {
+                    let mut msg = format!("The model failed: {e:#}");
+                    // CTX-02: a server that refused the prompt as too long names its limit: keep it for this model.
+                    let chars: usize = messages.iter().map(|m| m.to_string().chars().count()).sum();
+                    if let Some(note) = crate::context_windows::learn(s, &p.id, &model_id, &msg, chars).await {
+                        msg = format!("{msg}\n\n{note}");
+                    }
+                    (Value::Null, Value::Null, Some(msg))
+                }
             };
             // TASK-OVERVIEW: what this call got that the one before did not (the whole prompt the first
             // time), so a run's trace shows each call's input without storing the history again and again.

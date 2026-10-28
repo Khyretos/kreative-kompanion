@@ -305,17 +305,31 @@ if ((globalThis as { __kkDemoBoard?: boolean }).__kkDemoBoard) {
 const providers: ModelProvider[] = [
   {
     id: "ovms", name: "OVMS on kireserver", kind: "openai-compatible", baseUrl: "https://ai.example.lan/v3", local: true,
-    models: [{ id: "qwen3.5-9b", contextTokens: 32768, tokensPerSecond: 38, toolCalls: true, jsonSchema: true }],
+    models: [{ id: "qwen3.5-9b", contextTokens: 32768, contextSource: "detected", contextDetected: 32768, contextFrom: "the server's model list", tokensPerSecond: 38, toolCalls: true, jsonSchema: true }],
   },
   {
     id: "deepseek", name: "DeepSeek", kind: "openai-compatible", baseUrl: "https://api.deepseek.com", local: false,
-    models: [{ id: "deepseek-chat", contextTokens: 131072, toolCalls: true, jsonSchema: true }],
+    models: [{ id: "deepseek-chat", contextTokens: 131072, contextSource: "known", toolCalls: true, jsonSchema: true }],
   },
   {
     id: "anthropic", name: "Claude (Anthropic API)", kind: "anthropic", baseUrl: "https://api.anthropic.com", local: false,
-    models: [{ id: "claude-sonnet-5-5", contextTokens: 200000, toolCalls: true, jsonSchema: true }],
+    models: [{ id: "claude-sonnet-5-5", contextTokens: 200000, contextSource: "known", toolCalls: true, jsonSchema: true }],
   },
 ];
+
+/** CTX-02: the demo's models keep a size by hand, one learned and one detected like the server does: manual, learned, detected, known. */
+function demoContext(providerId: string, modelId: string, change: (m: import("./types").ModelInfo) => void): import("./types").ContextInfo {
+  const m = providers.find((p) => p.id === providerId)?.models.find((x) => x.id === modelId);
+  if (!m) throw new Error("No such model");
+  const known = m.contextSource === "known" ? m.contextTokens ?? null : (m as { known?: number | null }).known ?? null;
+  (m as { known?: number | null }).known = known;
+  change(m);
+  const [tokens, source] = m.contextManual != null ? [m.contextManual, "manual"] : m.contextLearned != null ? [m.contextLearned, "learned"]
+    : m.contextDetected != null ? [m.contextDetected, "detected"] : known != null ? [known, "known"] : [null, null];
+  m.contextTokens = tokens;
+  m.contextSource = source as import("./types").ModelInfo["contextSource"];
+  return { id: m.id, contextTokens: m.contextTokens, contextSource: m.contextSource, contextManual: m.contextManual ?? null, contextDetected: m.contextDetected ?? null, contextFrom: m.contextFrom ?? null, contextLearned: m.contextLearned ?? null };
+}
 
 const overseerPrefs = { name: "Loquendo", interject: true };
 let demoMaxSteps = 10; // AUTO-01
@@ -466,6 +480,11 @@ export class MockApi implements KompanionApi {
   async setGpuPins() {}
   async setMaxSteps(n: number) { demoMaxSteps = n; }
   async setMaxUploadMb(n: number) { demoMaxUploadMb = n; }
+  async setContextSize(providerId: string, modelId: string, tokens: number | null) { return demoContext(providerId, modelId, (m) => { m.contextManual = tokens; }); }
+  async detectContextSize(providerId: string, modelId: string) {
+    const info = demoContext(providerId, modelId, (m) => { m.contextLearned = null; });
+    return { ...info, found: info.contextDetected != null };
+  }
   async setExplainPrefs(p: import("./types").ExplainPrefs) { demoExplain = { ...p }; }
   // PROV-UI: providers added in Settings (checked like the server) and new projects.
   async listCustomProviders() { return structuredClone({ providers: demoCustom, secretDirs: ["/run/secrets", "/data/secrets"] }); }

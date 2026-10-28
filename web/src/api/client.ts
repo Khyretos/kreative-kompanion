@@ -125,6 +125,10 @@ export interface KompanionApi {
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }): Promise<void>;
   setMaxSteps(maxSteps: number): Promise<void>;
   setMaxUploadMb(maxUploadMb: number): Promise<void>;
+  /** CTX-02 (admins): a model's context size by hand; null goes back to automatic. */
+  setContextSize(providerId: string, modelId: string, tokens: number | null): Promise<import("./types").ContextInfo>;
+  /** CTX-02 (admins): ask the server now; `found` says whether it answered with a size. */
+  detectContextSize(providerId: string, modelId: string): Promise<import("./types").ContextInfo & { found: boolean }>;
   /** CMD-01: the "Explain running actions" settings, and a step's explanation (made on first ask). */
   setExplainPrefs(p: import("./types").ExplainPrefs): Promise<void>;
   /** PROV-UI: providers added in Settings (admins), and a new project. */

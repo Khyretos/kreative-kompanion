@@ -2,8 +2,8 @@
 // remove their own (those from kompanion.toml stay as they are). A key is never shown or sent: the
 // form names the environment variable or the secret file that holds it.
 import { html, type SafeHtml } from "../core/html";
-import { t } from "../core/i18n";
-import type { CustomProvider, ProviderDraft } from "../api/types";
+import { num, t } from "../core/i18n";
+import type { CustomProvider, ModelInfo, ProviderDraft } from "../api/types";
 import type { AppState } from "../state";
 import { icon } from "./icons";
 
@@ -84,6 +84,26 @@ function providerForm(d: ProviderDraft, error: string | undefined, dirs: string[
   </form>`;
 }
 
+/** CTX-02: the context size in use and where it came from, as a chip. */
+function contextChip(m: ModelInfo): SafeHtml {
+  if (!m.contextTokens) return html`<span class="chip" title="${t("mctxHelp")}">${t("mctxUnknown")}</span>`;
+  const why = {
+    manual: t("mctxManual"), learned: t("mctxLearned"), provider: t("mctxProvider"), known: t("mctxKnown"),
+    detected: t("mctxDetected", { from: m.contextFrom ?? "" }),
+  }[m.contextSource ?? "known"];
+  return html`<span class="chip" title="${t("mctxHelp")}">${t("mctxTokens", { n: num(m.contextTokens) })} · ${why}</span>`;
+}
+
+/** CTX-02 (admins): set a model's size by hand (empty: automatic), or ask its server now. */
+function contextTools(providerId: string, m: ModelInfo): SafeHtml {
+  return html`<span class="ctx-tools">
+    <label class="small muted">${t("mctxSet")}
+      <input class="ctx-input" type="number" min="1000" max="10000000" step="1000" placeholder="${t("mctxAuto")}" value="${m.contextManual ?? ""}" data-provider="${providerId}" data-model="${m.id}">
+    </label>
+    <button class="btn small" type="button" data-action="ctx-detect" data-provider="${providerId}" data-model="${m.id}">${t("mctxDetect")}</button>
+  </span>`;
+}
+
 /** The "Connected models" section: every provider with its models; an admin's own ones editable. */
 export function providersSection(s: AppState): SafeHtml {
   const custom = new Map((s.customProviders?.providers ?? []).map((p) => [p.id, p]));
@@ -110,17 +130,19 @@ export function providersSection(s: AppState): SafeHtml {
           <div class="model-row">
             <code>${m.id}</code>
             <span class="chips">
-              ${m.contextTokens ? html`<span class="chip">${Math.round(m.contextTokens / 1024)}k context</span>` : ""}
+              ${contextChip(m)}
               ${m.tokensPerSecond ? html`<span class="chip">${m.tokensPerSecond} tok/s</span>` : ""}
               ${m.toolCalls === undefined ? html`<span class="chip">not tested yet</span>` : html`
                 <span class="chip ${m.toolCalls ? "good" : "bad"}">tool calls ${m.toolCalls ? "ok" : "no"}</span>
                 <span class="chip ${m.jsonSchema ? "good" : "bad"}">JSON schema ${m.jsonSchema ? "ok" : "no"}</span>`}
             </span>
+            ${s.isAdmin ? contextTools(p.id, m) : ""}
           </div>`)}
       </li>`;
     })}</ul>
     ${form && !form.id ? providerForm(form, s.providerFormError, s.customProviders?.secretDirs ?? []) : ""}
     ${s.isAdmin && !form ? html`<button class="btn" id="add-provider" type="button" data-action="add-provider">${icon("plus")} ${t("provAdd")}</button>` : ""}
+    <p class="muted small">${t("mctxHelp")}</p>
     ${s.isAdmin ? "" : html`<p class="muted small">${t("provAdminOnly")}</p>`}
   </section>`;
 }

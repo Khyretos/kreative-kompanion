@@ -25,10 +25,7 @@ pub const SUMMARY_REASON: &str = "Summarised the older messages of this chat.";
 /// Tokens the model takes in at most: the provider's `context_window`, else a known size for common
 /// cloud models (about; providers change them), else unknown.
 pub fn window(p: Option<&ProviderConfig>, model: &str) -> Option<i64> {
-    if let Some(w) = p.and_then(|p| p.context_window) {
-        return Some(i64::from(w));
-    }
-    known_window(model)
+    crate::context_windows::resolve(None, p, model).map(|r| r.0)
 }
 
 pub fn known_window(model: &str) -> Option<i64> {
@@ -103,7 +100,7 @@ pub async fn usage(s: &AppState, chat_id: &str) -> sqlx::Result<Usage> {
         Some((provider, model, i, o, cw, cr)) => Usage {
             chat_id: chat_id.into(),
             used: used(i, o, cw, cr),
-            window: window(s.provider(&provider).as_ref(), &model),
+            window: crate::context_windows::window_for(s, &provider, &model),
             model: Some(model),
             summary,
         },

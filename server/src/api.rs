@@ -504,7 +504,8 @@ pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: 
     let files_dir = crate::chat_files::dir_for(&s.config.database);
     let mut pictures_left = true;
     // CHAT-09: one budget for the files of the whole prompt, sized to the model's window (an unknown one counts as small).
-    let mut plan = crate::attach_read::Plan::new(crate::context::window(s.provider(&role.provider_id).as_ref(), &role.model_id), tools);
+    crate::context_windows::ensure(&s, &role.provider_id, &role.model_id).await;
+    let mut plan = crate::attach_read::Plan::new(crate::context_windows::window_for(&s, &role.provider_id, &role.model_id), tools);
     let mut turns: Vec<ChatMessage> = Vec::new();
     for (author, text) in history.into_iter().rev() {
         let (text, files) = crate::chat_attach::split(&text);
@@ -674,6 +675,13 @@ pub(crate) async fn answer(s: AppState, user_id: String, chat_id: String, role: 
         },
     }
     }
+    // CTX-02: a server that refused the prompt as too long names its limit: keep it for this model.
+    if let Some(e) = error.clone() {
+        let chars: usize = convo.iter().map(|m| m.content.chars().count()).sum();
+        if let Some(note) = crate::context_windows::learn(&s, &used_provider, &used, &e, chars).await {
+            error = Some(format!("{e}\n\n{note}"));
+        }
+    }
     if error.is_none() && used != role.model_id {
         let note = format!("\n\n_({} was busy, so `{used}` answered.)_", role.model_id);
         text.push_str(&note);
@@ -812,6 +820,7 @@ pub async fn providers(State(s): State<AppState>) -> Json<Vec<Value>> {
     let all = s.providers();
     let probes = all.iter().map(|p| {
         let http = s.http.clone();
+        let s = s.clone();
         async move {
             let (models, error) = match llm::list_models(&http, p).await {
                 Ok(m) => match llm::check_chat_auth(&http, p).await {
@@ -820,6 +829,8 @@ pub async fn providers(State(s): State<AppState>) -> Json<Vec<Value>> {
                 },
                 Err(e) => (vec![], Some(format!("{e:#}"))),
             };
+            // CTX-02: models nobody has asked about yet are asked now, so the list shows their size.
+            futures::future::join_all(models.iter().map(|m| crate::context_windows::probe_if_new(&s, p, &m.id))).await;
             json!({
                 "id": p.id,
                 "name": p.name,
@@ -828,7 +839,7 @@ pub async fn providers(State(s): State<AppState>) -> Json<Vec<Value>> {
                 "local": p.local,
                 "hasKey": p.api_key().is_some(),
                 "error": error,
-                "models": models.iter().map(|m| json!({ "id": m.id })).collect::<Vec<_>>(),
+                "models": models.iter().map(|m| crate::context_windows::model_fields(&s, p, &m.id)).collect::<Vec<_>>(),
             })
         }
     });

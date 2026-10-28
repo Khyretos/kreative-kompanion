@@ -209,7 +209,7 @@ pub async fn run(
     }
 
     // CHAT-09: attached files other than pictures are read in parts; one answer reads about a message's budget and a half.
-    let attach = docs.then(|| crate::attach_read::Budget::new(crate::context::window(Some(p), model), true));
+    let attach = docs.then(|| crate::attach_read::Budget::new(crate::context_windows::window_for(s, &p.id, model), true));
     let mut attach_left = attach.map_or(0, |b| b.inline + b.inline / 2);
     if docs && files.is_some() {
         tools.push((ATTACH.to_string(), crate::attach_read::tools()));

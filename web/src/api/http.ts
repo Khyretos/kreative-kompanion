@@ -74,6 +74,8 @@ export class HttpApi implements KompanionApi {
   setOverseer(change: { overseerName?: string; overseerInterject?: boolean }) { return this.request<void>("PUT", "/me/prefs", change); }
   setMaxSteps(maxSteps: number) { return this.request<void>("PUT", "/me/prefs", { maxSteps }); }
   setMaxUploadMb(maxUploadMb: number) { return this.request<void>("PUT", "/me/prefs", { maxUploadMb }); }
+  setContextSize(providerId: string, modelId: string, tokens: number | null) { return this.request<import("./types").ContextInfo>("PUT", "/admin/context-size", { providerId, modelId, tokens }); }
+  detectContextSize(providerId: string, modelId: string) { return this.request<import("./types").ContextInfo & { found: boolean }>("POST", "/admin/context-size/detect", { providerId, modelId }); }
   setExplainPrefs(explain: import("./types").ExplainPrefs) { return this.request<void>("PUT", "/me/prefs", { explain }); }
   listCustomProviders() { return this.request<{ providers: import("./types").CustomProvider[]; secretDirs: string[] }>("GET", "/admin/providers"); }
   addProvider(p: import("./types").ProviderInput) { return this.request<import("./types").CustomProvider>("POST", "/admin/providers", p); }

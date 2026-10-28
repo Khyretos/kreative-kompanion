@@ -8,6 +8,8 @@ mod capmatrix;
 mod config;
 mod facts;
 mod context;
+mod context_detect;
+mod context_windows;
 mod explain;
 mod trace;
 mod webpush;
@@ -118,6 +120,8 @@ pub struct AppState {
     pub windshift: bool,
     /// PROV-UI: providers an admin added in Settings (custom_providers), next to the config file's.
     pub custom_providers: Arc<std::sync::RwLock<Vec<config::ProviderConfig>>>,
+    /// CTX-02: what is known about each model's context size (saved in model_context).
+    pub windows: context_windows::Windows,
 }
 
 impl AppState {
@@ -151,6 +155,7 @@ impl AppState {
             host: Default::default(),
             windshift: false,
             custom_providers: Default::default(),
+            windows: Default::default(),
         }
     }
 
@@ -297,8 +302,10 @@ async fn main() -> anyhow::Result<()> {
         host: Default::default(),
         windshift: windshift.is_some() && config.features.windshift,
         custom_providers: Default::default(),
+        windows: Default::default(),
     };
     providers_admin::load(&state).await;
+    context_windows::load(&state).await;
     if args.get(1).map(String::as_str) == Some("studio-run") {
         return studio::cli(&state, &args[2..]).await;
     }
@@ -341,6 +348,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/test-mail", post(admin::test_mail))
         .route("/admin/providers", get(providers_admin::list).post(providers_admin::create))
         .route("/admin/providers/{id}", axum::routing::put(providers_admin::update).delete(providers_admin::delete))
+        .route("/admin/context-size", axum::routing::put(context_windows::put_size))
+        .route("/admin/context-size/detect", post(context_windows::detect))
         .route(
             "/admin/logo",
             axum::routing::put(admin::put_logo)
