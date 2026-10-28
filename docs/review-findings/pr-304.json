@@ -44,6 +44,15 @@
     "title": "Potential Resource Leak",
     "verdict": "false_positive"
   },
+  "d8811a7fb3ed": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "",
+    "path": "server/src/attach_read_tests.rs",
+    "reason": "A test that panics before its last line leaves its directory under the system temp dir, named kk-read-<uuid>, which the operating system clears. Every test in this repo cleans up the same way (remove_dir_all(&d).ok() at the end), and a guard type for it would add code to test files only. The finding itself calls it a minor concern for unit tests.",
+    "title": "Missing Error Handling",
+    "verdict": "false_positive"
+  },
   "d91c6a68fe34": {
     "by": "kompanion",
     "checked": true,
@@ -51,6 +60,15 @@
     "path": "server/src/chat_attach_web.rs",
     "reason": "True for a PDF or web page, which is read whole to extract its text (pdftotext takes the bytes), so with no size limit a multi-GB PDF would cost that much memory. Plain text is never read whole: it is renamed and read in parts. A PDF or web page over 256 MB is now kept as a file instead (kind_of_upload, test an_upload_is_kept_by_its_extension_and_content).",
     "title": "Missing Error Handling",
+    "verdict": "bug"
+  },
+  "da85fed55aaa": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "87bf78797dcdef46994cc4b6fe9795983c5d81b6",
+    "path": "server/src/chat_attach_web.rs",
+    "reason": "The reviewer's claim is wrong in two parts: the original is not lost (it was renamed to <uuid>.bin and stays), and attach_docs::view cannot fail (every error inside it becomes text in the view; a panicked worker falls back to a plain description). But the write of the view file can fail, for example on a full disk, and then the renamed .bin stayed behind with no attachment pointing at it. keep now removes it when that write fails.",
+    "title": "Possible Resource Leak",
     "verdict": "bug"
   },
   "e469f93d034e": {
@@ -61,6 +79,15 @@
     "reason": "The client-side name is never used as a path. The server keeps only the last path component of ?name= (rsplit on / and \\) for display, stores the bytes under a generated <uuid>.<ext>, and serves them through path_for, which requires a UUID name and a known extension. A download name goes through disposition(), which drops path parts, control characters and quotes.",
     "title": "Potential Security Issue",
     "verdict": "false_positive"
+  },
+  "e4795914ab81": {
+    "by": "kompanion",
+    "checked": true,
+    "fixed": "87bf78797dcdef46994cc4b6fe9795983c5d81b6",
+    "path": "server/src/attach_read.rs",
+    "reason": "The mechanism described is not real: a line ends only at b'\\\\n' (CRLF included), so U+2028 and U+2029 are ordinary characters inside a line and the `ended` test cannot miss them; a multi-byte character split by a chunk is kept for the next chunk (test a_long_line_is_split_so_line_numbers_always_work). But checking the chunk boundary found a real off-by-one: a line of exactly 64 KiB, whose newline arrives alone in the next chunk, was counted with one extra blank line. scan now knows when a line continues from an earlier chunk (test a_newline_at_a_chunk_boundary_is_not_a_blank_line_and_only_newline_ends_a_line, which also covers CRLF and U+2028/2029).",
+    "title": "Incorrect Line Numbering for Multi-byte UTF-8",
+    "verdict": "bug"
   },
   "f0d7788c5dfe": {
     "by": "kompanion",
