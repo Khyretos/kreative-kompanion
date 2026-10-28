@@ -66,6 +66,8 @@ fn a_download_is_named_as_the_user_named_it() {
     assert_eq!(disposition(Some("../../etc/pass\"wd;.zip"), stored), "attachment; filename=\"passwd.zip\"; filename*=UTF-8''passwd.zip");
     assert_eq!(disposition(Some("café.zip"), stored), "attachment; filename=\"caf_.zip\"; filename*=UTF-8''caf%C3%A9.zip");
     assert_eq!(disposition(Some("  "), stored), disposition(None, stored));
+    assert_eq!(disposition(Some(".."), stored), disposition(None, stored), "dots alone are no name");
+    assert_eq!(disposition(Some("../.."), stored), disposition(None, stored));
 }
 
 #[tokio::test]
@@ -76,5 +78,16 @@ async fn saves_a_blend_file_that_is_only_downloaded() {
     assert!(path_for(&d, "chat-1", &name).is_some());
     assert_eq!(content_type(&name), "application/octet-stream");
     assert!(save(&d, "chat-1", "text/html", "PGI+").await.is_err());
+    std::fs::remove_dir_all(&d).ok();
+}
+
+#[tokio::test]
+async fn the_extension_of_a_stored_file_is_one_of_the_known_ones() {
+    let d = tmp();
+    for bad in ["../x", "a/b", "exe", "", "PNG", "png/../../x"] {
+        assert!(save_bytes(&d, "chat-1", bad, b"x").await.is_err(), "{bad}");
+        assert!(new_file(&d, "chat-1", bad).await.is_err(), "{bad}");
+    }
+    for ok in ["png", "jpg", "webp", "txt", "bin", "part"] { assert!(new_file(&d, "chat-1", ok).await.is_ok(), "{ok}") }
     std::fs::remove_dir_all(&d).ok();
 }

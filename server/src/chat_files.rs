@@ -66,9 +66,15 @@ pub async fn save(dir: &Path, chat_id: &str, mime: &str, data_b64: &str) -> anyh
     save_bytes(dir, chat_id, ext, &bytes).await
 }
 
+/// The extensions a chat's files may have: the callers pass fixed ones, and this keeps it so ("part" is a file still being received).
+fn ext_ok(ext: &str) -> bool {
+    ["png", "jpg", "webp", "part"].contains(&ext) || FILE_EXTS.contains(&ext)
+}
+
 /// A new file name <uuid v4>.<ext> under the chat and its path (the chat's folder is made, the file is not).
 pub async fn new_file(dir: &Path, chat_id: &str, ext: &str) -> anyhow::Result<(String, PathBuf)> {
     if !safe_id(chat_id) { anyhow::bail!("bad chat id") }
+    if !ext_ok(ext) { anyhow::bail!("bad file type") }
     let folder = dir.join(chat_id);
     tokio::fs::create_dir_all(&folder).await?;
     let name = format!("{}.{ext}", uuid::Uuid::new_v4());
@@ -79,6 +85,7 @@ pub async fn new_file(dir: &Path, chat_id: &str, ext: &str) -> anyhow::Result<(S
 /// Writes bytes under the chat as <uuid v4>.<ext>; returns the file name.
 pub async fn save_bytes(dir: &Path, chat_id: &str, ext: &str, bytes: &[u8]) -> anyhow::Result<String> {
     if !safe_id(chat_id) { anyhow::bail!("bad chat id") }
+    if !ext_ok(ext) { anyhow::bail!("bad file type") }
     if ext == "bin" {
         if bytes.len() > MAX_ATTACHMENT { anyhow::bail!("file too large (the limit is {} MB)", MAX_ATTACHMENT / 1024 / 1024) }
     } else if bytes.len() > MAX_BYTES {
@@ -109,7 +116,7 @@ pub struct Download { name: Option<String> }
 fn disposition(wanted: Option<&str>, stored: &str) -> String {
     let clean: String = wanted.unwrap_or("").rsplit(['/', '\\']).next().unwrap_or("").chars()
         .filter(|c| !c.is_control() && !matches!(c, '"' | ';' | '%')).take(200).collect();
-    let name = if clean.trim().is_empty() { stored.to_string() } else { clean };
+    let name = if clean.trim().is_empty() || clean.chars().all(|c| c == '.') { stored.to_string() } else { clean };
     let ascii: String = name.chars().map(|c| if c.is_ascii() { c } else { '_' }).collect();
     let mut encoded = String::new();
     for b in name.bytes() {

@@ -10,6 +10,9 @@ use crate::{AppState, attach_docs::{self, human}, attach_read::{self, Plan}, aut
 pub const MAX_FILES: usize = 8;
 /// A picture bigger than this is not sent to the model (providers refuse it); the model is told it exists.
 const MAX_MODEL_PICTURE: u64 = 20 * 1024 * 1024;
+/// A PDF or web page is read whole into memory to extract its text; above this size it is kept as a file (its text view is
+/// then only the readable strings in it) instead of costing that much memory.
+const MAX_EXTRACT: u64 = 256 << 20;
 /// Below this many characters of room a file is only named, not shown.
 const MIN_INLINE: usize = 400;
 
@@ -99,6 +102,16 @@ async fn keep(dir: &std::path::Path, chat_id: &str, name: &str, kind: &str, got:
     Ok(stored)
 }
 
+/// How an upload is kept: by its extension, except that an unknown extension holding text is text and a PDF or web page
+/// over `MAX_EXTRACT` is a file.
+fn kind_of_upload(name: &str, size: u64, head: &[u8]) -> &'static str {
+    match kind_for(name) {
+        "file" if !attach_docs::has_reader(name) && looks_like_text(head, size > head.len() as u64) => "text",
+        "text" if size > MAX_EXTRACT && matches!(attach_docs::ext_of(name).as_str(), "pdf" | "html" | "htm") => "file",
+        k => k,
+    }
+}
+
 /// POST /api/chats/{id}/attachments?name=: stores one file for the next message and says how it was kept.
 /// The body is streamed to disk; the size limit is the user's setting (none by default).
 pub async fn upload(State(s): State<AppState>, Extension(u): Extension<User>, Path(chat_id): Path<String>, Query(q): Query<Upload>, body: Body) -> ApiResult<(StatusCode, Json<Attached>)> {
@@ -113,7 +126,7 @@ pub async fn upload(State(s): State<AppState>, Extension(u): Extension<User>, Pa
         return Err(ApiError::BadRequest("The file needs a name and content.".into()));
     }
     // An unknown extension (.lua, .tscn, .svg ...) that holds text is read like a text file; anything else is kept as it is.
-    let kind = match kind_for(&name) { "file" if !attach_docs::has_reader(&name) && looks_like_text(&got.head, got.size > got.head.len() as u64) => "text", k => k };
+    let kind = kind_of_upload(&name, got.size, &got.head);
     let kept = keep(&dir, &chat_id, &name, kind, &got).await;
     if kept.is_err() || kind == "text" { tokio::fs::remove_file(&got.path).await.ok(); }
     let file = kept.map_err(bad)?;

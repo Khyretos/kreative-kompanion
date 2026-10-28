@@ -185,3 +185,16 @@ async fn a_picture_too_big_for_the_model_is_named_not_sent() {
     assert!(images.is_empty());
     std::fs::remove_dir_all(&d).ok();
 }
+
+#[test]
+fn an_upload_is_kept_by_its_extension_and_content() {
+    assert_eq!(kind_of_upload("a.png", 10, b"x"), "image");
+    assert_eq!(kind_of_upload("a.rs", 10, b"fn main() {}"), "text");
+    assert_eq!(kind_of_upload("main.lua", 12, b"print('hi')\n"), "text", "an unknown extension that holds text");
+    assert_eq!(kind_of_upload("a.exe", 12, b"MZ\0\0"), "file");
+    assert_eq!(kind_of_upload("a.docx", 12, b"plain words"), "file", "a format with a reader stays a file whatever it looks like");
+    assert_eq!(kind_of_upload("a.pdf", 5 << 20, b"%PDF"), "text");
+    assert_eq!(kind_of_upload("a.pdf", MAX_EXTRACT + 1, b"%PDF"), "file", "too big to read into memory");
+    assert_eq!(kind_of_upload("a.HTML", MAX_EXTRACT + 1, b"<html>"), "file");
+    assert_eq!(kind_of_upload("big.log", MAX_EXTRACT + 1, b"line"), "text", "plain text is never read whole, so it has no cap");
+}
